@@ -4,7 +4,7 @@ Open-source club tennis league software: the database and the API. Everything
 people see — websites, phone apps, Telegram bots — is built on top by whoever
 wants it, and they keep whatever they put on it.
 
-**Status:** data model complete and verified — 14 tables, 6 views, 37 database checks
+**Status:** data model complete and verified — 14 tables, 7 views, 64 database checks
 green against a real Postgres. The API service is next.
 
 ## What is here
@@ -13,6 +13,8 @@ green against a real Postgres. The API service is next.
 packages/schema   Zod schemas: scores, match formats, league rules      MIT
 packages/db       Postgres schema and migrations (Drizzle)              AGPL
 docs/DATA-MODEL.md  How the model works and why it is shaped this way
+docs/SCHEMA.md      Generated column-by-column reference for every table,
+                    view and function
 ```
 
 ## Getting started
@@ -28,7 +30,7 @@ To run it for real:
 ```bash
 cp .env.example .env
 docker compose up -d
-npm run db:migrate
+npm run db:migrate    # as the table owner; the app itself connects as deuceleague_app
 ```
 
 ## The model in one screen
@@ -64,7 +66,7 @@ system. The core answers *who still has matches outstanding and how long is
 left*; whether an email goes out, and what it says, is the coach's call. See
 [docs/DATA-MODEL.md § No scheduling](docs/DATA-MODEL.md#no-scheduling-and-why).
 
-**Small enough to read.** Sixteen tables. If the core outgrows that, the new
+**Small enough to read.** Fourteen tables. If the core outgrows that, the new
 thing belongs in an adapter.
 
 ## Licence

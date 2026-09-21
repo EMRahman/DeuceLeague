@@ -96,6 +96,19 @@ export type ValidatedResult = {
   winningSide: SideIndex | null;
 };
 
+/**
+ * Whether a set, or a tiebreak, could have finished at hi-lo. It ends the
+ * moment one side reaches the target with a clear margin, so a winning score
+ * past the target means it was close all the way: 7-5 and 8-6 are real, 7-4
+ * and 7-0 are not, because the set was already over at 6-4 or 6-0.
+ */
+function couldEndAt(hi: number, lo: number, target: number, clearBy: number): boolean {
+  if (hi === target) return hi - lo >= clearBy;
+  // Past the target only by exactly the margin, and only if the loser was close
+  // enough to keep it going. With a margin of one the first to the target wins.
+  return hi > target && clearBy > 1 && hi - lo === clearBy && lo >= target - clearBy + 1;
+}
+
 function validateSet(
   games: readonly [number, number],
   spec: z.infer<typeof StandardSetSpec>,
@@ -113,14 +126,9 @@ function validateSet(
   if (spec.tiebreakAt !== null && hi === spec.tiebreakAt + 1 && lo === spec.tiebreakAt) {
     return { winner };
   }
-  // Advantage set: no tiebreak, so it may run long provided the margin is clear.
-  if (spec.tiebreakAt === null) {
-    return hi - lo >= spec.clearBy
-      ? { winner }
-      : { winner, error: `${a}-${b}: margin is less than ${spec.clearBy} games` };
-  }
-  // Ordinary set: won at the target, or one past it when the margin closed late (7-5).
-  if (hi - lo >= spec.clearBy && hi <= spec.gamesToWin + spec.clearBy - 1) {
+  // A tiebreak also caps how long a set can run: with one at 6-all, 8-6 cannot happen.
+  const pastTiebreak = spec.tiebreakAt !== null && hi > spec.tiebreakAt + 1;
+  if (!pastTiebreak && couldEndAt(hi, lo, spec.gamesToWin, spec.clearBy)) {
     return { winner };
   }
   return { winner, error: `${a}-${b} is not a legal set for this format` };
@@ -136,11 +144,8 @@ function validateChampionsTiebreak(
   const hi = Math.max(a, b);
   const lo = Math.min(a, b);
   if (hi < spec.to) return { winner, error: `${a}-${b}: neither side reached ${spec.to}` };
-  if (hi - lo < spec.clearBy) {
-    return { winner, error: `${a}-${b}: margin is less than ${spec.clearBy} points` };
-  }
-  if (hi > spec.to && hi - lo > spec.clearBy) {
-    return { winner, error: `${a}-${b}: tiebreak should have ended sooner` };
+  if (!couldEndAt(hi, lo, spec.to, spec.clearBy)) {
+    return { winner, error: `${a}-${b} is not a legal tiebreak score` };
   }
   return { winner };
 }
@@ -186,6 +191,11 @@ export function validateResult(result: Result, format: MatchFormat): ValidatedRe
   const isRetirement = result.outcome === "retired";
 
   sets.forEach((set, i) => {
+    // Nothing is played once a side has the sets it needs.
+    if (setsWon[0] === format.setsToWin || setsWon[1] === format.setsToWin) {
+      errors.push(`set ${i + 1}: the match was already won`);
+      return;
+    }
     gamesWon[0] += set.games[0];
     gamesWon[1] += set.games[1];
     const isDecider = i === maxSets - 1;

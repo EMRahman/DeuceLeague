@@ -33,7 +33,7 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1789982167995,
+      "when": 1789982804090,
       "tag": "0004_progress_views",
       "breakpoints": true
     },
@@ -54,7 +54,7 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1789982171995,
+      "when": 1789983990357,
       "tag": "0008_progress_views_v2",
       "breakpoints": true
     },
@@ -63,6 +63,27 @@
       "version": "7",
       "when": 1789984132441,
       "tag": "0009_accept_opponent_score",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790011929992,
+      "tag": "0010_integrity_and_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790011930992,
+      "tag": "0011_views_feed_and_auth",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790011931992,
+      "tag": "0012_comments",
       "breakpoints": true
     }
   ]

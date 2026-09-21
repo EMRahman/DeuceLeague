@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  customType,
   date,
   foreignKey,
   index,
@@ -15,6 +16,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  type PgTableExtraConfigValue,
 } from "drizzle-orm/pg-core";
 import type { MatchFormat, RulesSpec, Score } from "@deuceleague/schema";
 
@@ -41,6 +43,26 @@ const updatedAt = () => timestamp("updated_at", { withTimezone: true }).notNull(
 
 const oneOf = (name: string, column: string, values: readonly string[]) =>
   check(name, sql.raw(`${column} in (${values.map((v) => `'${v}'`).join(", ")})`));
+
+/**
+ * A result's parts must agree with its outcome, in the ledger and in every
+ * claim alike. The same rules as validateResult() in @deuceleague/schema.
+ */
+const outcomeShape = (table: string) => [
+  // Retired, walkover and conceded say which side stopped; nothing else does.
+  check(
+    `${table}_stopped_side_ck`,
+    sql`(retired_side is not null) = coalesce(outcome in ('retired', 'walkover', 'conceded'), false)`,
+  ),
+  // Only a match that was actually played, in full or in part, has a score.
+  check(
+    `${table}_score_ck`,
+    sql`(score is not null) = coalesce(outcome in ('completed', 'retired'), false)`,
+  ),
+];
+
+/** Postgres's 64-bit transaction id. Drizzle has no builtin for it. */
+const xid8 = customType<{ data: string }>({ dataType: () => "xid8" });
 
 // ───────────────────────────────────────────────────────────── tenancy ──
 
@@ -309,6 +331,13 @@ export const entry = pgTable(
   (t) => [
     unique("entry_id_club_uq").on(t.id, t.clubId),
     unique("entry_id_competition_uq").on(t.id, t.competitionId),
+    // Ties the entry's club to its competition's. Without it, one club could
+    // place an entry in another club's division by naming its ids.
+    foreignKey({
+      columns: [t.competitionId, t.clubId],
+      foreignColumns: [competition.id, competition.clubId],
+      name: "entry_competition_fk",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [t.divisionId, t.competitionId],
       foreignColumns: [division.id, division.competitionId],
@@ -358,6 +387,13 @@ export const entryMember = pgTable(
       foreignColumns: [entry.id, entry.competitionId],
       name: "entry_member_entry_fk",
     }).onDelete("cascade"),
+    // The entry and the member must both belong to this row's club, so a
+    // member of one club can never be put into another club's entry.
+    foreignKey({
+      columns: [t.entryId, t.clubId],
+      foreignColumns: [entry.id, entry.clubId],
+      name: "entry_member_entry_club_fk",
+    }).onDelete("cascade"),
     foreignKey({
       columns: [t.memberId, t.clubId],
       foreignColumns: [member.id, member.clubId],
@@ -380,19 +416,25 @@ export const match = pgTable(
     competitionId: uuid("competition_id").notNull(),
     /** Null for friendlies and anything outside a division. */
     divisionId: uuid("division_id"),
-    /** scheduled → reported → played, or disputed when the two claims differ. */
-    status: text("status").notNull().default("scheduled"),
-    /** Set once the match reaches `played`. */
+    /**
+     * open → reported → played, or disputed when the two claims differ. An open
+     * match has no date, time or court: arranging it is up to the players.
+     */
+    status: text("status").notNull().default("open"),
+    /** Set when the match reaches `played`, and only then. */
     outcome: text("outcome"),
-    scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
-    court: text("court"),
+    /** When it was played, taken from the claim that settled it. */
     playedOn: date("played_on"),
     score: jsonb("score").$type<Score>(),
     /** 0 or 1, matching match_side.side_index. */
     winningSide: integer("winning_side"),
     /** Which side retired, conceded or failed to appear. */
     retiredSide: integer("retired_side"),
-    /** The submission currently accepted as truth; the full trail is in result_submission. */
+    /**
+     * The claim that put this result in the ledger: the second of two matching
+     * reports, an acceptance, or a coach entry. Required once played, so every
+     * result traces back to someone saying it. The full trail is in result_submission.
+     */
     acceptedSubmissionId: uuid("accepted_submission_id"),
     /**
      * Sorted entry ids for this pairing. Makes round-robin generation idempotent —
@@ -402,8 +444,12 @@ export const match = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (t) => [
+  // Annotated because match and result_submission reference each other, which
+  // TypeScript cannot infer on its own.
+  (t): PgTableExtraConfigValue[] => [
     unique("match_id_club_uq").on(t.id, t.clubId),
+    // Lets a match side carry its competition, so both sides come from the same league.
+    unique("match_id_competition_uq").on(t.id, t.competitionId),
     uniqueIndex("match_division_pairing_uq")
       .on(t.divisionId, t.pairingKey)
       .where(sql`${t.pairingKey} is not null`),
@@ -417,19 +463,19 @@ export const match = pgTable(
       foreignColumns: [division.id, division.competitionId],
       name: "match_division_fk",
     }).onDelete("cascade"),
+    // The ledger can only point at a claim made about this match.
+    foreignKey({
+      columns: [t.acceptedSubmissionId, t.id],
+      foreignColumns: [resultSubmission.id, resultSubmission.matchId],
+      name: "match_accepted_submission_fk",
+    }),
     index("match_competition_status_ix").on(t.competitionId, t.status),
     index("match_division_ix").on(t.divisionId),
     // The "who still hasn't played?" query, which runs constantly near a deadline.
     index("match_outstanding_ix")
       .on(t.competitionId)
-      .where(sql`${t.status} in ('scheduled', 'reported')`),
-    oneOf("match_status_ck", "status", [
-      "scheduled",
-      "reported",
-      "played",
-      "disputed",
-      "void",
-    ]),
+      .where(sql`${t.status} in ('open', 'reported', 'disputed')`),
+    oneOf("match_status_ck", "status", ["open", "reported", "played", "disputed", "void"]),
     oneOf("match_outcome_ck", "outcome", [
       "completed",
       "retired",
@@ -439,6 +485,18 @@ export const match = pgTable(
     ]),
     check("match_winning_side_ck", sql`winning_side is null or winning_side in (0, 1)`),
     check("match_retired_side_ck", sql`retired_side is null or retired_side in (0, 1)`),
+    // A result is in the ledger whole or not at all: a played match says how it
+    // ended and which claim settled it, and nothing else does.
+    check("match_played_outcome_ck", sql`(status = 'played') = (outcome is not null)`),
+    check("match_played_claim_ck", sql`(status = 'played') = (accepted_submission_id is not null)`),
+    // Every outcome but `unplayed` has a winner.
+    check(
+      "match_winner_ck",
+      sql`(winning_side is not null) = (outcome is not null and outcome <> 'unplayed')`,
+    ),
+    // Null-safe: only compared when both are set.
+    check("match_winner_not_retired_ck", sql`winning_side <> retired_side`),
+    ...outcomeShape("match"),
   ],
 );
 
@@ -455,6 +513,8 @@ export const matchSide = pgTable(
       .notNull()
       .references(() => club.id, { onDelete: "cascade" }),
     matchId: uuid("match_id").notNull(),
+    /** Denormalised from the match so the entry can be required to be in the same competition. */
+    competitionId: uuid("competition_id").notNull(),
     sideIndex: integer("side_index").notNull(),
     entryId: uuid("entry_id"),
     createdAt: createdAt(),
@@ -462,14 +522,22 @@ export const matchSide = pgTable(
   (t) => [
     unique("match_side_id_club_uq").on(t.id, t.clubId),
     unique("match_side_match_index_uq").on(t.matchId, t.sideIndex),
+    // An entry cannot be drawn against itself.
+    unique("match_side_match_entry_uq").on(t.matchId, t.entryId),
     foreignKey({
       columns: [t.matchId, t.clubId],
       foreignColumns: [match.id, match.clubId],
       name: "match_side_match_fk",
     }).onDelete("cascade"),
     foreignKey({
-      columns: [t.entryId, t.clubId],
-      foreignColumns: [entry.id, entry.clubId],
+      columns: [t.matchId, t.competitionId],
+      foreignColumns: [match.id, match.competitionId],
+      name: "match_side_competition_fk",
+    }).onDelete("cascade"),
+    // So a Men's Singles match cannot have a Mixed Doubles pair on one side.
+    foreignKey({
+      columns: [t.entryId, t.competitionId],
+      foreignColumns: [entry.id, entry.competitionId],
       name: "match_side_entry_fk",
     }),
     index("match_side_entry_ix").on(t.entryId),
@@ -520,10 +588,13 @@ export const matchParticipant = pgTable(
  *   - the coach overrides -> a `coach_entry` claim confirms and supersedes
  *
  * A side's claim is either a score of its own or an acceptance of the other
- * side's, recorded with acceptsSubmissionId. Nothing enters the ledger on a
+ * side's, recorded with acceptsSubmissionId. Either side may replace its own
+ * claim at any point before the result is agreed — most disputes are a typo —
+ * and the old one is kept as `superseded`. Nothing enters the ledger on a
  * timer: two people agree, or the coach decides.
  *
- * A coach or bot entry has no sideIndex: it speaks for the match, not a side.
+ * A coach entry has no sideIndex: it speaks for the match, not a side, so it
+ * settles the match rather than waiting on anyone.
  */
 export const resultSubmission = pgTable(
   "result_submission",
@@ -535,7 +606,8 @@ export const resultSubmission = pgTable(
     matchId: uuid("match_id").notNull(),
     /**
      * Which side is making this claim, matching match_side.side_index.
-     * Null for a coach or bot entry, which speaks for the match as a whole.
+     * Null only for a coach entry, which speaks for the match as a whole. A bot
+     * reporting for a player uses that player's side.
      */
     sideIndex: integer("side_index"),
     /** Null when a coach entered it through an API key rather than as a member. */
@@ -544,11 +616,11 @@ export const resultSubmission = pgTable(
     score: jsonb("score").$type<Score>(),
     outcome: text("outcome").notNull(),
     retiredSide: integer("retired_side"),
+    /** When this side says it was played. Never compared: a different date is not a dispute. */
+    playedOn: date("played_on"),
     state: text("state").notNull().default("pending"),
-    confirmedByMemberId: uuid("confirmed_by_member_id"),
+    /** When this claim entered the ledger. Who agreed is the other side's claim. */
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
-    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
-    rejectReason: text("reject_reason"),
     /**
      * Set when this claim is the other side pressing "accept" rather than
      * reporting independently. Its score must equal the claim it accepts.
@@ -560,9 +632,10 @@ export const resultSubmission = pgTable(
     rawInput: text("raw_input"),
     createdAt: createdAt(),
   },
-  (t) => [
-    // Lets an acceptance reference the claim it accepts without leaving the club.
+  (t): PgTableExtraConfigValue[] => [
     unique("result_submission_id_club_uq").on(t.id, t.clubId),
+    // Lets the match, and an acceptance, point at a claim on the same match only.
+    unique("result_submission_id_match_uq").on(t.id, t.matchId),
     // One live claim per side. Two sides may both have one; a second claim from
     // the same side replaces its own, never the opponent's.
     uniqueIndex("result_submission_one_pending_per_side_uq")
@@ -579,13 +652,8 @@ export const resultSubmission = pgTable(
       name: "result_submission_submitter_fk",
     }),
     foreignKey({
-      columns: [t.confirmedByMemberId, t.clubId],
-      foreignColumns: [member.id, member.clubId],
-      name: "result_submission_confirmer_fk",
-    }),
-    foreignKey({
-      columns: [t.acceptsSubmissionId, t.clubId],
-      foreignColumns: [t.id, t.clubId],
+      columns: [t.acceptsSubmissionId, t.matchId],
+      foreignColumns: [t.id, t.matchId],
       name: "result_submission_accepts_fk",
     }),
     index("result_submission_match_ix").on(t.matchId),
@@ -593,12 +661,17 @@ export const resultSubmission = pgTable(
       "result_submission_side_index_ck",
       sql`side_index is null or side_index in (0, 1)`,
     ),
-    oneOf("result_submission_state_ck", "state", [
-      "pending",
-      "confirmed",
-      "rejected",
-      "superseded",
-    ]),
+    // A claim with no side speaks for the whole match: it settles it, so it is
+    // never left waiting on a reply. This also keeps it from slipping past the
+    // one-live-claim-per-side index above.
+    check("result_submission_sideless_ck", sql`side_index is not null or state <> 'pending'`),
+    // Accepting is something one side does to the other's claim.
+    check(
+      "result_submission_accepts_side_ck",
+      sql`accepts_submission_id is null or side_index is not null`,
+    ),
+    ...outcomeShape("result_submission"),
+    oneOf("result_submission_state_ck", "state", ["pending", "confirmed", "superseded"]),
     oneOf("result_submission_outcome_ck", "outcome", [
       "completed",
       "retired",
@@ -627,8 +700,15 @@ export const resultSubmission = pgTable(
 export const event = pgTable(
   "event",
   {
-    /** Monotonic, so consumers can resume with a simple `?since=`. */
+    /** Increasing, but not in commit order — so never page on it alone. See txId. */
     id: bigserial("id", { mode: "number" }).primaryKey(),
+    /**
+     * The transaction that wrote this event. Ids are handed out before commit,
+     * so a slow request can commit event 41 after 42 is already visible, and a
+     * reader paging on id would skip 41 for good. Read the `event_feed` view in
+     * (tx_id, id) order instead; it holds events back until that is safe.
+     */
+    txId: xid8("tx_id").notNull().default(sql`pg_current_xact_id()`),
     clubId: uuid("club_id")
       .notNull()
       .references(() => club.id, { onDelete: "cascade" }),
@@ -643,6 +723,7 @@ export const event = pgTable(
   },
   (t) => [
     index("event_club_ix").on(t.clubId, t.id),
+    index("event_feed_ix").on(t.clubId, t.txId, t.id),
     index("event_club_type_ix").on(t.clubId, t.type, t.id),
     index("event_subject_ix").on(t.clubId, t.subjectType, t.subjectId),
     oneOf("event_actor_type_ck", "actor_type", ["member", "api_key", "system"]),

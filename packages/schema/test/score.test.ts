@@ -5,6 +5,7 @@ import { MATCH_FORMATS, validateResult, type MatchFormat, type Result } from "..
 const champsTb = MATCH_FORMATS.best_of_3_champions_tiebreak as MatchFormat;
 const fullSets = MATCH_FORMATS.best_of_3_sets as MatchFormat;
 const proSet = MATCH_FORMATS.pro_set_8 as MatchFormat;
+const shortSet = MATCH_FORMATS.short_set_4 as MatchFormat;
 
 const completed = (...sets: [number, number][]): Result => ({
   outcome: "completed",
@@ -38,6 +39,39 @@ test("accepts 7-5 and 7-6 but not 6-5 or 8-6", () => {
   assert.ok(validateResult(completed([7, 6], [6, 2]), champsTb).ok);
   assert.equal(validateResult(completed([6, 5], [6, 2]), champsTb).ok, false);
   assert.equal(validateResult(completed([8, 6], [6, 2]), champsTb).ok, false);
+});
+
+test("a set cannot run past the point it was won", () => {
+  // At 6-4 or 6-0 the set is already over, so 7-4 and 7-0 are typos.
+  assert.equal(validateResult(completed([7, 4], [6, 3]), fullSets).ok, false);
+  assert.equal(validateResult(completed([7, 0], [6, 0]), fullSets).ok, false);
+  assert.equal(validateResult(completed([9, 3]), proSet).ok, false);
+  assert.equal(validateResult(completed([5, 1]), shortSet).ok, false);
+  // ...while the close finishes are all real.
+  assert.ok(validateResult(completed([5, 3]), shortSet).ok);
+  assert.ok(validateResult(completed([5, 4]), shortSet).ok);
+});
+
+test("an advantage set runs as long as it takes, but ends two clear", () => {
+  const advantage: MatchFormat = {
+    ...fullSets,
+    set: { gamesToWin: 6, clearBy: 2, tiebreakAt: null, tiebreakTo: null },
+  };
+  assert.ok(validateResult(completed([6, 4], [3, 6], [16, 14]), advantage).ok);
+  assert.equal(validateResult(completed([6, 4], [3, 6], [16, 13]), advantage).ok, false);
+  assert.equal(validateResult(completed([6, 4], [3, 6], [7, 6]), advantage).ok, false);
+});
+
+test("a champions tiebreak ends two clear, and no later", () => {
+  assert.ok(validateResult(completed([6, 4], [3, 6], [11, 9]), champsTb).ok);
+  assert.equal(validateResult(completed([6, 4], [3, 6], [12, 9]), champsTb).ok, false);
+  assert.equal(validateResult(completed([6, 4], [3, 6], [10, 9]), champsTb).ok, false);
+});
+
+test("nothing is played after the match is won", () => {
+  const r = validateResult(completed([6, 0], [6, 0], [0, 6]), fullSets);
+  assert.equal(r.ok, false);
+  assert.match(r.errors.join(" "), /set 3: the match was already won/);
 });
 
 test("catches a transposed digit rather than storing it", () => {

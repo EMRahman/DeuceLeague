@@ -15,3 +15,4 @@ export {
   resultSubmission,
   event,
 } from "./schema.js";
+export { checkJournal, migrationsFolder, runMigrations } from "./migrate.js";

@@ -1,14 +1,18 @@
 # DeuceLeague data model
 
-The database behind a club tennis league. Fourteen tables and six views; you
+The database behind a club tennis league. Fourteen tables and seven views; you
 should be able to read the whole thing in fifteen minutes. If that stops being
 true, something in here belongs in an adapter instead.
+
+This is the *why*. For the column-by-column *what* — every table, view and
+function, generated from the migrated database itself — see
+[docs/SCHEMA.md](SCHEMA.md).
 
 ## Three ideas carry the weight
 
 **A fixture is a match with no score yet.** There is no fixture table. Opening a
-competition generates every pairing as a `match` in status `scheduled`; playing
-one fills in the score. "Who still hasn't played?" is a single indexed query.
+competition generates every pairing as a `match` in status `open`; playing one
+fills in the score. "Who still hasn't played?" is a single indexed query.
 
 **The competing unit is an `entry`, not a person.** One member for singles, two
 for doubles. Promotion and relegation move the unit, so a doubles pair goes up
@@ -16,8 +20,9 @@ together — which is what a women's doubles league actually needs. Every query
 and every calculation is shared between the disciplines.
 
 **Standings are never stored.** They are computed from matches on read. Fixing a
-score entered wrongly three weeks ago is a plain `UPDATE`, with no backfill and
-no migration. At 45–55 matches per division this costs microseconds.
+score entered wrongly three weeks ago is a coach entry and a one-row `UPDATE`,
+with no backfill and no migration. At 45–55 matches per division this costs
+microseconds.
 
 ## The shape
 
@@ -38,7 +43,7 @@ match  ── match_side ── match_participant   who was actually on court
 event                                        append-only; audit log and outbox
 
 views: entry_label, division_progress, competition_progress,
-       entry_progress, outstanding_match, member_chase_list
+       entry_progress, outstanding_match, member_chase_list, event_feed
 ```
 
 ## Seasons and competitions
@@ -101,7 +106,7 @@ score of its own or acceptance of the other side's:
 |---|---|
 | Both report the same score | both confirm; the score enters the ledger |
 | One reports, the other accepts | same, recorded via `accepts_submission_id` |
-| One reports, the other proposes a different score | `disputed` — both claims stand |
+| One reports, the other proposes a different score | `disputed` — both claims stand; either side may re-enter or accept |
 | One reports, the other never responds | stays `reported`, indefinitely |
 | The coach overrides | a `coach_entry` claim confirms and supersedes; nothing is deleted |
 
@@ -110,18 +115,34 @@ click without reading. Accept exists because retyping a score you already agree
 with is friction for no gain — and `accepts_submission_id` keeps the two
 distinguishable, which matters when a result is questioned later.
 
-A disagreement is not an escalation. Either player can replace their own claim,
-and if it then matches, the result is agreed without the coach touching it.
-`disputed` simply means the two sides do not yet agree.
+A disagreement is not an escalation. Most are clerical — a set misremembered,
+a score typed from the wrong side — so either player can replace their own
+claim, with a new score or by accepting the other's, and if it then matches the
+result is agreed without the coach touching it. The replaced claim is kept as
+`superseded`. `disputed` simply means the two sides do not yet agree, and it
+stays on both players' chase lists until they do or the coach decides. There is
+no `rejected`: nobody throws out a claim, they replace their own.
+
+Every played match names the claim that put it in the ledger —
+`accepted_submission_id`, which is the second of two matching reports, the
+acceptance, or the coach entry — and the database refuses a played match
+without one, or one pointing at a claim about a different match. How it ended,
+who won, who retired and whether there is a score must all agree with each
+other; the same rules as `validateResult()`.
+
+A claim may carry `played_on`, the day that side says it was played. It is
+never compared: remembering the day differently is not a dispute.
 
 **A match with one unanswered claim sits there until somebody acts.** That is
 the deliberate cost of having no timer: the alternative is a score entering the
 ledger because one player was on holiday. The coach sees the backlog as
 `division_progress.reported` and can settle any of it with an override.
 
-A coach or bot entry has `side_index` null: it speaks for the match, not for a
-side. `source` already covers `telegram`, `api` and `nl_parse`, so a bot
-reporting on someone's behalf needs no schema change.
+A coach entry has `side_index` null: it speaks for the match, not for a side,
+so it settles the match and is never left waiting — the database refuses a
+sideless claim in `pending`. A bot reporting on someone's behalf reports for
+that person's side; `source` already covers `telegram`, `api` and `nl_parse`,
+so it needs no schema change.
 
 `raw_input` keeps what the player actually typed. It earns its place twice: it
 is how you debug a bad natural-language parse, and it accumulates into the eval
@@ -138,7 +159,7 @@ serves the API, a coach's own SQL, and an agent asked to draft some emails.
 | `division_progress` | how far through each division is, how much is awaiting a response or disputed, and how long is left |
 | `competition_progress` | the same, rolled up to a league |
 | `entry_progress` | played and outstanding for one competing unit |
-| `outstanding_match` | every match still to play, both sides named |
+| `outstanding_match` | every match not yet in the ledger, both sides named |
 | `member_chase_list` | one row per member, split into `needs_playing`, `awaiting_you` and `awaiting_them` |
 
 `member_chase_list` is the one that matters. Filtering it by `days_remaining`
@@ -153,7 +174,13 @@ ORDER BY outstanding_matches DESC;
 
 Swap 30 for 14 a fortnight later. The split matters: `needs_playing` is "go and
 arrange your match", while `awaiting_you` is "your opponent has reported a score
-and one click clears it" — a different email, and a much easier one to act on. **The core does not send anything.** It
+and one click clears it" — a different email, and a much easier one to act on.
+A disputed match is `awaiting_you` for both players: each has a score in from
+the other that they have not agreed to, and the fix is the same.
+
+`days_remaining` counts whole days on the club's own calendar (`club.timezone`),
+never the server's, so a deadline of 00:30 on the 1st is the 1st in London even
+while it is still the 30th in UTC. **The core does not send anything.** It
 answers the question; the coach decides whether a reminder goes out, to whom,
 and in what words — which is exactly the sort of judgement that should not be
 automated, and exactly the sort of glue a coach can write with Claude Code in an
@@ -195,8 +222,9 @@ walkovers, a withdrawn unit's played results left standing.
 
 ## No scheduling, and why
 
-There is no calendar here, and no record of who tried to arrange a match. This
-was in an early draft and was taken out deliberately.
+There is no calendar here, and no record of who tried to arrange a match. A
+match has no date, time or court until it has been played. This was in an
+early draft and was taken out deliberately.
 
 **Players will not adopt a third schedule.** They already run a work calendar
 and a personal one. A club league that demands a third gets used by the
@@ -251,7 +279,12 @@ be pasted into a public repository.
 
 **Composite foreign keys.** Club-scoped tables carry `UNIQUE (id, club_id)` and
 their children reference `(id, club_id)` together, so a row in one club cannot
-reference a row in another. Structurally impossible, not merely unlikely.
+reference a row in another. Structurally impossible, not merely unlikely. This
+lock matters even with row-level security on, because foreign-key checks ignore
+RLS: without it, a club that knew another's ids could write rows pointing into
+it. The same trick keeps a match honest — `match_side` carries the match's
+`competition_id`, so a Mixed Doubles pair cannot turn up in a Men's Singles
+match.
 
 **Row-level security.** Every table has a policy comparing `club_id` against
 `deuceleague_current_club()`. The application sets it per request:
@@ -268,9 +301,24 @@ With nothing set the function returns `NULL`, every predicate evaluates to
 > `migrations/0002_app_role.sql` creates the role. This is the single most
 > important line in this document.
 
-`packages/db/test/rls.sql` proves it: no context yields no rows, naming another
-club's id explicitly returns nothing, and writes aimed at another club are
-refused.
+**Finding the club.** A request arrives carrying an API key, a magic-link token
+or a club's slug — never a club id — and with no club set, those tables are
+hidden too. Three `SECURITY DEFINER` functions are the only way past that, each
+returning just enough to set the club:
+
+| Function | Takes | Returns |
+|---|---|---|
+| `deuceleague_resolve_api_key` | SHA-256 of the key | club, key id, scopes — if not revoked or expired |
+| `deuceleague_resolve_access_grant` | SHA-256 of the token | club, grant, member, scopes, `used_at` — if unexpired and the member not removed |
+| `deuceleague_club_id_for_slug` | the slug | the club's id |
+
+The API calls one, sets `app.club_id`, and everything after that runs under
+row-level security as usual.
+
+`packages/db/test/rls.sql` proves it: every table has a policy and every view
+runs as its caller; no context yields no rows; naming another club's id
+explicitly returns nothing; writes aimed at another club are refused, including
+ones that only point into it; and resolving a key opens nothing else.
 
 ## Other decisions worth knowing
 
@@ -291,8 +339,10 @@ results have to survive them.
 
 **`display_name` is the public projection.** Unauthenticated and player-scoped
 responses return display name, division and results — nothing else. Full name,
-email, phone and date of birth sit behind the `members:pii` scope, which is
-always a separate, logged grant. With junior members this is not optional.
+email, phone, date of birth, gender and notes sit behind the `members:pii`
+scope, which is always a separate, logged grant. With junior members this is
+not optional. Gender is sensitive in its own right, and notes can hold
+anything a coach chose to write down.
 
 **`member.gender` is advisory.** It exists only to warn on an ineligible mixed
 pairing, it is nullable, and the coach's confirmation always wins. A validation
@@ -302,15 +352,29 @@ rule that blocks a coach from entering a real pair is a bug.
 and `DELETE`. It is both the webhook outbox adapters read and the record of what
 happened when a coach asks why someone was relegated.
 
+**Read the event log through `event_feed`, paging on `(tx_id, id)`.** Event ids
+are handed out before a transaction commits, so a slow request can commit event
+41 after 42 is already visible, and a reader paging on id alone skips 41 for
+good. `event_feed` holds each event back until its transaction, and every older
+one, has finished; after that nothing can appear before it. A long-running write
+delays delivery but never loses anything.
+
+```sql
+SELECT * FROM event_feed
+WHERE (tx_id, id) > ($last_tx_id, $last_id)
+ORDER BY tx_id, id
+LIMIT 100;
+```
+
 ## Scopes
 
 | Scope | Grants |
 |---|---|
 | `league:read` | seasons, competitions, divisions, standings, matches, display names |
-| `results:write` | submit and confirm results |
+| `results:write` | report, accept and re-enter results |
 | `league:write` | create and edit competitions, placements, generate matches |
 | `members:read` | member list with display names and status |
-| `members:pii` | full name, email, phone, date of birth |
+| `members:pii` | full name, email, phone, date of birth, gender, notes |
 | `admin` | API key management, club settings |
 
 A new key defaults to `league:read` + `results:write`.
@@ -332,5 +396,11 @@ npm run db:verify        # migrations, constraints and RLS against a real Postgr
 ```
 
 `npm run db:verify` needs Docker. It starts a throwaway Postgres, applies every
-migration, runs the constraint, progress and RLS suites, and removes the
-container afterwards.
+migration through the same migrator `npm run db:migrate` uses, runs the
+constraint, progress, RLS and event feed suites, and removes the container
+afterwards.
+
+Migrations always go through `npm run db:migrate`, connected as the role that
+owns the tables (`MIGRATION_DATABASE_URL`). Never `drizzle-kit push`: it knows
+only `schema.ts`, so it would build a database with no row-level security, no
+views and no append-only trigger.
