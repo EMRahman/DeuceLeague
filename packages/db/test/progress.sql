@@ -164,19 +164,30 @@ BEGIN
   RAISE NOTICE '  PASS  the list filters by time left, so the coach picks the moment';
 END $$;
 
--- ── both sides report independently ──────────────────────────────────────
+-- ── a result enters the ledger only when two people agree ────────────────
+--
+-- Nothing here happens on a clock. Statuses are set the way the API will set
+-- them; the schema's job is to make the wrong states unrepresentable.
 
+\set m14 'f0000000-0000-7000-8000-000000000014'
+\set m23 'f0000000-0000-7000-8000-000000000023'
 \set m34 'f0000000-0000-7000-8000-000000000034'
 
+DO $$
+BEGIN
+  PERFORM 1 FROM information_schema.columns
+   WHERE table_name = 'result_submission' AND column_name = 'auto_confirm_at';
+  IF FOUND THEN RAISE EXCEPTION 'FAIL: auto_confirm_at still exists'; END IF;
+  RAISE NOTICE '  PASS  nothing is accepted on a timer';
+END $$;
+
+-- Path one: both sides report the same score independently.
 INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state, score)
 VALUES (:'club', :'m34', 0, 'completed', 'telegram', 'pending',
+        '{"sets":[{"games":[6,2]},{"games":[6,4]}]}'),
+       (:'club', :'m34', 1, 'completed', 'web', 'pending',
         '{"sets":[{"games":[6,2]},{"games":[6,4]}]}');
-
-INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state, score)
-VALUES (:'club', :'m34', 1, 'completed', 'web', 'pending',
-        '{"sets":[{"games":[6,2]},{"games":[6,4]}]}');
-
-\echo '  PASS  both sides may have a live claim at the same time'
+\echo '  PASS  the two sides may hold a live claim each'
 
 DO $$
 BEGIN
@@ -185,42 +196,142 @@ BEGIN
           'f0000000-0000-7000-8000-000000000034', 0, 'completed', 'web', 'pending');
   RAISE EXCEPTION 'FAIL: one side lodged two live claims';
 EXCEPTION WHEN unique_violation THEN
-  RAISE NOTICE '  PASS  a side may only have one live claim at a time';
+  RAISE NOTICE '  PASS  a side may hold only one live claim at a time';
 END $$;
 
--- The claims agree, so the result enters the ledger.
 DO $$
-DECLARE distinct_scores int;
+DECLARE versions int;
 BEGIN
-  SELECT count(DISTINCT score) INTO distinct_scores FROM result_submission
+  SELECT count(DISTINCT score) INTO versions FROM result_submission
    WHERE match_id = 'f0000000-0000-7000-8000-000000000034' AND state = 'pending';
-  IF distinct_scores <> 1 THEN
-    RAISE EXCEPTION 'FAIL: expected the two claims to agree, saw % versions', distinct_scores;
+  IF versions <> 1 THEN
+    RAISE EXCEPTION 'FAIL: expected the claims to agree, saw % versions', versions;
   END IF;
-  RAISE NOTICE '  PASS  agreeing claims are detectable by comparison, not by trust';
+  RAISE NOTICE '  PASS  agreement is established by comparison, not by trust';
 END $$;
 
 UPDATE result_submission SET state = 'confirmed', confirmed_at = now()
- WHERE match_id = :'m34' AND state = 'pending';
+ WHERE match_id = :'m34';
 UPDATE match SET status = 'played', outcome = 'completed', winning_side = 0,
-       score = '{"sets":[{"games":[6,2]},{"games":[6,4]}]}'
- WHERE id = :'m34';
+       score = '{"sets":[{"games":[6,2]},{"games":[6,4]}]}' WHERE id = :'m34';
 
--- A coach override speaks for the match, not for a side, so it needs no side_index.
-INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state,
-                               score, confirmed_at)
-VALUES (:'club', :'m34', NULL, 'completed', 'coach_entry', 'confirmed',
-        '{"sets":[{"games":[6,2]},{"games":[7,5]}]}', now());
-\echo '  PASS  a coach override needs no side and supersedes without deleting'
+-- Path two: one side reports, the other presses accept.
+INSERT INTO result_submission (id, club_id, match_id, side_index, outcome, source,
+                               state, score)
+VALUES ('11110000-0000-7000-8000-00000000aaaa', :'club', :'m14', 0, 'completed',
+        'web', 'pending', '{"sets":[{"games":[6,1]},{"games":[6,0]}]}');
+UPDATE match SET status = 'reported' WHERE id = :'m14';
 
 DO $$
 DECLARE r record;
 BEGIN
-  SELECT played, outstanding INTO r FROM division_progress
+  SELECT * INTO r FROM outstanding_match WHERE match_id = 'f0000000-0000-7000-8000-000000000014';
+  IF NOT r.side0_claimed OR r.side1_claimed THEN
+    RAISE EXCEPTION 'FAIL: claim flags were side0=% side1=%', r.side0_claimed, r.side1_claimed;
+  END IF;
+  RAISE NOTICE '  PASS  the chase list shows which side has claimed';
+
+  SELECT * INTO r FROM member_chase_list WHERE display_name = 'J. Abbott';
+  IF r.awaiting_them <> 1 OR r.awaiting_you <> 0 THEN
+    RAISE EXCEPTION 'FAIL: Abbott awaiting_them=% awaiting_you=%',
+      r.awaiting_them, r.awaiting_you;
+  END IF;
+  SELECT * INTO r FROM member_chase_list WHERE display_name = 'M. Doyle';
+  IF r.awaiting_you <> 1 THEN
+    RAISE EXCEPTION 'FAIL: Doyle awaiting_you=%, expected 1', r.awaiting_you;
+  END IF;
+  -- 3|4 has just gone into the ledger, so 2|4 is his only match left to play.
+  IF r.needs_playing <> 1 OR r.outstanding_matches <> 2 THEN
+    RAISE EXCEPTION 'FAIL: Doyle needs_playing=% outstanding=%',
+      r.needs_playing, r.outstanding_matches;
+  END IF;
+  RAISE NOTICE '  PASS  "go and play" and "your opponent is waiting" are counted apart';
+END $$;
+
+-- Doyle accepts Abbott's claim rather than typing the score again.
+INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state,
+                               score, accepts_submission_id,
+                               submitted_by_member_id, confirmed_at)
+VALUES (:'club', :'m14', 1, 'completed', 'web', 'confirmed',
+        '{"sets":[{"games":[6,1]},{"games":[6,0]}]}',
+        '11110000-0000-7000-8000-00000000aaaa',
+        'a0000000-0000-7000-8000-000000000004', now());
+UPDATE result_submission SET state = 'confirmed', confirmed_at = now()
+ WHERE id = '11110000-0000-7000-8000-00000000aaaa';
+UPDATE match SET status = 'played', outcome = 'completed', winning_side = 0,
+       score = '{"sets":[{"games":[6,1]},{"games":[6,0]}]}' WHERE id = :'m14';
+
+DO $$
+DECLARE n int;
+BEGIN
+  SELECT count(*) INTO n FROM result_submission
+   WHERE match_id = 'f0000000-0000-7000-8000-000000000014'
+     AND accepts_submission_id IS NOT NULL;
+  IF n <> 1 THEN RAISE EXCEPTION 'FAIL: acceptance was not recorded'; END IF;
+  RAISE NOTICE '  PASS  an acceptance is recorded as such, not as an independent report';
+END $$;
+
+DO $$
+BEGIN
+  -- An acceptance must point at a claim that exists, in this club.
+  INSERT INTO result_submission (club_id, match_id, side_index, outcome, source,
+                                 state, accepts_submission_id)
+  VALUES ('11111111-1111-7111-8111-111111111111',
+          'f0000000-0000-7000-8000-000000000023', 1, 'completed', 'web', 'pending',
+          '99990000-0000-7000-8000-00000000ffff');
+  RAISE EXCEPTION 'FAIL: accepted a claim that does not exist';
+EXCEPTION WHEN foreign_key_violation THEN
+  RAISE NOTICE '  PASS  an acceptance must point at a real claim';
+END $$;
+
+-- Path three: the second side proposes a different score. Nobody wins by clock.
+INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state, score)
+VALUES (:'club', :'m23', 0, 'completed', 'web', 'pending',
+        '{"sets":[{"games":[6,4]},{"games":[6,4]}]}'),
+       (:'club', :'m23', 1, 'completed', 'telegram', 'pending',
+        '{"sets":[{"games":[4,6]},{"games":[6,4]},{"games":[10,8]}]}');
+UPDATE match SET status = 'disputed' WHERE id = :'m23';
+
+DO $$
+DECLARE versions int; r record;
+BEGIN
+  SELECT count(DISTINCT score) INTO versions FROM result_submission
+   WHERE match_id = 'f0000000-0000-7000-8000-000000000023' AND state = 'pending';
+  IF versions <> 2 THEN
+    RAISE EXCEPTION 'FAIL: expected two rival claims, saw %', versions;
+  END IF;
+
+  SELECT * INTO r FROM division_progress
    WHERE division_id = 'd0000000-0000-7000-8000-000000000001';
-  IF r.played <> 3 OR r.outstanding <> 3 THEN
-    RAISE EXCEPTION 'FAIL: after the third result, played=% outstanding=%',
-      r.played, r.outstanding;
+  IF r.disputed <> 1 THEN RAISE EXCEPTION 'FAIL: disputed=%', r.disputed; END IF;
+  IF r.played <> 4 THEN RAISE EXCEPTION 'FAIL: played=%, expected 4', r.played; END IF;
+  IF r.outstanding <> 1 THEN RAISE EXCEPTION 'FAIL: outstanding=%', r.outstanding; END IF;
+  RAISE NOTICE '  PASS  rival claims both stand, and the coach sees the dispute';
+END $$;
+
+-- The coach settles it. A coach entry speaks for the match, so it has no side.
+UPDATE result_submission SET state = 'superseded' WHERE match_id = :'m23';
+INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state,
+                               score, confirmed_at)
+VALUES (:'club', :'m23', NULL, 'completed', 'coach_entry', 'confirmed',
+        '{"sets":[{"games":[4,6]},{"games":[6,4]},{"games":[10,8]}]}', now());
+UPDATE match SET status = 'played', outcome = 'completed', winning_side = 1,
+       score = '{"sets":[{"games":[4,6]},{"games":[6,4]},{"games":[10,8]}]}'
+ WHERE id = :'m23';
+
+DO $$
+DECLARE n int; r record;
+BEGIN
+  SELECT count(*) INTO n FROM result_submission
+   WHERE match_id = 'f0000000-0000-7000-8000-000000000023';
+  IF n <> 3 THEN RAISE EXCEPTION 'FAIL: expected 3 claims on record, saw %', n; END IF;
+  RAISE NOTICE '  PASS  the coach overrides without erasing what each player said';
+
+  SELECT * INTO r FROM division_progress
+   WHERE division_id = 'd0000000-0000-7000-8000-000000000001';
+  IF r.played <> 5 OR r.outstanding <> 1 OR r.disputed <> 0 THEN
+    RAISE EXCEPTION 'FAIL: played=% outstanding=% disputed=%',
+      r.played, r.outstanding, r.disputed;
   END IF;
   RAISE NOTICE '  PASS  progress follows the ledger with no recalculation step';
 END $$;

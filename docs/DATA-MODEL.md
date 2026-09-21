@@ -93,17 +93,31 @@ handle it badly.
 claim ever made about it — who said what, from which channel, and what
 superseded it.
 
-**Both sides report independently.** Nobody rubber-stamps the opponent's
-version, because a confirm button is a thing people click without reading. Each
-side lodges its own claim with its own `side_index`, and a partial unique index
-permits one live claim per side, so the two coexist and can be compared:
+**A score enters the ledger only when two people agree.** Nothing is accepted
+because a clock ran out. Each side holds one live claim, and a claim is either a
+score of its own or acceptance of the other side's:
 
 | | |
 |---|---|
-| The two claims agree | both confirm; the score enters the ledger |
-| The two claims differ | `match.status` becomes `disputed`, both claims stand, the coach settles it |
-| Only one ever arrives | it is accepted at `auto_confirm_at` |
+| Both report the same score | both confirm; the score enters the ledger |
+| One reports, the other accepts | same, recorded via `accepts_submission_id` |
+| One reports, the other proposes a different score | `disputed` — both claims stand |
+| One reports, the other never responds | stays `reported`, indefinitely |
 | The coach overrides | a `coach_entry` claim confirms and supersedes; nothing is deleted |
+
+Independent reporting is the default because a confirm button is a thing people
+click without reading. Accept exists because retyping a score you already agree
+with is friction for no gain — and `accepts_submission_id` keeps the two
+distinguishable, which matters when a result is questioned later.
+
+A disagreement is not an escalation. Either player can replace their own claim,
+and if it then matches, the result is agreed without the coach touching it.
+`disputed` simply means the two sides do not yet agree.
+
+**A match with one unanswered claim sits there until somebody acts.** That is
+the deliberate cost of having no timer: the alternative is a score entering the
+ledger because one player was on holiday. The coach sees the backlog as
+`division_progress.reported` and can settle any of it with an override.
 
 A coach or bot entry has `side_index` null: it speaks for the match, not for a
 side. `source` already covers `telegram`, `api` and `nl_parse`, so a bot
@@ -121,23 +135,25 @@ serves the API, a coach's own SQL, and an agent asked to draft some emails.
 
 | View | Answers |
 |---|---|
-| `division_progress` | how far through each division is, and how long is left |
+| `division_progress` | how far through each division is, how much is awaiting a response or disputed, and how long is left |
 | `competition_progress` | the same, rolled up to a league |
 | `entry_progress` | played and outstanding for one competing unit |
 | `outstanding_match` | every match still to play, both sides named |
-| `member_chase_list` | one row per member: how many outstanding, who they are waiting on, how to reach them |
+| `member_chase_list` | one row per member, split into `needs_playing`, `awaiting_you` and `awaiting_them` |
 
 `member_chase_list` is the one that matters. Filtering it by `days_remaining`
 is the whole reminder workflow:
 
 ```sql
-SELECT display_name, email, outstanding_matches, waiting_on
+SELECT display_name, email, needs_playing, awaiting_you, waiting_on
 FROM member_chase_list
 WHERE competition_id = $1 AND days_remaining <= 30
 ORDER BY outstanding_matches DESC;
 ```
 
-Swap 30 for 14 a fortnight later. **The core does not send anything.** It
+Swap 30 for 14 a fortnight later. The split matters: `needs_playing` is "go and
+arrange your match", while `awaiting_you` is "your opponent has reported a score
+and one click clears it" — a different email, and a much easier one to act on. **The core does not send anything.** It
 answers the question; the coach decides whether a reminder goes out, to whom,
 and in what words — which is exactly the sort of judgement that should not be
 automated, and exactly the sort of glue a coach can write with Claude Code in an

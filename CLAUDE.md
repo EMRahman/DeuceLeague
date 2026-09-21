@@ -42,9 +42,11 @@ player-scoped responses return `display_name` only. Full name, email, phone and
 date of birth require the `members:pii` scope — including the email column in
 `member_chase_list`.
 
-**Never let one side confirm the other's score.** Both sides report
-independently and the claims are compared. A confirm button gets clicked
-without reading.
+**Never accept a result on a timer.** There is no auto-confirm and there must
+not be one. A score enters the ledger when both sides agree — by reporting the
+same score independently, or by one accepting the other's — or when the coach
+overrides. A match with one unanswered claim stays `reported` for as long as it
+takes; the coach sees it in `division_progress.reported`.
 
 **The event table is append-only.** A trigger enforces it. If you need to
 correct something, append a correction.

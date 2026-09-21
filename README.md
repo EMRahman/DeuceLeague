@@ -4,7 +4,7 @@ Open-source club tennis league software: the database and the API. Everything
 people see — websites, phone apps, Telegram bots — is built on top by whoever
 wants it, and they keep whatever they put on it.
 
-**Status:** data model complete and verified — 14 tables, 6 views, 30 checks
+**Status:** data model complete and verified — 14 tables, 6 views, 37 database checks
 green against a real Postgres. The API service is next.
 
 ## What is here
@@ -39,9 +39,9 @@ Women's Doubles, Mixed Doubles. Each competition has **divisions**, and each
 division holds **entries** — one member for singles, two for doubles. Entries
 play **matches**, and a match with no score yet is simply a fixture.
 
-Standings are computed from matches on read, never stored. Both players report
-a score independently and the claims are compared, rather than one confirming
-the other's. Promotion and relegation are suggested to the coach and applied
+Standings are computed from matches on read, never stored. A score enters the
+ledger only when both sides agree — either by reporting the same score
+independently, or by one accepting the other's — never on a timer. Promotion and relegation are suggested to the coach and applied
 only when they confirm.
 
 Read [docs/DATA-MODEL.md](docs/DATA-MODEL.md) for the reasoning.

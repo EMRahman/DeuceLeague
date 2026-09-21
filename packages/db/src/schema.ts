@@ -380,6 +380,7 @@ export const match = pgTable(
     competitionId: uuid("competition_id").notNull(),
     /** Null for friendlies and anything outside a division. */
     divisionId: uuid("division_id"),
+    /** scheduled → reported → played, or disputed when the two claims differ. */
     status: text("status").notNull().default("scheduled"),
     /** Set once the match reaches `played`. */
     outcome: text("outcome"),
@@ -421,10 +422,10 @@ export const match = pgTable(
     // The "who still hasn't played?" query, which runs constantly near a deadline.
     index("match_outstanding_ix")
       .on(t.competitionId)
-      .where(sql`${t.status} in ('scheduled', 'arranged')`),
+      .where(sql`${t.status} in ('scheduled', 'reported')`),
     oneOf("match_status_ck", "status", [
       "scheduled",
-      "arranged",
+      "reported",
       "played",
       "disputed",
       "void",
@@ -515,8 +516,12 @@ export const matchParticipant = pgTable(
  *
  *   - they agree          -> both confirm, the score enters the ledger
  *   - they differ         -> match.status becomes 'disputed', both claims stand
- *   - only one ever comes -> it is accepted at autoConfirmAt
+ *   - only one ever comes -> the match stays 'reported' indefinitely
  *   - the coach overrides -> a `coach_entry` claim confirms and supersedes
+ *
+ * A side's claim is either a score of its own or an acceptance of the other
+ * side's, recorded with acceptsSubmissionId. Nothing enters the ledger on a
+ * timer: two people agree, or the coach decides.
  *
  * A coach or bot entry has no sideIndex: it speaks for the match, not a side.
  */
@@ -544,14 +549,20 @@ export const resultSubmission = pgTable(
     confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
     rejectedAt: timestamp("rejected_at", { withTimezone: true }),
     rejectReason: text("reject_reason"),
-    /** When an unconfirmed submission becomes accepted on its own. */
-    autoConfirmAt: timestamp("auto_confirm_at", { withTimezone: true }),
+    /**
+     * Set when this claim is the other side pressing "accept" rather than
+     * reporting independently. Its score must equal the claim it accepts.
+     * Null means the side reported a score of its own.
+     */
+    acceptsSubmissionId: uuid("accepts_submission_id"),
     source: text("source").notNull(),
     /** What the player actually typed. Debugs bad parses and seeds the parser's eval set. */
     rawInput: text("raw_input"),
     createdAt: createdAt(),
   },
   (t) => [
+    // Lets an acceptance reference the claim it accepts without leaving the club.
+    unique("result_submission_id_club_uq").on(t.id, t.clubId),
     // One live claim per side. Two sides may both have one; a second claim from
     // the same side replaces its own, never the opponent's.
     uniqueIndex("result_submission_one_pending_per_side_uq")
@@ -572,10 +583,12 @@ export const resultSubmission = pgTable(
       foreignColumns: [member.id, member.clubId],
       name: "result_submission_confirmer_fk",
     }),
+    foreignKey({
+      columns: [t.acceptsSubmissionId, t.clubId],
+      foreignColumns: [t.id, t.clubId],
+      name: "result_submission_accepts_fk",
+    }),
     index("result_submission_match_ix").on(t.matchId),
-    index("result_submission_due_ix")
-      .on(t.autoConfirmAt)
-      .where(sql`${t.state} = 'pending'`),
     check(
       "result_submission_side_index_ck",
       sql`side_index is null or side_index in (0, 1)`,

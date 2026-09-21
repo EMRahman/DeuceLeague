@@ -43,6 +43,27 @@
       "when": 1789982989492,
       "tag": "0005_drop_arrangement",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789983989357,
+      "tag": "0006_drop_auto_confirm",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789982171995,
+      "tag": "0008_progress_views_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789984132441,
+      "tag": "0009_accept_opponent_score",
+      "breakpoints": true
     }
   ]
 }

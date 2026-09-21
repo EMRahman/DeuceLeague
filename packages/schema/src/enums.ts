@@ -45,10 +45,19 @@ export const EntryRole = z.enum(["player", "partner"]);
 /**
  * A match's lifecycle. A fixture is simply a match in `scheduled` — there is no
  * separate fixture table.
+ *
+ *   scheduled → nobody has reported anything
+ *   reported  → one side has claimed a score, waiting on the other
+ *   played    → both sides agree; the score is in the ledger
+ *   disputed  → both sides have claimed, and they differ
+ *   void      → struck from the record
+ *
+ * Nothing moves to `played` on a timer. Two people have to agree, or the coach
+ * has to decide. See docs/DATA-MODEL.md § Results.
  */
 export const MatchStatus = z.enum([
   "scheduled",
-  "arranged",
+  "reported",
   "played",
   "disputed",
   "void",
