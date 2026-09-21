@@ -13,7 +13,5 @@ export {
   matchSide,
   matchParticipant,
   resultSubmission,
-  arrangementProposal,
-  arrangementResponse,
   event,
 } from "./schema.js";

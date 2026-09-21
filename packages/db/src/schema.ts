@@ -509,9 +509,16 @@ export const matchParticipant = pgTable(
  * Every claim ever made about a match. The match row holds the accepted score;
  * this holds how it got there, who said what, and what was overridden.
  *
- * A partial unique index allows only one `pending` submission per match. If the
- * opponent submits a matching score it confirms immediately; a differing score
- * puts the match into `disputed` for the coach to settle.
+ * Both sides report independently — nobody rubber-stamps the other's version.
+ * A partial unique index allows one pending claim per side, so the two claims
+ * coexist and can be compared:
+ *
+ *   - they agree          -> both confirm, the score enters the ledger
+ *   - they differ         -> match.status becomes 'disputed', both claims stand
+ *   - only one ever comes -> it is accepted at autoConfirmAt
+ *   - the coach overrides -> a `coach_entry` claim confirms and supersedes
+ *
+ * A coach or bot entry has no sideIndex: it speaks for the match, not a side.
  */
 export const resultSubmission = pgTable(
   "result_submission",
@@ -521,6 +528,11 @@ export const resultSubmission = pgTable(
       .notNull()
       .references(() => club.id, { onDelete: "cascade" }),
     matchId: uuid("match_id").notNull(),
+    /**
+     * Which side is making this claim, matching match_side.side_index.
+     * Null for a coach or bot entry, which speaks for the match as a whole.
+     */
+    sideIndex: integer("side_index"),
     /** Null when a coach entered it through an API key rather than as a member. */
     submittedByMemberId: uuid("submitted_by_member_id"),
     submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
@@ -540,9 +552,11 @@ export const resultSubmission = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    uniqueIndex("result_submission_one_pending_uq")
-      .on(t.matchId)
-      .where(sql`${t.state} = 'pending'`),
+    // One live claim per side. Two sides may both have one; a second claim from
+    // the same side replaces its own, never the opponent's.
+    uniqueIndex("result_submission_one_pending_per_side_uq")
+      .on(t.matchId, t.sideIndex)
+      .where(sql`${t.state} = 'pending' and ${t.sideIndex} is not null`),
     foreignKey({
       columns: [t.matchId, t.clubId],
       foreignColumns: [match.id, match.clubId],
@@ -562,6 +576,10 @@ export const resultSubmission = pgTable(
     index("result_submission_due_ix")
       .on(t.autoConfirmAt)
       .where(sql`${t.state} = 'pending'`),
+    check(
+      "result_submission_side_index_ck",
+      sql`side_index is null or side_index in (0, 1)`,
+    ),
     oneOf("result_submission_state_ck", "state", [
       "pending",
       "confirmed",
@@ -582,81 +600,6 @@ export const resultSubmission = pgTable(
       "coach_entry",
       "nl_parse",
     ]),
-  ],
-);
-
-// ────────────────────────────────────────── arranging matches (the evidence) ──
-
-/**
- * Proposals and replies for getting a match played. Because arranging happens
- * here, the system knows at the deadline who offered times and who never
- * answered — so an unplayed match can be judged on evidence rather than guessed at.
- *
- * Players who arrange elsewhere leave no trace, which is why the rules spec has
- * an explicit `bothSilent` branch.
- */
-export const arrangementProposal = pgTable(
-  "arrangement_proposal",
-  {
-    id: id(),
-    clubId: uuid("club_id")
-      .notNull()
-      .references(() => club.id, { onDelete: "cascade" }),
-    matchId: uuid("match_id").notNull(),
-    proposedByMemberId: uuid("proposed_by_member_id").notNull(),
-    proposedAt: timestamp("proposed_at", { withTimezone: true }).notNull().defaultNow(),
-    /** [{ start, end, courtHint }] */
-    slots: jsonb("slots").notNull().default([]),
-    message: text("message"),
-    state: text("state").notNull().default("open"),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    unique("arrangement_proposal_id_club_uq").on(t.id, t.clubId),
-    foreignKey({
-      columns: [t.matchId, t.clubId],
-      foreignColumns: [match.id, match.clubId],
-      name: "arrangement_proposal_match_fk",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [t.proposedByMemberId, t.clubId],
-      foreignColumns: [member.id, member.clubId],
-      name: "arrangement_proposal_member_fk",
-    }),
-    index("arrangement_proposal_match_ix").on(t.matchId),
-    oneOf("arrangement_proposal_state_ck", "state", [
-      "open",
-      "accepted",
-      "declined",
-      "expired",
-      "withdrawn",
-    ]),
-  ],
-);
-
-export const arrangementResponse = pgTable(
-  "arrangement_response",
-  {
-    proposalId: uuid("proposal_id").notNull(),
-    memberId: uuid("member_id").notNull(),
-    clubId: uuid("club_id").notNull(),
-    response: text("response").notNull(),
-    acceptedSlotIndex: integer("accepted_slot_index"),
-    respondedAt: timestamp("responded_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    unique("arrangement_response_pk").on(t.proposalId, t.memberId),
-    foreignKey({
-      columns: [t.proposalId, t.clubId],
-      foreignColumns: [arrangementProposal.id, arrangementProposal.clubId],
-      name: "arrangement_response_proposal_fk",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [t.memberId, t.clubId],
-      foreignColumns: [member.id, member.clubId],
-      name: "arrangement_response_member_fk",
-    }),
-    oneOf("arrangement_response_kind_ck", "response", ["accept", "decline", "counter"]),
   ],
 );
 

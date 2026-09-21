@@ -31,11 +31,12 @@ export const PointsSpec = z.object({
   walkoverLoss: z.number(),
   concededWin: z.number(),
   concededLoss: z.number(),
-  /** Awarded to each side when a match is never played. */
+  /**
+   * Awarded to each side when a match is never played. The system does not try
+   * to work out whose fault that was — see docs/DATA-MODEL.md § No scheduling.
+   * A coach who judges one side at fault records a walkover instead.
+   */
   unplayedBoth: z.number(),
-  /** Awarded when blame for an unplayed match is assigned to one side. */
-  unplayedBlamed: z.number(),
-  unplayedNotBlamed: z.number(),
 });
 
 /**
@@ -47,25 +48,6 @@ export const WithdrawalSpec = z.object({
   playedMatches: z.enum(["keep", "void"]),
   /** What becomes of fixtures the withdrawn unit never got to. */
   remainingMatches: z.enum(["unplayed", "walkover_to_opponent"]),
-});
-
-/** How unplayed fixtures are treated once the deadline passes. */
-export const DeadlineSpec = z.object({
-  /**
-   * `no_points` treats every unplayed match alike.
-   * `assign_blame` uses the arrangement record to decide who failed to engage.
-   */
-  onUnplayed: z.enum(["no_points", "assign_blame"]),
-  blame: z.object({
-    /** A side that never proposed a time and never answered a proposal. */
-    noProposalMade: z.enum(["blame", "shared"]),
-    /** A side that received a proposal and never responded. */
-    ignoredProposal: z.enum(["blame", "shared"]),
-    /** Both sides proposed or responded but never landed on a slot. */
-    bothEngaged: z.enum(["shared"]),
-    /** Neither side used the system at all, so there is no evidence either way. */
-    bothSilent: z.enum(["shared", "blame"]),
-  }),
 });
 
 export const MovementSpec = z.object({
@@ -91,7 +73,6 @@ export const RulesSpec = z.object({
   tiebreaks: z.array(TiebreakRule).min(1),
   movement: MovementSpec,
   withdrawal: WithdrawalSpec,
-  deadline: DeadlineSpec,
   /** Units below this many played matches are listed but marked unranked. */
   minMatchesForRanking: z.number().int().min(0).max(50).default(0),
 });
@@ -115,20 +96,9 @@ export const DEFAULT_RULES: RulesSpec = {
     concededWin: 3,
     concededLoss: 0,
     unplayedBoth: 0,
-    unplayedBlamed: 0,
-    unplayedNotBlamed: 1,
   },
   tiebreaks: ["points", "head_to_head", "set_difference", "game_difference", "matches_won"],
   movement: { promote: 2, relegate: 2, minMatchesForPromotion: 2 },
   withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" },
-  deadline: {
-    onUnplayed: "no_points",
-    blame: {
-      noProposalMade: "blame",
-      ignoredProposal: "blame",
-      bothEngaged: "shared",
-      bothSilent: "shared",
-    },
-  },
   minMatchesForRanking: 0,
 };

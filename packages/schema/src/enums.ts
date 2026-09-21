@@ -79,16 +79,6 @@ export const SubmissionSource = z.enum([
   "nl_parse",
 ]);
 
-export const ProposalState = z.enum([
-  "open",
-  "accepted",
-  "declined",
-  "expired",
-  "withdrawn",
-]);
-
-export const ResponseKind = z.enum(["accept", "decline", "counter"]);
-
 export const ActorType = z.enum(["member", "api_key", "system"]);
 
 /**
@@ -121,7 +111,5 @@ export type MatchStatus = z.infer<typeof MatchStatus>;
 export type MatchOutcome = z.infer<typeof MatchOutcome>;
 export type SubmissionState = z.infer<typeof SubmissionState>;
 export type SubmissionSource = z.infer<typeof SubmissionSource>;
-export type ProposalState = z.infer<typeof ProposalState>;
-export type ResponseKind = z.infer<typeof ResponseKind>;
 export type ActorType = z.infer<typeof ActorType>;
 export type Scope = z.infer<typeof Scope>;

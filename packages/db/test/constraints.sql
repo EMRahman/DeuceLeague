@@ -112,25 +112,27 @@ EXCEPTION WHEN unique_violation THEN
   RAISE NOTICE '  PASS  re-running fixture generation cannot duplicate a pairing';
 END $$;
 
--- Two players report the match at the same moment.
-INSERT INTO result_submission (club_id, match_id, outcome, source, state) VALUES
-  (:'c1', 'f0000000-0000-7000-8000-000000000001', 'completed', 'telegram', 'pending');
+-- Both sides report the match independently; neither rubber-stamps the other.
+INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state) VALUES
+  (:'c1', 'f0000000-0000-7000-8000-000000000001', 0, 'completed', 'telegram', 'pending'),
+  (:'c1', 'f0000000-0000-7000-8000-000000000001', 1, 'completed', 'web', 'pending');
+\echo '  PASS  the two sides may hold a live claim each'
 
 DO $$
 BEGIN
-  INSERT INTO result_submission (club_id, match_id, outcome, source, state)
+  INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state)
     VALUES ('11111111-1111-7111-8111-111111111111',
-            'f0000000-0000-7000-8000-000000000001', 'completed', 'web', 'pending');
-  RAISE EXCEPTION 'FAIL: two pending submissions exist for one match';
+            'f0000000-0000-7000-8000-000000000001', 0, 'completed', 'web', 'pending');
+  RAISE EXCEPTION 'FAIL: one side lodged two live claims';
 EXCEPTION WHEN unique_violation THEN
-  RAISE NOTICE '  PASS  only one result submission may be pending per match';
+  RAISE NOTICE '  PASS  a side may hold only one live claim';
 END $$;
 
--- Superseded submissions stay as history; only one may be pending at a time.
+-- Superseded claims stay as history; a coach entry speaks for the whole match.
 UPDATE result_submission SET state = 'superseded'
   WHERE match_id = 'f0000000-0000-7000-8000-000000000001';
-INSERT INTO result_submission (club_id, match_id, outcome, source, state) VALUES
-  (:'c1', 'f0000000-0000-7000-8000-000000000001', 'completed', 'coach_entry', 'pending');
+INSERT INTO result_submission (club_id, match_id, side_index, outcome, source, state) VALUES
+  (:'c1', 'f0000000-0000-7000-8000-000000000001', NULL, 'completed', 'coach_entry', 'confirmed');
 \echo '  PASS  a coach override supersedes without deleting the trail'
 
 INSERT INTO event (club_id, type, subject_type, subject_id, actor_type) VALUES

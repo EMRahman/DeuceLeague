@@ -4,7 +4,8 @@ Open-source club tennis league software: the database and the API. Everything
 people see — websites, phone apps, Telegram bots — is built on top by whoever
 wants it, and they keep whatever they put on it.
 
-**Status:** data model complete and verified. The API service is next.
+**Status:** data model complete and verified — 14 tables, 6 views, 30 checks
+green against a real Postgres. The API service is next.
 
 ## What is here
 
@@ -38,8 +39,10 @@ Women's Doubles, Mixed Doubles. Each competition has **divisions**, and each
 division holds **entries** — one member for singles, two for doubles. Entries
 play **matches**, and a match with no score yet is simply a fixture.
 
-Standings are computed from matches on read, never stored. Promotion and
-relegation are suggested to the coach and applied only when they confirm.
+Standings are computed from matches on read, never stored. Both players report
+a score independently and the claims are compared, rather than one confirming
+the other's. Promotion and relegation are suggested to the coach and applied
+only when they confirm.
 
 Read [docs/DATA-MODEL.md](docs/DATA-MODEL.md) for the reasoning.
 
@@ -55,6 +58,11 @@ competition. Changing how a club's league works should never require a release.
 
 **The coach decides.** The engine advises on placements; it never applies them.
 Coaches hold information the data does not.
+
+**No scheduling, and nothing gets sent.** There is no calendar and no reminder
+system. The core answers *who still has matches outstanding and how long is
+left*; whether an email goes out, and what it says, is the coach's call. See
+[docs/DATA-MODEL.md § No scheduling](docs/DATA-MODEL.md#no-scheduling-and-why).
 
 **Small enough to read.** Sixteen tables. If the core outgrows that, the new
 thing belongs in an adapter.

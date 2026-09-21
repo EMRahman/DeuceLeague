@@ -1,8 +1,8 @@
 # DeuceLeague data model
 
-The database behind a club tennis league. Sixteen tables; you should be able to
-read the whole thing in fifteen minutes. If that stops being true, something in
-here belongs in an adapter instead.
+The database behind a club tennis league. Fourteen tables and six views; you
+should be able to read the whole thing in fifteen minutes. If that stops being
+true, something in here belongs in an adapter instead.
 
 ## Three ideas carry the weight
 
@@ -33,10 +33,12 @@ club
                      └── entry_member ──┘  1 row singles, 2 rows doubles
 
 match  ── match_side ── match_participant   who was actually on court
-   ├── result_submission                    every claim ever made
-   └── arrangement_proposal ── arrangement_response
+   └── result_submission                    every claim ever made
 
 event                                        append-only; audit log and outbox
+
+views: entry_label, division_progress, competition_progress,
+       entry_progress, outstanding_match, member_chase_list
 ```
 
 ## Seasons and competitions
@@ -85,39 +87,68 @@ When a partner is injured and someone fills in, the pair's standing is untouched
 and the match record is still true. This happens constantly and most systems
 handle it badly.
 
-## Results: submit, then confirm
+## Results: both sides report
 
 `match` holds the currently accepted score. `result_submission` holds every
 claim ever made about it — who said what, from which channel, and what
 superseded it.
 
-A partial unique index permits only **one `pending` submission per match**, which
-resolves the concurrent case on its own:
+**Both sides report independently.** Nobody rubber-stamps the opponent's
+version, because a confirm button is a thing people click without reading. Each
+side lodges its own claim with its own `side_index`, and a partial unique index
+permits one live claim per side, so the two coexist and can be compared:
 
-- Opponent submits a matching score → confirm immediately.
-- Opponent submits a different score → `match.status = 'disputed'`, coach settles it.
-- Nobody responds by `auto_confirm_at` → the pending submission is accepted.
-- The coach overrides → a new submission with `source = 'coach_entry'` lands
-  `confirmed` and supersedes. Nothing is deleted.
+| | |
+|---|---|
+| The two claims agree | both confirm; the score enters the ledger |
+| The two claims differ | `match.status` becomes `disputed`, both claims stand, the coach settles it |
+| Only one ever arrives | it is accepted at `auto_confirm_at` |
+| The coach overrides | a `coach_entry` claim confirms and supersedes; nothing is deleted |
+
+A coach or bot entry has `side_index` null: it speaks for the match, not for a
+side. `source` already covers `telegram`, `api` and `nl_parse`, so a bot
+reporting on someone's behalf needs no schema change.
 
 `raw_input` keeps what the player actually typed. It earns its place twice: it
 is how you debug a bad natural-language parse, and it accumulates into the eval
 set for improving that parser.
 
-## Arrangement, and why it is in the schema
+## Progress and chase queries
 
-Thirty to forty per cent of box matches never get played, and chasing them is
-the coach's real workload. `arrangement_proposal` and `arrangement_response`
-record who offered times and who answered.
+Two questions get asked all season — how much has been played, and who needs
+chasing — so both are views rather than bespoke endpoints. The same query then
+serves the API, a coach's own SQL, and an agent asked to draft some emails.
 
-At the deadline that turns "who forfeits?" from a guess into evidence: this
-player proposed three times and got no reply. The rules spec can then assign
-blame defensibly, and the coach can show their working.
+| View | Answers |
+|---|---|
+| `division_progress` | how far through each division is, and how long is left |
+| `competition_progress` | the same, rolled up to a league |
+| `entry_progress` | played and outstanding for one competing unit |
+| `outstanding_match` | every match still to play, both sides named |
+| `member_chase_list` | one row per member: how many outstanding, who they are waiting on, how to reach them |
 
-**The honest limitation:** this only knows what happened inside the system. Two
-players who sort it out over WhatsApp leave no trace, which is exactly why
-`rules.deadline.blame` has an explicit `bothSilent` branch. Never assume full
-participation.
+`member_chase_list` is the one that matters. Filtering it by `days_remaining`
+is the whole reminder workflow:
+
+```sql
+SELECT display_name, email, outstanding_matches, waiting_on
+FROM member_chase_list
+WHERE competition_id = $1 AND days_remaining <= 30
+ORDER BY outstanding_matches DESC;
+```
+
+Swap 30 for 14 a fortnight later. **The core does not send anything.** It
+answers the question; the coach decides whether a reminder goes out, to whom,
+and in what words — which is exactly the sort of judgement that should not be
+automated, and exactly the sort of glue a coach can write with Claude Code in an
+afternoon.
+
+Every view is `security_invoker`, so row-level security follows through it. A
+view that was not would hand one club another club's data.
+
+> `member_chase_list` exposes member email, because that is what the job needs.
+> The API surfaces those columns only under the `members:pii` scope. RLS is
+> enforced by the database; scope gating is not.
 
 ## The two JSON documents
 
@@ -140,11 +171,41 @@ Presets ship for best-of-three with a champions tiebreak, three full sets, an
 8-game pro set and a short set to 4.
 
 **`competition.rules`** is how the league works, as data — points per outcome,
-tiebreak ordering, movement counts, what happens to a withdrawal, how the
-deadline treats unplayed matches. Changing how a club's league works should
+tiebreak ordering, movement counts, what happens to a withdrawal. Changing how a
+club's league works should
 never require shipping code. `DEFAULT_RULES` is the starting point: 3 for a win,
 1 for turning up and losing, nothing for a match that never happened, no
 walkovers, a withdrawn unit's played results left standing.
+
+## No scheduling, and why
+
+There is no calendar here, and no record of who tried to arrange a match. This
+was in an early draft and was taken out deliberately.
+
+**Players will not adopt a third schedule.** They already run a work calendar
+and a personal one. A club league that demands a third gets used by the
+organised minority and ignored by everyone else, which leaves the data sparse —
+and a sparse record of who made an effort is worse than none, because it still
+looks authoritative.
+
+**It would mislead even if players did use it.** People avoid each other for
+reasons the database cannot see: a feud, a lopsided match-up, someone they would
+rather not spend two hours with. "Who proposed times" reads as effort and
+frequently is not. Penalising on it would be confidently unfair, which is worse
+than being visibly silent.
+
+So an unplayed match is simply unplayed, worth whatever
+`rules.points.unplayedBoth` says. Where a coach judges one side genuinely at
+fault, they record a walkover — a human decision, with a name against it and an
+entry in the audit log.
+
+What the core does instead is answer the question well: `member_chase_list` says
+who has matches outstanding and how long is left, and the coach decides what to
+do about it.
+
+A club that really wants scheduling can build it as an adapter — subscribe to
+the event stream, keep its own tables, write results back through the API. It
+does not belong in the core and it does not need a fork.
 
 Scores themselves are structured, never strings:
 
@@ -240,8 +301,9 @@ A new key defaults to `league:read` + `results:write`.
 
 ## Deliberately absent
 
-Ladder challenges, team and inter-club leagues, court booking, payments, rating
-computation, cross-club identity, attendance for social sessions, and
+Scheduling and arrangement tracking (above), ladder challenges, team and
+inter-club leagues, court booking, payments, rating computation, cross-club
+identity, attendance for social sessions, notifications of any kind, and
 import/export. Each is a nullable column or a new table when it is wanted; none
 of them changes the shape above.
 
@@ -253,6 +315,6 @@ npm test                 # score validation
 npm run db:verify        # migrations, constraints and RLS against a real Postgres
 ```
 
-`npm run db:verify` needs Docker. It starts a throwaway Postgres, applies all
-three migrations, runs `test/constraints.sql` and `test/rls.sql`, and removes
-the container.
+`npm run db:verify` needs Docker. It starts a throwaway Postgres, applies every
+migration, runs the constraint, progress and RLS suites, and removes the
+container afterwards.
