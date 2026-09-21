@@ -1,0 +1,27 @@
+# Self-hosting starts here. Two containers, one .env.
+#
+#   cp .env.example .env
+#   docker compose up -d
+#   npm run db:migrate
+#
+# Note the app connects as deuceleague_app, not as the owner — row-level
+# security does not apply to a table's owner. See docs/DATA-MODEL.md.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: deuceleague
+      POSTGRES_USER: deuceleague
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U deuceleague -d deuceleague"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

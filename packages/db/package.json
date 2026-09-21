@@ -1,0 +1,25 @@
+{
+  "name": "@deuceleague/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "generate": "drizzle-kit generate",
+    "push": "drizzle-kit push"
+  },
+  "dependencies": {
+    "@deuceleague/schema": "*",
+    "drizzle-orm": "^0.38.0",
+    "postgres": "^3.4.5"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.0"
+  }
+}

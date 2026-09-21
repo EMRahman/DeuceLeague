@@ -1,0 +1,21 @@
+{
+  "name": "deuceleague",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "typecheck": "tsc --build",
+    "test": "npm test --workspaces --if-present",
+    "db:generate": "npm run generate -w @deuceleague/db",
+    "db:migrate": "npm run push -w @deuceleague/db",
+    "db:verify": "bash scripts/db-verify.sh"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
