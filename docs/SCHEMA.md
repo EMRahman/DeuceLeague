@@ -345,7 +345,7 @@ One league within a season, e.g. Men's Singles or Mixed Doubles. Carries its own
 | `sequence_in_season` | `integer` | no | `1` | Numbers box rounds when a club runs several inside one season. Most clubs leave this at 1 and chain rounds across seasons with previous_competition_id instead. |
 | `previous_competition_id` | `uuid` | yes | — | The competition this one continues from, if any. Promotion and relegation suggestions are read from here. |
 | `state` | `text` | no | `'draft'::text` | Where this competition is in its lifecycle: draft, active, complete or archived. |
-| `visibility` | `text` | no | `'members'::text` | Who may see this competition: public, members or private. Nothing is readable without a credential, so for now public and members are treated alike. |
+| `visibility` | `text` | no | `'members'::text` | Who may see this competition, among those who have signed in: members (every member of the club) or private (the coach's own credentials only, never a player's login). Nothing is readable without a credential. |
 | `created_at` | `timestamp with time zone` | no | `now()` | When this row was created. |
 | `updated_at` | `timestamp with time zone` | no | `now()` | When this row was last changed. |
 
@@ -374,7 +374,7 @@ One league within a season, e.g. Men's Singles or Mixed Doubles. Carries its own
 - `competition_category_ck`: `CHECK ((category = ANY (ARRAY['open'::text, 'mens'::text, 'womens'::text, 'mixed'::text])))`
 - `competition_discipline_ck`: `CHECK ((discipline = ANY (ARRAY['singles'::text, 'doubles'::text])))`
 - `competition_state_ck`: `CHECK ((state = ANY (ARRAY['draft'::text, 'active'::text, 'complete'::text, 'archived'::text])))`
-- `competition_visibility_ck`: `CHECK ((visibility = ANY (ARRAY['public'::text, 'members'::text, 'private'::text])))`
+- `competition_visibility_ck`: `CHECK ((visibility = ANY (ARRAY['members'::text, 'private'::text])))`
 
 **Referenced by:**
 

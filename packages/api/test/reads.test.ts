@@ -216,7 +216,6 @@ test("placements need a draft that names its previous competition", async () => 
 test("nothing about a competition can be read without a credential", async () => {
   const c = await newClub("anonymous");
   const { competitionId } = await competitionOf(c, [["Ann", "Bea"]]);
-  await send("PATCH", `/v1/competitions/${competitionId}`, c.key, { visibility: "public" });
   for (const path of [
     "/v1/competitions",
     `/v1/competitions/${competitionId}`,

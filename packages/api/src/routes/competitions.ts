@@ -70,7 +70,9 @@ const Competition = z
     }),
     state: CompetitionState,
     visibility: Visibility.meta({
-      description: "Who among the club may see it. Nothing is readable without a credential.",
+      description:
+        "`members`: every member of the club who signs in. `private`: only the coach's credentials, never a " +
+        "player's login. Nothing is readable without a credential.",
     }),
     created_at: Timestamp,
     updated_at: Timestamp,

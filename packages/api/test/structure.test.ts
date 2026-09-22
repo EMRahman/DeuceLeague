@@ -247,7 +247,8 @@ test("a competition is active only inside an active season, and is a record once
 
   assert.equal((await send("PATCH", `/v1/competitions/${comp}`, c.key, { state: "complete" })).status, 200);
   assert.equal((await send("PATCH", `/v1/competitions/${comp}`, c.key, { name: "Renamed" })).body.code, "competition_closed");
-  assert.equal((await send("PATCH", `/v1/competitions/${comp}`, c.key, { visibility: "public" })).status, 200);
+  assert.equal((await send("PATCH", `/v1/competitions/${comp}`, c.key, { visibility: "private" })).status, 200);
+  assert.equal((await send("PATCH", `/v1/competitions/${comp}`, c.key, { visibility: "public" })).status, 400, "no such thing");
   assert.equal((await send("POST", `/v1/competitions/${comp}/divisions`, c.key, {})).body.code, "competition_closed");
   assert.equal((await send("PATCH", `/v1/seasons/${season}`, c.key, { state: "complete" })).status, 200);
 });

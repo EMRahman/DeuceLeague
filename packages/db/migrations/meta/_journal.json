@@ -106,6 +106,13 @@
       "when": 1790084830365,
       "tag": "0015_no_anonymous_access",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790092704688,
+      "tag": "0016_members_or_private",
+      "breakpoints": true
     }
   ]
 }

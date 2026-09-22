@@ -242,6 +242,7 @@ export const competition = pgTable(
     /** Where promotion and relegation suggestions are read from. */
     previousCompetitionId: uuid("previous_competition_id"),
     state: text("state").notNull().default("draft"),
+    /** members: any member who signs in. private: the coach's credentials only. */
     visibility: text("visibility").notNull().default("members"),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -263,7 +264,7 @@ export const competition = pgTable(
     oneOf("competition_discipline_ck", "discipline", ["singles", "doubles"]),
     oneOf("competition_category_ck", "category", ["open", "mens", "womens", "mixed"]),
     oneOf("competition_state_ck", "state", ["draft", "active", "complete", "archived"]),
-    oneOf("competition_visibility_ck", "visibility", ["public", "members", "private"]),
+    oneOf("competition_visibility_ck", "visibility", ["members", "private"]),
   ],
 );
 

@@ -15,10 +15,11 @@ export const SeasonKind = z.enum(["spring", "summer", "autumn", "winter"]);
 export const CompetitionState = z.enum(["draft", "active", "complete", "archived"]);
 
 /**
- * Who may see a competition. Nothing is readable without a credential, so for
- * now `public` and `members` are treated alike.
+ * Who may see a competition, among those who have signed in — nothing is
+ * readable without a credential. `members`: every member of the club.
+ * `private`: only the coach's own credentials, never a player's login.
  */
-export const Visibility = z.enum(["public", "members", "private"]);
+export const Visibility = z.enum(["members", "private"]);
 
 /** How many people make up one competing unit. */
 export const Discipline = z.enum(["singles", "doubles"]);
