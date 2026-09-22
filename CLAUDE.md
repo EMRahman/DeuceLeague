@@ -20,7 +20,7 @@ packages/api      HTTP: routes, auth, validation. Reaches Postgres only via db. 
 ## Commands
 
 ```bash
-npm test            # score validation (packages/schema)
+npm test            # the SQL-injection check, then score validation (packages/schema)
 npm run db:verify   # migrations + constraint + RLS + event feed + API suites on throwaway Postgres
 npm run typecheck
 npm run db:generate # generate a migration after editing schema.ts
@@ -57,6 +57,12 @@ overrides. A match with one unanswered claim stays `reported` for as long as it
 takes; the coach sees it in `division_progress.reported`. When the two claims
 differ, either side may re-enter its score or accept the other's; nobody
 rejects a claim, and nothing is deleted.
+
+**Never build SQL from text.** Bind every value with drizzle's `sql` tag or a
+postgres-js tagged template, so input can never become SQL — that, not the
+database or a firewall, is what stops injection. `npm test` and `db:verify`
+fail on `sql.raw`, `sql.identifier`, `.unsafe` or `.execute` of a plain string,
+unless a `sql-safe:` comment on or above the line says why it is safe.
 
 **The event table is append-only.** A trigger enforces it. If you need to
 correct something, append a correction.

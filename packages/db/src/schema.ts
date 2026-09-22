@@ -42,6 +42,7 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 const updatedAt = () => timestamp("updated_at", { withTimezone: true }).notNull().defaultNow();
 
 const oneOf = (name: string, column: string, values: readonly string[]) =>
+  // sql-safe: builds CHECK constraints from the fixed lists below, when a migration is generated. Never request input.
   check(name, sql.raw(`${column} in (${values.map((v) => `'${v}'`).join(", ")})`));
 
 /**

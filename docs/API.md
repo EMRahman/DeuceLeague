@@ -70,7 +70,21 @@ what an erasure request under GDPR needs.
 
 **Player logins** (`members:write`). Mint a one-time login link for a member.
 It is returned to the caller, whose own tooling delivers it — the core does not
-send email. The player exchanges it for a session.
+send email. The link works once and expires within minutes; the player
+exchanges it for a session.
+
+A session never expires. A player logs in once per phone and never again,
+because a league is used a few times a month and a login screen each time is
+how players drift away. It ends only when they sign out, when the coach signs
+them out everywhere — for a lost phone — or when the member is removed. That is
+safe to leave open because a session can act only for that player's own
+matches, and a result still needs the other side to agree.
+
+Browsers have their own limits, which the website works with: it sets the
+session cookie from its own server, never from page scripts (Safari clears
+script-written storage after a week without a visit), and re-sets it on each
+visit, since Chrome keeps a cookie for about 400 days at most. A player who
+comes back at least once a year stays signed in.
 
 **League structure.** Seasons, competitions and divisions, and moving them
 through their states. A competition's match format and rules are validated
@@ -171,6 +185,7 @@ Each phase ends with its tests green and is committed on its own.
 4. **Results and events.**
 5. **Read endpoints.** Standings, progress, the chase list, the public
    endpoints with rate limits, and `npm run demo:seed`.
-6. **Player logins.**
+6. **Player logins.** `access_grant` changes so a session can have no expiry
+   while a login link still must, and so a session can be revoked.
 7. **Self-hosting.** A Dockerfile and Compose service, the setup guide, and the
    demo instance.

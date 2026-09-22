@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --build",
-    "test": "npm test --workspaces --if-present",
+    "test": "node scripts/check-sql.mjs && npm test --workspaces --if-present",
     "db:generate": "npm run generate -w @deuceleague/db",
     "db:migrate": "npm run migrate -w @deuceleague/db",
     "db:verify": "bash scripts/db-verify.sh",

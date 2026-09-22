@@ -10,6 +10,10 @@ IMAGE=${POSTGRES_IMAGE:-postgres:17-alpine}
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DB_DIR="$ROOT/packages/db"
 
+# First, because it needs no database: no query may be built from text.
+echo "→ no SQL built from text"
+node "$ROOT/scripts/check-sql.mjs"
+
 cleanup() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 cleanup
