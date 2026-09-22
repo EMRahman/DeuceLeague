@@ -114,6 +114,18 @@ export type Claim = {
 
 export type MatchDetail = Match & { claims: Claim[]; waiting_on: Side | null; differences: string[] };
 
+export type PointsFor = "result" | "sets" | "close_loss" | "convincing_win" | "unplayed";
+
+/** One match as it counts in a row of the table, and what earned its points. */
+export type MatchLine = {
+  match_id: string;
+  opponent_entry_id: string;
+  result: "won" | "lost" | "unplayed";
+  outcome: Exclude<Outcome, "unplayed"> | null;
+  points: number;
+  items: { for: PointsFor; points: number }[];
+};
+
 export type StandingsRow = {
   position: number | null;
   standing: "ranked" | "unranked" | "withdrawn";
@@ -124,6 +136,8 @@ export type StandingsRow = {
   won: number;
   lost: number;
   outstanding: number;
+  matches: MatchLine[];
+  all_played_bonus: number;
 };
 
 export type Standings = {

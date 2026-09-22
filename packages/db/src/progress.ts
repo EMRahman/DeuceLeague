@@ -133,6 +133,7 @@ export async function chaseList(
 
 /** A match as the standings engine reads it: the two entries and what the ledger holds. */
 export type LedgerMatch = {
+  id: string;
   divisionId: string | null;
   side0: string | null;
   side1: string | null;
@@ -149,6 +150,7 @@ export async function ledgerMatches(tx: Tx, competitionId: string, divisionId?: 
   const s1 = alias(matchSide, "s1");
   return tx
     .select({
+      id: match.id,
       divisionId: match.divisionId,
       side0: s0.entryId,
       side1: s1.entryId,

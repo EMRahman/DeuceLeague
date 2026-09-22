@@ -12,6 +12,8 @@ export {
   type StandingsRow,
   type Separator,
   type Tally,
+  type MatchPoints,
+  type PointsFor,
 } from "./standings.js";
 export {
   suggestPlacements,

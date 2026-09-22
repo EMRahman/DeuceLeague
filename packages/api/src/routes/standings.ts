@@ -24,6 +24,33 @@ import {
 
 // ────────────────────────────────────────────────────────────── standings ──
 
+const MatchLine = z
+  .object({
+    match_id: z.uuid(),
+    opponent_entry_id: z.uuid(),
+    result: z.enum(["won", "lost", "unplayed"]),
+    outcome: z
+      .enum(["completed", "retired", "walkover", "conceded"])
+      .nullable()
+      .openapi({ description: "Null for a match that never happened." }),
+    points: z.number(),
+    items: z
+      .array(
+        z.object({
+          for: z.enum(["result", "sets", "close_loss", "convincing_win", "unplayed"]).openapi({
+            description:
+              "`result`: what the win or loss is worth, playing included. `sets`: for sets won. `close_loss` " +
+              "and `convincing_win`: the margin bonuses. `unplayed`: a match that never happened.",
+          }),
+          points: z.number(),
+        }),
+      )
+      .openapi({ description: "What earned the points, adding up to `points`." }),
+  })
+  .openapi("StandingsMatch", {
+    description: "One match as it counts in an entry's row. Matches not yet in the ledger are not listed.",
+  });
+
 const Row = z
   .object({
     position: z.number().int().nullable().openapi({ description: "1 is top. Null when unranked or withdrawn." }),
@@ -46,6 +73,12 @@ const Row = z
       .union([z.enum(["points", "games_won", "sets_won", "name"]), TiebreakRule])
       .nullable()
       .openapi({ description: "What put this entry below the one above it. Null at the top of each group." }),
+    matches: z.array(MatchLine).openapi({
+      description: "Where the points came from, match by match. With `all_played_bonus` they add up to `points`.",
+    }),
+    all_played_bonus: z.number().openapi({
+      description: "For turning up to every match once all are in, if the rules give it; otherwise 0.",
+    }),
   })
   .openapi("StandingsRow");
 
@@ -90,6 +123,15 @@ function toStandings(
         games_won: r.gamesWon,
         games_lost: r.gamesLost,
         separated_by: r.separatedBy,
+        matches: r.matches.map((m) => ({
+          match_id: m.matchId,
+          opponent_entry_id: m.opponentId,
+          result: m.result,
+          outcome: m.outcome,
+          points: m.points,
+          items: m.items,
+        })),
+        all_played_bonus: r.allPlayedBonus,
       })),
     })),
   };

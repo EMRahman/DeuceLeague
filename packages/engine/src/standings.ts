@@ -25,6 +25,7 @@ export type StandingsEntry = {
 
 /** A match as the ledger holds it. `side0` and `side1` are entry ids. */
 export type StandingsMatch = {
+  id: string;
   side0: string | null;
   side1: string | null;
   status: MatchStatus;
@@ -67,6 +68,24 @@ export type Tally = {
   gamesLost: number;
 };
 
+/** What earned a match's points: its result, and then any bonus the rules give on top. */
+export type PointsFor = "result" | "sets" | "close_loss" | "convincing_win" | "unplayed";
+
+/**
+ * One match as it counts in an entry's row: who it was against, how it went,
+ * and each thing that earned a point. A match not yet in the ledger counts for
+ * nothing and is not listed.
+ */
+export type MatchPoints = {
+  matchId: string;
+  opponentId: string;
+  result: "won" | "lost" | "unplayed";
+  /** Null for a match that never happened. */
+  outcome: Exclude<MatchOutcome, "unplayed"> | null;
+  points: number;
+  items: { for: PointsFor; points: number }[];
+};
+
 export type StandingsRow = Tally & {
   entryId: string;
   label: string;
@@ -79,11 +98,21 @@ export type StandingsRow = Tally & {
   standing: "ranked" | "unranked" | "withdrawn";
   /** Why this entry is below the one above it. Null at the top of each group. */
   separatedBy: Separator | null;
+  /**
+   * Where the points came from, match by match, in order of match id — for
+   * UUIDv7 ids, the order the matches were made. With allPlayedBonus they add up to `points`, always: the table is
+   * computed by adding these very items.
+   */
+  matches: MatchPoints[];
+  /** rules.points.allPlayed, if the entry turned up to every match and all are in; otherwise 0. */
+  allPlayedBonus: number;
 };
 
 export function computeStandings(input: StandingsInput): StandingsRow[] {
   const withdrawn = new Set(input.entries.filter((e) => e.withdrawn).map((e) => e.id));
   const tallies = new Map(input.entries.map((e) => [e.id, emptyTally()]));
+  const ledgers = new Map<string, MatchPoints[]>(input.entries.map((e) => [e.id, []]));
+  const bonuses = new Map<string, number>();
   const wins = new Map<string, number>(); // "winner|loser" → matches, for head-to-head
   const absent = new Set<string>(); // gave a walkover or conceded: forfeits the all-played bonus
 
@@ -97,13 +126,36 @@ export function computeStandings(input: StandingsInput): StandingsRow[] {
     if (result.kind === "outstanding") {
       pair[0].outstanding += 1;
       pair[1].outstanding += 1;
-    } else if (result.kind === "unplayed") {
-      for (const t of pair) {
-        t.unplayed += 1;
-        t.points += input.rules.points.unplayedBoth;
+      continue;
+    }
+
+    // Each side's line for this match. Points reach the table only through
+    // award(), so the lines always add up to it.
+    const ids = [match.side0, match.side1] as const;
+    const lines = ([0, 1] as const).map((i): MatchPoints => ({
+      matchId: match.id,
+      opponentId: ids[i === 0 ? 1 : 0],
+      result: result.kind === "unplayed" ? "unplayed" : result.winner === i ? "won" : "lost",
+      outcome: result.kind === "unplayed" ? null : result.outcome,
+      points: 0,
+      items: [],
+    }));
+    const award: Award = (side, reason, points) => {
+      if (points === 0 && reason !== "result" && reason !== "unplayed") return;
+      pair[side].points += points;
+      lines[side]!.points += points;
+      lines[side]!.items.push({ for: reason, points });
+    };
+    ledgers.get(ids[0])?.push(lines[0]!);
+    ledgers.get(ids[1])?.push(lines[1]!);
+
+    if (result.kind === "unplayed") {
+      for (const side of [0, 1] as const) {
+        pair[side].unplayed += 1;
+        award(side, "unplayed", input.rules.points.unplayedBoth);
       }
     } else {
-      apply(result, pair, input);
+      apply(result, pair, input, award);
       const [winner, loser] = result.winner === 0 ? [match.side0, match.side1] : [match.side1, match.side0];
       wins.set(`${winner}|${loser}`, (wins.get(`${winner}|${loser}`) ?? 0) + 1);
       if (result.outcome === "walkover" || result.outcome === "conceded") absent.add(loser);
@@ -116,6 +168,7 @@ export function computeStandings(input: StandingsInput): StandingsRow[] {
     for (const [id, t] of tallies) {
       if (t.played > 0 && t.outstanding === 0 && t.unplayed === 0 && !absent.has(id)) {
         t.points += input.rules.points.allPlayed;
+        bonuses.set(id, input.rules.points.allPlayed);
       }
     }
   }
@@ -146,6 +199,10 @@ export function computeStandings(input: StandingsInput): StandingsRow[] {
         standing,
         separatedBy,
         ...tallyOf(id),
+        // By id, which for UUIDv7 is the order the matches were made, so the
+        // lines read the same however the matches arrived.
+        matches: (ledgers.get(id) ?? []).sort((x, y) => (x.matchId < y.matchId ? -1 : x.matchId > y.matchId ? 1 : 0)),
+        allPlayedBonus: bonuses.get(id) ?? 0,
       });
     });
   }
@@ -201,7 +258,10 @@ function fromLedger(match: StandingsMatch): Settled {
   };
 }
 
-function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput): void {
+/** Gives one side of the match being counted some points, and says what for. */
+type Award = (side: SideIndex, reason: PointsFor, points: number) => void;
+
+function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput, award: Award): void {
   const p = input.rules.points;
   const pointsFor: Record<Decided["outcome"], [winner: number, loser: number]> = {
     completed: [p.win, p.lossPlayed],
@@ -210,12 +270,13 @@ function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput): v
     conceded: [p.concededWin, p.concededLoss],
   };
   const [forWinner, forLoser] = pointsFor[result.outcome];
+  const loserSide: SideIndex = result.winner === 0 ? 1 : 0;
   const winner = sides[result.winner];
-  const loser = sides[result.winner === 0 ? 1 : 0];
+  const loser = sides[loserSide];
   winner.won += 1;
-  winner.points += forWinner;
+  award(result.winner, "result", forWinner);
   loser.lost += 1;
-  loser.points += forLoser;
+  award(loserSide, "result", forLoser);
 
   if (result.outcome === "walkover" || result.outcome === "conceded") {
     // Only the side that was there played: the other never took the court.
@@ -253,12 +314,11 @@ function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput): v
 
   // A retirement earns only its flat amount; a match played out earns its sets and margin too.
   if (result.outcome !== "completed") return;
-  sides[0].points += p.perSetWon * counted.setsWon[0];
-  sides[1].points += p.perSetWon * counted.setsWon[1];
-  const loserSide = result.winner === 0 ? 1 : 0;
+  award(0, "sets", p.perSetWon * counted.setsWon[0]);
+  award(1, "sets", p.perSetWon * counted.setsWon[1]);
   const margin = counted.gamesWon[result.winner] - counted.gamesWon[loserSide];
-  if (p.closeLoss && margin <= p.closeLoss.withinGames) loser.points += p.closeLoss.points;
-  if (p.convincingWin && margin >= p.convincingWin.byGames) winner.points += p.convincingWin.points;
+  if (p.closeLoss && margin <= p.closeLoss.withinGames) award(loserSide, "close_loss", p.closeLoss.points);
+  if (p.convincingWin && margin >= p.convincingWin.byGames) award(result.winner, "convincing_win", p.convincingWin.points);
 }
 
 function emptyTally(): Tally {

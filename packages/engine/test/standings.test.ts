@@ -37,6 +37,10 @@ const FLAT: RulesSpec = {
 
 const format = MATCH_FORMATS.best_of_3_champions_tiebreak as MatchFormat;
 
+let made = 0;
+/** A match id, in the order the test makes them. */
+const nextId = () => `m${++made}`;
+
 const entries = (...ids: string[]): StandingsEntry[] => ids.map((id) => ({ id, label: id, withdrawn: false }));
 
 /** A result from side 0's point of view: played("A", "B", "6-4 6-3") is A beating B. */
@@ -50,9 +54,19 @@ function played(
   const sets = score.split(" ").map((s) => ({ games: s.split("-").map(Number) as [number, number] }));
   const checked = validateResult({ outcome, score: { sets }, retiredSide }, format);
   assert.ok(checked.ok, `test data: ${score} — ${checked.errors.join("; ")}`);
-  return { side0, side1, status: "played", outcome, winningSide: checked.winningSide, retiredSide, score: { sets } };
+  return {
+    id: nextId(),
+    side0,
+    side1,
+    status: "played",
+    outcome,
+    winningSide: checked.winningSide,
+    retiredSide,
+    score: { sets },
+  };
 }
 const open = (side0: string, side1: string): StandingsMatch => ({
+  id: nextId(),
   side0,
   side1,
   status: "open",
@@ -62,6 +76,7 @@ const open = (side0: string, side1: string): StandingsMatch => ({
   score: null,
 });
 const walkover = (side0: string, side1: string, noShow: 0 | 1): StandingsMatch => ({
+  id: nextId(),
   side0,
   side1,
   status: "played",
@@ -337,4 +352,63 @@ test("rules saved before the bonuses existed score as they always did", () => {
   const rules = RulesSpec.parse({ ...FLAT, points: before });
   const rows = table({ entries: entries("A", "B"), matches: [played("A", "B", "6-0 6-0")], rules });
   assert.deepEqual([row(rows, "A").points, row(rows, "B").points], [3, 1]);
+});
+
+// ── where the points came from ──────────────────────────────────────────────
+
+test("each row says what every match earned it, and the lines add up to its points", () => {
+  const ab = played("A", "B", "6-4 6-3");
+  const ac = played("A", "C", "6-1 6-1");
+  const bc = played("B", "C", "6-4 3-6 10-8");
+  const rows = table({ entries: entries("A", "B", "C"), matches: [ab, ac, bc], rules: DEFAULT_RULES });
+
+  const a = row(rows, "A");
+  assert.deepEqual(
+    a.matches.map((m) => [m.matchId, m.opponentId, m.result, m.points, m.items.map((i) => `${i.for} ${i.points}`)]),
+    [
+      [ab.id, "B", "won", 6, ["result 4", "sets 2"]],
+      [ac.id, "C", "won", 7, ["result 4", "sets 2", "convincing_win 1"]],
+    ],
+  );
+  assert.equal(a.allPlayedBonus, 1);
+  const c = row(rows, "C");
+  assert.deepEqual(
+    c.matches.map((m) => [m.opponentId, m.result, m.items.map((i) => `${i.for} ${i.points}`)]),
+    [
+      ["A", "lost", ["result 1"]],
+      ["B", "lost", ["result 1", "sets 1", "close_loss 1"]],
+    ],
+  );
+
+  // Whatever the results, the lines are the table.
+  const mixed = table({
+    entries: [...entries("A", "B", "C", "D"), { id: "E", label: "E", withdrawn: true }],
+    matches: [
+      played("A", "B", "6-4 2-1", "retired", 1),
+      walkover("C", "D", 0),
+      played("B", "C", "7-6 6-7 10-8"),
+      open("A", "D"),
+      played("E", "A", "6-0 6-0"),
+      open("E", "B"),
+    ],
+    rules: { ...DEFAULT_RULES, points: { ...DEFAULT_RULES.points, unplayedBoth: 1 } },
+    deadlinePassed: true,
+  });
+  for (const r of mixed) {
+    const sum = r.matches.reduce((total, m) => total + m.points, 0) + r.allPlayedBonus;
+    assert.equal(sum, r.points, `${r.entryId}'s lines add up to its points`);
+    for (const m of r.matches) {
+      assert.equal(m.items.reduce((t, i) => t + i.points, 0), m.points, `${r.entryId}: ${m.matchId}`);
+    }
+  }
+});
+
+test("a match not yet in the ledger is not listed, and one never played is", () => {
+  const rows = table({ entries: entries("A", "B"), matches: [open("A", "B")], rules: DEFAULT_RULES });
+  assert.deepEqual(row(rows, "A").matches, []);
+  const after = table({ entries: entries("A", "B"), matches: [open("A", "B")], rules: DEFAULT_RULES, deadlinePassed: true });
+  assert.deepEqual(
+    row(after, "A").matches.map((m) => [m.result, m.outcome, m.points]),
+    [["unplayed", null, 0]],
+  );
 });

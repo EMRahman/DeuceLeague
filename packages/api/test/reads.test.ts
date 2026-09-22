@@ -69,6 +69,24 @@ test("standings are computed from the matches on every read, and outstanding mat
   assert.deepEqual([rows[2].outstanding, rows[3].outstanding], [1, 1], "Cal v Dee is still to play");
   assert.equal(rows[3].separated_by, "name", "level on everything else until they meet");
 
+  // Each row says where its points came from, and the lines add up to them.
+  const ann = rows[0];
+  assert.deepEqual(
+    ann.matches.map((m: { opponent_entry_id: string; result: string; points: number; items: { for: string }[] }) => [
+      m.opponent_entry_id,
+      m.result,
+      m.points,
+      m.items.map((i) => i.for),
+    ]).sort(),
+    [e.Bea, e.Cal, e.Dee].map((opponent) => [opponent, "won", 7, ["result", "sets", "convincing_win"]]).sort(),
+  );
+  assert.equal(ann.all_played_bonus, 1);
+  for (const r of rows) {
+    const sum = r.matches.reduce((t: number, m: { points: number }) => t + m.points, 0) + r.all_played_bonus;
+    assert.equal(sum, r.points, `${r.label}'s lines add up`);
+  }
+  assert.ok(ann.matches.every((m: { match_id: string }) => matches.some((x: MatchRow) => x.id === m.match_id)));
+
   await send("PATCH", `/v1/seasons/${seasonId}`, c.key, { results_deadline_at: inDays(-1) });
   const after = await send("GET", `/v1/competitions/${competitionId}/standings`, c.key);
   assert.equal(after.body.final, true);

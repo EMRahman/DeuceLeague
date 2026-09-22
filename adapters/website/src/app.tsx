@@ -14,10 +14,11 @@ import {
   type Standings,
 } from "./api.js";
 import type { Mailer } from "./mail.js";
-import { readReportForm, scoreLine } from "./score.js";
+import { describe, readReportForm, scoreLine } from "./score.js";
 import {
   CompetitionPage,
   ConfirmSignIn,
+  EntryPage,
   Home,
   LinkSent,
   MatchPage,
@@ -335,6 +336,37 @@ export function createWebsite(options: WebsiteOptions) {
         results={results}
       />,
     );
+  });
+
+  // One player's row of the table, opened: every match that counts, and what it earned.
+  app.get("/competitions/:id/entries/:entryId", async (c) => {
+    const p = await player(c);
+    if (!p) return c.redirect("/", 303);
+    const { id, entryId } = c.req.param();
+    const [competition, standings, matches] = await Promise.all([
+      api<Competition>("GET", `/v1/competitions/${id}`, p.session),
+      api<Standings>("GET", `/v1/competitions/${id}/standings`, p.session),
+      all<Match>(api, `/v1/matches?entry_id=${entryId}`, p.session),
+    ]);
+    const rows = standings.divisions.flatMap((d) => d.rows);
+    const row = rows.find((r) => r.entry_id === entryId);
+    if (!row) return c.html(<Problem frame={frameOf(p)} title="Nothing here" detail="No such player in this competition." />, 404);
+
+    const labelOf = (entry: string | null) => rows.find((r) => r.entry_id === entry)?.label ?? "Someone";
+    const byId = new Map(matches.map((m) => [m.id, m]));
+    const played = row.matches.map((line) => {
+      const match = byId.get(line.match_id);
+      const side = match?.sides.find((s) => s.entry_id === entryId)?.side ?? 0;
+      // The score from this player's side, and in words when nothing was played out.
+      const score = match?.result ? describe(match.result, side, namesOf(match)) : "";
+      return { line, opponent: labelOf(line.opponent_entry_id), score };
+    });
+    const counted = new Set(row.matches.map((l) => l.match_id));
+    const toPlay = matches
+      .filter((m) => m.status !== "played" && !counted.has(m.id))
+      .map((m) => ({ id: m.id, opponent: labelOf(m.sides.find((s) => s.entry_id !== entryId)?.entry_id ?? null) }));
+
+    return c.html(<EntryPage frame={frameOf(p)} competition={competition} row={row} played={played} toPlay={toPlay} />);
   });
 
   for (const [path, method] of [

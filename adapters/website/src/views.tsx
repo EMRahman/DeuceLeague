@@ -1,5 +1,5 @@
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
-import type { Claim, Competition, MatchDetail, Side, Standings } from "./api.js";
+import type { Claim, Competition, MatchDetail, MatchLine, Side, Standings, StandingsRow } from "./api.js";
 import { describe, OUTCOMES, setRows } from "./score.js";
 
 /**
@@ -46,6 +46,9 @@ input[type=number] { width: 4.5rem; text-align: center; }
 button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: .65rem 1.1rem; background: var(--accent); color: var(--accent-fg); cursor: pointer; }
 button.quiet { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; }
 details { margin-top: .75rem; }
+.pts { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.why { color: var(--muted); font-size: .85rem; }
+.total { display: flex; justify-content: space-between; font-weight: 700; padding-top: .6rem; }
 summary { cursor: pointer; color: var(--accent); }
 `;
 
@@ -268,7 +271,7 @@ export const CompetitionPage: FC<{
               <tr class={mine?.entryId === r.entry_id ? "me" : ""}>
                 <td>{r.position ?? "–"}</td>
                 <td>
-                  {r.label}
+                  <a href={`/competitions/${competition.id}/entries/${r.entry_id}`}>{r.label}</a>
                   {r.standing === "withdrawn" && <span class="muted"> (withdrawn)</span>}
                 </td>
                 <td>{r.played}</td>
@@ -444,3 +447,102 @@ export const MatchPage: FC<{
     </Layout>
   );
 };
+
+// ───────────────────────────────────────────────── one player's matches ──
+
+/** What each line of a breakdown is called, in a player's words. */
+function itemLabel(item: MatchLine["items"][number], line: MatchLine): string {
+  switch (item.for) {
+    case "result":
+      if (line.result === "won") {
+        return { completed: "Win", retired: "Win, opponent retired", walkover: "Win by walkover", conceded: "Win, conceded" }[
+          line.outcome ?? "completed"
+        ];
+      }
+      return { completed: "Played", retired: "Retired", walkover: "Did not turn up", conceded: "Conceded" }[
+        line.outcome ?? "completed"
+      ];
+    case "sets":
+      return "Sets won";
+    case "close_loss":
+      return "Close loss";
+    case "convincing_win":
+      return "Big win";
+    case "unplayed":
+      return "Not played";
+  }
+}
+
+const plural = (n: number) => `${n} ${Math.abs(n) === 1 ? "pt" : "pts"}`;
+
+export type PlayedLine = { line: MatchLine; opponent: string; score: string };
+
+export const EntryPage: FC<{
+  frame: Frame;
+  competition: Competition;
+  row: StandingsRow;
+  played: PlayedLine[];
+  toPlay: { id: string; opponent: string }[];
+}> = ({ frame, competition, row, played, toPlay }) => (
+  <Layout title={row.label} frame={frame}>
+    <p class="muted">
+      <a href={`/competitions/${competition.id}`}>{competition.name}</a>
+    </p>
+    <h1>{row.label}</h1>
+    <p>
+      {row.position ? `${ordinal(row.position)} · ` : ""}
+      {plural(row.points)} from {row.played} {row.played === 1 ? "match" : "matches"}
+    </p>
+    {played.length === 0 ? (
+      <p class="muted">No results yet.</p>
+    ) : (
+      <section class="card">
+        <ul class="matches">
+          {played.map(({ line, opponent, score }) => (
+            <li>
+              <span>
+                <a href={`/matches/${line.match_id}`}>
+                  {line.result === "won" ? "Beat" : line.result === "lost" ? "Lost to" : "Did not play"} {opponent}
+                </a>
+                {score && <span class="muted"> · {score}</span>}
+                <br />
+                <span class="why">
+                  {line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}
+                </span>
+              </span>
+              <span class="pts">{plural(line.points)}</span>
+            </li>
+          ))}
+          {row.all_played_bonus !== 0 && (
+            <li>
+              <span>Turned up to every match</span>
+              <span class="pts">{plural(row.all_played_bonus)}</span>
+            </li>
+          )}
+        </ul>
+        <div class="total">
+          <span>Total</span>
+          <span class="pts">{plural(row.points)}</span>
+        </div>
+      </section>
+    )}
+    {toPlay.length > 0 && (
+      <>
+        <h2>Still to play</h2>
+        <ul class="matches">
+          {toPlay.map((m) => (
+            <li>
+              <a href={`/matches/${m.id}`}>{m.opponent}</a>
+            </li>
+          ))}
+        </ul>
+      </>
+    )}
+  </Layout>
+);
+
+function ordinal(n: number): string {
+  const tens = n % 100;
+  const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
+  return `${n}${suffix}`;
+}
