@@ -28,6 +28,13 @@ test("accepts a champions tiebreak as the deciding set", () => {
   assert.deepEqual(r.setsWon, [2, 1]);
 });
 
+test("a champions tiebreak counts as one game, not its points", () => {
+  // 6-4 3-6 10-7: the tiebreak replaces the third set, so the games are 10-10.
+  const r = validateResult(completed([6, 4], [3, 6], [10, 7]), champsTb);
+  assert.ok(r.ok, r.errors.join("; "));
+  assert.deepEqual(r.gamesWon, [10, 10]);
+});
+
 test("rejects a full third set when the format calls for a champions tiebreak", () => {
   const r = validateResult(completed([6, 4], [3, 6], [6, 4]), champsTb);
   assert.equal(r.ok, false);

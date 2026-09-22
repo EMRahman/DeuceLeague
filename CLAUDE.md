@@ -13,6 +13,7 @@ just the shape but why each decision was made, and most proposed
 
 ```
 packages/schema   Zod: scores, match formats, rules. No I/O, no dependencies.    MIT
+packages/engine   League logic: standings, claims, fixtures, placements. Pure.   AGPL
 packages/db       Schema, migrations and queries. The only thing touching Postgres. AGPL
 packages/api      HTTP: routes, auth, validation. Reaches Postgres only via db.    AGPL
 ```
@@ -20,7 +21,7 @@ packages/api      HTTP: routes, auth, validation. Reaches Postgres only via db. 
 ## Commands
 
 ```bash
-npm test            # the SQL-injection check, then score validation (packages/schema)
+npm test            # the SQL-injection check, then the schema and engine unit tests
 npm run db:verify   # migrations + constraint + RLS + event feed + API suites on throwaway Postgres
 npm run typecheck
 npm run db:generate # generate a migration after editing schema.ts
@@ -110,6 +111,9 @@ the query; a coach or an adapter decides what to do with the answer.
   read a club id from the URL or body; use `c.get("auth").clubId`.
 - Declare a route's scopes with `requires(...)` in its `createRoute`: the same
   list becomes the spec's security requirement and the runtime check.
+- League rules live in `packages/engine` as pure functions — no database, no
+  clock; whatever they need is passed in. Standings are computed there on every
+  read and never stored. A route fetches, calls the engine, and stores.
 - SQL lives in `packages/db`; routes call its functions. The API tests in
   `packages/api/test` run against the migrated database in `db:verify`.
 - Comments explain *why*. The schema is read by coaches, not just by engineers.

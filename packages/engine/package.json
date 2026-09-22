@@ -1,0 +1,19 @@
+{
+  "name": "@deuceleague/engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "npm run build && node --test --experimental-strip-types --no-warnings test/*.ts"
+  },
+  "dependencies": {
+    "@deuceleague/schema": "*"
+  }
+}

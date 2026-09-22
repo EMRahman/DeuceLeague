@@ -91,7 +91,10 @@ export type ValidatedResult = {
   errors: string[];
   /** Sets won, [side0, side1]. Zero for walkovers and unplayed matches. */
   setsWon: [number, number];
-  /** Games won, [side0, side1]. Counts only sets that were actually played. */
+  /**
+   * Games won, [side0, side1]. Counts only sets that were actually played. A
+   * champions tiebreak counts as one game to its winner, since it replaces a set.
+   */
   gamesWon: [number, number];
   winningSide: SideIndex | null;
 };
@@ -196,13 +199,19 @@ export function validateResult(result: Result, format: MatchFormat): ValidatedRe
       errors.push(`set ${i + 1}: the match was already won`);
       return;
     }
-    gamesWon[0] += set.games[0];
-    gamesWon[1] += set.games[1];
-    const isDecider = i === maxSets - 1;
-    const check =
-      isDecider && format.finalSet.type === "champions_tiebreak"
-        ? validateChampionsTiebreak(set.games, format.finalSet)
-        : validateSet(set.games, format.set);
+    const finalSet = format.finalSet;
+    const isChampionsTiebreak = i === maxSets - 1 && finalSet.type === "champions_tiebreak";
+    const check = isChampionsTiebreak
+      ? validateChampionsTiebreak(set.games, finalSet)
+      : validateSet(set.games, format.set);
+    if (isChampionsTiebreak) {
+      // It stands in for the final set, so it counts as one game to whoever won
+      // it: a 10-8 match tiebreak is not eighteen games of tennis.
+      if (!check.error && check.winner !== null) gamesWon[check.winner] += 1;
+    } else {
+      gamesWon[0] += set.games[0];
+      gamesWon[1] += set.games[1];
+    }
     if (check.error) {
       if (!(isRetirement && i === sets.length - 1)) {
         errors.push(`set ${i + 1}: ${check.error}`);

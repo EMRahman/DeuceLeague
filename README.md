@@ -12,6 +12,7 @@ green against a real Postgres. The API is being built: see
 
 ```
 packages/schema   Zod schemas: scores, match formats, league rules      MIT
+packages/engine   League logic: standings, fixtures, promotion          AGPL
 packages/db       Postgres schema, migrations and queries (Drizzle)     AGPL
 packages/api      The HTTP API (Hono), with its OpenAPI spec            AGPL
 docs/DATA-MODEL.md  How the model works and why it is shaped this way

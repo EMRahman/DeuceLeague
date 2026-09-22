@@ -10,8 +10,9 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** phase 1 of 7 is done — the server runs, keys authenticate, and
-> `GET /v1/me` answers. See [Build order](#build-order).
+> **Status:** phases 1 and 2 of 7 are done — the server runs and keys
+> authenticate, and the league's rules exist as a tested engine. See
+> [Build order](#build-order).
 
 ## One club per credential
 
@@ -178,7 +179,7 @@ Each phase ends with its tests green and is committed on its own.
    set, API-key authentication and scopes, problem+json errors, the OpenAPI
    spec, `/healthz`, `GET /v1/me`, `npm run club:create`, and the start-up check
    on the database role.
-2. **Engine.** `packages/engine`: standings, claim comparison, round robin and
+2. ✓ **Engine.** `packages/engine`: standings, claim comparison, round robin and
    placement suggestions, as pure functions with unit tests.
 3. **Structure.** Club, keys, members, seasons, competitions, divisions,
    entries and fixtures.
