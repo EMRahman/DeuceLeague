@@ -1,13 +1,13 @@
 import { createHmac } from "node:crypto";
 import {
   assertRowLevelSecurityApplies,
-  clubIdForSlug,
   connect,
   createApiKey,
   createClub,
   recordEvent,
   setClub,
   SYSTEM,
+  violatedUniqueConstraint,
 } from "@deuceleague/db";
 import { DEFAULT_RULES, Scope, type RulesSpec } from "@deuceleague/schema";
 import { createApp } from "../app.js";
@@ -21,10 +21,11 @@ import { generateApiKey, hashKey, KEY_PREFIX } from "../keys.js";
  * filled by placements from the spring tables. Every step goes through the
  * API itself, in-process, so the demo shows exactly what the API does.
  *
- * Prints one read-only key per club. With DEMO_KEY_SEED set, the keys come
- * out the same on every rebuild, so they can be published; they read fake
- * clubs and nothing else. The demo is rebuilt from an empty database, so this
- * refuses to run where its clubs already exist.
+ * Prints one read-only key per club — nothing in the API is readable without
+ * one. With DEMO_KEY_SEED set, the keys come out the same on every rebuild, so
+ * they can be published; they read fake clubs and nothing else. The demo is
+ * rebuilt from an empty database, so this refuses to run where its clubs
+ * already exist.
  */
 
 type Api = (method: string, path: string, body?: unknown) => Promise<any>;
@@ -156,7 +157,6 @@ async function seedDeuce(api: Api, rng: () => number) {
       discipline: league.discipline,
       category: league.category,
       match_format: "best_of_3_champions_tiebreak",
-      visibility: "public",
       ...(league.rules ? { rules: league.rules } : {}),
     });
     springCompetitions[league.name] = competition.id;
@@ -200,7 +200,6 @@ async function seedDeuce(api: Api, rng: () => number) {
       discipline: league.discipline,
       category: league.category,
       match_format: "best_of_3_champions_tiebreak",
-      visibility: "public",
       previous_competition_id: springCompetitions[league.name],
       ...(league.rules ? { rules: league.rules } : {}),
     });
@@ -239,7 +238,6 @@ async function seedAdvantage(api: Api, rng: () => number) {
     name: "Open Singles",
     discipline: "singles",
     match_format: "pro_set_8",
-    visibility: "public",
   });
   const division = await api("POST", `/v1/competitions/${competition.id}/divisions`, { name: "Box A" });
   const strength: string[] = [];
@@ -275,11 +273,6 @@ const keySeed = process.env.DEMO_KEY_SEED;
 const { db, close } = connect(url);
 try {
   await assertRowLevelSecurityApplies(db);
-  for (const club of CLUBS) {
-    if (await db.transaction((tx) => clubIdForSlug(tx, club.slug))) {
-      fail(`the club ${club.slug} already exists. The demo is rebuilt from an empty database.`);
-    }
-  }
 
   const app = createApp({ db, log: () => {} });
   const printed: string[] = [];
@@ -291,6 +284,11 @@ try {
       name: club.name,
       timezone: club.timezone,
       adminKey: { name: "demo:seed", hash: admin.hash, prefix: admin.prefix, scopes: [...Scope.options] },
+    }).catch((error: unknown) => {
+      if (violatedUniqueConstraint(error) === "club_slug_unique") {
+        fail(`the club ${club.slug} already exists. The demo is rebuilt from an empty database.`);
+      }
+      throw error;
     });
     const api: Api = async (method, path, body) => {
       const res = await app.request(path, {
@@ -326,10 +324,13 @@ try {
         payload: { name: made.name, scopes: made.scopes },
       });
     });
-    printed.push(`  ${club.name}\n    public:   /v1/public/${club.slug}/competitions\n    read key: ${key}`);
+    printed.push(`  ${club.name} (${club.slug})\n    read key: ${key}`);
   }
 
-  console.log(`Seeded ${CLUBS.length} demo clubs. Their keys read, and nothing else:\n\n${printed.join("\n\n")}`);
+  console.log(
+    `Seeded ${CLUBS.length} demo clubs. Each key reads its club and nothing else; try GET /v1/competitions:\n\n` +
+      printed.join("\n\n"),
+  );
 } finally {
   await close();
 }

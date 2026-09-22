@@ -48,8 +48,10 @@ because of this.
 **Never let the engine apply a promotion.** It suggests — at most into a draft
 competition — and nothing takes effect until the coach activates it.
 
-**Never widen a public response to include PII.** Unauthenticated and
-player-scoped responses return `display_name` only. Full name, email, phone,
+**Never serve anything without a credential, and never widen a player's view
+to include PII.** Every `/v1` route needs a key or, once player logins exist, a
+session; there are no anonymous pages. Player-scoped responses return
+`display_name` only. Full name, email, phone,
 date of birth, gender and notes require the `members:pii` scope — including the
 email column in `member_chase_list`. Their descriptions start `PII` in
 docs/SCHEMA.md.
@@ -102,9 +104,8 @@ the query; a coach or an adapter decides what to do with the answer.
   migration; `0009` and `0010` show the hand edits, marked.
 - Views must be `WITH (security_invoker = true)`, or row-level security stops
   applying and one club can read another's data.
-- The API finds a request's club only through `deuceleague_resolve_api_key`,
-  `deuceleague_resolve_access_grant` and `deuceleague_club_id_for_slug`, then
-  sets `app.club_id`. Never give the app role `BYPASSRLS` or a broader
+- The API finds a request's club only through `deuceleague_resolve_api_key` and
+  `deuceleague_resolve_access_grant`, then sets `app.club_id`. Never give the app role `BYPASSRLS` or a broader
   `SECURITY DEFINER` function.
 - Consumers read events from `event_feed`, paging on `(tx_id, id)` — never on
   `event.id` alone, which skips events that commit late.

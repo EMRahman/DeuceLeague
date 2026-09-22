@@ -124,11 +124,13 @@ BEGIN
   IF n <> 0 THEN RAISE EXCEPTION 'FAIL: a removed member''s grant still resolved'; END IF;
   RAISE NOTICE '  PASS  a magic link finds its member, unless it expired or they were removed';
 
-  IF deuceleague_club_id_for_slug('club-one') IS DISTINCT FROM '11111111-1111-7111-8111-111111111111'
-     OR deuceleague_club_id_for_slug('no-such-club') IS NOT NULL THEN
-    RAISE EXCEPTION 'FAIL: slug lookup';
-  END IF;
-  RAISE NOTICE '  PASS  a public page finds its club by slug';
+  -- A SECURITY DEFINER function runs past row-level security. Only the two
+  -- resolvers may, and each needs a secret: nothing finds a club without one.
+  SELECT count(*) INTO n FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace
+   WHERE ns.nspname = 'public' AND p.prosecdef
+     AND p.proname NOT IN ('deuceleague_resolve_api_key', 'deuceleague_resolve_access_grant');
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL: % other function(s) run past row-level security', n; END IF;
+  RAISE NOTICE '  PASS  only a key or a token finds a club; nothing else runs past row-level security';
 
   -- The functions are the only door: the tables themselves stay shut.
   SELECT count(*) INTO n FROM api_key;

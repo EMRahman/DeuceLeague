@@ -12,9 +12,8 @@ maintain; the effort goes into the spec instead.
 
 > **Status:** phases 1 to 5 of 7 are done — a club can be set up, run and
 > read through the API: structure, results, the event feed, standings,
-> progress, the chase list, placements into next season, and public pages
-> without a key. Player logins and self-hosting remain. See
-> [Build order](#build-order).
+> progress, the chase list and placements into next season. Player logins and
+> self-hosting remain. See [Build order](#build-order).
 
 ## One club per credential
 
@@ -37,7 +36,10 @@ row-level security, because either would switch tenancy off without a sound.
 |---|---|---|
 | A coach's tools, bots and scripts | API key: `Authorization: Bearer dl_…` | whatever the key's scopes allow |
 | A player | a session, from a magic link | read their league; report and accept results for their own matches only |
-| Anyone | none | read competitions whose visibility is `public`, with display names only |
+
+Nobody else. Every `/v1` route needs a credential: competitions, tables and
+results are shown only to someone who has authenticated, never to an anonymous
+visitor. Only `/healthz` and `/openapi.json` answer without one.
 
 A key is shown once, when it is created; only its SHA-256 is stored. A coach
 who would rather log in than hold a key is a member with an access grant that
@@ -163,15 +165,6 @@ feed in the order it is safe to read, so a consumer never skips an event.
 This is how adapters react to change — a bot announcing results, a club
 website refreshing — without the core sending anything.
 
-**Public.** `GET /v1/public/{club-slug}/…` — standings, fixtures and results
-for public competitions, so a club's website can show its table without a key.
-Only competitions marked `public` and under way or finished appear: a draft's
-placements are not yet decided. Nothing public carries more than display
-names — no claims, nothing a player typed, no contact details. Each address
-gets `PUBLIC_RATE_LIMIT` requests a minute (60 by default), counted in the
-server's memory; behind a reverse proxy, set `TRUST_PROXY=true` so the limit
-sees each client rather than the proxy.
-
 **Meta.** `/healthz` and `/openapi.json`.
 
 ## Conventions
@@ -187,7 +180,6 @@ sees each client rather than the proxy.
   club is a `400` naming the field; a missing record in the path is a `404`.
   Another club's records answer exactly as if they did not exist.
 - Every response carries `X-Request-Id`, which is also in that request's log line.
-- Public endpoints are rate-limited per IP address.
 
 ## Deliberately not in the API
 
@@ -215,9 +207,9 @@ written for a coach and their coding agent working together, and tested end to
 end on one recommended host.
 
 **The demo instance** holds fake clubs only, rebuilt nightly by
-`npm run demo:seed`, which builds them through the API itself. Anyone can call
-its public endpoints, and a read-only key is published in the README —
-`DEMO_KEY_SEED` makes that key come out the same every night. It is read-only
+`npm run demo:seed`, which builds them through the API itself. A read-only key
+is published in the README — `DEMO_KEY_SEED` makes that key come out the same
+every night. It is read-only
 on purpose: a shared key that can write gets vandalised and needs moderating.
 Trying writes takes a couple of minutes locally with Docker Compose.
 
@@ -239,8 +231,8 @@ Each phase ends with its tests green and is committed on its own.
    entries and fixtures.
 4. ✓ **Results and events.**
 5. ✓ **Read endpoints and placements.** Standings, progress, the chase list,
-   placements into a draft competition, the public endpoints with rate
-   limits, and `npm run demo:seed`.
+   placements into a draft competition, and `npm run demo:seed`. No
+   endpoint serves anything without a credential.
 6. **Player logins.** `access_grant` changes so a session can have no expiry
    while a login link still must, and so a session can be revoked.
 7. **Self-hosting.** A Dockerfile and Compose service, the setup guide, the

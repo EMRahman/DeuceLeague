@@ -88,7 +88,7 @@ export const member = pgTable(
     clubId: uuid("club_id")
       .notNull()
       .references(() => club.id, { onDelete: "cascade" }),
-    /** The only name that appears in unauthenticated or player-scoped responses. */
+    /** The only name that appears in player-scoped responses. */
     displayName: text("display_name").notNull(),
 
     // Everything below is PII and requires the `members:pii` scope to read.

@@ -57,7 +57,7 @@ const Result = z
   })
   .openapi("Result");
 
-export const Match = z
+const Match = z
   .object({
     id: z.uuid(),
     competition_id: z.uuid(),
@@ -143,7 +143,7 @@ function toResult(m: MatchRecord): z.infer<typeof Result> | null {
   };
 }
 
-export function toMatch(m: MatchRecord): z.infer<typeof Match> {
+function toMatch(m: MatchRecord): z.infer<typeof Match> {
   return {
     id: m.id,
     competition_id: m.competitionId,

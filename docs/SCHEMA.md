@@ -110,7 +110,7 @@ One club running the league. The root of every tenant boundary: every other tabl
 | Column | Type | Nullable | Default | Description |
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | no | `gen_random_uuid()` | Primary key. The application generates a UUIDv7 so ids sort chronologically and player-facing URLs can't be enumerated; the column default (gen_random_uuid()) is only a fallback for rows inserted without one. |
-| `slug` | `text` | no | — | The club's public, URL-safe identifier. Looked up by deuceleague_club_id_for_slug() to find the club before a request has authenticated, e.g. for an unauthenticated public page. |
+| `slug` | `text` | no | — | The club's short, URL-safe name, unique on this instance. How people and tools refer to the club; never a way in: every request needs a credential. |
 | `name` | `text` | no | — | The club's display name. |
 | `timezone` | `text` | no | `'Europe/London'::text` | IANA time zone name (e.g. 'Europe/London'). Every deadline and days-remaining count is interpreted in this zone, never the server's. |
 | `branding` | `jsonb` | no | `'{}'::jsonb` | Logo, colours and sponsor blocks, served to every client so it renders as the club's own site rather than a generic one. |
@@ -153,7 +153,7 @@ A person at the club, most often a player. Soft-deleted, never hard-deleted, bec
 | --- | --- | --- | --- | --- |
 | `id` | `uuid` | no | `gen_random_uuid()` | Primary key. The application generates a UUIDv7 so ids sort chronologically and player-facing URLs can't be enumerated; the column default (gen_random_uuid()) is only a fallback for rows inserted without one. |
 | `club_id` | `uuid` | no | — | Which club this row belongs to. Enforced by a row-level security policy comparing it to deuceleague_current_club(). |
-| `display_name` | `text` | no | — | The only name that appears in unauthenticated or player-scoped responses; full identity fields require the members:pii scope. |
+| `display_name` | `text` | no | — | The only name that appears in player-scoped responses; full identity fields require the members:pii scope. |
 | `full_name` | `text` | yes | — | PII (members:pii scope). This member's full name. |
 | `email` | `text` | yes | — | PII (members:pii scope). This member's email address. |
 | `phone` | `text` | yes | — | PII (members:pii scope). This member's phone number. |
@@ -345,7 +345,7 @@ One league within a season, e.g. Men's Singles or Mixed Doubles. Carries its own
 | `sequence_in_season` | `integer` | no | `1` | Numbers box rounds when a club runs several inside one season. Most clubs leave this at 1 and chain rounds across seasons with previous_competition_id instead. |
 | `previous_competition_id` | `uuid` | yes | — | The competition this one continues from, if any. Promotion and relegation suggestions are read from here. |
 | `state` | `text` | no | `'draft'::text` | Where this competition is in its lifecycle: draft, active, complete or archived. |
-| `visibility` | `text` | no | `'members'::text` | Who may read this competition without authenticating as a member: public, members only, or private. |
+| `visibility` | `text` | no | `'members'::text` | Who may see this competition: public, members or private. Nothing is readable without a credential, so for now public and members are treated alike. |
 | `created_at` | `timestamp with time zone` | no | `now()` | When this row was created. |
 | `updated_at` | `timestamp with time zone` | no | `now()` | When this row was last changed. |
 
@@ -886,12 +886,6 @@ The event log in the order a consumer should read it: an event is held back unti
 | `payload` | `jsonb` |  |
 
 ## Functions
-
-### `deuceleague_club_id_for_slug(slug text)`
-
-Returns `uuid`. SECURITY DEFINER.
-
-Looks up a club's id from its public slug, for pages that have not authenticated yet. Returns null if the slug is unknown. SECURITY DEFINER, for the same reason as the other resolve functions.
 
 ### `deuceleague_current_club()`
 

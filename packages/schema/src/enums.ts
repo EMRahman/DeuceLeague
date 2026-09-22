@@ -14,7 +14,10 @@ export const SeasonKind = z.enum(["spring", "summer", "autumn", "winter"]);
 
 export const CompetitionState = z.enum(["draft", "active", "complete", "archived"]);
 
-/** Controls who may read a competition without authenticating as a member. */
+/**
+ * Who may see a competition. Nothing is readable without a credential, so for
+ * now `public` and `members` are treated alike.
+ */
 export const Visibility = z.enum(["public", "members", "private"]);
 
 /** How many people make up one competing unit. */

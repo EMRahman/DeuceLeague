@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { clubIdForSlug, resolveApiKey, setClub, touchApiKey, type Db } from "@deuceleague/db";
+import { resolveApiKey, setClub, touchApiKey, type Db } from "@deuceleague/db";
 import { Scope } from "@deuceleague/schema";
 import type { MiddlewareHandler } from "hono";
 import type { AppEnv } from "./context.js";
 import { hashKey, KEY_PREFIX } from "./keys.js";
-import { ApiError, problems } from "./problems.js";
+import { problems } from "./problems.js";
 
 /**
  * Gives every request an id, returns it as X-Request-Id, and logs one line
@@ -73,55 +73,6 @@ export function requireScopes(...needed: Scope[]): MiddlewareHandler<AppEnv> {
     const held = c.get("auth").scopes;
     const missing = needed.filter((s) => !held.has(s));
     if (missing.length > 0) throw problems.insufficientScope(missing);
-    await next();
-  };
-}
-
-/**
- * Finds a public request's club from the slug in its path, then scopes the
- * transaction to it, so a public route reads that club's rows and no other.
- * An unknown slug is simply not found.
- */
-export const publicClub: MiddlewareHandler<AppEnv> = async (c, next) => {
-  const tx = c.get("tx");
-  const clubId = await clubIdForSlug(tx, c.req.param("slug") ?? "");
-  if (!clubId) throw new ApiError(404, "not_found", "Nothing here", { detail: "No club has that address." });
-  await setClub(tx, clubId);
-  c.set("publicClubId", clubId);
-  await next();
-};
-
-/**
- * At most `limit` requests per window from one address, counted in this
- * process's memory — enough for one server, which is how the core is meant
- * to run. `key` says who a request is from. Old windows are swept once the
- * map grows, so a flood of addresses cannot hold memory for long.
- */
-export function rateLimit(options: {
-  limit: number;
-  windowMs: number;
-  key: (c: Parameters<MiddlewareHandler<AppEnv>>[0]) => string;
-}): MiddlewareHandler<AppEnv> {
-  const windows = new Map<string, { start: number; count: number }>();
-  return async (c, next) => {
-    const now = Date.now();
-    if (windows.size > 10_000) {
-      for (const [k, w] of windows) if (now - w.start >= options.windowMs) windows.delete(k);
-    }
-    const key = options.key(c);
-    let window = windows.get(key);
-    if (!window || now - window.start >= options.windowMs) {
-      window = { start: now, count: 0 };
-      windows.set(key, window);
-    }
-    window.count += 1;
-    if (window.count > options.limit) {
-      const retryAfter = Math.max(1, Math.ceil((window.start + options.windowMs - now) / 1000));
-      throw new ApiError(429, "rate_limited", "Too many requests", {
-        detail: `Public pages allow ${options.limit} requests a minute from one address. Try again in ${retryAfter}s.`,
-        headers: { "Retry-After": String(retryAfter) },
-      });
-    }
     await next();
   };
 }

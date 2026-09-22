@@ -41,7 +41,7 @@ const Row = z
   })
   .openapi("StandingsRow");
 
-export const Standings = z
+const Standings = z
   .object({
     competition_id: z.uuid(),
     final: z.boolean().openapi({
@@ -55,7 +55,7 @@ export const Standings = z
   })
   .openapi("Standings", { description: "Computed from the matches on every request, from the competition's rules." });
 
-export function toStandings(
+function toStandings(
   competitionId: string,
   tables: { final: boolean; divisions: DivisionTable[] },
 ): z.infer<typeof Standings> {

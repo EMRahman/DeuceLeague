@@ -1,8 +1,8 @@
 import type { Score } from "@deuceleague/schema";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Tx } from "./client.js";
-import { competition, match, matchSide, season } from "./schema.js";
+import { match, matchSide, season } from "./schema.js";
 
 // The progress and chase views answer the questions asked all season. They
 // are views rather than queries here so a coach's own SQL gets the same
@@ -173,35 +173,3 @@ export async function seasonDeadline(tx: Tx, seasonId: string): Promise<Date | n
     .where(eq(season.id, seasonId));
   return row?.deadline ?? null;
 }
-
-/**
- * The competitions anyone may read without a key: public, and under way or
- * finished. A draft is not shown, since its placements are not yet decided.
- */
-export async function publicCompetitions(tx: Tx, competitionId?: string) {
-  return tx
-    .select({
-      id: competition.id,
-      name: competition.name,
-      discipline: competition.discipline,
-      category: competition.category,
-      state: competition.state,
-      seasonId: season.id,
-      seasonName: season.name,
-      startsOn: season.startsOn,
-      endsOn: season.endsOn,
-      resultsDeadlineAt: season.resultsDeadlineAt,
-    })
-    .from(competition)
-    .innerJoin(season, eq(season.id, competition.seasonId))
-    .where(
-      and(
-        eq(competition.visibility, "public"),
-        inArray(competition.state, ["active", "complete"]),
-        competitionId ? eq(competition.id, competitionId) : undefined,
-      ),
-    )
-    .orderBy(asc(season.startsOn), asc(competition.name));
-}
-
-export type PublicCompetition = Awaited<ReturnType<typeof publicCompetitions>>[number];

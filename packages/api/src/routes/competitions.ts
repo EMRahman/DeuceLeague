@@ -69,7 +69,9 @@ const Competition = z
       description: "Where promotion and relegation are suggested from.",
     }),
     state: CompetitionState,
-    visibility: Visibility.meta({ description: "`public` competitions can be read without a key." }),
+    visibility: Visibility.meta({
+      description: "Who among the club may see it. Nothing is readable without a credential.",
+    }),
     created_at: Timestamp,
     updated_at: Timestamp,
   })

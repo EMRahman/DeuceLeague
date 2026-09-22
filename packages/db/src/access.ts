@@ -127,13 +127,3 @@ export async function anotherAdminKeyExists(tx: Tx, apiKeyId: string): Promise<b
     .limit(1);
   return row !== undefined;
 }
-
-/**
- * A club's id from its public slug, for requests that carry no credential.
- * Like resolveApiKey, it runs before the club is known, so it goes through
- * the one narrow function past row-level security for that.
- */
-export async function clubIdForSlug(tx: Tx, slug: string): Promise<string | null> {
-  const [row] = await tx.execute<{ id: string | null }>(sql`select deuceleague_club_id_for_slug(${slug}) as id`);
-  return row?.id ?? null;
-}

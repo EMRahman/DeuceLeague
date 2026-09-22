@@ -1,13 +1,12 @@
-// Standings, progress, the chase list, placements, the public endpoints and
-// the demo seed. Run by `npm run db:verify`.
+// Standings, progress, the chase list, placements, keeping everything behind a
+// credential, and the demo seed. Run by `npm run db:verify`.
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { APP_URL, closeAll, db, enter, eventsOf, keyWith, league, member, newClub, send, type TestClub } from "./helpers.ts";
-import { createApp } from "../dist/app.js";
+import { APP_URL, closeAll, enter, eventsOf, keyWith, league, member, newClub, send, type TestClub } from "./helpers.ts";
 
 after(closeAll);
 
@@ -212,70 +211,23 @@ test("placements need a draft that names its previous competition", async () => 
   assert.equal((await send("POST", `/v1/competitions/${competitionId}/placements`, await keyWith(c, "league:read"))).status, 403);
 });
 
-// ───────────────────────────────────────────────────────────────── public ──
+// ─────────────────────────────────────────────────────── no anonymous access ──
 
-test("a club's public competitions can be read without a key, with display names and nothing more", async () => {
-  const c = await newClub("public");
-  const shown = await competitionOf(c, [["Ann", "Bea"]], { name: "Open Singles" });
-  await send("PATCH", `/v1/competitions/${shown.competitionId}`, c.key, { visibility: "public" });
-  const hidden = await competitionOf(c, [["Cal", "Dee"]]);
-  const draft = await league(c);
-  await send("PATCH", `/v1/competitions/${draft.competitionId}`, c.key, { visibility: "public" });
-  const m = shown.matches[0]!;
-  await send("POST", `/v1/matches/${m.id}/claims`, c.key, {
-    side: 0,
-    outcome: "completed",
-    score: { sets: [{ games: [6, 0] }, { games: [6, 0] }] },
-    raw_input: "beat Bea 6-0 6-0, call me on 07700 900123",
-  });
-
-  const list = await send("GET", `/v1/public/${c.slug}/competitions`);
-  assert.equal(list.status, 200);
-  assert.equal(list.body.club.slug, c.slug);
-  assert.deepEqual(list.body.data.map((x: { id: string }) => x.id), [shown.competitionId], "public and under way only");
-
-  const base = `/v1/public/${c.slug}/competitions/${shown.competitionId}`;
-  const detail = await send("GET", base);
-  assert.equal(detail.body.divisions.length, 1);
-  const table = await send("GET", `${base}/standings`);
-  assert.deepEqual(table.body.divisions[0].rows.map((r: { label: string }) => r.label).sort(), ["Ann", "Bea"]);
-  const matches = await send("GET", `${base}/matches`);
-  assert.equal(matches.body.data[0].status, "reported");
-  const everything = JSON.stringify([list.body, detail.body, table.body, matches.body]);
-  assert.equal(everything.includes("07700"), false, "never what a player typed");
-  assert.equal(everything.includes("claims"), false);
-
+test("nothing about a competition can be read without a credential", async () => {
+  const c = await newClub("anonymous");
+  const { competitionId } = await competitionOf(c, [["Ann", "Bea"]]);
+  await send("PATCH", `/v1/competitions/${competitionId}`, c.key, { visibility: "public" });
   for (const path of [
-    `/v1/public/${c.slug}/competitions/${hidden.competitionId}`,
-    `/v1/public/${c.slug}/competitions/${hidden.competitionId}/standings`,
-    `/v1/public/${c.slug}/competitions/${draft.competitionId}/matches`,
-    `/v1/public/no-such-club/competitions`,
+    "/v1/competitions",
+    `/v1/competitions/${competitionId}`,
+    `/v1/competitions/${competitionId}/standings`,
+    `/v1/matches?competition_id=${competitionId}`,
+    `/v1/public/${c.slug}/competitions`,
   ]) {
-    assert.equal((await send("GET", path)).status, 404, path);
+    const res = await send("GET", path);
+    assert.equal(res.status, 401, `${path} answered ${res.status}`);
+    assert.equal(res.body.code, "missing_credential");
   }
-
-  const other = await newClub("public-other");
-  assert.equal((await send("GET", `/v1/public/${other.slug}/competitions/${shown.competitionId}`)).status, 404, "another club's address");
-});
-
-test("the public endpoints are rate-limited per address", async () => {
-  const c = await newClub("limited");
-  const limited = createApp({
-    db,
-    log: () => {},
-    publicRateLimit: { limit: 2, windowMs: 60_000 },
-    clientIp: (ctx) => ctx.req.header("x-test-address"),
-  });
-  const from = (address: string) =>
-    limited.request(`/v1/public/${c.slug}/competitions`, { headers: { "x-test-address": address } });
-  assert.equal((await from("198.51.100.1")).status, 200);
-  assert.equal((await from("198.51.100.1")).status, 200);
-  const third = await from("198.51.100.1");
-  assert.equal(third.status, 429);
-  assert.ok(Number(third.headers.get("retry-after")) > 0);
-  assert.equal((await third.json()).code, "rate_limited");
-  assert.equal((await from("198.51.100.2")).status, 200, "another address has its own allowance");
-  assert.equal((await limited.request("/v1/me", { headers: { "x-test-address": "198.51.100.1" } })).status, 401, "keyed routes are not public");
 });
 
 // ────────────────────────────────────────────────────────────── the demo ──
@@ -298,13 +250,13 @@ test("demo:seed builds the demo through the API, with read keys that stay the sa
     assert.deepEqual(me.body.credential.scopes, ["league:read"]);
     assert.equal((await send("POST", "/v1/seasons", expected, { name: "Vandalism" })).status, 403, "read-only");
 
-    const list = await send("GET", "/v1/public/demo-deuce/competitions");
+    const list = await send("GET", "/v1/competitions", expected);
     assert.equal(list.body.data.length, 4, "spring and summer, singles and doubles");
     const summer = list.body.data.find((x: { state: string; name: string }) => x.state === "active" && x.name === "Men's Singles");
-    const table = await send("GET", `/v1/public/demo-deuce/competitions/${summer.id}/standings`);
+    const table = await send("GET", `/v1/competitions/${summer.id}/standings`, expected);
     assert.equal(table.body.divisions.length, 2);
     assert.equal(table.body.divisions[1].rows.length, 7, "six placed, and a newcomer");
-    const matches = (await send("GET", `/v1/public/demo-deuce/competitions/${summer.id}/matches`)).body.data;
+    const matches = (await send("GET", `/v1/matches?competition_id=${summer.id}&limit=200`, expected)).body.data;
     const statuses = new Set(matches.map((x: { status: string }) => x.status));
     for (const s of ["open", "played"]) assert.ok(statuses.has(s), `some matches ${s}`);
 
@@ -316,12 +268,12 @@ test("demo:seed builds the demo through the API, with read keys that stay the sa
 
 // ─────────────────────────────────────────────────────────────── the spec ──
 
-test("the spec lists the read routes with their scopes, and the public ones with none", async () => {
+test("the spec lists the read routes with the scopes they need", async () => {
   const spec = (await send("GET", "/openapi.json")).body;
   const security = (path: string) => spec.paths[path]?.get?.security ?? spec.paths[path]?.post?.security;
   assert.deepEqual(security("/v1/competitions/{id}/standings"), [{ apiKey: ["league:read"] }]);
   assert.deepEqual(security("/v1/chase-list"), [{ apiKey: ["members:read"] }]);
   assert.deepEqual(security("/v1/competitions/{id}/placements"), [{ apiKey: ["league:write"] }]);
-  assert.deepEqual(security("/v1/public/{slug}/competitions/{id}/standings"), []);
+  assert.equal(Object.keys(spec.paths).some((p) => p.startsWith("/v1/public")), false, "no routes without a credential");
   assert.match(spec.components.schemas.ChaseEntry.properties.email.description, /^PII/);
 });

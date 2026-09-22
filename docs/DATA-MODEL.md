@@ -304,16 +304,16 @@ With nothing set the function returns `NULL`, every predicate evaluates to
 > `migrations/0002_app_role.sql` creates the role. This is the single most
 > important line in this document.
 
-**Finding the club.** A request arrives carrying an API key, a magic-link token
-or a club's slug — never a club id — and with no club set, those tables are
-hidden too. Three `SECURITY DEFINER` functions are the only way past that, each
-returning just enough to set the club:
+**Finding the club.** A request arrives carrying an API key or a magic-link
+token — never a club id — and with no club set, those tables are hidden too.
+Two `SECURITY DEFINER` functions are the only way past that, each needing a
+secret and returning just enough to set the club. Nothing is readable without a
+credential, so there is no way to find a club from its name or slug alone:
 
 | Function | Takes | Returns |
 |---|---|---|
 | `deuceleague_resolve_api_key` | SHA-256 of the key | club, key id, scopes — if not revoked or expired |
 | `deuceleague_resolve_access_grant` | SHA-256 of the token | club, grant, member, scopes, `used_at` — if unexpired and the member not removed |
-| `deuceleague_club_id_for_slug` | the slug | the club's id |
 
 The API calls one, sets `app.club_id`, and everything after that runs under
 row-level security as usual.
@@ -321,7 +321,8 @@ row-level security as usual.
 `packages/db/test/rls.sql` proves it: every table has a policy and every view
 runs as its caller; no context yields no rows; naming another club's id
 explicitly returns nothing; writes aimed at another club are refused, including
-ones that only point into it; and resolving a key opens nothing else.
+ones that only point into it; resolving a key opens nothing else; and no other
+function runs past row-level security.
 
 ## Other decisions worth knowing
 
@@ -340,8 +341,8 @@ Deadlines are where a naive timestamp bites hardest.
 **Members are soft-deleted.** People leave and come back, and their historical
 results have to survive them.
 
-**`display_name` is the public projection.** Unauthenticated and player-scoped
-responses return display name, division and results — nothing else. Full name,
+**`display_name` is what players see of each other.** Player-scoped responses
+return display name, division and results — nothing else. Full name,
 email, phone, date of birth, gender and notes sit behind the `members:pii`
 scope, which is always a separate, logged grant. With junior members this is
 not optional. Gender is sensitive in its own right, and notes can hold

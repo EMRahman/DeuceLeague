@@ -63,16 +63,6 @@ export async function listMatches(
   return { rows: await withSides(tx, page.rows), next: page.next };
 }
 
-/** Every match in a competition, or one division of it, oldest first — for pages that show them whole. */
-export async function matchesIn(tx: Tx, competitionId: string, divisionId?: string): Promise<MatchRecord[]> {
-  const rows = await tx
-    .select()
-    .from(match)
-    .where(and(eq(match.competitionId, competitionId), divisionId ? eq(match.divisionId, divisionId) : undefined))
-    .orderBy(asc(match.id));
-  return withSides(tx, rows);
-}
-
 /**
  * One match. With `lock`, the row stays locked until the transaction ends, so
  * two claims on the same match are judged one after the other: without it,

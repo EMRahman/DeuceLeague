@@ -1,10 +1,8 @@
 import type { Db } from "@deuceleague/db";
 import { OpenAPIHono } from "@hono/zod-openapi";
-import type { Context } from "hono";
-import { except } from "hono/combine";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.js";
-import { authenticate, inTransaction, publicClub, rateLimit, requestLog } from "./middleware.js";
+import { authenticate, inTransaction, requestLog } from "./middleware.js";
 import { ApiError, problemForConstraint, problemResponse, problems } from "./problems.js";
 import { registerClub } from "./routes/club.js";
 import { registerCompetitions } from "./routes/competitions.js";
@@ -17,7 +15,6 @@ import { registerMatches } from "./routes/matches.js";
 import { registerMe } from "./routes/me.js";
 import { registerMembers } from "./routes/members.js";
 import { registerPlacements } from "./routes/placements.js";
-import { registerPublic } from "./routes/public.js";
 import { registerSeasons } from "./routes/seasons.js";
 import { registerStandings } from "./routes/standings.js";
 
@@ -25,18 +22,7 @@ export type { AppEnv } from "./context.js";
 export { ApiError, problems } from "./problems.js";
 export { authenticate, inTransaction, requestLog, requireScopes } from "./middleware.js";
 
-export type AppOptions = {
-  db: Db;
-  log?: (line: string) => void;
-  /** How much one address may ask of the public endpoints. Defaults to 60 a minute. */
-  publicRateLimit?: { limit: number; windowMs: number };
-  /**
-   * Who a request is from, for rate limits. The server reads the socket, or
-   * the proxy's header when told to trust one. Without it every public
-   * request shares one allowance — the safe way to be wrong.
-   */
-  clientIp?: (c: Context) => string | undefined;
-};
+export type AppOptions = { db: Db; log?: (line: string) => void };
 
 /**
  * The whole API, as a Hono app. It takes its database rather than connecting,
@@ -45,8 +31,6 @@ export type AppOptions = {
  */
 export function createApp(options: AppOptions) {
   const log = options.log ?? console.log;
-  const limit = options.publicRateLimit ?? { limit: 60, windowMs: 60_000 };
-  const clientIp = options.clientIp ?? (() => undefined);
 
   const app = new OpenAPIHono<AppEnv>({
     // Bad input goes through the same error path as everything else.
@@ -60,15 +44,9 @@ export function createApp(options: AppOptions) {
   });
 
   app.use("*", requestLog(log));
-  // Every /v1 route runs in one transaction, scoped to the credential's club —
-  // or, for a public route, to the club its address names, after the rate limit.
-  app.use("/v1/*", except("/v1/public/*", inTransaction(options.db), authenticate));
-  app.use(
-    "/v1/public/:slug/*",
-    rateLimit({ ...limit, key: (c) => clientIp(c) ?? "unknown" }),
-    inTransaction(options.db),
-    publicClub,
-  );
+  // Every /v1 route needs a credential and runs in one transaction, scoped to
+  // its club. Nothing about a club can be read without one.
+  app.use("/v1/*", inTransaction(options.db), authenticate);
 
   registerHealth(app, options.db);
   registerMe(app);
@@ -83,7 +61,6 @@ export function createApp(options: AppOptions) {
   registerEvents(app);
   registerStandings(app);
   registerPlacements(app);
-  registerPublic(app);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "apiKey", {
     type: "http",
