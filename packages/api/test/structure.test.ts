@@ -66,11 +66,13 @@ async function matchCount(divisionId: string): Promise<number> {
 
 // ─────────────────────────────────────────────────────────────── the club ──
 
-test("any key reads the club; only an admin key changes it", async () => {
+test("only an admin key reads or changes the club's settings", async () => {
   const c = await newClub("club-settings");
   const reader = await keyWith(c, "league:read");
 
-  const read = await send("GET", "/v1/club", reader);
+  assert.equal((await send("GET", "/v1/club", reader)).status, 403);
+  assert.equal((await send("GET", "/v1/me", reader)).body.club.slug, c.slug, "any key still learns its club");
+  const read = await send("GET", "/v1/club", c.key);
   assert.equal(read.status, 200);
   assert.equal(read.body.slug, c.slug);
   assert.deepEqual(read.body.branding, {});
@@ -572,7 +574,7 @@ test("club A's key can neither read nor change any of club B's records", async (
 test("the spec lists every route with the scopes it needs", async () => {
   const spec = (await send("GET", "/openapi.json")).body;
   const scopes = (path: string, method: string) => spec.paths[path]?.[method]?.security?.[0]?.apiKey;
-  assert.deepEqual(scopes("/v1/club", "get"), []);
+  assert.deepEqual(scopes("/v1/club", "get"), ["admin"]);
   assert.deepEqual(scopes("/v1/club", "patch"), ["admin"]);
   assert.deepEqual(scopes("/v1/api-keys", "post"), ["admin"]);
   assert.deepEqual(scopes("/v1/members", "get"), ["members:read"]);

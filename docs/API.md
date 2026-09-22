@@ -64,9 +64,9 @@ that has it.
 **Me.** `GET /v1/me` — which club, which credential, which scopes. The first
 call anything makes, and the quickest way to check a key works.
 
-**Club and keys.** Any credential reads the club's name, time zone and
-branding, since every website and app built on it renders with them; `admin`
-changes them. `admin` creates, lists and revokes API keys. The club's last
+**Club and keys** (`admin`). Read and change the club's name, time zone and
+branding — they are the coach's settings; any credential can still learn which
+club it belongs to from `GET /v1/me`. Create, list and revoke API keys. The club's last
 working admin key cannot be revoked — nothing could manage the club without
 it — so a coach rotating keys makes the new one first.
 
@@ -111,12 +111,19 @@ is stored expanded.
 singles entry has one member and a doubles entry two, which the database cannot
 — and withdraw or reinstate one. An entry with no match under way can move
 division or be deleted, taking its untouched fixtures with it; one that has
-played is withdrawn instead, so its results stay. Placement suggestions propose
-promotion and relegation from the previous competition, with reasons;
-placements are written only when the coach confirms them, as entries carrying
-a `placement_reason`. An ineligible-looking mixed pair gets a warning, never a
-refusal — and since the warning reveals recorded gender, only a credential
-holding `members:pii` sees it.
+played is withdrawn instead, so its results stay. An ineligible-looking mixed
+pair gets a warning, never a refusal — and since the warning reveals recorded
+gender, only a credential holding `members:pii` sees it.
+
+Placements fill next season's competition from this one's final tables. The
+coach creates the new competition as a draft, naming the previous one, and one
+call fills it: every entry that finished is placed with its reason and a
+sentence saying why — the top three of each division promoted, the bottom
+three relegated, the rest held, by default; a competition's rules can change
+the counts. The coach then adjusts the draft as they like with the ordinary
+entry routes — moving, removing, adding newcomers — and submits it by
+activating the competition. Nothing is in effect until then: the engine
+suggests, and the coach decides.
 
 **Fixtures** (`league:write`). Generate a division's round robin. Safe to
 re-run after a late entry: only the missing pairings are added.
@@ -210,9 +217,12 @@ Each phase ends with its tests green and is committed on its own.
 3. ✓ **Structure.** Club, keys, members, seasons, competitions, divisions,
    entries and fixtures.
 4. **Results and events.**
-5. **Read endpoints.** Standings, progress, the chase list, the public
-   endpoints with rate limits, and `npm run demo:seed`.
+5. **Read endpoints and placements.** Standings, progress, the chase list,
+   placements into a draft competition, the public endpoints with rate
+   limits, and `npm run demo:seed`.
 6. **Player logins.** `access_grant` changes so a session can have no expiry
    while a login link still must, and so a session can be revoked.
-7. **Self-hosting.** A Dockerfile and Compose service, the setup guide, and the
-   demo instance.
+7. **Self-hosting.** A Dockerfile and Compose service, the setup guide, the
+   demo instance, and a small reference website, so a club has player login
+   and score reporting out of the box. The website is an adapter built on the
+   API like any other, not part of it.

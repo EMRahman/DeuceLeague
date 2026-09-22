@@ -58,9 +58,9 @@ const get = createRoute({
   tags: ["Club"],
   summary: "The club",
   description:
-    "The credential's club: its name, time zone and branding. Needs no particular scope, because " +
-    "every website and app built on the club renders with it.",
-  ...requires(),
+    "The credential's club: its name, time zone and branding. The club's settings are the coach's, so " +
+    "this needs `admin`; any credential can learn which club it belongs to from `GET /v1/me`.",
+  ...requires("admin"),
   responses: {
     200: { description: "The club.", content: { "application/json": { schema: Club } } },
     ...authProblems,
