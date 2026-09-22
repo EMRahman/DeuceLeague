@@ -202,25 +202,29 @@ test("a player reports a score from their side, the opponent accepts it, and it 
 
   const table = await samPhone.get(`/competitions/${competitionId}`);
   assert.match(table.html, /Sam K\./);
-  assert.match(table.html, /Results/);
   assert.match(table.html, /<tr class="me">/);
 
-  // A name in the table opens that player's matches and what each earned.
-  const samPage = `/competitions/${competitionId}/entries/${samEntry}`;
-  assert.ok(table.html.includes(`href="${samPage}"`), "each name links to its breakdown");
-  const breakdown = await alexPhone.get(samPage);
-  assert.equal(breakdown.status, 200);
+  // Each row opens in place to show that player's matches and what each earned.
+  // Seen by Alex: every row, Alex's own open.
+  const seen = await alexPhone.get(`/competitions/${competitionId}`);
+  const rowOf = (name: string) => {
+    const at = seen.html.indexOf(`${name}</summary>`);
+    assert.ok(at > 0, `${name}'s row opens`);
+    return seen.html.slice(seen.html.lastIndexOf("<details", at), seen.html.indexOf("</details>", at));
+  };
+  const samRow = rowOf("Sam K.");
   // 6-4 6-3 is 12 games to 7: 4 for the win, 2 sets, not by 8. Every match in: 1 more.
-  assert.match(breakdown.html, /Beat Alex P\./);
-  assert.match(breakdown.html, /6-4, 6-3/, "the score from Sam's side, whoever is looking");
-  assert.match(breakdown.html, /Win 4 · Sets won 2/);
-  assert.match(breakdown.html, /Turned up to every match/);
-  assert.match(breakdown.html, /Total<\/span><span class="pts">7 pts/);
-  const alexRow = /href="(\/competitions\/[^"]+\/entries\/[^"]+)">Alex P\./.exec(table.html)?.[1]!;
-  const alexBreakdown = await samPhone.get(alexRow);
-  assert.match(alexBreakdown.html, /Lost to Sam K\./);
-  assert.match(alexBreakdown.html, /4-6, 3-6/);
-  assert.match(alexBreakdown.html, /Played 1/);
+  assert.match(samRow, /^<details class="row">/, "someone else's row starts closed");
+  assert.match(samRow, /Beat Alex P\./);
+  assert.match(samRow, /6-4, 6-3/, "the score from Sam's side, whoever is looking");
+  assert.match(samRow, /Win 4 · Sets won 2/);
+  assert.match(samRow, /Turned up to every match/);
+  assert.match(samRow, /Total<\/span><span class="pts">7 pts/);
+  const alexRow = rowOf("Alex P.");
+  assert.match(alexRow, /^<details class="row" open/, "your own row starts open");
+  assert.match(alexRow, /Lost to Sam K\./);
+  assert.match(alexRow, /4-6, 3-6/);
+  assert.match(alexRow, /Played 1/);
 
   // Once played, only the coach can change it; the form is gone.
   assert.doesNotMatch((await samPhone.get(`/matches/${match.id}`)).html, /Report the score/);

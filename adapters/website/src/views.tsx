@@ -48,7 +48,14 @@ button.quiet { background: transparent; color: var(--accent); border: 1px solid 
 details { margin-top: .75rem; }
 .pts { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .why { color: var(--muted); font-size: .85rem; }
-.total { display: flex; justify-content: space-between; font-weight: 700; padding-top: .6rem; }
+.total { display: flex; justify-content: space-between; font-weight: 700; padding-top: .4rem; }
+td { vertical-align: top; }
+details.row { margin: 0; }
+details.row summary { color: inherit; list-style-position: inside; }
+details.row[open] summary { margin-bottom: .4rem; }
+.breakdown { font-weight: 400; font-size: .9rem; border-left: 2px solid var(--line); padding-left: .6rem; margin-bottom: .4rem; }
+.breakdown ul.matches li { padding: .35rem 0; }
+.breakdown p { margin: .4rem 0 0; }
 summary { cursor: pointer; color: var(--accent); }
 `;
 
@@ -247,11 +254,12 @@ export const CompetitionPage: FC<{
   competition: Competition;
   standings: Standings;
   mine: { entryId: string; optedOut: boolean } | null;
-  results: Record<string, { id: string; line: string }[]>;
-}> = ({ frame, competition, standings, mine, results }) => (
+  breakdowns: Record<string, Breakdown>;
+}> = ({ frame, competition, standings, mine, breakdowns }) => (
   <Layout title={competition.name} frame={frame}>
     <h1>{competition.name}</h1>
     {standings.final && <p class="muted">Final tables.</p>}
+    <p class="muted">Tap a name to see their matches and what each was worth.</p>
     {standings.divisions.map((d) => (
       <section class="card">
         <h2 style="margin-top:0">{d.name}</h2>
@@ -271,8 +279,14 @@ export const CompetitionPage: FC<{
               <tr class={mine?.entryId === r.entry_id ? "me" : ""}>
                 <td>{r.position ?? "–"}</td>
                 <td>
-                  <a href={`/competitions/${competition.id}/entries/${r.entry_id}`}>{r.label}</a>
-                  {r.standing === "withdrawn" && <span class="muted"> (withdrawn)</span>}
+                  {/* The row opens in place: no page to leave, and no script needed. Your own starts open. */}
+                  <details class="row" open={mine?.entryId === r.entry_id}>
+                    <summary>
+                      {r.label}
+                      {r.standing === "withdrawn" && <span class="muted"> (withdrawn)</span>}
+                    </summary>
+                    <RowBreakdown row={r} breakdown={breakdowns[r.entry_id] ?? { played: [], toPlay: [] }} />
+                  </details>
                 </td>
                 <td>{r.played}</td>
                 <td>{r.won}</td>
@@ -282,18 +296,6 @@ export const CompetitionPage: FC<{
             ))}
           </tbody>
         </table>
-        {(results[d.division_id] ?? []).length > 0 && (
-          <details>
-            <summary>Results</summary>
-            <ul class="matches">
-              {(results[d.division_id] ?? []).map((m) => (
-                <li>
-                  <a href={`/matches/${m.id}`}>{m.line}</a>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
       </section>
     ))}
     {mine && competition.state === "active" && (
@@ -477,28 +479,17 @@ const plural = (n: number) => `${n} ${Math.abs(n) === 1 ? "pt" : "pts"}`;
 
 export type PlayedLine = { line: MatchLine; opponent: string; score: string };
 
-export const EntryPage: FC<{
-  frame: Frame;
-  competition: Competition;
-  row: StandingsRow;
-  played: PlayedLine[];
-  toPlay: { id: string; opponent: string }[];
-}> = ({ frame, competition, row, played, toPlay }) => (
-  <Layout title={row.label} frame={frame}>
-    <p class="muted">
-      <a href={`/competitions/${competition.id}`}>{competition.name}</a>
-    </p>
-    <h1>{row.label}</h1>
-    <p>
-      {row.position ? `${ordinal(row.position)} · ` : ""}
-      {plural(row.points)} from {row.played} {row.played === 1 ? "match" : "matches"}
-    </p>
-    {played.length === 0 ? (
+/** One row of a table, opened: the matches that count, what each earned, and who is left to play. */
+export type Breakdown = { played: PlayedLine[]; toPlay: { id: string; opponent: string }[] };
+
+const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, breakdown }) => (
+  <div class="breakdown">
+    {breakdown.played.length === 0 ? (
       <p class="muted">No results yet.</p>
     ) : (
-      <section class="card">
+      <>
         <ul class="matches">
-          {played.map(({ line, opponent, score }) => (
+          {breakdown.played.map(({ line, opponent, score }) => (
             <li>
               <span>
                 <a href={`/matches/${line.match_id}`}>
@@ -506,9 +497,7 @@ export const EntryPage: FC<{
                 </a>
                 {score && <span class="muted"> · {score}</span>}
                 <br />
-                <span class="why">
-                  {line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}
-                </span>
+                <span class="why">{line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}</span>
               </span>
               <span class="pts">{plural(line.points)}</span>
             </li>
@@ -524,25 +513,18 @@ export const EntryPage: FC<{
           <span>Total</span>
           <span class="pts">{plural(row.points)}</span>
         </div>
-      </section>
-    )}
-    {toPlay.length > 0 && (
-      <>
-        <h2>Still to play</h2>
-        <ul class="matches">
-          {toPlay.map((m) => (
-            <li>
-              <a href={`/matches/${m.id}`}>{m.opponent}</a>
-            </li>
-          ))}
-        </ul>
       </>
     )}
-  </Layout>
+    {breakdown.toPlay.length > 0 && (
+      <p class="muted">
+        Still to play:{" "}
+        {breakdown.toPlay.map((m, i) => (
+          <>
+            {i > 0 && ", "}
+            <a href={`/matches/${m.id}`}>{m.opponent}</a>
+          </>
+        ))}
+      </p>
+    )}
+  </div>
 );
-
-function ordinal(n: number): string {
-  const tens = n % 100;
-  const suffix = tens >= 11 && tens <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" } as Record<number, string>)[n % 10] ?? "th";
-  return `${n}${suffix}`;
-}
