@@ -112,6 +112,11 @@ export const problems = {
     }),
   /** A player's session speaking for the other side of their match. */
   notYourSide: (detail: string) => new ApiError(403, "not_your_side", "That is not your side", { detail }),
+  /** A player's session acting on an entry they are not in. */
+  notYourEntry: () =>
+    new ApiError(403, "not_your_entry", "You are not in this entry", {
+      detail: "A player speaks only for the entries they play in.",
+    }),
   conflict: (code: string, title: string, detail?: string) =>
     new ApiError(409, code, title, detail === undefined ? {} : { detail }),
   internal: () =>

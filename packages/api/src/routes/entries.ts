@@ -7,6 +7,7 @@ import {
   getEntry,
   listEntries,
   membersForEntry,
+  setOptedOut,
   startedMatches,
   updateEntry,
   type CompetitionRecord,
@@ -26,11 +27,13 @@ import {
   IdParam,
   iso,
   notFoundProblem,
+  playerOf,
   requires,
   sentFields,
   Timestamp,
   validationProblem,
   visibleCompetition,
+  type Ctx,
 } from "./shared.js";
 
 const Entry = z
@@ -53,6 +56,11 @@ const Entry = z
       description: "The same unit's entry in the previous competition.",
     }),
     withdrawn_at: Timestamp.nullable(),
+    opted_out_at: Timestamp.nullable().openapi({
+      description:
+        "When the player said they are not playing in the next competition, or the coach recorded it for " +
+        "them. Filling next season's draft leaves them out. It changes nothing about this competition.",
+    }),
     created_at: Timestamp,
     updated_at: Timestamp,
   })
@@ -114,6 +122,7 @@ function toEntry(e: EntryRecord): z.infer<typeof Entry> {
     placement_reason: e.placementReason as PlacementReason | null,
     previous_entry_id: e.previousEntryId,
     withdrawn_at: iso(e.withdrawnAt),
+    opted_out_at: iso(e.optedOutAt),
     created_at: iso(e.createdAt),
     updated_at: iso(e.updatedAt),
   };
@@ -292,6 +301,41 @@ const remove = createRoute({
   },
 });
 
+const optOut = createRoute({
+  method: "post",
+  path: "/v1/entries/{id}/opt-out",
+  tags: ["Entries"],
+  summary: "Say this entry is not playing in the next competition",
+  description:
+    "The one thing a player says about next season, and they say it about the entry they hold now: filling " +
+    "next season's draft leaves them out, with a sentence saying why, and the coach can add them back if " +
+    "they change their mind. It changes nothing about this competition — their outstanding matches stand, " +
+    "and they can still report them. A player's session may do this for an entry they play in; a key needs " +
+    "`league:write`, for a player who said so in person. Saying it twice keeps the first time.",
+  ...requires.orPlayerOwn("league:write"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The entry, opted out.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+  },
+});
+
+const optIn = createRoute({
+  method: "delete",
+  path: "/v1/entries/{id}/opt-out",
+  tags: ["Entries"],
+  summary: "Take back opting out of the next competition",
+  description: "Puts the entry back in the reckoning for next season's placements. Harmless if it never opted out.",
+  ...requires.orPlayerOwn("league:write"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The entry, back in the reckoning.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+  },
+});
+
 /** The reasons a placement suggestion gives. */
 const SUGGESTED: readonly string[] = ["promoted", "relegated", "held"];
 
@@ -390,6 +434,37 @@ export function registerEntries(app: OpenAPIHono<AppEnv>): void {
     });
     return c.json(toEntry(entry), 200);
   });
+
+  /**
+   * The entry, if the caller may speak for it: the coach for any of them, a
+   * player for one they play in. A competition they cannot see answers as if
+   * the entry did not exist — a player never learns of a private one.
+   */
+  async function entryToSpeakFor(c: Ctx, entryId: string) {
+    const found = await getEntry(c.get("tx"), entryId);
+    if (!found || !(await visibleCompetition(c, found.competitionId))) throw problems.notFound("entry");
+    const memberId = playerOf(c);
+    if (memberId !== null && !found.members.some((m) => m.id === memberId)) throw problems.notYourEntry();
+    return found;
+  }
+
+  for (const [route, optedOut] of [
+    [optOut, true],
+    [optIn, false],
+  ] as const) {
+    app.openapi(route, async (c) => {
+      const { id } = c.req.valid("param");
+      const tx = c.get("tx");
+      const before = await entryToSpeakFor(c, id);
+      if ((before.optedOutAt !== null) !== optedOut) {
+        await setOptedOut(tx, id, optedOut);
+        await audit(c, optedOut ? "entry.opt_out.recorded" : "entry.opt_out.cleared", { type: "entry", id }, {
+          competition_id: before.competitionId,
+        });
+      }
+      return c.json(toEntry((await getEntry(tx, id))!), 200);
+    });
+  }
 
   app.openapi(remove, async (c) => {
     const { id } = c.req.valid("param");

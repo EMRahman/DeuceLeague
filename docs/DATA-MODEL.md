@@ -90,6 +90,12 @@ A result counts for the entry drawn to play. When a partner is injured and
 someone fills in, the pair's result stands as the pair's; who was actually on
 court is not recorded.
 
+`entry.opted_out_at` is the one thing a player says about next season: not
+that they are leaving the club, or this competition, but that they should not
+be carried into the next one. Placements leave them out and say so; the coach
+can record it for someone who said it in person, and either of them can take
+it back. It is a single durable fact, not a schedule — see § No scheduling.
+
 ## Results: both sides report
 
 `match` holds the currently accepted score. `result_submission` holds every
@@ -134,7 +140,10 @@ never compared: remembering the day differently is not a dispute.
 **A match with one unanswered claim sits there until somebody acts.** That is
 the deliberate cost of having no timer: the alternative is a score entering the
 ledger because one player was on holiday. The coach sees the backlog as
-`division_progress.reported` and can settle any of it with an override.
+`division_progress.reported` and can settle any of it with an override. The
+season's `results_deadline_at` closes reporting — the API takes no new claim
+after it — but it agrees nothing by itself: what is left is the coach's to
+settle, or to reopen by moving the deadline.
 
 A coach entry has `side_index` null: it speaks for the match, not for a side,
 so it settles the match and is never left waiting — the database refuses a
@@ -212,12 +221,14 @@ Presets ship for best-of-three with a champions tiebreak, three full sets, an
 8-game pro set and a short set to 4.
 
 **`competition.rules`** is how the league works, as data — points per outcome,
-tiebreak ordering, movement counts, what happens to a withdrawal. Changing how a
+tiebreak ordering, movement counts, what a walkover is worth in sets and games,
+what happens to a withdrawal. Changing how a
 club's league works should
 never require shipping code. `DEFAULT_RULES` is the starting point: 3 for a win,
-1 for turning up and losing, nothing for a match that never happened, three up
-and three down between divisions, no walkovers, a withdrawn unit's played
-results left standing.
+1 for turning up and losing, nothing for a match that never happened, a
+walkover scored as the whitewash it stands for so that it counts in the set and
+game tiebreaks, three up and three down between divisions, and a withdrawn
+unit's played results left standing.
 
 ## No scheduling, and why
 
@@ -263,7 +274,9 @@ a string would have to be parsed on every read.
 
 The engine reads the previous competition's standings and proposes placements
 with its reasoning — by default the top three of each division up and the
-bottom three down, as the competition's `rules.movement` says. The proposal is
+bottom three down, as the new competition's `rules.movement` says, since that
+is the one being built. An entry whose `opted_out_at` is set is left out of the
+reckoning entirely, so it takes no promotion or relegation place with it. The proposal is
 written into next season's competition while it is still a `draft`: `entry`
 rows with `placement_reason` saying why and `previous_entry_id` linking to the
 same unit's last entry. The coach moves, removes and adds entries as they see

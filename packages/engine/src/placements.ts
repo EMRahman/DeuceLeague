@@ -33,6 +33,8 @@ export function suggestPlacements(
   previous: readonly DivisionStandings[],
   movement: RulesSpec["movement"],
   target: readonly TargetDivision[],
+  /** Entries whose players have said they are not playing in the next competition. */
+  optedOut: ReadonlySet<string> = new Set(),
 ): PlacementSuggestion[] {
   const ordinals = target.map((d) => d.ordinal);
   if (ordinals.length === 0) return [];
@@ -47,7 +49,10 @@ export function suggestPlacements(
     const here = clamp(division.ordinal);
     const up = clamp(division.ordinal - 1);
     const down = clamp(division.ordinal + 1);
-    const active = division.standings.filter((r) => r.standing !== "withdrawn");
+    // Someone who has opted out is out of the reckoning: they take no
+    // promotion place from the entry below them, and no relegation place
+    // from the one above.
+    const active = division.standings.filter((r) => r.standing !== "withdrawn" && !optedOut.has(r.entryId));
 
     // Promotion: the top of the ranked table, passing over anyone who played
     // too few matches — their place goes to the next entry down.
@@ -74,7 +79,16 @@ export function suggestPlacements(
     for (const row of division.standings) {
       const place = describePlace(row, division.name);
       const base = { entryId: row.entryId, label: row.label, from: { division: division.ordinal, position: row.position } };
-      if (row.standing === "withdrawn") {
+      if (optedOut.has(row.entryId)) {
+        suggestions.push({
+          ...base,
+          to: null,
+          reason: null,
+          explanation:
+            `${place}, but opted out of the next competition, so not carried over. ` +
+            "Add them back if they change their mind.",
+        });
+      } else if (row.standing === "withdrawn") {
         suggestions.push({
           ...base,
           to: null,

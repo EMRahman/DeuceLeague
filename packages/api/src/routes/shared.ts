@@ -39,6 +39,13 @@ export function requires(...scopes: Scope[]) {
  */
 requires.orPlayer = (...scopes: Scope[]) => access({ apiKey: scopes, session: scopes });
 
+/**
+ * An API key holding these scopes, or a player's session — which holds none
+ * of them, and may act only on what is its own. The route has to check that
+ * for itself: whose entry it is, whose match it is.
+ */
+requires.orPlayerOwn = (...scopes: Scope[]) => access({ apiKey: scopes, session: [] });
+
 /** A player's session, and nothing else. */
 requires.player = () => access({ session: [] });
 

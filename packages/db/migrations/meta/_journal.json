@@ -120,6 +120,13 @@
       "when": 1790093280173,
       "tag": "0017_player_logins",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790106121387,
+      "tag": "0018_opt_out_of_next",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, ne, notExists, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, notExists, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "./client.js";
 import { uuidv7 } from "./ids.js";
 import { entry, entryMember, match, matchSide, member, resultSubmission } from "./schema.js";
@@ -127,6 +127,30 @@ export async function updateEntry(tx: Tx, entryId: string, changes: EntryChanges
     .update(entry)
     .set({ ...changes, ...withdrawnAt, updatedAt: sql`now()` })
     .where(eq(entry.id, entryId));
+}
+
+/**
+ * Records, or clears, that the player is not playing in the next competition.
+ * Opting out twice keeps the first time; it says nothing about this
+ * competition, whose matches stand either way.
+ */
+export async function setOptedOut(tx: Tx, entryId: string, optedOut: boolean): Promise<void> {
+  await tx
+    .update(entry)
+    .set({
+      optedOutAt: optedOut ? sql`coalesce(${entry.optedOutAt}, now())` : null,
+      updatedAt: sql`now()`,
+    })
+    .where(eq(entry.id, entryId));
+}
+
+/** The entries of a competition whose players have opted out of the next one. */
+export async function optedOutEntryIds(tx: Tx, competitionId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ id: entry.id })
+    .from(entry)
+    .where(and(eq(entry.competitionId, competitionId), isNotNull(entry.optedOutAt)));
+  return rows.map((r) => r.id);
 }
 
 /** Deletes an entry and its line-up. Only ever one with no match under way: see startedMatches. */

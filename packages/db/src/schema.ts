@@ -334,6 +334,12 @@ export const entry = pgTable(
     /** The same unit's entry in the previous competition, for movement history. */
     previousEntryId: uuid("previous_entry_id"),
     withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    /**
+     * When the player said they are not playing in the next competition. The
+     * one thing a player says about next season: placements leave them out,
+     * and the coach can add them back if they change their mind.
+     */
+    optedOutAt: timestamp("opted_out_at", { withTimezone: true }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },

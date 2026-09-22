@@ -455,6 +455,7 @@ One competing unit in one division: a single member for singles, a pair for doub
 | `withdrawn_at` | `timestamp with time zone` | yes | — | When this entry withdrew, if state is 'withdrawn'. |
 | `created_at` | `timestamp with time zone` | no | `now()` | When this row was created. |
 | `updated_at` | `timestamp with time zone` | no | `now()` | When this row was last changed. |
+| `opted_out_at` | `timestamp with time zone` | yes | — | When the player said they are not playing in the next competition — or when the coach recorded it for them. Null unless they said so; clearing it puts them back in the reckoning. It does not affect this competition: their outstanding matches still stand. |
 
 **Primary key:** `entry_pkey` (`id`)
 

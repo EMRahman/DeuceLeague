@@ -206,8 +206,19 @@ function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput): v
   loser.points += forLoser;
 
   if (result.outcome === "walkover" || result.outcome === "conceded") {
-    // Only the side that was there played. No sets or games change hands.
+    // Only the side that was there played: the other never took the court.
     winner.played += 1;
+    // What it is worth in sets and games is the club's to decide. `nominal`
+    // awards the whitewash it stands for, so a walkover counts in the set and
+    // game tiebreaks; `none` leaves both columns alone.
+    if ((input.rules.walkoverScore ?? "nominal") === "nominal") {
+      const sets = input.format.setsToWin;
+      const games = sets * input.format.set.gamesToWin;
+      winner.setsWon += sets;
+      winner.gamesWon += games;
+      loser.setsLost += sets;
+      loser.gamesLost += games;
+    }
     return;
   }
   winner.played += 1;

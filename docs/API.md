@@ -111,7 +111,8 @@ competition, or a draft holding next season's placements before the coach has
 decided them, answers as if it did not exist. It reports and accepts results
 for its own side of its own matches, without having to name the side. It
 cannot read the member list, the chase list or the event feed, or change
-anything else, and everything it sees names people by display name only. A
+anything else, beyond opting its own entries out of next season. Everything it
+sees names people by display name only. A
 route takes a session only by saying so — `requires.orPlayer` in the code, a
 `session` entry in the spec's security — and the API refuses a player
 anywhere else, even on a route that forgot to check.
@@ -137,7 +138,10 @@ is stored expanded.
 
 **Entries and placements** (`league:write`). Add an entry — the API checks a
 singles entry has one member and a doubles entry two, which the database cannot
-— and withdraw or reinstate one. An entry with no match under way can move
+— and withdraw or reinstate one. A player can opt out of the *next*
+competition from the entry they hold now, and the coach can record that for
+anyone who said so in person; it changes nothing about the competition they
+are in, and either of them can take it back. An entry with no match under way can move
 division or be deleted, taking its untouched fixtures with it; one that has
 played is withdrawn instead, so its results stay. An ineligible-looking mixed
 pair gets a warning, never a refusal — and since the warning reveals recorded
@@ -147,8 +151,9 @@ Placements fill next season's competition from this one's final tables. The
 coach creates the new competition as a draft, naming the previous one, and one
 call fills it: every entry that finished is placed with its reason and a
 sentence saying why — the top three of each division promoted, the bottom
-three relegated, the rest held, by default; a competition's rules can change
-the counts. The coach then adjusts the draft as they like with the ordinary
+three relegated, the rest held, by default; the draft's own rules set the
+counts, since it is the competition being built. Anyone who opted out of it is
+left out, and takes nobody's place with them. The coach then adjusts the draft as they like with the ordinary
 entry routes — moving, removing, adding newcomers — and submits it by
 activating the competition. Nothing is in effect until then: the engine
 suggests, and the coach decides.
@@ -169,14 +174,20 @@ twice is harmless, so a bot that retries does no damage. Two claims on one
 match are judged one after the other, so both sides reporting at the same
 moment still agree.
 
-Results are recorded while a competition is active. A complete one is a
-record, so correcting it means reopening it first. The results deadline is not
-a cut-off: a result both sides agree after it still counts, until the coach
-completes the competition.
+Results are recorded while a competition is active, and until the season's
+results deadline. A complete competition is a record, so correcting it means
+reopening it first. The deadline is a cut-off: after it no new claim or
+acceptance is taken, and the coach settles what is left — or moves the
+season's deadline, which reopens reporting. Closing reporting is not the same
+as agreeing a score: nothing enters the ledger because time passed.
+
+Replacing a result the two players agreed between them needs `override: true`
+on the settlement, so overruling them is a deliberate act. Correcting a
+settlement of the coach's own does not.
 
 **Standings and progress** (`league:read`). Computed on request from the
-competition's rules — points, tiebreaks, unranked below the minimum played —
-and never stored. Each row says what separated it from the one above. Once the
+competition's rules — points, tiebreaks, unranked below the minimum played,
+and what a walkover is worth — and never stored. Each row says what separated it from the one above. Once the
 results deadline has passed, or the competition is complete, the table is
 final and a match still outstanding counts as unplayed. Progress for a
 competition and its divisions, or for an entry.

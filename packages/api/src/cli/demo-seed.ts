@@ -124,7 +124,10 @@ async function seedDeuce(api: Api, rng: () => number) {
     year,
     starts_on: day(-150),
     ends_on: day(-60),
-    results_deadline_at: `${day(-60)}T22:59:00Z`,
+    // A season that is already over, built in one run: the results go in while
+    // the deadline is still ahead — it is a cut-off — and it is set back to
+    // where it belongs once they are all in.
+    results_deadline_at: `${day(1)}T22:59:00Z`,
   });
   await api("PATCH", `/v1/seasons/${spring.id}`, { state: "active" });
 
@@ -181,6 +184,7 @@ async function seedDeuce(api: Api, rng: () => number) {
     }
     await api("PATCH", `/v1/competitions/${competition.id}`, { state: "complete" });
   }
+  await api("PATCH", `/v1/seasons/${spring.id}`, { results_deadline_at: `${day(-60)}T22:59:00Z` });
   await api("PATCH", `/v1/seasons/${spring.id}`, { state: "complete" });
 
   // Summer: filled from the spring tables, adjusted, and under way.

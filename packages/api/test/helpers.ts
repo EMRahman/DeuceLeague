@@ -28,6 +28,9 @@ export async function closeAll(): Promise<void> {
   await owner.end();
 }
 
+/** A date this many days from today, as the API writes dates. */
+export const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+
 export type TestClub = { id: string; slug: string; key: string; keyId: string };
 
 /** A club of its own, with one key carrying `scopes` — every scope unless told otherwise. */
@@ -91,9 +94,11 @@ export async function league(
 ) {
   const season = await send("POST", "/v1/seasons", club.key, {
     name: `Season ${randomUUID().slice(0, 6)}`,
-    starts_on: "2026-04-01",
-    ends_on: "2026-06-30",
-    results_deadline_at: "2026-06-30T23:59:00+01:00",
+    starts_on: day(-30),
+    ends_on: day(60),
+    // Ahead of today, because the deadline is a cut-off: a test that wants a
+    // closed season moves it back itself.
+    results_deadline_at: `${day(60)}T22:59:00Z`,
   });
   assert.equal(season.status, 201, JSON.stringify(season.body));
   assert.equal((await send("PATCH", `/v1/seasons/${season.body.id}`, club.key, { state: "active" })).status, 200);

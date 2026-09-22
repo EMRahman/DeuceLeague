@@ -96,6 +96,8 @@ export {
   alreadyEntered,
   createEntry,
   updateEntry,
+  setOptedOut,
+  optedOutEntryIds,
   deleteEntry,
   startedMatches,
   deleteOpenFixtures,

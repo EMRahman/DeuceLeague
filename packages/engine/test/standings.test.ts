@@ -51,12 +51,18 @@ const walkover = (side0: string, side1: string, noShow: 0 | 1): StandingsMatch =
   score: null,
 });
 
-function table(input: { entries: StandingsEntry[]; matches: StandingsMatch[]; rules?: RulesSpec; deadlinePassed?: boolean }) {
+function table(input: {
+  entries: StandingsEntry[];
+  matches: StandingsMatch[];
+  rules?: RulesSpec;
+  format?: MatchFormat;
+  deadlinePassed?: boolean;
+}) {
   return computeStandings({
     entries: input.entries,
     matches: input.matches,
     rules: input.rules ?? DEFAULT_RULES,
-    format,
+    format: input.format ?? format,
     deadlinePassed: input.deadlinePassed ?? false,
   });
 }
@@ -168,11 +174,31 @@ test("a retirement: the unfinished set's games count, the set itself does not", 
   assert.deepEqual([b.points, b.setsWon, b.setsLost, b.gamesWon, b.gamesLost, b.played], [1, 0, 1, 5, 8, 1]);
 });
 
-test("a walkover counts as played only for the side that turned up", () => {
+test("a walkover counts as played only for the side that turned up, and scores the whitewash it stands for", () => {
   const rows = table({ entries: entries("A", "B"), matches: [walkover("A", "B", 1)] });
   const [a, b] = [row(rows, "A"), row(rows, "B")];
+  // Two sets to love in this format, so 12 games to none: a walkover counts in
+  // the set and game tiebreaks, as the club's rules now say by default.
+  assert.deepEqual([a.points, a.won, a.played, a.setsWon, a.gamesWon], [3, 1, 1, 2, 12]);
+  assert.deepEqual([b.points, b.lost, b.played, b.setsLost, b.gamesLost], [0, 1, 0, 2, 12]);
+  assert.deepEqual([a.setsLost, a.gamesLost, b.setsWon, b.gamesWon], [0, 0, 0, 0]);
+});
+
+test("a club can say a walkover moves no sets or games", () => {
+  const rules: RulesSpec = { ...DEFAULT_RULES, walkoverScore: "none" };
+  const rows = table({ entries: entries("A", "B"), matches: [walkover("A", "B", 1)], rules });
+  const [a, b] = [row(rows, "A"), row(rows, "B")];
   assert.deepEqual([a.points, a.won, a.played, a.setsWon, a.gamesWon], [3, 1, 1, 0, 0]);
-  assert.deepEqual([b.points, b.lost, b.played], [0, 1, 0]);
+  assert.deepEqual([b.setsLost, b.gamesLost], [0, 0], "the points are all it is worth");
+});
+
+test("a walkover's nominal score follows the competition's format", () => {
+  const rows = table({
+    entries: entries("A", "B"),
+    matches: [walkover("A", "B", 1)],
+    format: { setsToWin: 1, set: { gamesToWin: 8, clearBy: 2, tiebreakAt: 8, tiebreakTo: 7 }, finalSet: { type: "standard" } },
+  });
+  assert.deepEqual([row(rows, "A").setsWon, row(rows, "A").gamesWon], [1, 8], "an 8-game pro set is 8-0");
 });
 
 test("a champions tiebreak counts as one game, not its points", () => {

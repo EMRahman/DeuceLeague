@@ -360,6 +360,41 @@ test("an API key still names the side it reports for", async () => {
   assert.equal(res.body.errors[0].path, "side");
 });
 
+test("a player opts out of the next competition, and can take it back", async () => {
+  const { club, players, entries, between } = await playing();
+  const sam = await signIn(club, players[0]!);
+
+  const out = await send("POST", `/v1/entries/${entries[0]}/opt-out`, sam);
+  assert.equal(out.status, 200, JSON.stringify(out.body));
+  assert.ok(out.body.opted_out_at, "the entry says when they said it");
+  const again = await send("POST", `/v1/entries/${entries[0]}/opt-out`, sam);
+  assert.equal(again.body.opted_out_at, out.body.opted_out_at, "saying it twice keeps the first time");
+  const [recorded] = await eventsOf(club.id, "entry.opt_out.recorded");
+  assert.deepEqual([recorded?.actor_type, recorded?.actor_id], ["member", players[0]], "the player said it themselves");
+
+  const theirs = await send("POST", `/v1/entries/${entries[1]}/opt-out`, sam);
+  assert.equal(theirs.status, 403, "not for anybody else");
+  assert.equal(theirs.body.code, "not_your_entry");
+
+  // It says nothing about this competition: their matches stand, and they
+  // can still report them.
+  const match = between(0, 1);
+  assert.equal((await send("POST", `/v1/matches/${match.id}/claims`, sam, straightSets)).status, 201);
+
+  const back = await send("DELETE", `/v1/entries/${entries[0]}/opt-out`, sam);
+  assert.equal(back.status, 200);
+  assert.equal(back.body.opted_out_at, null, "and they can change their mind");
+  assert.equal((await eventsOf(club.id, "entry.opt_out.cleared")).length, 1);
+
+  // The coach records it for a player who said so in person; a key that only
+  // reports results cannot.
+  assert.equal((await send("POST", `/v1/entries/${entries[1]}/opt-out`, club.key)).status, 200);
+  const weak = await keyWith(club, "league:read", "results:write");
+  const refused = await send("POST", `/v1/entries/${entries[2]}/opt-out`, weak);
+  assert.equal(refused.status, 403);
+  assert.deepEqual(refused.body.missing_scopes, ["league:write"]);
+});
+
 // ─────────────────────────────────────────────────────────── signing out ──
 
 test("signing out ends that session; the coach can sign a member out everywhere", async () => {
@@ -444,6 +479,7 @@ test("the spec says exactly which routes a player's session reaches", async () =
   // Adding a route here is a decision: it must keep a player to the
   // competitions open to members, and to their own side of their own matches.
   assert.deepEqual(taking("session"), [
+    "DELETE /v1/entries/{id}/opt-out",
     "DELETE /v1/session",
     "GET /v1/competitions",
     "GET /v1/competitions/{id}",
@@ -459,6 +495,7 @@ test("the spec says exactly which routes a player's session reaches", async () =
     "GET /v1/me",
     "GET /v1/seasons",
     "GET /v1/seasons/{id}",
+    "POST /v1/entries/{id}/opt-out",
     "POST /v1/matches/{id}/claims",
     "POST /v1/matches/{id}/claims/{claim_id}/accept",
   ]);

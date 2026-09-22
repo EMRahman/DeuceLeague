@@ -50,6 +50,15 @@ export const WithdrawalSpec = z.object({
   remainingMatches: z.enum(["unplayed", "walkover_to_opponent"]),
 });
 
+/**
+ * What a walkover or concession is worth in the sets and games columns.
+ * `nominal` awards the side that turned up the score it would have had to
+ * play out — every set to love — so walkovers count in set and game
+ * tiebreaks. `none` leaves both columns untouched, and the points are all a
+ * walkover is worth.
+ */
+export const WalkoverScore = z.enum(["nominal", "none"]);
+
 export const MovementSpec = z.object({
   /** How many units the engine suggests promoting from each division. */
   promote: z.number().int().min(0).max(10),
@@ -75,15 +84,17 @@ export const RulesSpec = z.object({
   withdrawal: WithdrawalSpec,
   /** Units below this many played matches are listed but marked unranked. */
   minMatchesForRanking: z.number().int().min(0).max(50).default(0),
+  /** What a walkover or concession does to the sets and games columns. */
+  walkoverScore: WalkoverScore.default("nominal"),
 });
 export type RulesSpec = z.infer<typeof RulesSpec>;
 
 /**
  * Sensible starting point: 3 points a win, 1 for turning up and losing, nothing
- * for a match that never happened. The top three of each division are
- * suggested for promotion and the bottom three for relegation. No walkovers —
- * a withdrawn unit's played results stand and its remaining fixtures simply go
- * unplayed.
+ * for a match that never happened. A walkover scores as the whitewash it
+ * stands for. The top three of each division are suggested for promotion and
+ * the bottom three for relegation. A withdrawn unit's played results stand and
+ * its remaining fixtures simply go unplayed.
  */
 export const DEFAULT_RULES: RulesSpec = {
   version: 1,
@@ -103,4 +114,5 @@ export const DEFAULT_RULES: RulesSpec = {
   movement: { promote: 3, relegate: 3, minMatchesForPromotion: 2 },
   withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" },
   minMatchesForRanking: 0,
+  walkoverScore: "nominal",
 };

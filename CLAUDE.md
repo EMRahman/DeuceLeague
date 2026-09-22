@@ -60,8 +60,11 @@ docs/SCHEMA.md.
 **Never accept a result on a timer.** There is no auto-confirm and there must
 not be one. A score enters the ledger when both sides agree — by reporting the
 same score independently, or by one accepting the other's — or when the coach
-overrides. A match with one unanswered claim stays `reported` for as long as it
-takes; the coach sees it in `division_progress.reported`. When the two claims
+overrides. A match with one unanswered claim stays `reported` until somebody
+acts; the coach sees it in `division_progress.reported`. The season's results
+deadline closes reporting — after it no new claim is taken and the coach
+settles what is left — but closing reporting never agrees a score, and
+overruling one the players agreed takes `override: true`. When the two claims
 differ, either side may re-enter its score or accept the other's; nobody
 rejects a claim, and nothing is deleted.
 

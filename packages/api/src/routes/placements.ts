@@ -6,6 +6,7 @@ import {
   listDivisions,
   listEntries,
   membersForEntry,
+  optedOutEntryIds,
 } from "@deuceleague/db";
 import { suggestPlacements } from "@deuceleague/engine";
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
@@ -45,7 +46,9 @@ const Placements = z
     }),
     placed: z.array(Placed),
     not_carried: z.array(NotCarried).openapi({
-      description: "Entries left out: withdrawn last time, or with a member since removed from the club.",
+      description:
+        "Entries left out: opted out of this competition, withdrawn last time, or with a member since " +
+        "removed from the club.",
     }),
   })
   .openapi("Placements");
@@ -58,10 +61,11 @@ const fill = createRoute({
   description:
     "For a draft competition that names its previous competition and has no entries yet. Every entry that " +
     "finished last time is entered again, each with its reason and a sentence saying why: by default the top " +
-    "three of each division promoted, the bottom three relegated and the rest held — the previous " +
-    "competition's rules set the counts. A draft with no divisions gets a copy of the previous ones. The " +
-    "coach then adjusts the draft with the entry routes and submits it by activating the competition. " +
-    "Nothing is in effect until then: the engine suggests, and the coach decides.",
+    "three of each division promoted, the bottom three relegated and the rest held — this draft's own rules " +
+    "set the counts, so changing them changes the suggestion. Anyone who opted out of the next competition " +
+    "is left out, and takes nobody's place with them. A draft with no divisions gets a copy of the previous " +
+    "ones. The coach then adjusts the draft with the entry routes and submits it by activating the " +
+    "competition. Nothing is in effect until then: the engine suggests, and the coach decides.",
   ...requires("league:write"),
   request: { params: IdParam },
   responses: {
@@ -134,8 +138,11 @@ export function registerPlacements(app: OpenAPIHono<AppEnv>): void {
     const tables = await competitionTables(tx, previous, { now: new Date() });
     const suggestions = suggestPlacements(
       tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
-      previous.rules.movement,
+      // The draft's own rules say how many go up and down: it is the
+      // competition being built, and the one the coach is editing.
+      competition.rules.movement,
       divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
+      new Set(await optedOutEntryIds(tx, previous.id)),
     );
 
     const before = new Map((await listEntries(tx, previous.id, { divisionId: undefined, state: undefined })).map((e) => [e.id, e]));

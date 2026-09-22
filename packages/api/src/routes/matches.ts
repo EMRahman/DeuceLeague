@@ -7,6 +7,7 @@ import {
   listClaims,
   listMatches,
   recordResult,
+  seasonDeadline,
   setMatchStatus,
   sideOfMember,
   standingClaimIds,
@@ -14,6 +15,7 @@ import {
   type ClaimRecord,
   type CompetitionRecord,
   type MatchRecord,
+  type Tx,
 } from "@deuceleague/db";
 import { compareClaims, judgeClaims, type Claim } from "@deuceleague/engine";
 import {
@@ -138,7 +140,16 @@ const Acceptance = z
   .object({ source: ClaimSource.optional().meta({ description: SOURCE_DEFAULT }) })
   .openapi("Acceptance");
 
-const Settlement = z.object(ResultFields).openapi("Settlement");
+const Settlement = z
+  .object({
+    ...ResultFields,
+    override: z.boolean().optional().openapi({
+      description:
+        "Required to replace a result the two players agreed between them. Correcting an earlier " +
+        "settlement of your own, or settling a match still open, reported or disputed, does not need it.",
+    }),
+  })
+  .openapi("Settlement");
 
 // ───────────────────────────────────────────────────────────── mapping ──
 
@@ -241,6 +252,21 @@ async function openMatch(c: Ctx, matchId: string): Promise<{ match: MatchRecord;
 }
 
 /**
+ * Refuses a new claim once the season's results deadline has passed. What is
+ * agreed by then counts; after it the coach settles what is left, or moves the
+ * season's deadline. A season with no deadline set never closes this way.
+ */
+async function checkDeadline(c: Ctx, competition: CompetitionRecord): Promise<void> {
+  const deadline = await seasonDeadline(c.get("tx"), competition.seasonId);
+  if (deadline === null || deadline.getTime() > Date.now()) return;
+  throw problems.conflict(
+    "deadline_passed",
+    "The results deadline has passed",
+    `Results were taken until ${iso(deadline)}. The coach can settle this match, or move the season's deadline.`,
+  );
+}
+
+/**
  * The side a new claim speaks for. An API key names it. A player's session
  * speaks for its own side and no other, so it may leave the side out.
  */
@@ -282,6 +308,17 @@ function ledgerEntry(claim: Claim, checked: ValidatedResult, playedOn: string | 
     playedOn,
     claimId,
   };
+}
+
+/**
+ * Whether the result in the ledger came from the players — two matching
+ * reports, or one side accepting the other's — rather than from a coach, whose
+ * own entry speaks for the match and has no side.
+ */
+async function playersAgreed(tx: Tx, match: MatchRecord): Promise<boolean> {
+  if (!match.acceptedSubmissionId) return false;
+  const claims = await listClaims(tx, match.id);
+  return claims.find((cl) => cl.id === match.acceptedSubmissionId)?.sideIndex !== null;
 }
 
 /** Where a claim came from, when the caller does not say: a player's session is a website or app. */
@@ -369,8 +406,9 @@ const report = createRoute({
     "claim: the same result puts it in the ledger, a different one makes the match `disputed`, and none " +
     "leaves it `reported` until the other side answers — however long that takes. A side's new claim " +
     "replaces its previous one, which is kept. Sending the same claim again changes nothing, so a retry " +
-    "is safe. Once a match is played, only the coach can change it. A player's session reports for its own " +
-    "side of its own matches, and nothing else.",
+    "is safe. Once a match is played, only the coach can change it, and once the season's results deadline " +
+    "has passed no new claim is taken. A player's session reports for its own side of its own matches, and " +
+    "nothing else.",
   ...requires.orPlayer("results:write"),
   request: {
     params: IdParam,
@@ -383,7 +421,7 @@ const report = createRoute({
     ...authProblems,
     ...playerRefusals,
     ...notFoundProblem,
-    ...conflictProblem("`already_played`, or `competition_not_active`."),
+    ...conflictProblem("`already_played`, `competition_not_active`, or `deadline_passed`."),
   },
 });
 
@@ -408,7 +446,9 @@ const accept = createRoute({
     ...authProblems,
     ...playerRefusals,
     ...notFoundProblem,
-    ...conflictProblem("`claim_not_live`: the claim was replaced or settled; or `competition_not_active`."),
+    ...conflictProblem(
+      "`claim_not_live`: the claim was replaced or settled; or `competition_not_active`, or `deadline_passed`.",
+    ),
   },
 });
 
@@ -420,7 +460,8 @@ const settle = createRoute({
   description:
     "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a " +
     "correction to one already played. Every earlier claim is kept, marked superseded. Settling with the " +
-    "result already in the ledger changes nothing.",
+    "result already in the ledger changes nothing. Replacing a result the two players agreed needs " +
+    "`override: true`, so overruling them is deliberate. The deadline does not stop a settlement.",
   ...requires("league:write"),
   request: {
     params: IdParam,
@@ -432,7 +473,7 @@ const settle = createRoute({
     ...validationProblem,
     ...authProblems,
     ...notFoundProblem,
-    ...conflictProblem("`competition_not_active`."),
+    ...conflictProblem("`competition_not_active`, or `already_agreed` without `override`."),
   },
 });
 
@@ -466,6 +507,7 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
     const tx = c.get("tx");
     const { match, competition } = await openMatch(c, id);
     const side = await claimingSide(c, match, body.side);
+    await checkDeadline(c, competition);
     const { claim, checked } = checkResult(body, competition.matchFormat);
 
     if (match.status === "played") {
@@ -531,6 +573,7 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
     const accepted = claims.find((cl) => cl.id === claim_id);
     if (!accepted) throw problems.notFound("claim on this match");
 
+    await checkDeadline(c, competition);
     const side = accepted.sideIndex === 0 ? 1 : 0;
     const memberId = playerOf(c);
     if (memberId !== null) {
@@ -592,6 +635,13 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
 
     if (match.status === "played" && compareClaims(ledgerClaim(match), claim).length === 0 && playedOn === match.playedOn) {
       return c.json(await detail(c, id), 200);
+    }
+    if (match.status === "played" && !body.override && (await playersAgreed(tx, match))) {
+      throw problems.conflict(
+        "already_agreed",
+        "The two players agreed this result between them",
+        "Replacing what both sides settled is the coach overruling them, so say so: send override: true.",
+      );
     }
 
     // A coach entry speaks for the match: whatever stood before is replaced, and kept.

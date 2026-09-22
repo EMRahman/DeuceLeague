@@ -7,9 +7,11 @@ import { closeAll, enter, eventsOf, keyWith, league, member, newClub, owner, sen
 
 after(closeAll);
 
+const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString();
+
 /** An active singles competition with `n` entries and their round robin, ready for results. */
 async function playing(club: TestClub, n = 2) {
-  const { competitionId, divisionIds } = await league(club);
+  const { seasonId, competitionId, divisionIds } = await league(club);
   const division = divisionIds[0]!;
   const entries: string[] = [];
   for (let i = 0; i < n; i++) entries.push(await enter(club, competitionId, division, [await member(club)]));
@@ -17,7 +19,13 @@ async function playing(club: TestClub, n = 2) {
   assert.equal((await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { state: "active" })).status, 200);
   const listed = await send("GET", `/v1/matches?division_id=${division}`, club.key);
   assert.equal(listed.status, 200, JSON.stringify(listed.body));
-  return { competitionId, division, entries, matches: listed.body.data.map((m: { id: string }) => m.id) as string[] };
+  return {
+    seasonId,
+    competitionId,
+    division,
+    entries,
+    matches: listed.body.data.map((m: { id: string }) => m.id) as string[],
+  };
 }
 
 const score = (...sets: [number, number][]) => ({ sets: sets.map((games) => ({ games })) });
@@ -335,4 +343,56 @@ test("the spec lists the result routes with the scopes they need", async () => {
   assert.deepEqual(scopes("/v1/matches/{id}/claims/{claim_id}/accept", "post"), ["results:write"]);
   assert.deepEqual(scopes("/v1/matches/{id}/settle", "post"), ["league:write"]);
   assert.deepEqual(scopes("/v1/events", "get"), ["league:read"]);
+});
+
+test("the results deadline is a cut-off: after it the coach settles what is left", async () => {
+  const c = await newClub("cut-off");
+  const { seasonId, matches } = await playing(c, 3);
+  const [waiting, untouched] = matches as [string, string];
+  const reported = await report(c, waiting, 0, [[6, 4], [6, 4]]);
+  assert.equal(reported.status, 201, "in time");
+  const claimId = reported.body.claims[0].id;
+
+  const moved = await send("PATCH", `/v1/seasons/${seasonId}`, c.key, { results_deadline_at: inDays(-1) });
+  assert.equal(moved.status, 200, JSON.stringify(moved.body));
+
+  const late = await report(c, untouched, 0, [[6, 0], [6, 0]]);
+  assert.equal(late.status, 409);
+  assert.equal(late.body.code, "deadline_passed");
+  const accepted = await send("POST", `/v1/matches/${waiting}/claims/${claimId}/accept`, c.key);
+  assert.equal(accepted.status, 409, "nor is an answer to a claim still standing");
+  assert.equal(accepted.body.code, "deadline_passed");
+
+  const settled = await send("POST", `/v1/matches/${waiting}/settle`, c.key, {
+    outcome: "completed",
+    score: score([6, 4], [6, 4]),
+  });
+  assert.equal(settled.status, 201, "the coach still settles it");
+  assert.equal(settled.body.status, "played");
+
+  const extended = await send("PATCH", `/v1/seasons/${seasonId}`, c.key, { results_deadline_at: inDays(7) });
+  assert.equal(extended.status, 200);
+  assert.equal((await report(c, untouched, 0, [[6, 0], [6, 0]])).status, 201, "moving the deadline reopens it");
+});
+
+test("overruling a result the two players agreed is deliberate", async () => {
+  const c = await newClub("override");
+  const { matches } = await playing(c);
+  const m = matches[0]!;
+  await report(c, m, 0, [[6, 4], [6, 4]]);
+  assert.equal((await report(c, m, 1, [[6, 4], [6, 4]])).body.status, "played", "they agree");
+
+  const correction = { outcome: "completed", score: score([6, 4], [6, 3]) };
+  const refused = await send("POST", `/v1/matches/${m}/settle`, c.key, correction);
+  assert.equal(refused.status, 409);
+  assert.equal(refused.body.code, "already_agreed");
+  const [ledger] = await owner`select accepted_submission_id from match where id = ${m}`;
+  assert.ok(ledger?.accepted_submission_id, "their result stands until the coach says otherwise");
+
+  const settled = await send("POST", `/v1/matches/${m}/settle`, c.key, { ...correction, override: true });
+  assert.equal(settled.status, 201, JSON.stringify(settled.body));
+  assert.deepEqual(settled.body.result.score, score([6, 4], [6, 3]));
+
+  const typo = await send("POST", `/v1/matches/${m}/settle`, c.key, { outcome: "completed", score: score([6, 4], [6, 2]) });
+  assert.equal(typo.status, 201, "correcting the coach's own entry needs no override");
 });

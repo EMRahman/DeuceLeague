@@ -130,3 +130,22 @@ test("with fewer divisions next time, the missing one folds into the nearest", (
   assert.deepEqual(["c1", "c2", "c3"].map((id) => s[id]?.to), [2, 2, 2]);
   assert.deepEqual([s.b1?.reason, s.b3?.reason, s.b3?.to], ["promoted", "held", 2]);
 });
+
+test("an entry that opted out is left out, and takes nobody's place with it", () => {
+  const s = byId(
+    suggestPlacements(
+      [division(1, ["a1", "a2", "a3", "a4"]), division(2, ["b1", "b2", "b3", "b4"])],
+      movement,
+      divisions(2),
+      new Set(["b1", "a4"]),
+    ),
+  );
+  assert.deepEqual([s.b1?.to, s.b1?.reason], [null, null]);
+  assert.match(s.b1?.explanation ?? "", /opted out of the next competition/);
+  assert.deepEqual(
+    ["b2", "b3"].map((id) => s[id]?.reason),
+    ["promoted", "promoted"],
+    "the two below b1 go up in its place",
+  );
+  assert.deepEqual([s.a4?.to, s.a3?.reason, s.a2?.reason], [null, "relegated", "relegated"]);
+});

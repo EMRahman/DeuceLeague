@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHmac } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_RULES } from "@deuceleague/schema";
 import { APP_URL, closeAll, enter, eventsOf, keyWith, league, member, newClub, send, type TestClub } from "./helpers.ts";
 
 after(closeAll);
@@ -201,6 +202,58 @@ test("placements fill next season's draft from the final tables — three up, th
   assert.deepEqual([event?.payload.placed, event?.payload.not_carried], [8, 1]);
   const placedEvents = (await eventsOf(c.id, "entry.created")).filter((ev) => ev.payload.competition_id === next.id);
   assert.equal(placedEvents.length, 8, "each placed entry is in the feed like any other");
+});
+
+test("the draft's own rules say how many move, and whoever opted out is left out", async () => {
+  const c = await newClub("placement-rules");
+  const top = ["A1", "A2", "A3"];
+  const bottom = ["B1", "B2", "B3"];
+  const last = await competitionOf(c, [top, bottom]);
+  const e = last.entries;
+  for (const names of [top, bottom]) {
+    for (const [i, winner] of names.entries()) {
+      for (const loser of names.slice(i + 1)) await beats(c, last.matches, e[winner]!, e[loser]!);
+    }
+  }
+  await send("PATCH", `/v1/competitions/${last.competitionId}`, c.key, { state: "complete" });
+  // B1 won their division but is not playing next season, and said so once it
+  // was over — which is when players decide, so a finished competition takes it.
+  const optedOut = await send("POST", `/v1/entries/${e.B1}/opt-out`, c.key);
+  assert.equal(optedOut.status, 200, JSON.stringify(optedOut.body));
+  assert.ok(optedOut.body.opted_out_at);
+
+  const season = (await send("POST", "/v1/seasons", c.key, { name: "Next", starts_on: "2027-04-01", ends_on: "2027-06-30" }))
+    .body;
+  const next = (
+    await send("POST", "/v1/competitions", c.key, {
+      season_id: season.id,
+      name: "Men's Singles",
+      discipline: "singles",
+      match_format: "best_of_3_sets",
+      previous_competition_id: last.competitionId,
+      // One up and one down, where the competition just played had three.
+      rules: { ...DEFAULT_RULES, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } },
+    })
+  ).body;
+
+  const filled = await send("POST", `/v1/competitions/${next.id}/placements`, c.key);
+  assert.equal(filled.status, 201, JSON.stringify(filled.body));
+  const divisions = (await send("GET", `/v1/competitions/${next.id}/divisions`, c.key)).body.data;
+  const where = Object.fromEntries(
+    filled.body.placed.map((p: { label: string; division_id: string; reason: string }) => [
+      p.label,
+      [divisions.find((d: { id: string }) => d.id === p.division_id).ordinal, p.reason],
+    ]),
+  );
+  assert.deepEqual(where, {
+    A1: [1, "held"],
+    A2: [1, "held"],
+    A3: [2, "relegated"],
+    B2: [1, "promoted"],
+    B3: [2, "held"],
+  });
+  assert.deepEqual(filled.body.not_carried.map((n: { label: string }) => n.label), ["B1"]);
+  assert.match(filled.body.not_carried[0].explanation, /opted out of the next competition/);
 });
 
 test("placements need a draft that names its previous competition", async () => {
