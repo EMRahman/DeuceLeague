@@ -5,7 +5,8 @@ people see — websites, phone apps, Telegram bots — is built on top by whoeve
 wants it, and they keep whatever they put on it.
 
 **Status:** data model complete and verified — 14 tables, 7 views, 64 database checks
-green against a real Postgres. The API service is next.
+green against a real Postgres. The API is being built: see
+[docs/API.md](docs/API.md) for the plan and progress.
 
 ## What is here
 
@@ -13,6 +14,7 @@ green against a real Postgres. The API service is next.
 packages/schema   Zod schemas: scores, match formats, league rules      MIT
 packages/db       Postgres schema and migrations (Drizzle)              AGPL
 docs/DATA-MODEL.md  How the model works and why it is shaped this way
+docs/API.md         What the API offers, who can call it, and why
 docs/SCHEMA.md      Generated column-by-column reference for every table,
                     view and function
 ```
@@ -71,5 +73,5 @@ thing belongs in an adapter.
 
 ## Licence
 
-`packages/schema` and the SDKs are MIT — build anything on them. The server is
+`packages/schema` is MIT — build anything on it. The server is
 AGPL-3.0-or-later.

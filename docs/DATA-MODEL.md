@@ -368,16 +368,10 @@ LIMIT 100;
 
 ## Scopes
 
-| Scope | Grants |
-|---|---|
-| `league:read` | seasons, competitions, divisions, standings, matches, display names |
-| `results:write` | report, accept and re-enter results |
-| `league:write` | create and edit competitions, placements, generate matches |
-| `members:read` | member list with display names and status |
-| `members:pii` | full name, email, phone, date of birth, gender, notes |
-| `admin` | API key management, club settings |
-
-A new key defaults to `league:read` + `results:write`.
+What each API key may do is set by its scopes, listed in
+[docs/API.md § Scopes](API.md#scopes). The database stores them on `api_key`
+and `access_grant`; the API enforces them. Row-level security keeps a key to
+its own club whatever its scopes say.
 
 ## Deliberately absent
 
