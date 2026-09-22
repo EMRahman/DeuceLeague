@@ -89,7 +89,10 @@ const NewCompetition = z
     category: Category.optional().openapi({ description: "Defaults to `open`." }),
     match_format: MatchFormatInput,
     rules: RulesSpec.optional().openapi({
-      description: "Defaults to the standard rules: 3 for a win, 1 for turning up and losing.",
+      description:
+        "Defaults to the standard rules: 1 for playing, 3 more for winning and 1 per set won; 1 for losing " +
+        "by 4 games or fewer or winning by 8 or more; 1 for turning up to every match; 3 in total for a " +
+        "win by retirement, walkover or concession, and 0 for that loss.",
     }),
     sequence_in_season: z.number().int().min(1).max(50).optional(),
     previous_competition_id: z.uuid().nullable().optional(),
@@ -126,7 +129,8 @@ function toCompetition(c: CompetitionRecord): z.infer<typeof Competition> {
     discipline: c.discipline as Discipline,
     category: c.category as Category,
     match_format: c.matchFormat,
-    rules: c.rules,
+    // Parsed, not cast: rules saved before a field existed show its default.
+    rules: RulesSpec.parse(c.rules),
     sequence_in_season: c.sequenceInSeason,
     previous_competition_id: c.previousCompetitionId,
     state: c.state as CompetitionState,

@@ -225,7 +225,11 @@ test("a competition's format and rules are checked when saved, and presets are s
   assert.equal(made.status, 201, JSON.stringify(made.body));
   assert.equal(made.body.state, "draft");
   assert.equal(made.body.match_format.set.gamesToWin, 4);
-  assert.equal(made.body.rules.points.win, 3, "the standard rules when none are given");
+  assert.deepEqual(
+    [made.body.rules.points.win, made.body.rules.points.perSetWon, made.body.rules.points.allPlayed],
+    [4, 1, 1],
+    "the standard rules when none are given",
+  );
 
   const badRules = await send("POST", "/v1/competitions", c.key, {
     season_id: season,

@@ -85,6 +85,7 @@ export function computeStandings(input: StandingsInput): StandingsRow[] {
   const withdrawn = new Set(input.entries.filter((e) => e.withdrawn).map((e) => e.id));
   const tallies = new Map(input.entries.map((e) => [e.id, emptyTally()]));
   const wins = new Map<string, number>(); // "winner|loser" → matches, for head-to-head
+  const absent = new Set<string>(); // gave a walkover or conceded: forfeits the all-played bonus
 
   for (const match of input.matches) {
     const result = settle(match, withdrawn, input);
@@ -105,6 +106,17 @@ export function computeStandings(input: StandingsInput): StandingsRow[] {
       apply(result, pair, input);
       const [winner, loser] = result.winner === 0 ? [match.side0, match.side1] : [match.side1, match.side0];
       wins.set(`${winner}|${loser}`, (wins.get(`${winner}|${loser}`) ?? 0) + 1);
+      if (result.outcome === "walkover" || result.outcome === "conceded") absent.add(loser);
+    }
+  }
+
+  // Turned up to every match, and every match is in: nothing outstanding,
+  // nothing that never happened, no walkover given away.
+  if (input.rules.points.allPlayed !== 0) {
+    for (const [id, t] of tallies) {
+      if (t.played > 0 && t.outstanding === 0 && t.unplayed === 0 && !absent.has(id)) {
+        t.points += input.rules.points.allPlayed;
+      }
     }
   }
 
@@ -238,6 +250,15 @@ function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput): v
   sides[0].gamesLost += counted.gamesWon[1];
   sides[1].gamesWon += counted.gamesWon[1];
   sides[1].gamesLost += counted.gamesWon[0];
+
+  // A retirement earns only its flat amount; a match played out earns its sets and margin too.
+  if (result.outcome !== "completed") return;
+  sides[0].points += p.perSetWon * counted.setsWon[0];
+  sides[1].points += p.perSetWon * counted.setsWon[1];
+  const loserSide = result.winner === 0 ? 1 : 0;
+  const margin = counted.gamesWon[result.winner] - counted.gamesWon[loserSide];
+  if (p.closeLoss && margin <= p.closeLoss.withinGames) loser.points += p.closeLoss.points;
+  if (p.convincingWin && margin >= p.convincingWin.byGames) winner.points += p.convincingWin.points;
 }
 
 function emptyTally(): Tally {

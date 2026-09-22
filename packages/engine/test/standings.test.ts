@@ -6,14 +6,34 @@ import {
   validateResult,
   type MatchFormat,
   type MatchOutcome,
-  type RulesSpec,
+  RulesSpec,
 } from "@deuceleague/schema";
 import { computeStandings, type StandingsEntry, type StandingsMatch } from "../dist/index.js";
 
 // Every expected table here was worked out by hand first; the comments show
-// the arithmetic. The rules are DEFAULT_RULES unless a test says otherwise:
-// 3 for a win, 1 for a played loss, then head-to-head, set difference, game
-// difference, matches won.
+// the arithmetic. Most tests are about ordering and odd results rather than
+// points, so unless one says otherwise they use FLAT: DEFAULT_RULES with a
+// plain 3 for a win and 1 for a loss on court, and no bonuses. Then
+// head-to-head, set difference, game difference, matches won.
+
+const FLAT: RulesSpec = {
+  ...DEFAULT_RULES,
+  points: {
+    win: 3,
+    lossPlayed: 1,
+    retiredWin: 3,
+    retiredLoss: 1,
+    walkoverWin: 3,
+    walkoverLoss: 0,
+    concededWin: 3,
+    concededLoss: 0,
+    unplayedBoth: 0,
+    perSetWon: 0,
+    closeLoss: null,
+    convincingWin: null,
+    allPlayed: 0,
+  },
+};
 
 const format = MATCH_FORMATS.best_of_3_champions_tiebreak as MatchFormat;
 
@@ -61,7 +81,7 @@ function table(input: {
   return computeStandings({
     entries: input.entries,
     matches: input.matches,
-    rules: input.rules ?? DEFAULT_RULES,
+    rules: input.rules ?? FLAT,
     format: input.format ?? format,
     deadlinePassed: input.deadlinePassed ?? false,
   });
@@ -158,7 +178,7 @@ test("the same results give the same table, whatever order they arrive in", () =
 });
 
 test("an outstanding match counts for nothing until the deadline, then as unplayed", () => {
-  const rules: RulesSpec = { ...DEFAULT_RULES, points: { ...DEFAULT_RULES.points, unplayedBoth: 1 } };
+  const rules: RulesSpec = { ...FLAT, points: { ...FLAT.points, unplayedBoth: 1 } };
   const before = table({ entries: entries("A", "B"), matches: [open("A", "B")], rules });
   assert.deepEqual(before.map((r) => [r.points, r.outstanding, r.unplayed]), [[0, 1, 0], [0, 1, 0]]);
 
@@ -169,7 +189,7 @@ test("an outstanding match counts for nothing until the deadline, then as unplay
 test("a retirement: the unfinished set's games count, the set itself does not", () => {
   const rows = table({ entries: entries("A", "B"), matches: [played("A", "B", "6-4 2-1", "retired", 1)] });
   const [a, b] = [row(rows, "A"), row(rows, "B")];
-  // Default points: 3 for the win, 1 for the side that retired.
+  // Flat points: 3 for the win, 1 for the side that retired.
   assert.deepEqual([a.points, a.setsWon, a.setsLost, a.gamesWon, a.gamesLost, a.played], [3, 1, 0, 8, 5, 1]);
   assert.deepEqual([b.points, b.setsWon, b.setsLost, b.gamesWon, b.gamesLost, b.played], [1, 0, 1, 5, 8, 1]);
 });
@@ -185,7 +205,7 @@ test("a walkover counts as played only for the side that turned up, and scores t
 });
 
 test("a club can say a walkover moves no sets or games", () => {
-  const rules: RulesSpec = { ...DEFAULT_RULES, walkoverScore: "none" };
+  const rules: RulesSpec = { ...FLAT, walkoverScore: "none" };
   const rows = table({ entries: entries("A", "B"), matches: [walkover("A", "B", 1)], rules });
   const [a, b] = [row(rows, "A"), row(rows, "B")];
   assert.deepEqual([a.points, a.won, a.played, a.setsWon, a.gamesWon], [3, 1, 1, 0, 0]);
@@ -210,7 +230,7 @@ test("a champions tiebreak counts as one game, not its points", () => {
 test("an entry that played too few is listed after the ranked ones, unranked", () => {
   const rows = table({
     entries: entries("A", "B", "C", "D"),
-    rules: { ...DEFAULT_RULES, minMatchesForRanking: 2 },
+    rules: { ...FLAT, minMatchesForRanking: 2 },
     matches: [
       played("A", "B", "6-1 6-1"),
       played("A", "C", "6-1 6-1"),
@@ -239,7 +259,7 @@ test("a withdrawal, by default: results already played stand, the rest go unplay
 });
 
 test("a withdrawal, when a club voids it: results go, and the rest become walkovers", () => {
-  const rules: RulesSpec = { ...DEFAULT_RULES, withdrawal: { playedMatches: "void", remainingMatches: "walkover_to_opponent" } };
+  const rules: RulesSpec = { ...FLAT, withdrawal: { playedMatches: "void", remainingMatches: "walkover_to_opponent" } };
   const rows = table({
     entries: [...entries("A", "B"), { id: "C", label: "C", withdrawn: true }],
     matches: [played("A", "C", "6-0 6-0"), open("B", "C"), open("A", "B")],
@@ -252,7 +272,7 @@ test("a withdrawal, when a club voids it: results go, and the rest become walkov
 });
 
 test("scoring by games won orders by games, then the club's tiebreaks", () => {
-  const rules: RulesSpec = { ...DEFAULT_RULES, scoringMode: "games_won", tiebreaks: ["points"] };
+  const rules: RulesSpec = { ...FLAT, scoringMode: "games_won", tiebreaks: ["points"] };
   const rows = table({
     entries: entries("A", "B", "C"),
     matches: [played("A", "B", "6-4 6-4"), played("B", "C", "7-6 7-6")],
@@ -264,3 +284,57 @@ test("scoring by games won orders by games, then the club's tiebreaks", () => {
   assert.deepEqual(rows.map((r) => r.separatedBy), [null, "games_won", "points"]);
 });
 
+
+// ── the default points ──────────────────────────────────────────────────────
+
+test("by default: 1 for playing, 3 for winning, 1 a set, and 1 for a close loss or a big win", () => {
+  const rows = table({
+    entries: entries("A", "B", "C"),
+    matches: [played("A", "B", "6-4 6-3"), played("A", "C", "6-1 6-1"), played("B", "C", "6-4 3-6 10-8")],
+    rules: DEFAULT_RULES,
+  });
+  // A beat B 12-7 in games:  A 1 + 3 + 2 sets = 6;  B lost by 5, not close: 1.
+  // A beat C 12-2, by 10:    A 1 + 3 + 2 + 1 convincing = 7;  C 1.
+  // B beat C 10-10 in games (the tiebreak is one game), so C lost by 0:
+  //                          B 1 + 3 + 2 = 6;  C 1 + 1 set + 1 close = 3.
+  // Every match is in and everyone turned up: 1 more each.
+  assert.deepEqual(order(rows), ["A", "B", "C"]);
+  assert.deepEqual(rows.map((r) => r.points), [6 + 7 + 1, 1 + 6 + 1, 1 + 3 + 1]);
+});
+
+test("by default: a retirement, walkover or concession is 3 in all to the winner and nothing to the loser", () => {
+  const rows = table({
+    entries: entries("A", "B"),
+    matches: [played("A", "B", "6-4 2-1", "retired", 1)],
+    rules: { ...DEFAULT_RULES, points: { ...DEFAULT_RULES.points, allPlayed: 0 } },
+  });
+  // A won a set, but nothing was played out: no set, margin or playing points.
+  assert.deepEqual([row(rows, "A").points, row(rows, "B").points], [3, 0]);
+  const walked = table({ entries: entries("A", "B"), matches: [walkover("A", "B", 1)], rules: DEFAULT_RULES });
+  assert.deepEqual([row(walked, "A").points, row(walked, "B").points], [3 + 1, 0], "A also turned up to every match");
+});
+
+test("the bonus for turning up to every match waits for the last one, and a walkover given away forfeits it", () => {
+  const matches = [walkover("A", "B", 1), played("A", "C", "6-4 2-1", "retired", 1)];
+  const early = table({ entries: entries("A", "B", "C"), matches: [...matches, open("B", "C")], rules: DEFAULT_RULES });
+  // A's matches are both in, and A turned up to each: 3 + 3 + 1.
+  // B and C still have one to play, so neither has it yet.
+  assert.deepEqual([row(early, "A").points, row(early, "B").points, row(early, "C").points], [7, 0, 0]);
+
+  const done = table({
+    entries: entries("A", "B", "C"),
+    matches: [...matches, played("B", "C", "6-2 6-2")],
+    rules: DEFAULT_RULES,
+  });
+  // B beat C 12-4 in games, by 8: B 1 + 3 + 2 + 1 convincing = 7, but B gave A
+  // a walkover, so no bonus. C: 1 for playing; C retired against A, but turned
+  // up, so the bonus: 1.
+  assert.deepEqual([row(done, "A").points, row(done, "B").points, row(done, "C").points], [7, 7, 2]);
+});
+
+test("rules saved before the bonuses existed score as they always did", () => {
+  const { perSetWon, closeLoss, convincingWin, allPlayed, ...before } = FLAT.points;
+  const rules = RulesSpec.parse({ ...FLAT, points: before });
+  const rows = table({ entries: entries("A", "B"), matches: [played("A", "B", "6-0 6-0")], rules });
+  assert.deepEqual([row(rows, "A").points, row(rows, "B").points], [3, 1]);
+});

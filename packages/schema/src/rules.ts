@@ -22,6 +22,13 @@ export type TiebreakRule = z.infer<typeof TiebreakRule>;
 /** How a unit's league position is earned. */
 export const ScoringMode = z.enum(["points", "games_won", "sets_won"]);
 
+/**
+ * What each result is worth. A completed match earns `win` or `lossPlayed`,
+ * plus the per-set and margin bonuses below. A retirement, walkover or
+ * concession earns only its flat amount: nothing was played out, so there is
+ * no score to reward. The bonuses are optional and off unless set, so rules
+ * saved before they existed keep scoring exactly as they did.
+ */
 export const PointsSpec = z.object({
   win: z.number(),
   lossPlayed: z.number(),
@@ -37,6 +44,22 @@ export const PointsSpec = z.object({
    * A coach who judges one side at fault records a walkover instead.
    */
   unplayedBoth: z.number(),
+  /** Added for each set a side wins in a completed match, winner or loser. */
+  perSetWon: z.number().default(0),
+  /**
+   * Added to the loser of a completed match who lost by at most this many
+   * games. Games are counted across every set, a champions tiebreak as one.
+   */
+  closeLoss: z.object({ withinGames: z.number().int().min(0).max(99), points: z.number() }).nullable().default(null),
+  /** Added to the winner of a completed match who won by at least this many games. */
+  convincingWin: z.object({ byGames: z.number().int().min(1).max(99), points: z.number() }).nullable().default(null),
+  /**
+   * Added once every one of an entry's matches is in the ledger and it turned
+   * up to each: played out, retired (either side), or won by walkover or
+   * concession. A walkover given away, or a match never played, forfeits it,
+   * so nobody holds it until their last match is in.
+   */
+  allPlayed: z.number().default(0),
 });
 
 /**
@@ -90,9 +113,17 @@ export const RulesSpec = z.object({
 export type RulesSpec = z.infer<typeof RulesSpec>;
 
 /**
- * Sensible starting point: 3 points a win, 1 for turning up and losing, nothing
- * for a match that never happened. A walkover scores as the whitewash it
- * stands for. The top three of each division are suggested for promotion and
+ * Sensible starting point, as a points table a club would pin up:
+ *
+ *   1 for playing a match, 3 more for winning it, and 1 for each set won;
+ *   1 more for losing close (by 4 games or fewer) or winning big (by 8 or more);
+ *   1 bonus for turning up to every match;
+ *   3 in total for a win by retirement, walkover or concession, 0 for the loss.
+ *
+ * So a 6-4 6-3 win is worth 1 + 3 + 2 = 6 to the winner and 1 + 1 = 2 to the
+ * loser, who lost by only 5 games — one short of the close-loss bonus.
+ * Nothing for a match that never happened. A walkover scores as the whitewash it
+ * stands for in the sets and games columns. The top three of each division are suggested for promotion and
  * the bottom three for relegation. A withdrawn unit's played results stand and
  * its remaining fixtures simply go unplayed.
  */
@@ -100,15 +131,19 @@ export const DEFAULT_RULES: RulesSpec = {
   version: 1,
   scoringMode: "points",
   points: {
-    win: 3,
+    win: 4,
     lossPlayed: 1,
     retiredWin: 3,
-    retiredLoss: 1,
+    retiredLoss: 0,
     walkoverWin: 3,
     walkoverLoss: 0,
     concededWin: 3,
     concededLoss: 0,
     unplayedBoth: 0,
+    perSetWon: 1,
+    closeLoss: { withinGames: 4, points: 1 },
+    convincingWin: { byGames: 8, points: 1 },
+    allPlayed: 1,
   },
   tiebreaks: ["points", "head_to_head", "set_difference", "game_difference", "matches_won"],
   movement: { promote: 3, relegate: 3, minMatchesForPromotion: 2 },

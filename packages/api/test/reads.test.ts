@@ -61,7 +61,10 @@ test("standings are computed from the matches on every read, and outstanding mat
   const rows = table.body.divisions[0].rows;
   assert.deepEqual(
     rows.map((r: { label: string; points: number; position: number }) => [r.position, r.label, r.points]),
-    [[1, "Ann", 9], [2, "Bea", 7], [3, "Cal", 2], [4, "Dee", 2]],
+    // The default points. Every win here is 6-1 6-1, by 10 games: 1 + 3 + 2 sets
+    // + 1 convincing = 7, and 1 for the loser. Ann and Bea have every match in,
+    // so 1 more each; Cal and Dee have yet to play each other.
+    [[1, "Ann", 3 * 7 + 1], [2, "Bea", 1 + 2 * 7 + 1], [3, "Cal", 2], [4, "Dee", 2]],
   );
   assert.deepEqual([rows[2].outstanding, rows[3].outstanding], [1, 1], "Cal v Dee is still to play");
   assert.equal(rows[3].separated_by, "name", "level on everything else until they meet");

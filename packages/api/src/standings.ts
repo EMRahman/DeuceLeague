@@ -8,6 +8,7 @@ import {
   type Tx,
 } from "@deuceleague/db";
 import { computeStandings, type StandingsMatch, type StandingsRow } from "@deuceleague/engine";
+import { RulesSpec } from "@deuceleague/schema";
 
 export type DivisionTable = { division: DivisionRecord; rows: StandingsRow[] };
 
@@ -45,7 +46,8 @@ export async function competitionTables(
           .filter((e) => e.divisionId === division.id)
           .map((e) => ({ id: e.id, label: e.label, withdrawn: e.state === "withdrawn" })),
         matches: matches.filter((m) => m.divisionId === division.id) as StandingsMatch[],
-        rules: competition.rules,
+        // Parsed, not cast: rules saved before a field existed get its default.
+        rules: RulesSpec.parse(competition.rules),
         format: competition.matchFormat,
         deadlinePassed: final,
       }),

@@ -221,14 +221,21 @@ Presets ship for best-of-three with a champions tiebreak, three full sets, an
 8-game pro set and a short set to 4.
 
 **`competition.rules`** is how the league works, as data — points per outcome,
-tiebreak ordering, movement counts, what a walkover is worth in sets and games,
-what happens to a withdrawal. Changing how a
-club's league works should
-never require shipping code. `DEFAULT_RULES` is the starting point: 3 for a win,
-1 for turning up and losing, nothing for a match that never happened, a
-walkover scored as the whitewash it stands for so that it counts in the set and
-game tiebreaks, three up and three down between divisions, and a withdrawn
-unit's played results left standing.
+bonuses for sets, margins and turning up, tiebreak ordering, movement counts,
+what a walkover is worth in sets and games, what happens to a withdrawal.
+Changing how a club's league works should never require shipping code.
+`DEFAULT_RULES` is the starting point: 1 for playing a match, 3 more for
+winning it and 1 for each set won; 1 more for losing by 4 games or fewer, or
+winning by 8 or more; 1 for turning up to every match; 3 in total for a win by
+retirement, walkover or concession and nothing for that loss; nothing for a
+match that never happened. A walkover is scored as the whitewash it stands for,
+so that it counts in the set and game tiebreaks. Three go up and three down
+between divisions, and a withdrawn unit's played results are left standing.
+
+The bonuses are optional fields and are off unless a competition sets them, so
+rules saved before they existed score as they always did — the rules are
+parsed, not cast, wherever they are read, which fills a missing field with its
+default.
 
 ## No scheduling, and why
 
