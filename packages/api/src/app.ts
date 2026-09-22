@@ -9,8 +9,10 @@ import { registerClub } from "./routes/club.js";
 import { registerCompetitions } from "./routes/competitions.js";
 import { registerDivisions } from "./routes/divisions.js";
 import { registerEntries } from "./routes/entries.js";
+import { registerEvents } from "./routes/events.js";
 import { registerHealth } from "./routes/health.js";
 import { registerKeys } from "./routes/keys.js";
+import { registerMatches } from "./routes/matches.js";
 import { registerMe } from "./routes/me.js";
 import { registerMembers } from "./routes/members.js";
 import { registerSeasons } from "./routes/seasons.js";
@@ -52,6 +54,8 @@ export function createApp(options: { db: Db; log?: (line: string) => void }) {
   registerCompetitions(app);
   registerDivisions(app);
   registerEntries(app);
+  registerMatches(app);
+  registerEvents(app);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "apiKey", {
     type: "http",

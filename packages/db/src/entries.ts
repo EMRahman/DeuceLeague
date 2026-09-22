@@ -23,7 +23,9 @@ async function select(tx: Tx, where: SQL | undefined): Promise<EntryRecord[]> {
   const rows = await tx
     .select({
       entry,
-      label: sql<string>`(select el.label from entry_label el where el.entry_id = ${entry.id})`,
+      // Written out rather than interpolated: drizzle renders a lone column unqualified,
+      // which inside this subquery could name entry_label's column instead of entry's.
+      label: sql<string>`(select el.label from entry_label el where el.entry_id = entry.id)`,
     })
     .from(entry)
     .where(where)

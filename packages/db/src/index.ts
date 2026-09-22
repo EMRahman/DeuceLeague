@@ -17,7 +17,7 @@ export {
 export { checkJournal, migrationsFolder, runMigrations } from "./migrate.js";
 export { connect, setClub, ping, assertRowLevelSecurityApplies, type Db, type Tx } from "./client.js";
 export { uuidv7 } from "./ids.js";
-export { recordEvent, SYSTEM, type Actor } from "./events.js";
+export { recordEvent, readFeed, SYSTEM, type Actor, type FeedEvent, type FeedPosition } from "./events.js";
 export { toPage, type Page, type PageRequest } from "./lists.js";
 export {
   resolveApiKey,
@@ -95,3 +95,17 @@ export {
   type EntryChanges,
 } from "./entries.js";
 export { insertFixtures, type NewFixture } from "./fixtures.js";
+export {
+  listMatches,
+  getMatch,
+  listClaims,
+  insertClaim,
+  confirmClaims,
+  supersedeClaims,
+  standingClaimIds,
+  setMatchStatus,
+  recordResult,
+  type MatchRecord,
+  type ClaimRecord,
+  type NewClaim,
+} from "./matches.js";

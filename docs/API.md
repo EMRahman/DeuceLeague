@@ -10,10 +10,10 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** phases 1 to 3 of 7 are done — the server runs and keys
-> authenticate, the league's rules exist as a tested engine, and a club can be
-> set up through the API: keys, members, seasons, competitions, divisions,
-> entries and fixtures. See [Build order](#build-order).
+> **Status:** phases 1 to 4 of 7 are done — the server runs and keys
+> authenticate, the league's rules exist as a tested engine, a club can be set
+> up through the API, results are reported, agreed and settled, and adapters
+> can follow the event feed. See [Build order](#build-order).
 
 ## One club per credential
 
@@ -131,10 +131,19 @@ re-run after a late entry: only the missing pairings are added.
 **Results** — the only way a score enters the ledger. A side reports, or
 corrects its own report; the score is checked against the competition's format
 and compared with the other side's, and the match moves to reported, disputed
-or played. A side can accept the other's score instead of retyping it. The
-coach can settle any match (`league:write`). A player may claim only for their
-own side, and sending the same claim twice is harmless, so a bot that retries
-does no damage.
+or played. A disputed match says exactly what differs, in words a player can
+act on. A side can accept the other's score instead of retyping it, naming the
+claim it accepts, so nobody agrees to a score they have not seen. The coach can
+settle any match (`league:write`), including one already played; the claims it
+replaces are kept, marked superseded. A player may claim only for their own
+side, and sending the same claim twice is harmless, so a bot that retries does
+no damage. Two claims on one match are judged one after the other, so both
+sides reporting at the same moment still agree.
+
+Results are recorded while a competition is active. A complete one is a
+record, so correcting it means reopening it first. The results deadline is not
+a cut-off: a result both sides agree after it still counts, until the coach
+completes the competition.
 
 **Standings and progress** (`league:read`). Computed on request from the
 competition's rules — points, tiebreaks, unranked below the minimum played.
@@ -216,7 +225,7 @@ Each phase ends with its tests green and is committed on its own.
    placement suggestions, as pure functions with unit tests.
 3. ✓ **Structure.** Club, keys, members, seasons, competitions, divisions,
    entries and fixtures.
-4. **Results and events.**
+4. ✓ **Results and events.**
 5. **Read endpoints and placements.** Standings, progress, the chase list,
    placements into a draft competition, the public endpoints with rate
    limits, and `npm run demo:seed`.

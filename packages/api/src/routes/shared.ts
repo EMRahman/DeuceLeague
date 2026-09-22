@@ -94,7 +94,7 @@ export function definedOnly<T extends object>(body: T): { [K in keyof T]?: Exclu
 }
 
 /** What routes need from a request's context. */
-type Ctx = { get<K extends keyof AppEnv["Variables"]>(key: K): AppEnv["Variables"][K] };
+export type Ctx = { get<K extends keyof AppEnv["Variables"]>(key: K): AppEnv["Variables"][K] };
 
 /**
  * Records what a request changed, in its own transaction, with its credential

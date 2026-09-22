@@ -3,62 +3,9 @@
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
-import { closeAll, eventsOf, newClub, owner, send, type TestClub } from "./helpers.ts";
+import { closeAll, enter, eventsOf, keyWith, league, member, newClub, owner, send } from "./helpers.ts";
 
 after(closeAll);
-
-/** A key of this club's, made through the API with just these scopes. */
-async function keyWith(club: TestClub, ...scopes: string[]): Promise<string> {
-  const res = await send("POST", "/v1/api-keys", club.key, { name: `only ${scopes.join(" ")}`, scopes });
-  assert.equal(res.status, 201, JSON.stringify(res.body));
-  return res.body.key;
-}
-
-async function member(club: TestClub, fields: Record<string, unknown> = {}): Promise<string> {
-  const res = await send("POST", "/v1/members", club.key, { display_name: `Player ${randomUUID().slice(0, 6)}`, ...fields });
-  assert.equal(res.status, 201, JSON.stringify(res.body));
-  return res.body.id;
-}
-
-/** An active season holding one competition with `divisions` divisions, ready for entries. */
-async function league(
-  club: TestClub,
-  competition: { discipline: "singles" | "doubles"; category?: string } = { discipline: "singles" },
-  divisions = 1,
-) {
-  const season = await send("POST", "/v1/seasons", club.key, {
-    name: `Season ${randomUUID().slice(0, 6)}`,
-    starts_on: "2026-04-01",
-    ends_on: "2026-06-30",
-    results_deadline_at: "2026-06-30T23:59:00+01:00",
-  });
-  assert.equal(season.status, 201, JSON.stringify(season.body));
-  assert.equal((await send("PATCH", `/v1/seasons/${season.body.id}`, club.key, { state: "active" })).status, 200);
-  const comp = await send("POST", "/v1/competitions", club.key, {
-    season_id: season.body.id,
-    name: "Men's Singles",
-    match_format: "best_of_3_champions_tiebreak",
-    ...competition,
-  });
-  assert.equal(comp.status, 201, JSON.stringify(comp.body));
-  const divisionIds: string[] = [];
-  for (let i = 0; i < divisions; i++) {
-    const d = await send("POST", `/v1/competitions/${comp.body.id}/divisions`, club.key, {});
-    assert.equal(d.status, 201, JSON.stringify(d.body));
-    divisionIds.push(d.body.id);
-  }
-  return { seasonId: season.body.id as string, competitionId: comp.body.id as string, divisionIds };
-}
-
-async function enter(club: TestClub, competitionId: string, divisionId: string, memberIds: string[]) {
-  const res = await send("POST", `/v1/competitions/${competitionId}/entries`, club.key, {
-    division_id: divisionId,
-    member_ids: memberIds,
-  });
-  assert.equal(res.status, 201, JSON.stringify(res.body));
-  return res.body.id as string;
-}
 
 async function matchCount(divisionId: string): Promise<number> {
   return Number((await owner`select count(*) from match where division_id = ${divisionId}`)[0]!.count);
