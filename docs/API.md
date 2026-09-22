@@ -10,7 +10,8 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** being built. See [Build order](#build-order).
+> **Status:** phase 1 of 7 is done — the server runs, keys authenticate, and
+> `GET /v1/me` answers. See [Build order](#build-order).
 
 ## One club per credential
 
@@ -159,7 +160,7 @@ hosts several fake clubs.
 
 Each phase ends with its tests green and is committed on its own.
 
-1. **Skeleton.** Server, configuration, a transaction per request with the club
+1. ✓ **Skeleton.** Server, configuration, a transaction per request with the club
    set, API-key authentication and scopes, problem+json errors, the OpenAPI
    spec, `/healthz`, `GET /v1/me`, `npm run club:create`, and the start-up check
    on the database role.

@@ -12,7 +12,8 @@ green against a real Postgres. The API is being built: see
 
 ```
 packages/schema   Zod schemas: scores, match formats, league rules      MIT
-packages/db       Postgres schema and migrations (Drizzle)              AGPL
+packages/db       Postgres schema, migrations and queries (Drizzle)     AGPL
+packages/api      The HTTP API (Hono), with its OpenAPI spec            AGPL
 docs/DATA-MODEL.md  How the model works and why it is shaped this way
 docs/API.md         What the API offers, who can call it, and why
 docs/SCHEMA.md      Generated column-by-column reference for every table,
@@ -24,7 +25,7 @@ docs/SCHEMA.md      Generated column-by-column reference for every table,
 ```bash
 npm install
 npm test            # score validation
-npm run db:verify   # migrations, constraints and RLS against a real Postgres (needs Docker)
+npm run db:verify   # migrations, constraints, RLS and the API against a real Postgres (needs Docker)
 ```
 
 To run it for real:
@@ -33,6 +34,8 @@ To run it for real:
 cp .env.example .env
 docker compose up -d
 npm run db:migrate    # as the table owner; the app itself connects as deuceleague_app
+npm run club:create -- --slug my-club --name "My Tennis Club"   # prints your first API key
+npm run api           # http://localhost:3000 — the spec is at /openapi.json
 ```
 
 ## The model in one screen

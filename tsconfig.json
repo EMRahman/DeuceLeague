@@ -1,7 +1,14 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/schema" },
-    { "path": "packages/db" }
+    {
+      "path": "packages/schema"
+    },
+    {
+      "path": "packages/db"
+    },
+    {
+      "path": "packages/api"
+    }
   ]
 }

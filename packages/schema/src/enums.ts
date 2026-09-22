@@ -85,14 +85,17 @@ export const SubmissionSource = z.enum([
 export const ActorType = z.enum(["member", "api_key", "system"]);
 
 /**
- * API key scopes. A new key defaults to `league:read` + `results:write`.
- * `members:pii` is always a deliberate, separately logged grant.
+ * What an API key or access grant may do. Stored as text arrays, so this list
+ * has no CHECK constraint to mirror; the API validates against it. A new key
+ * defaults to `league:read` + `results:write`, and `members:pii` is always a
+ * deliberate, separately logged grant. See docs/API.md § Scopes.
  */
 export const Scope = z.enum([
   "league:read",
   "league:write",
   "results:write",
   "members:read",
+  "members:write",
   "members:pii",
   "admin",
 ]);

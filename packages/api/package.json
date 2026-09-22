@@ -1,0 +1,29 @@
+{
+  "name": "@deuceleague/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "AGPL-3.0-or-later",
+  "main": "./dist/app.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    ".": "./dist/app.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "start": "tsc --build && node --env-file-if-exists=../../.env dist/server.js",
+    "club:create": "tsc --build && node --env-file-if-exists=../../.env dist/cli/club-create.js"
+  },
+  "dependencies": {
+    "@deuceleague/db": "*",
+    "@deuceleague/schema": "*",
+    "@hono/node-server": "^2.1.1",
+    "@hono/zod-openapi": "^1.6.3",
+    "hono": "^4.13.8",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "postgres": "^3.4.9"
+  }
+}

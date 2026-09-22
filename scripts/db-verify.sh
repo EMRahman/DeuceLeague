@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Applies every migration to a throwaway Postgres and runs the constraint,
-# progress, row-level security and event feed suites against it. Needs Docker;
+# progress, row-level security, event feed and API suites against it. Needs Docker;
 # leaves nothing behind.
 set -euo pipefail
 
@@ -63,8 +63,17 @@ run_suite "constraints" "$DB_DIR/test/constraints.sql"
 run_suite "progress views and result flow" "$DB_DIR/test/progress.sql"
 run_suite "row-level security" "$DB_DIR/test/rls.sql"
 
-# Last, because it commits: it needs two real transactions to overlap.
+# These commit: the event feed needs two real transactions to overlap, and the
+# API tests make their own clubs through the API's own code.
 echo "→ event feed"
 source "$DB_DIR/test/event_feed.sh"
+
+# The API, in-process, against this same database: as deuceleague_app, the way
+# the server connects, and as the owner only to set up states a request cannot.
+echo "→ api"
+DATABASE_URL="postgres://deuceleague_app:changeme@127.0.0.1:$PORT/deuceleague" \
+MIGRATION_DATABASE_URL="postgres://postgres:verify@127.0.0.1:$PORT/deuceleague" \
+  node --test --experimental-strip-types --no-warnings --test-reporter=spec \
+    "$ROOT"/packages/api/test/*.test.ts 2>&1 | sed -e 's/^/   /' | grep -vE '^\s*$'
 
 echo "→ ok"

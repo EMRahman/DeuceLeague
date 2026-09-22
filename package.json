@@ -14,7 +14,9 @@
     "db:generate": "npm run generate -w @deuceleague/db",
     "db:migrate": "npm run migrate -w @deuceleague/db",
     "db:verify": "bash scripts/db-verify.sh",
-    "db:docs": "DOCS=write bash scripts/db-verify.sh"
+    "db:docs": "DOCS=write bash scripts/db-verify.sh",
+    "api": "npm run start -w @deuceleague/api",
+    "club:create": "npm run club:create -w @deuceleague/api --"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

@@ -6,24 +6,28 @@ clarity here is a feature, not housekeeping.
 
 ## Orientation
 
-Read `docs/DATA-MODEL.md` before changing anything under `packages/db`. It
-explains not just the shape but why each decision was made, and most proposed
-"simplifications" are things it already argues against.
+Read `docs/DATA-MODEL.md` before changing anything under `packages/db`, and
+`docs/API.md` before changing anything under `packages/api`. They explain not
+just the shape but why each decision was made, and most proposed
+"simplifications" are things they already argue against.
 
 ```
-packages/schema   Zod: scores, match formats, rules. No I/O, no dependencies.   MIT
-packages/db       Drizzle schema + migrations. The only thing touching Postgres. AGPL
+packages/schema   Zod: scores, match formats, rules. No I/O, no dependencies.    MIT
+packages/db       Schema, migrations and queries. The only thing touching Postgres. AGPL
+packages/api      HTTP: routes, auth, validation. Reaches Postgres only via db.    AGPL
 ```
 
 ## Commands
 
 ```bash
 npm test            # score validation (packages/schema)
-npm run db:verify   # migrations + constraint + RLS + event feed suites on throwaway Postgres
+npm run db:verify   # migrations + constraint + RLS + event feed + API suites on throwaway Postgres
 npm run typecheck
 npm run db:generate # generate a migration after editing schema.ts
 npm run db:migrate  # apply migrations, as the table owner (MIGRATION_DATABASE_URL)
 npm run db:docs     # regenerate docs/SCHEMA.md from a fresh throwaway Postgres
+npm run api         # start the API (DATABASE_URL, PORT — see .env.example)
+npm run club:create -- --slug deuce-ltc --name "Deuce LTC"   # prints the first admin key
 ```
 
 `db:verify` needs Docker. Run it after any schema change — the constraint suite
@@ -94,6 +98,14 @@ the query; a coach or an adapter decides what to do with the answer.
   `SECURITY DEFINER` function.
 - Consumers read events from `event_feed`, paging on `(tx_id, id)` — never on
   `event.id` alone, which skips events that commit late.
+- Every `/v1` route runs inside one transaction already scoped to the
+  credential's club (`c.get("tx")`). To fail, throw an `ApiError` — or one from
+  `problems` — and the transaction rolls back, taking any events with it. Never
+  read a club id from the URL or body; use `c.get("auth").clubId`.
+- Declare a route's scopes with `requires(...)` in its `createRoute`: the same
+  list becomes the spec's security requirement and the runtime check.
+- SQL lives in `packages/db`; routes call its functions. The API tests in
+  `packages/api/test` run against the migrated database in `db:verify`.
 - Comments explain *why*. The schema is read by coaches, not just by engineers.
 - Every new table, column, view and `deuceleague_*` function needs a
   `COMMENT ON` in its migration — a migration that rebuilds a view must re-add
