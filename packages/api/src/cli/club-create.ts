@@ -3,6 +3,7 @@ import { assertRowLevelSecurityApplies, connect, createClub, violatedUniqueConst
 import { Scope } from "@deuceleague/schema";
 import { z } from "zod";
 import { generateApiKey } from "../keys.js";
+import { TimeZone } from "../timezone.js";
 
 /**
  * npm run club:create -- --slug deuce-ltc --name "Deuce LTC" [--timezone Europe/London]
@@ -21,17 +22,8 @@ const Args = z.object({
     .min(3)
     .max(40),
   name: z.string().trim().min(1).max(100),
-  timezone: z.string().refine(isTimeZone, "not an IANA time zone, e.g. Europe/London"),
+  timezone: TimeZone,
 });
-
-function isTimeZone(zone: string): boolean {
-  try {
-    new Intl.DateTimeFormat("en-GB", { timeZone: zone });
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 function fail(message: string): never {
   console.error(`club:create: ${message}`);

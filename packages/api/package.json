@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@deuceleague/db": "*",
+    "@deuceleague/engine": "*",
     "@deuceleague/schema": "*",
     "@hono/node-server": "^2.1.1",
     "@hono/zod-openapi": "^1.6.3",

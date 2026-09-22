@@ -10,9 +10,10 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** phases 1 and 2 of 7 are done — the server runs and keys
-> authenticate, and the league's rules exist as a tested engine. See
-> [Build order](#build-order).
+> **Status:** phases 1 to 3 of 7 are done — the server runs and keys
+> authenticate, the league's rules exist as a tested engine, and a club can be
+> set up through the API: keys, members, seasons, competitions, divisions,
+> entries and fixtures. See [Build order](#build-order).
 
 ## One club per credential
 
@@ -54,20 +55,30 @@ carries coach scopes — there is no separate user-account system.
 | `admin` | API keys and club settings |
 
 A new key defaults to `league:read` + `results:write`. Granting `members:pii`
-is always deliberate, and recorded in the event log.
+is always deliberate, and recorded in the event log. A key can grant only the
+scopes it holds itself, so an admin key without `members:pii` cannot mint one
+that has it.
 
 ## Services
 
 **Me.** `GET /v1/me` — which club, which credential, which scopes. The first
 call anything makes, and the quickest way to check a key works.
 
-**Club and keys** (`admin`). Read and update the club's name, time zone and
-branding. Create, list and revoke API keys.
+**Club and keys.** Any credential reads the club's name, time zone and
+branding, since every website and app built on it renders with them; `admin`
+changes them. `admin` creates, lists and revokes API keys. The club's last
+working admin key cannot be revoked — nothing could manage the club without
+it — so a coach rotating keys makes the new one first.
 
 **Members.** List them — display names with `members:read`, the full record
-with `members:pii`. Create, edit and soft-delete with `members:write`. Erase
-(`admin`) clears a member's personal data and keeps their results, which is
-what an erasure request under GDPR needs.
+with `members:pii`. Create, edit and remove (a soft delete) with
+`members:write`. The personal fields are behind `members:pii` both ways: a
+credential that cannot read an email address cannot set or overwrite one
+either. Erase (`admin`) clears a member's personal data and keeps their
+results, which is what an erasure request under GDPR needs. That includes their
+display name, which becomes "Erased member", an entry name that might spell
+theirs out, and anything they typed when reporting a score. Events record
+which fields changed, never the values, because the log cannot be erased.
 
 **Player logins** (`members:write`). Mint a one-time login link for a member.
 It is returned to the caller, whose own tooling delivers it — the core does not
@@ -88,15 +99,24 @@ visit, since Chrome keeps a cookie for about 400 days at most. A player who
 comes back at least once a year stays signed in.
 
 **League structure.** Seasons, competitions and divisions, and moving them
-through their states. A competition's match format and rules are validated
-when they are saved, because rules are data.
+through their states — one step at a time, forward or back, so a mistake can
+be undone but no check is skipped. A season needs its dates to be active, and a
+competition can be active only inside an active season. A complete or archived
+competition is a record: only its state and visibility change until it is
+reopened. A competition's match format and rules are validated when they are
+saved, because rules are data; a preset's name can stand in for a format, and
+is stored expanded.
 
 **Entries and placements** (`league:write`). Add an entry — the API checks a
 singles entry has one member and a doubles entry two, which the database cannot
-— and withdraw one. Placement suggestions propose promotion and relegation from
-the previous competition, with reasons; placements are written only when the
-coach confirms them. An ineligible-looking mixed pair gets a warning, never a
-refusal.
+— and withdraw or reinstate one. An entry with no match under way can move
+division or be deleted, taking its untouched fixtures with it; one that has
+played is withdrawn instead, so its results stay. Placement suggestions propose
+promotion and relegation from the previous competition, with reasons;
+placements are written only when the coach confirms them, as entries carrying
+a `placement_reason`. An ineligible-looking mixed pair gets a warning, never a
+refusal — and since the warning reveals recorded gender, only a credential
+holding `members:pii` sees it.
 
 **Fixtures** (`league:write`). Generate a division's round robin. Safe to
 re-run after a late entry: only the missing pairings are added. Void a match.
@@ -132,7 +152,13 @@ for public competitions, so a club's website can show its table without a key.
 - Every path starts `/v1`. A breaking change means `/v2`, never a changed `/v1`.
 - Errors are `application/problem+json` (RFC 9457), with a stable `code` for
   programs and a `detail` for people.
-- Lists are paged by cursor. IDs are UUIDv7, so they sort by creation.
+- Lists that grow with the club — members, seasons, competitions, keys — are
+  paged by cursor: `?limit=&after=`, answered with `data` and `next_cursor`.
+  IDs are UUIDv7, so they sort by creation. A competition's divisions and
+  entries, a few dozen at most, come whole.
+- A reference to another record in a request body that does not exist in the
+  club is a `400` naming the field; a missing record in the path is a `404`.
+  Another club's records answer exactly as if they did not exist.
 - Every response carries `X-Request-Id`, which is also in that request's log line.
 - Public endpoints are rate-limited per IP address.
 
@@ -181,9 +207,10 @@ Each phase ends with its tests green and is committed on its own.
    on the database role.
 2. ✓ **Engine.** `packages/engine`: standings, claim comparison, round robin and
    placement suggestions, as pure functions with unit tests.
-3. **Structure.** Club, keys, members, seasons, competitions, divisions,
+3. ✓ **Structure.** Club, keys, members, seasons, competitions, divisions,
    entries and fixtures.
-4. **Results and events.**
+4. **Results and events**, and voiding a match, which undoes a result as well
+   as striking a fixture.
 5. **Read endpoints.** Standings, progress, the chase list, the public
    endpoints with rate limits, and `npm run demo:seed`.
 6. **Player logins.** `access_grant` changes so a session can have no expiry

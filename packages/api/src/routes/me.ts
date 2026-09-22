@@ -46,7 +46,7 @@ export function registerMe(app: OpenAPIHono<AppEnv>): void {
     if (!club || !key) throw new Error("authenticated club or key not found");
     return c.json(
       {
-        club,
+        club: { id: club.id, slug: club.slug, name: club.name, timezone: club.timezone },
         credential: {
           type: "api_key" as const,
           id: key.id,

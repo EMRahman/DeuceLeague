@@ -1,45 +1,16 @@
-// The API against a real, freshly migrated Postgres. Run by `npm run db:verify`,
-// which sets DATABASE_URL (as deuceleague_app) and MIGRATION_DATABASE_URL (the
-// owner, used here only to set up states a request cannot, like an expired key).
+// The API against a real, freshly migrated Postgres: authentication, scopes,
+// transactions and the start-up checks. Run by `npm run db:verify`.
 
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import postgres from "postgres";
-import { assertRowLevelSecurityApplies, connect, createClub, recordEvent } from "@deuceleague/db";
+import { assertRowLevelSecurityApplies, connect, recordEvent } from "@deuceleague/db";
 import { Scope } from "@deuceleague/schema";
 import { ApiError, createApp, requireScopes } from "../dist/app.js";
 import { generateApiKey } from "../dist/keys.js";
-
-const APP_URL = process.env.DATABASE_URL;
-const OWNER_URL = process.env.MIGRATION_DATABASE_URL;
-if (!APP_URL || !OWNER_URL) {
-  throw new Error("run through `npm run db:verify`, which sets DATABASE_URL and MIGRATION_DATABASE_URL");
-}
-
-const { db, close } = connect(APP_URL);
-const owner = postgres(OWNER_URL, { onnotice: () => {} });
-const app = createApp({ db, log: () => {} });
-
-type TestClub = { id: string; slug: string; key: string; keyId: string };
-
-async function newClub(label: string, scopes: string[] = [...Scope.options]): Promise<TestClub> {
-  const slug = `${label}-${randomUUID().slice(0, 8)}`;
-  const key = generateApiKey();
-  const { clubId, apiKeyId } = await createClub(db, {
-    slug,
-    name: label,
-    timezone: "Europe/London",
-    adminKey: { name: "test key", hash: key.hash, prefix: key.prefix, scopes },
-  });
-  return { id: clubId, slug, key: key.key, keyId: apiKeyId };
-}
-
-function call(target: typeof app, path: string, key?: string, init: RequestInit = {}) {
-  return target.request(path, { ...init, headers: key ? { authorization: `Bearer ${key}` } : {} });
-}
+import { APP_URL, OWNER_URL, app, call, closeAll, db, newClub, owner, type TestClub } from "./helpers.ts";
 
 let a: TestClub;
 let b: TestClub;
@@ -47,10 +18,7 @@ before(async () => {
   a = await newClub("club-a");
   b = await newClub("club-b");
 });
-after(async () => {
-  await close();
-  await owner.end();
-});
+after(closeAll);
 
 test("the health check reaches the database", async () => {
   const res = await call(app, "/healthz");

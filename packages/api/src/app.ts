@@ -4,9 +4,16 @@ import { except } from "hono/combine";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.js";
 import { authenticate, inTransaction, requestLog } from "./middleware.js";
-import { ApiError, problemResponse, problems } from "./problems.js";
+import { ApiError, problemForConstraint, problemResponse, problems } from "./problems.js";
+import { registerClub } from "./routes/club.js";
+import { registerCompetitions } from "./routes/competitions.js";
+import { registerDivisions } from "./routes/divisions.js";
+import { registerEntries } from "./routes/entries.js";
 import { registerHealth } from "./routes/health.js";
+import { registerKeys } from "./routes/keys.js";
 import { registerMe } from "./routes/me.js";
+import { registerMembers } from "./routes/members.js";
+import { registerSeasons } from "./routes/seasons.js";
 
 export type { AppEnv } from "./context.js";
 export { ApiError, problems } from "./problems.js";
@@ -38,6 +45,13 @@ export function createApp(options: { db: Db; log?: (line: string) => void }) {
 
   registerHealth(app, options.db);
   registerMe(app);
+  registerClub(app);
+  registerKeys(app);
+  registerMembers(app);
+  registerSeasons(app);
+  registerCompetitions(app);
+  registerDivisions(app);
+  registerEntries(app);
 
   app.openAPIRegistry.registerComponent("securitySchemes", "apiKey", {
     type: "http",
@@ -61,6 +75,8 @@ export function createApp(options: { db: Db; log?: (line: string) => void }) {
   app.notFound((c) => problemResponse(c, problems.notFound()));
   app.onError((error, c) => {
     if (error instanceof ApiError) return problemResponse(c, error);
+    const constraint = problemForConstraint(error);
+    if (constraint) return problemResponse(c, constraint);
     if (error instanceof HTTPException) {
       return problemResponse(c, new ApiError(error.status, "http_error", error.message || "Request failed"));
     }
