@@ -10,11 +10,12 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** phases 1 to 6 of 7 are done — a club can be set up, run and
+> **Status:** all seven phases are done — a club can be set up, run and
 > read through the API: structure, results, the event feed, standings,
-> progress, the chase list and placements into next season; and players can
-> sign in to read their league and report their own results. Self-hosting
-> remains. See [Build order](#build-order).
+> progress, the chase list and placements into next season; players sign in
+> to read their league and report their own results; and a club runs it all
+> on a server of its own, with a reference website, by following
+> [SELF-HOSTING.md](SELF-HOSTING.md). See [Build order](#build-order).
 
 ## One club per credential
 
@@ -80,7 +81,9 @@ it — so a coach rotating keys makes the new one first.
 
 **Members.** List them — display names with `members:read`, the full record
 with `members:pii`. Create, edit and remove (a soft delete) with
-`members:write`. The personal fields are behind `members:pii` both ways: a
+`members:write`. Finding a member by email, `GET /v1/members?email=`, needs
+`members:pii` too, since whether an address belongs to a member is itself
+personal: it is how a website sends a player their login link. The personal fields are behind `members:pii` both ways: a
 credential that cannot read an email address cannot set or overwrite one
 either. Erase (`admin`) clears a member's personal data and keeps their
 results, which is what an erasure request under GDPR needs. That includes their
@@ -237,14 +240,26 @@ it up.
 
 ## Running it
 
-**Your own instance.** Postgres and the API with Docker Compose, then
-`npm run db:migrate` and `npm run club:create`. It has to be somewhere players'
-phones can reach it — always on, over HTTPS, backed up — so the setup guide is
-written for a coach and their coding agent working together, and tested end to
-end on one recommended host.
+**Your own instance.** One `docker-compose.yml` runs Postgres, the API and the
+reference website, migrating the database before the API starts; on a
+server, `deploy/compose.production.yml` adds Caddy for HTTPS and a nightly
+dump, and closes every other port. It has to be somewhere players' phones can
+reach it — always on, over HTTPS, backed up — so the setup guide,
+[SELF-HOSTING.md](SELF-HOSTING.md), is written for a coach and their coding
+agent working together, against one recommended host: a small VPS. The
+migrator sets `deuceleague_app`'s password from the environment, so no
+password is ever set by hand in SQL.
+
+**The reference website** (`adapters/website`, MIT) is what players use out of
+the box: sign in with an emailed link, see their matches and tables, report
+and agree scores. It is an adapter like any other — it reaches the league
+only through this API, with its own key for signing players in and each
+player's session for everything else — and it sends the emails the core does
+not. A club can restyle it or replace it.
 
 **The demo instance** holds fake clubs only, rebuilt nightly by
-`npm run demo:seed`, which builds them through the API itself. A read-only key
+`deploy/demo-reset.sh`, which empties the database and runs `demo:seed` to
+build them through the API itself. A read-only key
 is published in the README — `DEMO_KEY_SEED` makes that key come out the same
 every night. It is read-only
 on purpose: a shared key that can write gets vandalised and needs moderating.
@@ -272,7 +287,7 @@ Each phase ends with its tests green and is committed on its own.
    endpoint serves anything without a credential.
 6. ✓ **Player logins.** A login link that works once and a session that never
    expires, signing out, and what a player's session may see and do.
-7. **Self-hosting.** A Dockerfile and Compose service, the setup guide, the
+7. ✓ **Self-hosting.** A Dockerfile and Compose service, the setup guide, the
    demo instance, and a small reference website, so a club has player login
    and score reporting out of the box. The website is an adapter built on the
    API like any other, not part of it.

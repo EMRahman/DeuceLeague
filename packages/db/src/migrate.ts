@@ -58,6 +58,36 @@ export async function runMigrations(databaseUrl: string): Promise<void> {
   }
 }
 
+/** The role the application connects as. Migration 0002 creates it. */
+const APP_ROLE = "deuceleague_app";
+
+/**
+ * Gives deuceleague_app the password the application connects with, so
+ * DATABASE_URL is the one place it is set. Migration 0002 creates the role
+ * with a placeholder, and a self-hoster should never have to change it by
+ * hand. Does nothing unless DATABASE_URL connects as deuceleague_app.
+ *
+ * ALTER ROLE takes no bound parameters, so the password goes in as a setting
+ * for this transaction, and Postgres quotes it itself with format('%L').
+ */
+export async function syncAppRolePassword(ownerUrl: string, appUrl: string): Promise<boolean> {
+  const url = new URL(appUrl);
+  if (decodeURIComponent(url.username) !== APP_ROLE || url.password === "") return false;
+  const password = decodeURIComponent(url.password);
+  const client = postgres(ownerUrl, { max: 1, onnotice: () => {} });
+  try {
+    await client.begin(async (tx) => {
+      await tx`select set_config('deuceleague.app_password', ${password}, true)`;
+      await tx`do $$ begin
+        execute format('alter role deuceleague_app password %L', current_setting('deuceleague.app_password'));
+      end $$`;
+    });
+  } finally {
+    await client.end();
+  }
+  return true;
+}
+
 // `npm run db:migrate` runs this file directly.
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const url = process.env.MIGRATION_DATABASE_URL;
@@ -67,4 +97,8 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   }
   await runMigrations(url);
   console.log("migrations applied");
+  const appUrl = process.env.DATABASE_URL;
+  if (appUrl && (await syncAppRolePassword(url, appUrl))) {
+    console.log(`${APP_ROLE}'s password set to the one in DATABASE_URL`);
+  }
 }

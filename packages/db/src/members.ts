@@ -75,10 +75,19 @@ async function select(
   return query.from(member).where(where).orderBy(asc(member.id)).limit(limit);
 }
 
-/** The club's members in the order they were added. Removed members only when asked for. */
+/**
+ * The club's members in the order they were added. Removed members only when
+ * asked for. An email matches regardless of case, as the unique index on
+ * lower(email) does — only a caller holding members:pii may ask by one.
+ */
 export async function listMembers(
   tx: Tx,
-  options: { pii: boolean; status: string | undefined; includeRemoved: boolean } & PageRequest,
+  options: {
+    pii: boolean;
+    status: string | undefined;
+    email: string | undefined;
+    includeRemoved: boolean;
+  } & PageRequest,
 ): Promise<Page<MemberRecord>> {
   const rows = await select(
     tx,
@@ -86,6 +95,7 @@ export async function listMembers(
     and(
       options.after ? gt(member.id, options.after) : undefined,
       options.status ? eq(member.status, options.status) : undefined,
+      options.email ? sql`lower(${member.email}) = lower(${options.email})` : undefined,
       options.includeRemoved ? undefined : isNull(member.deletedAt),
     ),
     options.limit + 1,

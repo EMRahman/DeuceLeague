@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "adapters/*"
   ],
   "engines": {
     "node": ">=22"
@@ -17,7 +18,8 @@
     "db:docs": "DOCS=write bash scripts/db-verify.sh",
     "api": "npm run start -w @deuceleague/api",
     "club:create": "npm run club:create -w @deuceleague/api --",
-    "demo:seed": "npm run demo:seed -w @deuceleague/api"
+    "demo:seed": "npm run demo:seed -w @deuceleague/api",
+    "website": "npm run start -w @deuceleague/website"
   },
   "devDependencies": {
     "typescript": "^5.7.2"

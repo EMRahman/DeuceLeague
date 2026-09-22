@@ -1,0 +1,26 @@
+{
+  "name": "@deuceleague/website",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The reference website: player sign-in and score reporting, built on the DeuceLeague API like any other adapter.",
+  "main": "./dist/app.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    ".": "./dist/app.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "start": "tsc --build && node --env-file-if-exists=../../.env dist/server.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "hono": "^4.13.8",
+    "nodemailer": "^10.0.10",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4"
+  }
+}

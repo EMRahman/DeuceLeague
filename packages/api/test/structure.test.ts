@@ -135,6 +135,23 @@ test("members:read sees display names; personal fields need members:pii, to read
   assert.deepEqual(created?.payload.fields, ["display_name", "full_name", "email", "gender"]);
 });
 
+test("a member is found by email, whatever its case, only by a key holding members:pii", async () => {
+  const c = await newClub("by-email");
+  const id = await member(c, { display_name: "Sam K.", email: "Sam@Example.org" });
+  await member(c, { display_name: "Alex", email: "alex@example.org" });
+
+  const found = await send("GET", "/v1/members?email=sam%40EXAMPLE.org", c.key);
+  assert.equal(found.status, 200);
+  assert.deepEqual(found.body.data.map((m: { id: string }) => m.id), [id]);
+  assert.deepEqual((await send("GET", "/v1/members?email=nobody%40example.org", c.key)).body.data, []);
+
+  // Whether an address belongs to a member is itself personal data.
+  const refused = await send("GET", "/v1/members?email=sam%40example.org", await keyWith(c, "members:read"));
+  assert.equal(refused.status, 403);
+  assert.deepEqual(refused.body.missing_scopes, ["members:pii"]);
+  assert.equal((await send("GET", "/v1/members?email=not-an-address", c.key)).status, 400);
+});
+
 test("a removed member leaves the list but not the record; erasing clears who they were", async () => {
   const c = await newClub("erase");
   const { competitionId, divisionIds } = await league(c, { discipline: "doubles" });

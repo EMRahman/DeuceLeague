@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Applies every migration to a throwaway Postgres and runs the constraint,
-# progress, row-level security, event feed and API suites against it. Needs Docker;
+# progress, row-level security, event feed, API and website suites against it. Needs Docker;
 # leaves nothing behind.
 set -euo pipefail
 
@@ -49,6 +49,29 @@ counts=$(psql_run -At -F' ' -c "select
 read -r applied tables views <<<"$counts"
 echo "→ $applied migrations, $tables tables, $views views"
 
+# The migrator gives deuceleague_app the password DATABASE_URL carries — here
+# one with a quote in it, to show it is quoted rather than spliced — and then
+# the one the rest of this run connects with.
+echo "→ the app role's password comes from DATABASE_URL"
+set_app_password() {
+  MIGRATION_DATABASE_URL="postgres://postgres:verify@127.0.0.1:$PORT/deuceleague" \
+  DATABASE_URL="postgres://deuceleague_app:$1@127.0.0.1:$PORT/deuceleague" \
+    node "$DB_DIR/dist/migrate.js" >/dev/null
+}
+connects_with() {
+  (cd "$DB_DIR" && node --input-type=module -e "
+    import postgres from 'postgres';
+    const sql = postgres(process.argv[1], { max: 1, connect_timeout: 5 });
+    try { await sql\`select 1\`; } finally { await sql.end(); }
+  " "postgres://deuceleague_app:$1@127.0.0.1:$PORT/deuceleague" 2>/dev/null)
+}
+set_app_password "it's%20new"
+connects_with "it's%20new" || { echo "   FAIL  the new password does not connect"; exit 1; }
+if connects_with changeme; then echo "   FAIL  the old password still connects"; exit 1; fi
+set_app_password changeme
+connects_with changeme || { echo "   FAIL  could not set it back"; exit 1; }
+echo "   PASS  set, quoted, and the old one refused"
+
 # Regenerates docs/SCHEMA.md against this same freshly migrated database and
 # checks it against the committed copy — or, with DOCS=write, writes it
 # instead. Right after the migrations, while the database is at its cleanest.
@@ -79,5 +102,12 @@ DATABASE_URL="postgres://deuceleague_app:changeme@127.0.0.1:$PORT/deuceleague" \
 MIGRATION_DATABASE_URL="postgres://postgres:verify@127.0.0.1:$PORT/deuceleague" \
   node --test --experimental-strip-types --no-warnings --test-reporter=spec \
     "$ROOT"/packages/api/test/*.test.ts 2>&1 | sed -e 's/^/   /' | grep -vE '^\s*$'
+
+# The reference website, driven like a browser, against the API in-process.
+echo "→ website"
+DATABASE_URL="postgres://deuceleague_app:changeme@127.0.0.1:$PORT/deuceleague" \
+MIGRATION_DATABASE_URL="postgres://postgres:verify@127.0.0.1:$PORT/deuceleague" \
+  node --test --experimental-strip-types --no-warnings --test-reporter=spec \
+    "$ROOT"/adapters/website/test/*.test.ts 2>&1 | sed -e 's/^/   /' | grep -vE '^\s*$'
 
 echo "→ ok"

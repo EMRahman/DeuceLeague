@@ -16,13 +16,21 @@ packages/schema   Zod: scores, match formats, rules. No I/O, no dependencies.   
 packages/engine   League logic: standings, claims, fixtures, placements. Pure.   AGPL
 packages/db       Schema, migrations and queries. The only thing touching Postgres. AGPL
 packages/api      HTTP: routes, auth, validation. Reaches Postgres only via db.    AGPL
+adapters/website  The reference website. Reaches the core only over HTTP.        MIT
 ```
+
+`adapters/` holds adapters the project ships, not core: they use the API as
+anyone else's would, and their source must never import `packages/db`,
+`engine` or `api` (their tests may borrow the API's test helpers, to run it
+in-process).
+`docs/SELF-HOSTING.md` is the setup guide; `docker-compose.yml` and `deploy/`
+are what it runs.
 
 ## Commands
 
 ```bash
 npm test            # the SQL-injection check, then the schema and engine unit tests
-npm run db:verify   # migrations + constraint + RLS + event feed + API suites on throwaway Postgres
+npm run db:verify   # migrations + constraint + RLS + event feed + API + website suites on throwaway Postgres
 npm run typecheck
 npm run db:generate # generate a migration after editing schema.ts
 npm run db:migrate  # apply migrations, as the table owner (MIGRATION_DATABASE_URL)
@@ -30,6 +38,8 @@ npm run db:docs     # regenerate docs/SCHEMA.md from a fresh throwaway Postgres
 npm run api         # start the API (DATABASE_URL, PORT — see .env.example)
 npm run club:create -- --slug deuce-ltc --name "Deuce LTC"   # prints the first admin key
 npm run demo:seed   # fake demo clubs, built through the API, into an empty database
+npm run website     # the reference website (WEBSITE_API_KEY, PUBLIC_URL, SMTP_URL)
+docker compose up -d --build   # the whole stack; `up -d postgres` for just the database
 ```
 
 `db:verify` needs Docker. Run it after any schema change — the constraint suite

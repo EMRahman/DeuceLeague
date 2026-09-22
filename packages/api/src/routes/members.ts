@@ -141,11 +141,15 @@ const list = createRoute({
   summary: "List members",
   description:
     "Oldest first. Display names and status for `members:read`; the personal fields as well for a " +
-    "credential that also holds `members:pii`. Removed members are left out unless asked for.",
+    "credential that also holds `members:pii`. Removed members are left out unless asked for. Finding a " +
+    "member by email needs `members:pii` too: it is how a website sends a player their login link.",
   ...requires("members:read"),
   request: {
     query: PageQuery.extend({
       status: MemberStatus.optional(),
+      email: z.email().max(254).optional().openapi({
+        description: "PII. The member with this email address, whatever its case. Needs `members:pii`.",
+      }),
       include_removed: Flag.optional().openapi({ description: "Include members removed from the list." }),
     }),
   },
@@ -233,9 +237,12 @@ export function registerMembers(app: OpenAPIHono<AppEnv>): void {
   app.openapi(list, async (c) => {
     const query = c.req.valid("query");
     const withPii = holdsPii(c.get("auth"));
+    // Asking by email tells the caller whether the address is a member's, so it is personal data too.
+    if (query.email !== undefined && !withPii) throw problems.insufficientScope(["members:pii"]);
     const page = await listMembers(c.get("tx"), {
       pii: withPii,
       status: query.status,
+      email: query.email,
       includeRemoved: query.include_removed ?? false,
       limit: query.limit,
       after: query.after,

@@ -4,9 +4,9 @@ Open-source club tennis league software: the database and the API. Everything
 people see — websites, phone apps, Telegram bots — is built on top by whoever
 wants it, and they keep whatever they put on it.
 
-**Status:** data model complete and verified — 13 tables, 7 views, 65 database checks
-green against a real Postgres. The API is being built: see
-[docs/API.md](docs/API.md) for the plan and progress.
+**Status:** the data model, the API and a reference website are built, and
+verified against a real Postgres by `npm run db:verify`. A club runs its own
+instance by following [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
 
 ## What is here
 
@@ -15,8 +15,10 @@ packages/schema   Zod schemas: scores, match formats, league rules      MIT
 packages/engine   League logic: standings, fixtures, promotion          AGPL
 packages/db       Postgres schema, migrations and queries (Drizzle)     AGPL
 packages/api      The HTTP API (Hono), with its OpenAPI spec            AGPL
+adapters/website  The reference website: player sign-in and scores      MIT
 docs/DATA-MODEL.md  How the model works and why it is shaped this way
 docs/API.md         What the API offers, who can call it, and why
+docs/SELF-HOSTING.md  Running it for a club: server, HTTPS, email, backups
 docs/SCHEMA.md      Generated column-by-column reference for every table,
                     view and function
 ```
@@ -26,19 +28,30 @@ docs/SCHEMA.md      Generated column-by-column reference for every table,
 ```bash
 npm install
 npm test            # score validation
-npm run db:verify   # migrations, constraints, RLS and the API against a real Postgres (needs Docker)
+npm run db:verify   # migrations, constraints, RLS, the API and the website against a real Postgres (needs Docker)
 ```
 
-To run it for real:
+To try the whole thing — Postgres, the API and the website — with Docker:
 
 ```bash
 cp .env.example .env
-docker compose up -d
+docker compose up -d --build     # migrates, then starts the API on :3000 and the website on :8080
+docker compose run --rm api node packages/api/dist/cli/club-create.js --slug my-club --name "My Tennis Club"
+```
+
+To work on the code, run only the database in Docker and the rest from source:
+
+```bash
+docker compose up -d postgres
 npm run db:migrate    # as the table owner; the app itself connects as deuceleague_app
 npm run club:create -- --slug my-club --name "My Tennis Club"   # prints your first API key
 npm run demo:seed                   # or: two fake clubs to explore, into an empty database
 npm run api           # http://localhost:3000 — the spec is at /openapi.json
+npm run website       # http://localhost:8080 — needs WEBSITE_API_KEY; see docs/SELF-HOSTING.md
 ```
+
+For a club's real instance — a server, HTTPS, email and backups — follow
+[docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
 
 ## The model in one screen
 
@@ -78,5 +91,6 @@ thing belongs in an adapter.
 
 ## Licence
 
-`packages/schema` is MIT — build anything on it. The server is
+`packages/schema` and the reference website in `adapters/website` are MIT —
+build anything on them, and keep what you build. The server is
 AGPL-3.0-or-later.

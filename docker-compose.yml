@@ -1,20 +1,29 @@
-# Self-hosting starts here. Two containers, one .env.
+# The whole of a club's DeuceLeague: Postgres, the API and the reference
+# website, configured from one .env. docs/SELF-HOSTING.md walks through it.
 #
 #   cp .env.example .env
-#   docker compose up -d
-#   npm run db:migrate
+#   docker compose up -d --build
 #
-# Note the app connects as deuceleague_app, not as the owner — row-level
-# security does not apply to a table's owner. See docs/DATA-MODEL.md.
+# Each start migrates the database first, and the API waits for that to
+# succeed. The API connects as deuceleague_app, not as the owner, because
+# row-level security does not apply to a table's owner. See docs/DATA-MODEL.md.
+#
+# Working on the code instead? Start only the database —
+# `docker compose up -d postgres` — and run the rest with npm.
+#
+# Every port is published on 127.0.0.1 only. On a server,
+# deploy/compose.production.yml publishes nothing but HTTPS, through Caddy.
+
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: deuceleague
       POSTGRES_USER: deuceleague
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -22,6 +31,47 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Runs once per `up`, as the tables' owner: applies any new migration, and
+  # gives deuceleague_app the password in APP_DB_PASSWORD.
+  migrate:
+    build: { context: ., target: api }
+    image: deuceleague-api
+    command: ["node", "packages/db/dist/migrate.js"]
+    environment:
+      MIGRATION_DATABASE_URL: postgres://deuceleague:${POSTGRES_PASSWORD:-changeme}@postgres:5432/deuceleague
+      DATABASE_URL: postgres://deuceleague_app:${APP_DB_PASSWORD:-changeme}@postgres:5432/deuceleague
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    build: { context: ., target: api }
+    image: deuceleague-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://deuceleague_app:${APP_DB_PASSWORD:-changeme}@postgres:5432/deuceleague
+      PORT: "3000"
+    ports:
+      - "127.0.0.1:${API_PORT:-3000}:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  website:
+    build: { context: ., target: website }
+    image: deuceleague-website
+    restart: unless-stopped
+    environment:
+      API_URL: http://api:3000
+      WEBSITE_API_KEY: ${WEBSITE_API_KEY:-}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      WEBSITE_PORT: "8080"
+    ports:
+      - "127.0.0.1:${WEBSITE_PORT:-8080}:8080"
+    depends_on:
+      api: { condition: service_healthy }
 
 volumes:
   pgdata:

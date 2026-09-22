@@ -1,0 +1,16 @@
+# One address for everything: the API's paths go to the API, and every other
+# path to the website. Caddy fetches and renews the HTTPS certificate for
+# DOMAIN by itself, once DNS points DOMAIN at this server.
+
+{$DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000"
+
+	@api path /v1/* /openapi.json /healthz
+	handle @api {
+		reverse_proxy api:3000
+	}
+	handle {
+		reverse_proxy website:8080
+	}
+}
