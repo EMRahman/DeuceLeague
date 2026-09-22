@@ -102,7 +102,7 @@ test("a player signs in with an emailed link that works once, and stays signed i
   assert.equal(start.status, 200);
   assert.match(start.html, /Sign in to the league/);
   assert.match(start.headers.get("content-security-policy") ?? "", /default-src 'none'/);
-  assert.equal(start.headers.get("referrer-policy"), "no-referrer", "a link's token never leaves as a Referer");
+  assert.equal(start.headers.get("referrer-policy"), "same-origin", "a link's token never leaves as a Referer");
 
   const sent = await b.post("/login", { email: "sam@example.org" });
   assert.match(sent.html, /Check your email/);
@@ -241,6 +241,8 @@ test("a form posted from another site is refused, and the site says when it has 
   const site = website(await websiteKey(club));
   const forged = await browser(site).post("/login", { email: "sam@example.org" }, "https://elsewhere.example");
   assert.equal(forged.status, 403);
+  // What a sandboxed frame sends, and what the site's own forms would send under no-referrer.
+  assert.equal((await browser(site).post("/login", { email: "sam@example.org" }, "null")).status, 403);
   assert.equal(site.outbox.length, 0);
 
   const unset = await browser(website(undefined)).get("/");

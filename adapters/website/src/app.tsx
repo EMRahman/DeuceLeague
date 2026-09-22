@@ -98,9 +98,11 @@ export function createWebsite(options: WebsiteOptions) {
   app.use("*", async (c, next) => {
     await next();
     // Pages are the player's own: never cached, never framed, and a login link
-    // in the address bar is never sent on to another site as a Referer.
+    // in the address bar is never sent on to another site as a Referer. Not
+    // no-referrer: under that, browsers post the site's own forms with
+    // `Origin: null`, which the check below must refuse.
     c.header("Cache-Control", "no-store");
-    c.header("Referrer-Policy", "no-referrer");
+    c.header("Referrer-Policy", "same-origin");
     c.header("X-Content-Type-Options", "nosniff");
     c.header(
       "Content-Security-Policy",
