@@ -10,11 +10,12 @@ import {
   type Me,
   type Member,
   type Page,
+  type Season,
   type Side,
   type Standings,
 } from "./api.js";
 import type { Mailer } from "./mail.js";
-import { describe, playedOn, readReportForm, scoreLine } from "./score.js";
+import { deadlineLine, describe, playedOn, readReportForm } from "./score.js";
 import {
   CompetitionPage,
   ConfirmSignIn,
@@ -22,11 +23,14 @@ import {
   LinkSent,
   MatchPage,
   NotConfigured,
+  ICON_SVG,
   Problem,
   SignIn,
   type Breakdown,
   type Frame,
   type MyMatch,
+  type MyStanding,
+  type ToAnswer,
 } from "./views.js";
 
 export { apiClient, type Api, type Fetch } from "./api.js";
@@ -134,11 +138,16 @@ export function createWebsite(options: WebsiteOptions) {
     c.header("X-Content-Type-Options", "nosniff");
     c.header(
       "Content-Security-Policy",
-      "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; " +
+        "form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
     );
   });
 
   app.get("/healthz", (c) => c.text("ok"));
+
+  // The home-screen icon. Players stay signed in for good, so an icon on the
+  // phone is the quickest way back.
+  app.get("/icon.svg", (c) => c.body(ICON_SVG, 200, { "Content-Type": "image/svg+xml" }));
 
   // A form posted from another site is refused. The cookie is SameSite=Lax
   // already; this also covers a browser that ignores that.
@@ -186,7 +195,11 @@ export function createWebsite(options: WebsiteOptions) {
     });
   }
 
-  const frameOf = (p: Player): Frame => ({ club: p.me.club.name, player: p.me.credential.member.display_name });
+  const frameOf = (p: Player, section?: Frame["section"]): Frame => ({
+    club: p.me.club.name,
+    player: p.me.credential.member.display_name,
+    ...(section ? { section } : {}),
+  });
 
   /** The club's name, for pages shown before anyone signs in. */
   async function anonymousFrame(): Promise<Frame> {
@@ -199,6 +212,23 @@ export function createWebsite(options: WebsiteOptions) {
     const { data } = await api<{ data: Entry[] }>("GET", `/v1/competitions/${competitionId}/entries`, p.session);
     const memberId = p.me.credential.member.id;
     return data.filter((e) => e.members.some((m) => m.id === memberId));
+  }
+
+  /** The competitions a player can see, each with the entry they hold in it, if any. */
+  async function registrations(p: Player): Promise<{ competition: Competition; entry: Entry | undefined }[]> {
+    const competitions = await all<Competition>(api, "/v1/competitions", p.session);
+    const entries = await Promise.all(competitions.map((comp) => myEntries(p, comp.id)));
+    return competitions.map((competition, i) => ({
+      competition,
+      entry: entries[i]!.find((e) => e.state === "active") ?? entries[i]![0],
+    }));
+  }
+
+  /** "Summer 2026 · Results close in 7 days (Tue 29 Sep)", for the season a competition belongs to. */
+  async function seasonLine(p: Player, seasonId: string): Promise<string> {
+    const season = await api<Season>("GET", `/v1/seasons/${seasonId}`, p.session);
+    const deadline = season.state === "active" ? deadlineLine(season.results_deadline_at, p.me.club.timezone) : null;
+    return deadline ? `${season.name} · ${deadline}` : season.name;
   }
 
   const sideIn = (match: Match, entries: Entry[]): Side | null =>
@@ -290,72 +320,124 @@ export function createWebsite(options: WebsiteOptions) {
     if (!p) return c.html(<SignIn frame={await anonymousFrame()} />);
     const memberId = p.me.credential.member.id;
 
-    const [matches, competitions] = await Promise.all([
+    const [matches, registered] = await Promise.all([
       all<Match>(api, `/v1/matches?member_id=${memberId}`, p.session),
-      all<Competition>(api, "/v1/competitions", p.session),
+      registrations(p),
     ]);
-    const byId = new Map(competitions.map((comp) => [comp.id, comp]));
-    const involved = [...new Set(matches.map((m) => m.competition_id))];
-    const entries = (await Promise.all(involved.map((id) => myEntries(p, id)))).flat();
+    const byId = new Map(registered.map((r) => [r.competition.id, r.competition]));
+    const entries = registered.flatMap((r) => (r.entry ? [r.entry] : []));
 
-    const answer: MyMatch[] = [];
+    const answer: ToAnswer[] = [];
     const toPlay: MyMatch[] = [];
     const waiting: MyMatch[] = [];
-    const played: MyMatch[] = [];
+    const played: (MyMatch & { on: string })[] = [];
     for (const m of matches) {
       const competition = byId.get(m.competition_id);
       const mine = sideIn(m, entries);
       if (!competition || mine === null) continue;
-      const opponent = namesOf(m)[mine === 0 ? 1 : 0];
+      const names = namesOf(m);
+      const opponent = names[mine === 0 ? 1 : 0];
       const item = (note: string): MyMatch => ({ id: m.id, competition: competition.name, opponent, note });
-      if (m.status === "played") {
-        const result = m.result?.score ? scoreLine(m.result.score, mine) : (m.result?.outcome ?? "");
-        const date = playedOn(m.result?.played_on);
-        played.push(item(date ? `${result} · ${date}` : result));
+      if (m.status === "played" && m.result) {
+        const outcome = m.result.winning_side === mine ? "Won" : m.result.winning_side === null ? "" : "Lost";
+        const result = [outcome, describe(m.result, mine, names)].filter(Boolean).join(" ");
+        const date = playedOn(m.result.played_on);
+        played.push({ ...item(date ? `${result} · ${date}` : result), on: m.result.played_on ?? "" });
       } else if (competition.state !== "active") {
         continue;
       } else if (m.status === "open") {
         toPlay.push(item("report score"));
-      } else if (m.status === "disputed") {
-        answer.push(item("scores differ"));
       } else {
-        // Reported: whose answer it waits on is in the match's own detail.
+        // Reported or disputed: the claims, and whose answer is awaited, are in the match's own detail.
         const detail = await api<MatchDetail>("GET", `/v1/matches/${m.id}`, p.session);
-        if (detail.waiting_on === mine) answer.push(item("agree the score"));
-        else waiting.push(item("reported"));
+        const live = (side: Side) => detail.claims.find((cl) => cl.state === "pending" && cl.side === side);
+        const theirs = live(mine === 0 ? 1 : 0);
+        const own = live(mine);
+        if (m.status === "disputed" || detail.waiting_on === mine) {
+          answer.push({
+            ...item(m.status === "disputed" ? "scores differ" : "agree the score"),
+            theirs: theirs ? { claimId: theirs.id, says: describe(theirs, mine, names) } : null,
+            mine: m.status === "disputed" && own ? describe(own, mine, names) : null,
+          });
+        } else {
+          waiting.push(item("reported"));
+        }
       }
     }
 
+    // Where the player stands in each competition they are in.
+    const standings: MyStanding[] = [];
+    for (const { competition, entry } of registered) {
+      if (!entry) continue;
+      const table = await api<Standings>("GET", `/v1/competitions/${competition.id}/standings`, p.session);
+      for (const d of table.divisions) {
+        const row = d.rows.find((r) => r.entry_id === entry.id);
+        if (!row) continue;
+        standings.push({
+          competitionId: competition.id,
+          competition: competition.name,
+          division: d.name,
+          position: row.position,
+          points: row.points,
+          movement: row.movement,
+        });
+      }
+    }
+
+    // The deadline of the season they are playing in now.
+    const seasons = await all<Season>(api, "/v1/seasons", p.session);
+    const current = seasons.find(
+      (s) => s.state === "active" && registered.some((r) => r.entry && r.competition.season_id === s.id),
+    );
+    const deadline = current ? deadlineLine(current.results_deadline_at, p.me.club.timezone) : null;
+
     return c.html(
       <Home
-        frame={frameOf(p)}
+        frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
+        deadline={current ? (deadline ? `${current.name} · ${deadline}` : current.name) : null}
+        notice={c.req.query("done") === "accepted" ? "Agreed. The result counts now." : null}
         answer={answer}
         toPlay={toPlay}
         waiting={waiting}
-        played={played}
-        competitions={competitions}
+        // Newest first: the last match played is the one a player looks for.
+        played={played.sort((x, y) => (x.on < y.on ? 1 : x.on > y.on ? -1 : 0))}
+        standings={standings}
       />,
     );
+  });
+
+  // "Tables" in the header: the player's own first competition, from which the tabs reach the rest.
+  app.get("/tables", async (c) => {
+    const p = await player(c);
+    if (!p) return c.redirect("/", 303);
+    const registered = await registrations(p);
+    const first = registered.find((r) => r.entry) ?? registered[0];
+    if (!first) {
+      return c.html(<Problem frame={frameOf(p, "tables")} title="No tables yet" detail="Nothing is under way yet." />);
+    }
+    return c.redirect(`/competitions/${first.competition.id}`, 303);
   });
 
   app.get("/competitions/:id", async (c) => {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
     const id = c.req.param("id");
-    const [competition, standings, entries] = await Promise.all([
+    const [competition, standings, registered, matches] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${id}`, p.session),
       api<Standings>("GET", `/v1/competitions/${id}/standings`, p.session),
-      myEntries(p, id),
+      registrations(p),
+      all<Match>(api, `/v1/matches?competition_id=${id}`, p.session),
     ]);
-    const matches = await all<Match>(api, `/v1/matches?competition_id=${id}`, p.session);
-    const entry = entries.find((e) => e.state === "active") ?? entries[0];
+    const entry = registered.find((r) => r.competition.id === id)?.entry;
     return c.html(
       <CompetitionPage
-        frame={frameOf(p)}
+        frame={frameOf(p, "tables")}
         competition={competition}
+        tabs={registered.map((r) => ({ id: r.competition.id, name: r.competition.name, mine: r.entry !== undefined }))}
+        season={await seasonLine(p, competition.season_id)}
         standings={standings}
-        mine={entry ? { entryId: entry.id, optedOut: entry.opted_out_at !== null } : null}
+        mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null } : null}
         breakdowns={breakdowns(standings, matches)}
       />,
     );
@@ -373,22 +455,37 @@ export function createWebsite(options: WebsiteOptions) {
     });
   }
 
+  /** What the match page says after the player has just done something there. */
+  const DONE: Record<string, (opponent: string) => string> = {
+    sent: (opponent) => `Sent. ${opponent} is asked to agree it.`,
+    accepted: () => "Agreed. The result counts now.",
+  };
+
   /** The match page, with whatever went wrong with the last thing the player sent. */
   async function matchPage(c: Context, p: Player, id: string, messages: string[] = [], status: 200 | 400 | 409 = 200) {
     const match = await api<MatchDetail>("GET", `/v1/matches/${id}`, p.session);
-    const [competition, entries] = await Promise.all([
+    const [competition, entries, standings] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
       myEntries(p, match.competition_id),
+      api<Standings>("GET", `/v1/competitions/${match.competition_id}/standings`, p.session),
     ]);
+    const mine = sideIn(match, entries);
+    const names = namesOf(match);
+    const division = standings.divisions.find((d) => d.division_id === match.division_id);
+    const myRow = division?.rows.find((r) => entries.some((e) => e.id === r.entry_id));
+    const done = DONE[c.req.query("done") ?? ""];
     return c.html(
       <MatchPage
         frame={frameOf(p)}
         match={match}
         competition={competition}
-        mine={sideIn(match, entries)}
-        names={namesOf(match)}
+        division={division?.name ?? null}
+        mine={mine}
+        names={names}
+        earned={myRow?.matches.find((l) => l.match_id === id) ?? null}
         today={today(p.me.club.timezone)}
         messages={messages}
+        done={done && messages.length === 0 ? done(names[mine === 0 ? 1 : 0]) : null}
       />,
       status,
     );
@@ -428,26 +525,47 @@ export function createWebsite(options: WebsiteOptions) {
     const read = readReportForm(form, mine, competition.match_format);
     if (!read.ok) return matchPage(c, p, id, read.errors, 400);
     try {
-      await api("POST", `/v1/matches/${id}/claims`, p.session, { ...read.report, source: "web" });
+      const after = await api<MatchDetail>("POST", `/v1/matches/${id}/claims`, p.session, { ...read.report, source: "web" });
+      // The same score as the other side's: it counts at once.
+      return c.redirect(`/matches/${id}?done=${after.status === "played" ? "accepted" : "sent"}`, 303);
     } catch (error) {
       const { messages, status } = explain(error);
       return matchPage(c, p, id, messages, status);
     }
-    return c.redirect(`/matches/${id}`, 303);
   });
 
   app.post("/matches/:id/accept", async (c) => {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
     const id = c.req.param("id");
-    const claimId = String((await c.req.parseBody()).claim_id ?? "");
+    const form = await c.req.parseBody();
+    const claimId = String(form.claim_id ?? "");
     try {
       await api("POST", `/v1/matches/${id}/claims/${encodeURIComponent(claimId)}/accept`, p.session, { source: "web" });
     } catch (error) {
       const { messages, status } = explain(error);
       return matchPage(c, p, id, messages, status);
     }
-    return c.redirect(`/matches/${id}`, 303);
+    // Accepted from the home page: back there, with the list one shorter.
+    return c.redirect(form.back === "home" ? "/?done=accepted" : `/matches/${id}?done=accepted`, 303);
+  });
+
+  // So a phone can put the league on its home screen.
+  app.get("/manifest.webmanifest", async (c) => {
+    const { club } = await anonymousFrame();
+    return c.json(
+      {
+        name: club ?? "League",
+        short_name: (club ?? "League").slice(0, 12),
+        start_url: "/",
+        display: "standalone",
+        background_color: "#fbfaf7",
+        theme_color: "#2f6b3a",
+        icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
+      },
+      200,
+      { "Content-Type": "application/manifest+json" },
+    );
   });
 
   // ─────────────────────────────────────────────────────────────── errors ──

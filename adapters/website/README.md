@@ -5,6 +5,14 @@ to them, see their matches and the tables, report scores and agree their
 opponents' — and say they are not playing next season. Server-rendered HTML
 with no scripts, so it works on any phone.
 
+It is built for the four things a player comes to do, each a tap or two from
+the home page: agree a score (straight from the home page), report one, see
+where they stand (position, and whether they are going up or down), and see
+who is left to play before the deadline. The tables show every division of a
+competition on one page, with the rules explained from the competition's own
+settings. It can be added to a phone's home screen: it serves a web app
+manifest and icon.
+
 It is an adapter, not part of DeuceLeague's core. It reaches the league only
 through the HTTP API, like a Telegram bot or a club's own app would, and holds
 nothing of its own: no database, no accounts. MIT-licensed, so a club can

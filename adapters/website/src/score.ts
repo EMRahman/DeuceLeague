@@ -114,3 +114,32 @@ export function playedOn(date: string | null | undefined): string {
     timeZone: "UTC",
   });
 }
+
+/** What the match format is, in a sentence: "Best of 3 sets, with a match tiebreak to 10 instead of a third set." */
+export function formatHint(format: MatchFormat): string {
+  const games = format.set.gamesToWin;
+  const tiebreak = format.set.tiebreakAt === null ? "" : `, tiebreak at ${format.set.tiebreakAt}–${format.set.tiebreakAt}`;
+  if (format.setsToWin === 1) return `One set to ${games}${tiebreak}.`;
+  const sets = format.setsToWin * 2 - 1;
+  const decider =
+    format.finalSet.type === "champions_tiebreak"
+      ? `, with a match tiebreak to ${format.finalSet.to} instead of a deciding set`
+      : "";
+  return `Best of ${sets} sets to ${games}${tiebreak}${decider}.`;
+}
+
+/**
+ * How long is left to report results, on the club's calendar: "Results close
+ * in 12 days (Sun 22 Nov)". Null when no deadline is set.
+ */
+export function deadlineLine(deadline: string | null, timezone: string, now: Date = new Date()): string | null {
+  if (!deadline) return null;
+  const at = new Date(deadline);
+  const dayOf = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(d);
+  const days = Math.round((Date.parse(dayOf(at)) - Date.parse(dayOf(now))) / 86_400_000);
+  const when = at.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: timezone });
+  if (at.getTime() <= now.getTime()) return "Results are closed. The coach settles anything left.";
+  if (days === 0) return `Results close today (${when}).`;
+  if (days === 1) return `Results close tomorrow (${when}).`;
+  return `Results close in ${days} days (${when}).`;
+}

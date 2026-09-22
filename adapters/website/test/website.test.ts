@@ -184,6 +184,8 @@ test("a player reports a score from their side, the opponent accepts it, and it 
     played_on: new Date().toISOString().slice(0, 10),
   });
   assert.equal(reported.status, 303, reported.html);
+  assert.equal(reported.location, `/matches/${match.id}?done=sent`);
+  assert.match((await samPhone.get(reported.location!)).html, /Sent\. Alex P\. is asked to agree it\./);
   const claimed = (await send("GET", `/v1/matches/${match.id}`, club.key)).body;
   assert.equal(claimed.status, "reported");
   // Typed as mine and theirs; stored with side 0 first.
@@ -191,21 +193,38 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.deepEqual(claimed.claims[0].score.sets.map((s: { games: number[] }) => s.games), expected);
   assert.equal(claimed.claims[0].source, "web");
 
-  assert.match((await samPhone.get("/")).html, /Waiting for your opponent/);
-  const alexHome = await alexPhone.get("/");
-  assert.match(alexHome.html, /Needs your answer/);
+  const samHome = await samPhone.get("/");
+  assert.match(samHome.html, /Waiting for your opponent/);
+  // The season and how long is left; and where Sam stands, linking to Sam's own row.
+  assert.match(samHome.html, /Season \w+ · Results close in (59|60|61) days/);
+  assert.match(samHome.html, /Where you stand/);
+  assert.ok(samHome.html.includes(`href="/competitions/${competitionId}#mine"`));
+  assert.match(samHome.html, /<form method="post" action="\/signout">/, "signing out is still a form, not a link");
+
+  // Alex agrees from the home page, without opening the match: the score from Alex's side, and one button.
   const alexPage = await alexPhone.get(`/matches/${match.id}`);
   assert.match(alexPage.html, /Sam K\. reported <strong>4-6, 3-6<\/strong>/, "read from Alex's side");
-  const claimId = /name="claim_id" value="([^"]+)"/.exec(alexPage.html)?.[1]!;
-  assert.equal((await alexPhone.post(`/matches/${match.id}/accept`, { claim_id: claimId })).status, 303);
+  const alexHome = await alexPhone.get("/");
+  assert.match(alexHome.html, /Needs your answer/);
+  assert.match(alexHome.html, /They say <strong>4-6, 3-6<\/strong>/);
+  const claimId = /name="claim_id" value="([^"]+)"/.exec(alexHome.html)?.[1]!;
+  const agreed = await alexPhone.post(`/matches/${match.id}/accept`, { claim_id: claimId, back: "home" });
+  assert.equal(agreed.location, "/?done=accepted", "back to the home page");
+  const after = await alexPhone.get(agreed.location!);
+  assert.match(after.html, /Agreed\. The result counts now\./);
+  assert.doesNotMatch(after.html, /Needs your answer/);
   assert.equal((await send("GET", `/v1/matches/${match.id}`, club.key)).body.status, "played");
+  // The match page now says what the match earned.
+  assert.match((await alexPhone.get(`/matches/${match.id}`)).html, /Earned you 1 pt: Played 1/);
 
   const table = await samPhone.get(`/competitions/${competitionId}`);
   assert.match(table.html, /Sam K\./);
-  assert.match(table.html, /<tr class="me">/);
-  // Games won, lost and the difference: Sam won 12 games to 7.
-  assert.match(table.html, /<td>12<\/td><td>7<\/td><td>\+5<\/td>/);
-  assert.match(table.html, /<td>7<\/td><td>12<\/td><td>−5<\/td>/);
+  assert.match(table.html, /<tr class="me" id="mine">/);
+  // Games won, lost and the difference: Sam won 12 games to 7. Won, lost and
+  // games are for wider screens; the difference and points always show.
+  assert.match(table.html, /<td class="wide">12<\/td><td class="wide">7<\/td><td>\+5<\/td>/);
+  assert.match(table.html, /<td class="wide">7<\/td><td class="wide">12<\/td><td>−5<\/td>/);
+  assert.match(table.html, /Won 1 · Lost 0 · Games 12–7/, "and in the opened row");
 
   // Each row opens in place to show that player's matches and what each earned.
   // Seen by Alex: every row, Alex's own open.
@@ -279,9 +298,13 @@ test("a form posted from another site is refused, and the site says when it has 
 
 test("every division shows on one page, with its promotion and relegation places marked", async () => {
   const club = await newClub("website-movement");
-  const { competitionId, divisionIds } = await league(club, { discipline: "singles" }, 2);
+  const { seasonId, competitionId, divisionIds } = await league(club, { discipline: "singles" }, 2);
   const { rules } = (await send("GET", `/v1/competitions/${competitionId}`, club.key)).body;
-  const oneUpOneDown = { ...rules, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } };
+  const oneUpOneDown = {
+    ...rules,
+    points: { ...rules.points, convincingWin: { byGames: 7, points: 2 } },
+    movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 },
+  };
   assert.equal((await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { rules: oneUpOneDown })).status, 200);
   const me = await member(club, { display_name: "Aaron", email: "aaron@example.org" });
   await enter(club, competitionId, divisionIds[0]!, [me]);
@@ -291,12 +314,51 @@ test("every division shows on one page, with its promotion and relegation places
   for (const d of divisionIds) await send("POST", `/v1/divisions/${d}/fixtures`, club.key);
   assert.equal((await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { state: "active" })).status, 200);
 
+  // Another competition in the season, one Aaron is not playing in.
+  const other = await send("POST", "/v1/competitions", club.key, {
+    season_id: seasonId,
+    name: "Ladies' Singles",
+    discipline: "singles",
+    match_format: "pro_set_8",
+  });
+  await send("POST", `/v1/competitions/${other.body.id}/divisions`, club.key, {});
+  assert.equal((await send("PATCH", `/v1/competitions/${other.body.id}`, club.key, { state: "active" })).status, 200);
+
   const site = website(await websiteKey(club));
-  const page = (await (await signIn(site, "aaron@example.org")).get(`/competitions/${competitionId}`)).html;
+  const aaron = await signIn(site, "aaron@example.org");
+  const tables = await aaron.get("/tables");
+  assert.equal(tables.location, `/competitions/${competitionId}`, "Tables opens the player's own competition");
+  const page = (await aaron.get(`/competitions/${competitionId}`)).html;
+  // Tabs for every competition, the ones Aaron plays in marked.
+  assert.ok(page.includes(`href="/competitions/${competitionId}" class="mine" aria-current="page"`), page);
+  assert.match(page, new RegExp(`href="/competitions/${other.body.id}"(?! class="mine")`));
+  assert.match(page, /the competitions you are playing in/);
+  // Jump links, with Aaron's division marked, and each division an anchor.
+  assert.match(page, /href="#division-1" class="mine">Division 1 \(yours\)/);
+  assert.match(page, /id="division-1"[\s\S]*id="division-2"/);
+  // How points work, from this competition's own rules.
+  assert.match(page, /How points work/);
+  assert.match(page, /Plus 2 pts for winning by 7 games or more\./);
+  assert.match(page, /the top 1 of each division go up and the bottom 1/);
   assert.match(page, /Division 1[\s\S]*Division 2/, "both divisions, top first, on the same page");
   // Nothing played: name order. Bella is bottom of Division 1, Carl top of Division 2.
-  assert.match(page, /<tr class="me">[\s\S]*?Aaron<\/summary>/, "the top division promotes nobody");
+  assert.match(page, /<tr class="me" id="mine">[\s\S]*?Aaron<\/summary>/, "the top division promotes nobody");
   assert.match(page, /<tr class="relegated">[\s\S]*?Bella<\/summary>/);
   assert.match(page, /<tr class="promoted">[\s\S]*?Carl<\/summary>/);
-  assert.match(page, /Promotion places/);
+  assert.match(page, /Going up/);
+});
+
+test("the site can go on a phone's home screen", async () => {
+  const club = await newClub("website-manifest");
+  const site = website(await websiteKey(club));
+  const manifest = await site.app.request(`${SITE}/manifest.webmanifest`);
+  assert.equal(manifest.status, 200);
+  const body = await manifest.json();
+  assert.equal(body.name, "website-manifest", "named after the club");
+  assert.equal(body.icons[0].src, "/icon.svg");
+  const icon = await site.app.request(`${SITE}/icon.svg`);
+  assert.equal(icon.headers.get("content-type"), "image/svg+xml");
+  const page = await browser(site).get("/");
+  assert.match(page.html, /<link rel="manifest" href="\/manifest.webmanifest"\/?>/);
+  assert.match(page.headers.get("content-security-policy") ?? "", /manifest-src 'self'/);
 });

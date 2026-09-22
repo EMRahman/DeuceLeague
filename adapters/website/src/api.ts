@@ -61,8 +61,29 @@ export type Season = { id: string; name: string; state: string; results_deadline
 
 export type MatchFormat = {
   setsToWin: number;
-  set: { gamesToWin: number };
+  set: { gamesToWin: number; tiebreakAt: number | null };
   finalSet: { type: "standard" } | { type: "champions_tiebreak"; to: number };
+};
+
+/** A competition's rules, as far as a player needs to read them. */
+export type Rules = {
+  points: {
+    win: number;
+    lossPlayed: number;
+    retiredWin: number;
+    retiredLoss: number;
+    walkoverWin: number;
+    walkoverLoss: number;
+    concededWin: number;
+    concededLoss: number;
+    unplayedBoth: number;
+    perSetWon: number;
+    closeLoss: { withinGames: number; points: number } | null;
+    convincingWin: { byGames: number; points: number } | null;
+    allPlayed: number;
+  };
+  tiebreaks: string[];
+  movement: { promote: number; relegate: number; minMatchesForPromotion: number };
 };
 
 export type Competition = {
@@ -71,6 +92,7 @@ export type Competition = {
   name: string;
   discipline: "singles" | "doubles";
   match_format: MatchFormat;
+  rules: Rules;
   state: "draft" | "active" | "complete" | "archived";
 };
 
@@ -146,7 +168,7 @@ export type StandingsRow = {
 
 export type Standings = {
   final: boolean;
-  divisions: { division_id: string; name: string; rows: StandingsRow[] }[];
+  divisions: { division_id: string; ordinal: number; name: string; rows: StandingsRow[] }[];
 };
 
 export type Member = { id: string; display_name: string; deleted_at: string | null };
