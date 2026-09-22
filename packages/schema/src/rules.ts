@@ -80,8 +80,10 @@ export type RulesSpec = z.infer<typeof RulesSpec>;
 
 /**
  * Sensible starting point: 3 points a win, 1 for turning up and losing, nothing
- * for a match that never happened. No walkovers — a withdrawn unit's played
- * results stand and its remaining fixtures simply go unplayed.
+ * for a match that never happened. The top three of each division are
+ * suggested for promotion and the bottom three for relegation. No walkovers —
+ * a withdrawn unit's played results stand and its remaining fixtures simply go
+ * unplayed.
  */
 export const DEFAULT_RULES: RulesSpec = {
   version: 1,
@@ -98,7 +100,7 @@ export const DEFAULT_RULES: RulesSpec = {
     unplayedBoth: 0,
   },
   tiebreaks: ["points", "head_to_head", "set_difference", "game_difference", "matches_won"],
-  movement: { promote: 2, relegate: 2, minMatchesForPromotion: 2 },
+  movement: { promote: 3, relegate: 3, minMatchesForPromotion: 2 },
   withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" },
   minMatchesForRanking: 0,
 };

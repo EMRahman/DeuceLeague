@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsc --build",
     "start": "tsc --build && node --env-file-if-exists=../../.env dist/server.js",
-    "club:create": "tsc --build && node --env-file-if-exists=../../.env dist/cli/club-create.js"
+    "club:create": "tsc --build && node --env-file-if-exists=../../.env dist/cli/club-create.js",
+    "demo:seed": "tsc --build && node --env-file-if-exists=../../.env dist/cli/demo-seed.js"
   },
   "dependencies": {
     "@deuceleague/db": "*",

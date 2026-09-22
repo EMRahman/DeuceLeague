@@ -10,10 +10,11 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** phases 1 to 4 of 7 are done — the server runs and keys
-> authenticate, the league's rules exist as a tested engine, a club can be set
-> up through the API, results are reported, agreed and settled, and adapters
-> can follow the event feed. See [Build order](#build-order).
+> **Status:** phases 1 to 5 of 7 are done — a club can be set up, run and
+> read through the API: structure, results, the event feed, standings,
+> progress, the chase list, placements into next season, and public pages
+> without a key. Player logins and self-hosting remain. See
+> [Build order](#build-order).
 
 ## One club per credential
 
@@ -146,12 +147,16 @@ a cut-off: a result both sides agree after it still counts, until the coach
 completes the competition.
 
 **Standings and progress** (`league:read`). Computed on request from the
-competition's rules — points, tiebreaks, unranked below the minimum played.
-Progress for a division, a competition or an entry.
+competition's rules — points, tiebreaks, unranked below the minimum played —
+and never stored. Each row says what separated it from the one above. Once the
+results deadline has passed, or the competition is complete, the table is
+final and a match still outstanding counts as unplayed. Progress for a
+competition and its divisions, or for an entry.
 
 **Chase list.** Who has matches outstanding and how long is left, filterable by
-days remaining. Needs `members:read`; emails appear only with `members:pii`.
-What gets sent, to whom, stays the coach's decision.
+days remaining — `within_days=30` a month out, 14 a fortnight later. Needs
+`members:read`; emails appear only with `members:pii`. What gets sent, to
+whom, stays the coach's decision.
 
 **Events** (`league:read`). `GET /v1/events?after=<cursor>` reads the event
 feed in the order it is safe to read, so a consumer never skips an event.
@@ -160,6 +165,12 @@ website refreshing — without the core sending anything.
 
 **Public.** `GET /v1/public/{club-slug}/…` — standings, fixtures and results
 for public competitions, so a club's website can show its table without a key.
+Only competitions marked `public` and under way or finished appear: a draft's
+placements are not yet decided. Nothing public carries more than display
+names — no claims, nothing a player typed, no contact details. Each address
+gets `PUBLIC_RATE_LIMIT` requests a minute (60 by default), counted in the
+server's memory; behind a reverse proxy, set `TRUST_PROXY=true` so the limit
+sees each client rather than the proxy.
 
 **Meta.** `/healthz` and `/openapi.json`.
 
@@ -204,10 +215,11 @@ written for a coach and their coding agent working together, and tested end to
 end on one recommended host.
 
 **The demo instance** holds fake clubs only, rebuilt nightly by
-`npm run demo:seed`. Anyone can call its public endpoints, and a read-only key
-is published in the README. It is read-only on purpose: a shared key that can
-write gets vandalised and needs moderating. Trying writes takes a couple of
-minutes locally with Docker Compose.
+`npm run demo:seed`, which builds them through the API itself. Anyone can call
+its public endpoints, and a read-only key is published in the README —
+`DEMO_KEY_SEED` makes that key come out the same every night. It is read-only
+on purpose: a shared key that can write gets vandalised and needs moderating.
+Trying writes takes a couple of minutes locally with Docker Compose.
 
 The schema supports several clubs on one instance, and keeps doing so — a
 county association can run leagues for its clubs on one instance, and the demo
@@ -226,7 +238,7 @@ Each phase ends with its tests green and is committed on its own.
 3. ✓ **Structure.** Club, keys, members, seasons, competitions, divisions,
    entries and fixtures.
 4. ✓ **Results and events.**
-5. **Read endpoints and placements.** Standings, progress, the chase list,
+5. ✓ **Read endpoints and placements.** Standings, progress, the chase list,
    placements into a draft competition, the public endpoints with rate
    limits, and `npm run demo:seed`.
 6. **Player logins.** `access_grant` changes so a session can have no expiry

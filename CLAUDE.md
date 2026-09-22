@@ -29,6 +29,7 @@ npm run db:migrate  # apply migrations, as the table owner (MIGRATION_DATABASE_U
 npm run db:docs     # regenerate docs/SCHEMA.md from a fresh throwaway Postgres
 npm run api         # start the API (DATABASE_URL, PORT — see .env.example)
 npm run club:create -- --slug deuce-ltc --name "Deuce LTC"   # prints the first admin key
+npm run demo:seed   # fake demo clubs, built through the API, into an empty database
 ```
 
 `db:verify` needs Docker. Run it after any schema change — the constraint suite
@@ -44,7 +45,8 @@ makes correcting an old score a coach entry and a one-row `UPDATE`.
 and an entry has one member or two. Singles and doubles share every query
 because of this.
 
-**Never let the engine apply a promotion.** It suggests; the coach confirms.
+**Never let the engine apply a promotion.** It suggests — at most into a draft
+competition — and nothing takes effect until the coach activates it.
 
 **Never widen a public response to include PII.** Unauthenticated and
 player-scoped responses return `display_name` only. Full name, email, phone,

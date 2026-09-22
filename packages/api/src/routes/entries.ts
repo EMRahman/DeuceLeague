@@ -86,7 +86,8 @@ const EntryPatch = z
     division_id: z.uuid().optional().openapi({
       description:
         "Moves the entry to another division of its competition. Only an entry with no match under way can " +
-        "move; its untouched fixtures are removed, and generating fixtures in the new division adds its new ones.",
+        "move; its untouched fixtures are removed, and generating fixtures in the new division adds its new ones. " +
+        "An entry placed as promoted, relegated or held becomes `manual` unless a new `placement_reason` is sent.",
     }),
     display_name: z.string().trim().min(1).max(100).nullable().optional(),
     seed: z.number().int().min(1).max(1000).nullable().optional(),
@@ -291,6 +292,9 @@ const remove = createRoute({
   },
 });
 
+/** The reasons a placement suggestion gives. */
+const SUGGESTED: readonly string[] = ["promoted", "relegated", "held"];
+
 const hasMatches = () =>
   problems.conflict(
     "entry_has_matches",
@@ -362,6 +366,9 @@ export function registerEntries(app: OpenAPIHono<AppEnv>): void {
     }
     await checkPrevious(tx, existing.competitionId, body.previous_entry_id);
 
+    // The coach overrode a suggested placement, so the suggestion's reason no longer says why it is here.
+    const overridden =
+      moving && body.placement_reason === undefined && SUGGESTED.includes(existing.placementReason ?? "");
     await updateEntry(
       tx,
       id,
@@ -370,7 +377,7 @@ export function registerEntries(app: OpenAPIHono<AppEnv>): void {
         displayName: body.display_name,
         seed: body.seed,
         state: body.state,
-        placementReason: body.placement_reason,
+        placementReason: overridden ? "manual" : body.placement_reason,
         previousEntryId: body.previous_entry_id,
       }),
     );
@@ -379,6 +386,7 @@ export function registerEntries(app: OpenAPIHono<AppEnv>): void {
       changed,
       ...(entry.state === existing.state ? {} : { state: { from: existing.state, to: entry.state } }),
       ...(moving ? { division: { from: existing.divisionId, to: entry.divisionId }, removed_fixtures: removedFixtures } : {}),
+      ...(overridden ? { placement_reason: "manual" } : {}),
     });
     return c.json(toEntry(entry), 200);
   });

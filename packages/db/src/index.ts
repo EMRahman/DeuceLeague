@@ -27,6 +27,7 @@ export {
   createApiKey,
   revokeApiKey,
   anotherAdminKeyExists,
+  clubIdForSlug,
   type ResolvedApiKey,
   type ApiKeyRecord,
 } from "./access.js";
@@ -97,6 +98,7 @@ export {
 export { insertFixtures, type NewFixture } from "./fixtures.js";
 export {
   listMatches,
+  matchesIn,
   getMatch,
   listClaims,
   insertClaim,
@@ -109,3 +111,17 @@ export {
   type ClaimRecord,
   type NewClaim,
 } from "./matches.js";
+export {
+  competitionProgress,
+  entryProgress,
+  chaseList,
+  ledgerMatches,
+  seasonDeadline,
+  publicCompetitions,
+  type CompetitionProgress,
+  type EntryProgress,
+  type ProgressCounts,
+  type ChaseRow,
+  type LedgerMatch,
+  type PublicCompetition,
+} from "./progress.js";

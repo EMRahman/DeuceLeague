@@ -215,8 +215,9 @@ Presets ship for best-of-three with a champions tiebreak, three full sets, an
 tiebreak ordering, movement counts, what happens to a withdrawal. Changing how a
 club's league works should
 never require shipping code. `DEFAULT_RULES` is the starting point: 3 for a win,
-1 for turning up and losing, nothing for a match that never happened, no
-walkovers, a withdrawn unit's played results left standing.
+1 for turning up and losing, nothing for a match that never happened, three up
+and three down between divisions, no walkovers, a withdrawn unit's played
+results left standing.
 
 ## No scheduling, and why
 
@@ -261,9 +262,13 @@ a string would have to be parsed on every read.
 ## Promotion is suggested, never applied
 
 The engine reads the previous competition's standings and proposes placements
-with its reasoning. The coach edits and confirms; only then are `entry` rows
-written, with `placement_reason` recording what was decided and
-`previous_entry_id` linking to the same unit's last entry.
+with its reasoning — by default the top three of each division up and the
+bottom three down, as the competition's `rules.movement` says. The proposal is
+written into next season's competition while it is still a `draft`: `entry`
+rows with `placement_reason` saying why and `previous_entry_id` linking to the
+same unit's last entry. The coach moves, removes and adds entries as they see
+fit — a suggested placement they override becomes `manual` — and nothing takes
+effect until they activate the competition.
 
 This is deliberate. Coaches hold information the data does not — injuries, a
 member moving away, a player who would be miserable in Division 1 — and software

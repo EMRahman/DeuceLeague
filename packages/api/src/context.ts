@@ -18,5 +18,7 @@ export type AppEnv = {
     /** This request's transaction, already scoped to the club by row-level security. */
     tx: Tx;
     auth: Auth;
+    /** A public request's club, found from the slug in its path. Public routes have no `auth`. */
+    publicClubId: string;
   };
 };

@@ -36,6 +36,7 @@ cp .env.example .env
 docker compose up -d
 npm run db:migrate    # as the table owner; the app itself connects as deuceleague_app
 npm run club:create -- --slug my-club --name "My Tennis Club"   # prints your first API key
+npm run demo:seed                   # or: two fake clubs to explore, into an empty database
 npm run api           # http://localhost:3000 — the spec is at /openapi.json
 ```
 
