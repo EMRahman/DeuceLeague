@@ -63,6 +63,10 @@ details { margin-top: .75rem; }
 .why { color: var(--muted); font-size: .85rem; }
 .total { display: flex; justify-content: space-between; font-weight: 700; padding-top: .4rem; }
 td { vertical-align: top; }
+.scroll { overflow-x: auto; }
+table { font-size: .95rem; }
+th, td { white-space: nowrap; }
+td:nth-child(2) { white-space: normal; min-width: 9rem; }
 details.row { margin: 0; }
 details.row summary { color: inherit; list-style-position: inside; }
 details.row[open] summary { margin-bottom: .4rem; }
@@ -273,6 +277,7 @@ export const CompetitionPage: FC<{
     <h1>{competition.name}</h1>
     {standings.final && <p class="muted">Final tables.</p>}
     <p class="muted">Tap a name to see their matches and what each was worth.</p>
+    <p class="muted">Players level on points are split by games difference (+/−).</p>
     <p class="key">
       <span class="up">Promotion places</span>
       <span class="down">Relegation places</span>
@@ -281,6 +286,7 @@ export const CompetitionPage: FC<{
     {standings.divisions.map((d) => (
       <section class="card">
         <h2 style="margin-top:0">{d.name}</h2>
+        <div class="scroll">
         <table>
           <thead>
             <tr>
@@ -289,6 +295,9 @@ export const CompetitionPage: FC<{
               <th title="Played">P</th>
               <th title="Won">W</th>
               <th title="Lost">L</th>
+              <th title="Games won">GW</th>
+              <th title="Games lost">GL</th>
+              <th title="Games difference: splits players level on points">+/−</th>
               <th title="Points">Pts</th>
             </tr>
           </thead>
@@ -313,11 +322,15 @@ export const CompetitionPage: FC<{
                 <td>{r.played}</td>
                 <td>{r.won}</td>
                 <td>{r.lost}</td>
+                <td>{r.games_won}</td>
+                <td>{r.games_lost}</td>
+                <td>{signed(r.games_won - r.games_lost)}</td>
                 <td>{r.points}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        </div>
       </section>
     ))}
     {mine && competition.state === "active" && (
@@ -502,6 +515,9 @@ function itemLabel(item: MatchLine["items"][number], line: MatchLine): string {
       return "Not played";
   }
 }
+
+/** A difference with its sign, as a table prints it: +8, 0, −3. */
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
 const plural = (n: number) => `${n} ${Math.abs(n) === 1 ? "pt" : "pts"}`;
 

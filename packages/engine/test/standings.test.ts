@@ -18,6 +18,7 @@ import { computeStandings, type StandingsEntry, type StandingsMatch } from "../d
 
 const FLAT: RulesSpec = {
   ...DEFAULT_RULES,
+  tiebreaks: ["points", "head_to_head", "set_difference", "game_difference", "matches_won"],
   points: {
     win: 3,
     lossPlayed: 1,
@@ -411,4 +412,24 @@ test("a match not yet in the ledger is not listed, and one never played is", () 
     row(after, "A").matches.map((m) => [m.result, m.outcome, m.points]),
     [["unplayed", null, 0]],
   );
+});
+
+test("by default, entries level on points are split by games difference before head-to-head", () => {
+  const rows = table({
+    entries: entries("A", "B", "C", "D"),
+    matches: [
+      played("A", "B", "7-6 7-6"),
+      played("A", "C", "0-6 0-6"),
+      played("A", "D", "6-1 6-1"),
+      played("B", "C", "6-0 6-0"),
+      played("B", "D", "6-1 6-1"),
+      played("C", "D", "4-6 4-6"),
+    ],
+    // The default order, with flat points so the arithmetic matches the head-to-head test above.
+    rules: { ...DEFAULT_RULES, points: FLAT.points },
+  });
+  // A and B on 7, C and D on 5, as above. A beat B, but on games B is 38-18
+  // (+20) and A 26-26 (0). C is 20-24 (-4), D 16-32 (-16).
+  assert.deepEqual(order(rows), ["B", "A", "C", "D"]);
+  assert.deepEqual(rows.map((r) => r.separatedBy), [null, "game_difference", "points", "game_difference"]);
 });

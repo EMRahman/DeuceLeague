@@ -203,6 +203,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   const table = await samPhone.get(`/competitions/${competitionId}`);
   assert.match(table.html, /Sam K\./);
   assert.match(table.html, /<tr class="me">/);
+  // Games won, lost and the difference: Sam won 12 games to 7.
+  assert.match(table.html, /<td>12<\/td><td>7<\/td><td>\+5<\/td>/);
+  assert.match(table.html, /<td>7<\/td><td>12<\/td><td>−5<\/td>/);
 
   // Each row opens in place to show that player's matches and what each earned.
   // Seen by Alex: every row, Alex's own open.

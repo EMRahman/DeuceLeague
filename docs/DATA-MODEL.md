@@ -229,7 +229,8 @@ winning it and 1 for each set won; 1 more for losing by 4 games or fewer, or
 winning by 8 or more; 1 for turning up to every match; 3 in total for a win by
 retirement, walkover or concession and nothing for that loss; nothing for a
 match that never happened. A walkover is scored as the whitewash it stands for,
-so that it counts in the set and game tiebreaks. Three go up and three down
+so that it counts in the set and game tiebreaks. Entries level on points are
+split by games difference, then head-to-head. Three go up and three down
 between divisions, and a withdrawn unit's played results are left standing.
 
 The bonuses are optional fields and are off unless a competition sets them, so

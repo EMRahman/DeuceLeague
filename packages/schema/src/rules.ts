@@ -123,7 +123,8 @@ export type RulesSpec = z.infer<typeof RulesSpec>;
  * So a 6-4 6-3 win is worth 1 + 3 + 2 = 6 to the winner and 1 + 1 = 2 to the
  * loser, who lost by only 5 games — one short of the close-loss bonus.
  * Nothing for a match that never happened. A walkover scores as the whitewash it
- * stands for in the sets and games columns. The top three of each division are suggested for promotion and
+ * stands for in the sets and games columns. Entries level on points are split
+ * by games difference, then head-to-head. The top three of each division are suggested for promotion and
  * the bottom three for relegation. A withdrawn unit's played results stand and
  * its remaining fixtures simply go unplayed.
  */
@@ -145,7 +146,8 @@ export const DEFAULT_RULES: RulesSpec = {
     convincingWin: { byGames: 8, points: 1 },
     allPlayed: 1,
   },
-  tiebreaks: ["points", "head_to_head", "set_difference", "game_difference", "matches_won"],
+  // Level on points: games difference first, then who won when they met.
+  tiebreaks: ["points", "game_difference", "head_to_head", "set_difference", "matches_won"],
   movement: { promote: 3, relegate: 3, minMatchesForPromotion: 2 },
   withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" },
   minMatchesForRanking: 0,

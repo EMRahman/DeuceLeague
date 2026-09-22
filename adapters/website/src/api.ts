@@ -136,6 +136,8 @@ export type StandingsRow = {
   won: number;
   lost: number;
   outstanding: number;
+  games_won: number;
+  games_lost: number;
   matches: MatchLine[];
   all_played_bonus: number;
   /** Where it would go if the competition ended now: the engine's suggestion, never a decision. */
