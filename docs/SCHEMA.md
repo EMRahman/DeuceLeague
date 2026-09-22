@@ -69,11 +69,6 @@ erDiagram
         uuid entry_id FK
         uuid competition_id FK
     }
-    match_participant {
-        uuid match_side_id FK
-        uuid member_id FK
-        uuid club_id FK
-    }
     result_submission {
         uuid id PK
         uuid club_id FK
@@ -97,8 +92,6 @@ erDiagram
     competition ||--o{ match : "match_competition_fk"
     division |o--o{ match : "match_division_fk"
     result_submission |o--o{ match : "match_accepted_submission_fk"
-    match_side ||--o{ match_participant : "match_participant_side_fk"
-    member ||--o{ match_participant : "match_participant_member_fk"
     entry |o--o{ match_side : "match_side_entry_fk"
     match ||--o{ match_side : "match_side_competition_fk, match_side_match_fk"
     match ||--o{ result_submission : "result_submission_match_fk"
@@ -202,7 +195,6 @@ A person at the club, most often a player. Soft-deleted, never hard-deleted, bec
 - `access_grant` (`member_id`, `club_id`) via `access_grant_member_fk`
 - `api_key` (`created_by_member_id`, `club_id`) via `api_key_creator_fk`
 - `entry_member` (`member_id`, `club_id`) via `entry_member_member_fk`
-- `match_participant` (`member_id`, `club_id`) via `match_participant_member_fk`
 - `result_submission` (`submitted_by_member_id`, `club_id`) via `result_submission_submitter_fk`
 
 ## api_key
@@ -641,40 +633,6 @@ One side of a match: which entry was drawn to play it.
 **Check constraints:**
 
 - `match_side_index_ck`: `CHECK ((side_index = ANY (ARRAY[0, 1])))`
-
-**Referenced by:**
-
-- `match_participant` (`match_side_id`, `club_id`) via `match_participant_side_fk`
-
-## match_participant
-
-Who actually took the court for a match side, which can differ from the entry's registered members when someone stands in.
-
-**Row-level security:** enabled (policies: `tenant_isolation`)
-
-| Column | Type | Nullable | Default | Description |
-| --- | --- | --- | --- | --- |
-| `match_side_id` | `uuid` | no | — | Which side of which match this member played on. |
-| `member_id` | `uuid` | no | — | Which member actually took the court. |
-| `club_id` | `uuid` | no | — | Denormalised from the match side, so this row's member can be tied to the same club by a composite foreign key. |
-| `is_substitute` | `boolean` | no | `false` | True when this member is not part of the entry's registered line-up — a stand-in filling in for an injured or unavailable partner. |
-| `created_at` | `timestamp with time zone` | no | `now()` | When this row was created. |
-
-**Primary key:** none — see the unique constraints below.
-
-**Foreign keys:**
-
-- (`member_id`, `club_id`) → `member` (`id`, `club_id`), ON DELETE no action — `match_participant_member_fk`
-- (`match_side_id`, `club_id`) → `match_side` (`id`, `club_id`), ON DELETE cascade — `match_participant_side_fk`
-
-**Unique constraints:**
-
-- `match_participant_pk`: (`match_side_id`, `member_id`)
-
-**Indexes:**
-
-- `match_participant_member_ix`: `CREATE INDEX match_participant_member_ix ON public.match_participant USING btree (member_id)`
-- `match_participant_pk`: `CREATE UNIQUE INDEX match_participant_pk ON public.match_participant USING btree (match_side_id, member_id)`
 
 **Referenced by:**
 

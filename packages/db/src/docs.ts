@@ -37,7 +37,6 @@ const TABLE_ORDER = [
   "entry_member",
   "match",
   "match_side",
-  "match_participant",
   "result_submission",
   "event",
 ];

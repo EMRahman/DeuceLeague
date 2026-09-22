@@ -1,7 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
   bigserial,
-  boolean,
   check,
   customType,
   date,
@@ -501,11 +500,7 @@ export const match = pgTable(
   ],
 );
 
-/**
- * A side of a match. `entryId` is who was drawn to play; who actually played is
- * recorded in match_participant, so a stand-in partner does not corrupt the
- * pair's standing.
- */
+/** A side of a match: the entry drawn to play, and so the one its result counts for. */
 export const matchSide = pgTable(
   "match_side",
   {
@@ -543,33 +538,6 @@ export const matchSide = pgTable(
     }),
     index("match_side_entry_ix").on(t.entryId),
     check("match_side_index_ck", sql`side_index in (0, 1)`),
-  ],
-);
-
-/** Who was actually on court. One row for singles, two for doubles, or a stand-in. */
-export const matchParticipant = pgTable(
-  "match_participant",
-  {
-    matchSideId: uuid("match_side_id").notNull(),
-    memberId: uuid("member_id").notNull(),
-    clubId: uuid("club_id").notNull(),
-    /** True when this member is not part of the entry's registered line-up. */
-    isSubstitute: boolean("is_substitute").notNull().default(false),
-    createdAt: createdAt(),
-  },
-  (t) => [
-    unique("match_participant_pk").on(t.matchSideId, t.memberId),
-    foreignKey({
-      columns: [t.matchSideId, t.clubId],
-      foreignColumns: [matchSide.id, matchSide.clubId],
-      name: "match_participant_side_fk",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [t.memberId, t.clubId],
-      foreignColumns: [member.id, member.clubId],
-      name: "match_participant_member_fk",
-    }),
-    index("match_participant_member_ix").on(t.memberId),
   ],
 );
 

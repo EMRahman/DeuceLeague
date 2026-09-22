@@ -11,7 +11,6 @@ export {
   entryMember,
   match,
   matchSide,
-  matchParticipant,
   resultSubmission,
   event,
 } from "./schema.js";

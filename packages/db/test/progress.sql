@@ -61,10 +61,6 @@ FROM generate_series(1, 4) a(n)
 JOIN generate_series(1, 4) b(n) ON a.n < b.n
 CROSS JOIN (VALUES (0), (1)) s(side);
 
-INSERT INTO match_participant (match_side_id, member_id, club_id)
-SELECT ms.id, em.member_id, :'club'
-FROM match_side ms JOIN entry_member em ON em.entry_id = ms.entry_id;
-
 DO $$
 DECLARE n int;
 BEGIN

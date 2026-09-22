@@ -1,6 +1,6 @@
 # DeuceLeague data model
 
-The database behind a club tennis league. Fourteen tables and seven views; you
+The database behind a club tennis league. Thirteen tables and seven views; you
 should be able to read the whole thing in fifteen minutes. If that stops being
 true, something in here belongs in an adapter instead.
 
@@ -37,7 +37,7 @@ club
                 └── entry           │   the competing unit
                      └── entry_member ──┘  1 row singles, 2 rows doubles
 
-match  ── match_side ── match_participant   who was actually on court
+match  ── match_side                        one per side: the entry drawn to play
    └── result_submission                    every claim ever made
 
 event                                        append-only; audit log and outbox
@@ -70,7 +70,7 @@ when the chain runs across seasons instead.
 ten or eleven; women's doubles two divisions of eight and seven. `target_size`
 is advisory and only informs placement suggestions.
 
-## Entries, pairs and stand-ins
+## Entries and pairs
 
 `entry` is the unit; `entry_member` says who is in it. A singles entry has one
 member row, a doubles entry has two.
@@ -86,11 +86,9 @@ expressible, which is what stops a member appearing in two divisions of the same
 competition while leaving them free to enter as many different competitions as
 they like. It is enforced by the database, not by application code.
 
-**Stand-ins fall out for free.** `match_side.entry_id` is who was drawn to play;
-`match_participant` records who was actually on court, with `is_substitute` set.
-When a partner is injured and someone fills in, the pair's standing is untouched
-and the match record is still true. This happens constantly and most systems
-handle it badly.
+A result counts for the entry drawn to play. When a partner is injured and
+someone fills in, the pair's result stands as the pair's; who was actually on
+court is not recorded.
 
 ## Results: both sides report
 
@@ -375,10 +373,10 @@ its own club whatever its scopes say.
 
 ## Deliberately absent
 
-Scheduling and arrangement tracking (above), ladder challenges, team and
-inter-club leagues, court booking, payments, rating computation, cross-club
-identity, attendance for social sessions, notifications of any kind, and
-import/export. Each is a nullable column or a new table when it is wanted; none
+Scheduling and arrangement tracking (above), recording stand-ins, ladder
+challenges, team and inter-club leagues, court booking, payments, rating
+computation, cross-club identity, attendance for social sessions,
+notifications of any kind, and import/export. Each is a nullable column or a new table when it is wanted; none
 of them changes the shape above.
 
 ## Running it

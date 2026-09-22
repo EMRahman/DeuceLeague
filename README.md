@@ -4,7 +4,7 @@ Open-source club tennis league software: the database and the API. Everything
 people see — websites, phone apps, Telegram bots — is built on top by whoever
 wants it, and they keep whatever they put on it.
 
-**Status:** data model complete and verified — 14 tables, 7 views, 64 database checks
+**Status:** data model complete and verified — 13 tables, 7 views, 64 database checks
 green against a real Postgres. The API is being built: see
 [docs/API.md](docs/API.md) for the plan and progress.
 
@@ -72,7 +72,7 @@ system. The core answers *who still has matches outstanding and how long is
 left*; whether an email goes out, and what it says, is the coach's call. See
 [docs/DATA-MODEL.md § No scheduling](docs/DATA-MODEL.md#no-scheduling-and-why).
 
-**Small enough to read.** Fourteen tables. If the core outgrows that, the new
+**Small enough to read.** Thirteen tables. If the core outgrows that, the new
 thing belongs in an adapter.
 
 ## Licence

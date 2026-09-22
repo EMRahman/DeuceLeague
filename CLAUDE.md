@@ -40,8 +40,9 @@ it knows only `schema.ts` and would build a database with no row-level security.
 **Never store standings.** They are computed from matches on read. This is what
 makes correcting an old score a coach entry and a one-row `UPDATE`.
 
-**Never add `player_a` / `player_b`.** A match has sides; a side has
-participants. Singles and doubles share every query because of this.
+**Never add `player_a` / `player_b`.** A match has sides; a side is an entry,
+and an entry has one member or two. Singles and doubles share every query
+because of this.
 
 **Never let the engine apply a promotion.** It suggests; the coach confirms.
 
