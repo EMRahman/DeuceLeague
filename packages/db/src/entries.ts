@@ -133,8 +133,8 @@ export async function deleteEntry(tx: Tx, entryId: string): Promise<void> {
 }
 
 /**
- * How many of an entry's matches have got anywhere: a claim, a result, or
- * being voided. Only a match still `open` is a mere fixture, safe to remove.
+ * How many of an entry's matches have got anywhere: a claim, or a result.
+ * Only a match still `open` is a mere fixture, safe to remove.
  */
 export async function startedMatches(tx: Tx, entryId: string): Promise<number> {
   const [row] = await tx

@@ -119,7 +119,7 @@ refusal — and since the warning reveals recorded gender, only a credential
 holding `members:pii` sees it.
 
 **Fixtures** (`league:write`). Generate a division's round robin. Safe to
-re-run after a late entry: only the missing pairings are added. Void a match.
+re-run after a late entry: only the missing pairings are added.
 
 **Results** — the only way a score enters the ledger. A side reports, or
 corrects its own report; the score is checked against the competition's format
@@ -209,8 +209,7 @@ Each phase ends with its tests green and is committed on its own.
    placement suggestions, as pure functions with unit tests.
 3. ✓ **Structure.** Club, keys, members, seasons, competitions, divisions,
    entries and fixtures.
-4. **Results and events**, and voiding a match, which undoes a result as well
-   as striking a fixture.
+4. **Results and events.**
 5. **Read endpoints.** Standings, progress, the chase list, the public
    endpoints with rate limits, and `npm run demo:seed`.
 6. **Player logins.** `access_grant` changes so a session can have no expiry

@@ -545,7 +545,7 @@ A pairing between two entries. A match with no score yet is a fixture — there 
 | `club_id` | `uuid` | no | — | Which club this row belongs to. Enforced by a row-level security policy comparing it to deuceleague_current_club(). |
 | `competition_id` | `uuid` | no | — | Which competition this match belongs to. |
 | `division_id` | `uuid` | yes | — | Which division this match belongs to. Null for a friendly or any match generated outside a division. |
-| `status` | `text` | no | `'open'::text` | This match's lifecycle: open (nobody has reported), reported (one side has claimed a score), played (both sides agree, or the coach decided), disputed (both sides claimed and differ), or void. Nothing moves to played on a timer — see docs/DATA-MODEL.md § Results. |
+| `status` | `text` | no | `'open'::text` | This match's lifecycle: open (nobody has reported), reported (one side has claimed a score), played (both sides agree, or the coach decided), or disputed (both sides claimed and differ). Nothing moves to played on a timer — see docs/DATA-MODEL.md § Results. |
 | `outcome` | `text` | yes | — | How the match ended: completed, retired, walkover, conceded, or unplayed. Set only once status is 'played'. |
 | `played_on` | `date` | yes | — | The date the match was played, taken from the claim that settled it. |
 | `score` | `jsonb` | yes | — | The accepted score, as a Score document from @deuceleague/schema. Present only when the match has actually been played (outcome is 'completed' or 'retired'). |
@@ -587,7 +587,7 @@ A pairing between two entries. A match with no score yet is a fixture — there 
 - `match_played_outcome_ck`: `CHECK (((status = 'played'::text) = (outcome IS NOT NULL)))`
 - `match_retired_side_ck`: `CHECK (((retired_side IS NULL) OR (retired_side = ANY (ARRAY[0, 1]))))`
 - `match_score_ck`: `CHECK (((score IS NOT NULL) = COALESCE((outcome = ANY (ARRAY['completed'::text, 'retired'::text])), false)))`
-- `match_status_ck`: `CHECK ((status = ANY (ARRAY['open'::text, 'reported'::text, 'played'::text, 'disputed'::text, 'void'::text])))`
+- `match_status_ck`: `CHECK ((status = ANY (ARRAY['open'::text, 'reported'::text, 'played'::text, 'disputed'::text])))`
 - `match_stopped_side_ck`: `CHECK (((retired_side IS NOT NULL) = COALESCE((outcome = ANY (ARRAY['retired'::text, 'walkover'::text, 'conceded'::text])), false)))`
 - `match_winner_ck`: `CHECK (((winning_side IS NOT NULL) = ((outcome IS NOT NULL) AND (outcome <> 'unplayed'::text))))`
 - `match_winner_not_retired_ck`: `CHECK ((winning_side <> retired_side))`
@@ -817,7 +817,7 @@ How far through one division is: how many matches are played, outstanding, repor
 | `results_deadline_at` | `timestamp with time zone` |  |
 | `days_remaining` | `integer` | Whole days remaining to the season's results deadline, counted on the club's own calendar (club.timezone), not the server's. |
 | `active_entries` | `bigint` | How many entries in this division are currently active (not withdrawn). |
-| `matches` | `bigint` | How many matches this division has in total, excluding void ones. |
+| `matches` | `bigint` | How many matches this division has in total. |
 | `played` | `bigint` | How many of this division's matches have a result in the ledger. |
 | `outstanding` | `bigint` | How many of this division's matches are not yet in the ledger — open, reported or disputed. |
 | `reported` | `bigint` | How many matches have one side's claim in, waiting on the other. |
@@ -859,7 +859,7 @@ Played and outstanding matches for one competing unit.
 | `label` | `text` |  |
 | `member_ids` | `uuid[]` |  |
 | `state` | `text` |  |
-| `matches` | `bigint` | How many matches this entry has in total, excluding void ones. |
+| `matches` | `bigint` | How many matches this entry has in total. |
 | `played` | `bigint` | How many of this entry's matches have a result in the ledger. |
 | `outstanding` | `bigint` | How many of this entry's matches are not yet in the ledger. |
 

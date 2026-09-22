@@ -174,7 +174,7 @@ const fixtures = createRoute({
   description:
     "Adds an open match for every pairing of the division's active entries that it does not have yet. " +
     "Safe to run again, after a late entry for instance: only the missing pairings are added, and a " +
-    "pairing already played or voided is left alone. Matches have no dates; arranging them is up to the players.",
+    "pairing already there, played or not, is left alone. Matches have no dates; arranging them is up to the players.",
   ...requires("league:write"),
   request: { params: IdParam },
   responses: {

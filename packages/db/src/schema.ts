@@ -476,7 +476,7 @@ export const match = pgTable(
     index("match_outstanding_ix")
       .on(t.competitionId)
       .where(sql`${t.status} in ('open', 'reported', 'disputed')`),
-    oneOf("match_status_ck", "status", ["open", "reported", "played", "disputed", "void"]),
+    oneOf("match_status_ck", "status", ["open", "reported", "played", "disputed"]),
     oneOf("match_outcome_ck", "outcome", [
       "completed",
       "retired",

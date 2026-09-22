@@ -238,10 +238,3 @@ test("scoring by games won orders by games, then the club's tiebreaks", () => {
   assert.deepEqual(rows.map((r) => r.separatedBy), [null, "games_won", "points"]);
 });
 
-test("a void match counts for nothing, not even as outstanding", () => {
-  const rows = table({
-    entries: entries("A", "B"),
-    matches: [{ ...open("A", "B"), status: "void" }],
-  });
-  assert.deepEqual(rows.map((r) => [r.points, r.played, r.outstanding, r.unplayed]), [[0, 0, 0, 0], [0, 0, 0, 0]]);
-});

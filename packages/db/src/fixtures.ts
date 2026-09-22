@@ -8,9 +8,9 @@ export type NewFixture = { side0: string; side1: string; pairingKey: string };
 
 /**
  * Stores fixtures as open matches, each with its two sides, and returns the
- * ones that were new. A pairing the division already has — played, open or
- * void — is left alone: the pairing key is unique per division, so running
- * this again after a late entry adds only the missing pairings.
+ * ones that were new. A pairing the division already has, played or not, is
+ * left alone: the pairing key is unique per division, so running this again
+ * after a late entry adds only the missing pairings.
  */
 export async function insertFixtures(
   tx: Tx,

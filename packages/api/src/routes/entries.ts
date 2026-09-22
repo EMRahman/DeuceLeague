@@ -295,7 +295,7 @@ const hasMatches = () =>
   problems.conflict(
     "entry_has_matches",
     "The entry has a match under way",
-    "A match has been reported, played or voided, and that record stays where it is. Withdraw the entry instead.",
+    "A match has been reported or played, and that record stays where it is. Withdraw the entry instead.",
   );
 
 export function registerEntries(app: OpenAPIHono<AppEnv>): void {

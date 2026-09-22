@@ -51,12 +51,11 @@ export const EntryRole = z.enum(["player", "partner"]);
  *   played    → both sides agree, or the coach decided; the score is in the ledger
  *   disputed  → both sides have claimed, and they differ. Either may re-enter
  *               its score or accept the other's; the coach can settle it too
- *   void      → struck from the record
  *
  * Nothing moves to `played` on a timer. Two people have to agree, or the coach
  * has to decide. See docs/DATA-MODEL.md § Results.
  */
-export const MatchStatus = z.enum(["open", "reported", "played", "disputed", "void"]);
+export const MatchStatus = z.enum(["open", "reported", "played", "disputed"]);
 
 /** How a match ended. Only set once status is `played`. */
 export const MatchOutcome = z.enum([

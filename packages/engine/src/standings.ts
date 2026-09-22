@@ -152,14 +152,14 @@ type Decided = {
 type Settled = { kind: "ignore" } | { kind: "outstanding" } | { kind: "unplayed" } | Decided;
 
 /**
- * What a match is worth to the table. A void match is worth nothing. A match
- * involving a withdrawn entry follows rules.withdrawal: its played results
- * stand or are voided, and its remaining fixtures go unplayed or become
+ * What a match is worth to the table. A match involving a withdrawn entry
+ * follows rules.withdrawal: its played results stand or are ignored, and its
+ * remaining fixtures go unplayed or become
  * walkovers to the opponent. Anything else not yet in the ledger is
  * outstanding until the deadline passes, then unplayed.
  */
 function settle(match: StandingsMatch, withdrawn: ReadonlySet<string>, input: StandingsInput): Settled {
-  if (match.status === "void" || !match.side0 || !match.side1) return { kind: "ignore" };
+  if (!match.side0 || !match.side1) return { kind: "ignore" };
   const inLedger = match.status === "played";
   const w0 = withdrawn.has(match.side0);
   const w1 = withdrawn.has(match.side1);

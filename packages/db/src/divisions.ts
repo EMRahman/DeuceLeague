@@ -47,7 +47,7 @@ export async function updateDivision(tx: Tx, divisionId: string, changes: Divisi
   return row!;
 }
 
-/** Whether anything sits in a division: an entry, or a match, even a void one. */
+/** Whether anything sits in a division: an entry or a match. */
 export async function divisionInUse(tx: Tx, divisionId: string): Promise<boolean> {
   const [used] = await tx
     .select({ id: entry.id })

@@ -458,8 +458,8 @@ test("an entry with only untouched fixtures can be moved or deleted; one with a 
   assert.equal(await matchCount(top), 1);
   assert.equal((await send("GET", `/v1/entries/${entries[2]}`, c.key)).status, 404);
 
-  // A match the coach has struck off is still a record, so its entries stay put.
-  await owner`update match set status = 'void' where division_id = ${top}`;
+  // Once someone has reported a score, the match is a record, so its entries stay put.
+  await owner`update match set status = 'reported' where division_id = ${top}`;
   assert.equal((await send("DELETE", `/v1/entries/${entries[0]}`, c.key)).body.code, "entry_has_matches");
   assert.equal(
     (await send("PATCH", `/v1/entries/${entries[0]}`, c.key, { division_id: second })).body.code,
