@@ -29,7 +29,7 @@ test("the health check reaches the database", async () => {
 test("the spec describes /v1/me and how to authenticate", async () => {
   const spec = await (await call(app, "/openapi.json")).json();
   assert.equal(spec.openapi, "3.1.0");
-  assert.deepEqual(spec.paths["/v1/me"].get.security, [{ apiKey: [] }]);
+  assert.deepEqual(spec.paths["/v1/me"].get.security, [{ apiKey: [] }, { session: [] }]);
   assert.equal(spec.components.securitySchemes.apiKey.scheme, "bearer");
   assert.ok(spec.components.schemas.Problem, "the error shape is documented");
 });

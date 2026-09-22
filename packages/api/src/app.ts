@@ -11,6 +11,7 @@ import { registerEntries } from "./routes/entries.js";
 import { registerEvents } from "./routes/events.js";
 import { registerHealth } from "./routes/health.js";
 import { registerKeys } from "./routes/keys.js";
+import { registerLogins } from "./routes/logins.js";
 import { registerMatches } from "./routes/matches.js";
 import { registerMe } from "./routes/me.js";
 import { registerMembers } from "./routes/members.js";
@@ -20,7 +21,7 @@ import { registerStandings } from "./routes/standings.js";
 
 export type { AppEnv } from "./context.js";
 export { ApiError, problems } from "./problems.js";
-export { authenticate, inTransaction, requestLog, requireScopes } from "./middleware.js";
+export { authenticate, inTransaction, requestLog, requireAccess, requireScopes } from "./middleware.js";
 
 export type AppOptions = { db: Db; log?: (line: string) => void };
 
@@ -53,6 +54,7 @@ export function createApp(options: AppOptions) {
   registerClub(app);
   registerKeys(app);
   registerMembers(app);
+  registerLogins(app);
   registerSeasons(app);
   registerCompetitions(app);
   registerDivisions(app);
@@ -68,6 +70,18 @@ export function createApp(options: AppOptions) {
     description:
       "An API key, `dl_…`, created with `npm run club:create` or by an admin key. Each route lists " +
       "the scopes it needs in its security requirement.",
+  });
+  app.openAPIRegistry.registerComponent("securitySchemes", "session", {
+    type: "http",
+    scheme: "bearer",
+    description:
+      "A player's session, `dls_…`, from exchanging a login link. It reads the competitions open to " +
+      "members and reports results for the player's own side; only routes listing it take it.",
+  });
+  app.openAPIRegistry.registerComponent("securitySchemes", "loginLink", {
+    type: "http",
+    scheme: "bearer",
+    description: "A login link's token, `dll_…`. It works once, and only to start a session.",
   });
   app.doc31("/openapi.json", {
     openapi: "3.1.0",

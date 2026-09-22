@@ -304,8 +304,9 @@ With nothing set the function returns `NULL`, every predicate evaluates to
 > `migrations/0002_app_role.sql` creates the role. This is the single most
 > important line in this document.
 
-**Finding the club.** A request arrives carrying an API key or a magic-link
-token — never a club id — and with no club set, those tables are hidden too.
+**Finding the club.** A request arrives carrying an API key, or a player's
+login link or session token — never a club id — and with no club set, those
+tables are hidden too.
 Two `SECURITY DEFINER` functions are the only way past that, each needing a
 secret and returning just enough to set the club. Nothing is readable without a
 credential, so there is no way to find a club from its name or slug alone:
@@ -313,7 +314,7 @@ credential, so there is no way to find a club from its name or slug alone:
 | Function | Takes | Returns |
 |---|---|---|
 | `deuceleague_resolve_api_key` | SHA-256 of the key | club, key id, scopes — if not revoked or expired |
-| `deuceleague_resolve_access_grant` | SHA-256 of the token | club, grant, member, scopes, `used_at` — if unexpired and the member not removed |
+| `deuceleague_resolve_access_grant` | SHA-256 of the token | club, grant, member, kind, scopes — if unexpired and the member not removed |
 
 The API calls one, sets `app.club_id`, and everything after that runs under
 row-level security as usual.
@@ -340,6 +341,12 @@ Deadlines are where a naive timestamp bites hardest.
 
 **Members are soft-deleted.** People leave and come back, and their historical
 results have to survive them.
+
+**A player signs in once per phone.** `access_grant` holds two kinds of row: a
+login link, which works once and must expire, and the session it is exchanged
+for, which need not. Revoking either deletes it — exchanging a link is a
+`DELETE`, which is also what stops two exchanges both succeeding — so the
+table holds only what still works, or has expired.
 
 **`display_name` is what players see of each other.** Player-scoped responses
 return display name, division and results — nothing else. Full name,

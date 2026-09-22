@@ -109,7 +109,7 @@ const list = createRoute({
   tags: ["Seasons"],
   summary: "List seasons",
   description: "Oldest first.",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { query: PageQuery.extend({ state: SeasonState.optional() }) },
   responses: {
     200: { description: "A page of seasons.", content: { "application/json": { schema: pageOf(Season, "SeasonPage") } } },
@@ -123,7 +123,7 @@ const get = createRoute({
   path: "/v1/seasons/{id}",
   tags: ["Seasons"],
   summary: "A season",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: { 200: { description: "The season.", ...one }, ...authProblems, ...notFoundProblem },
 });

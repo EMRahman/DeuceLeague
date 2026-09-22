@@ -74,18 +74,20 @@ INSERT INTO match_side (club_id, match_id, competition_id, side_index, entry_id)
   ('11111111-1111-7111-8111-111111111111', 'f0000000-0000-7000-8000-000000000001',
    'c0000000-0000-7000-8000-000000000001', 1, 'e0000000-0000-7000-8000-000000000002');
 
--- What a request carries before the club is known: keys, tokens, a slug.
+-- What a request carries before the club is known: a key or a token.
 INSERT INTO api_key (club_id, name, key_hash, prefix, expires_at, revoked_at) VALUES
   ('11111111-1111-7111-8111-111111111111', 'bot',     'key-live',    'dl_', NULL, NULL),
   ('11111111-1111-7111-8111-111111111111', 'old bot', 'key-revoked', 'dl_', NULL, now()),
   ('11111111-1111-7111-8111-111111111111', 'trial',   'key-expired', 'dl_', now() - interval '1 day', NULL);
-INSERT INTO access_grant (club_id, member_id, token_hash, scopes, expires_at) VALUES
+INSERT INTO access_grant (club_id, member_id, kind, token_hash, scopes, expires_at) VALUES
   ('11111111-1111-7111-8111-111111111111', 'a0000000-0000-7000-8000-000000000001',
-   'grant-live', '{results:write}', now() + interval '1 hour'),
+   'login_link', 'link-live', '{results:write}', now() + interval '15 minutes'),
   ('11111111-1111-7111-8111-111111111111', 'a0000000-0000-7000-8000-000000000001',
-   'grant-expired', '{results:write}', now() - interval '1 hour'),
+   'login_link', 'link-expired', '{results:write}', now() - interval '1 minute'),
+  ('11111111-1111-7111-8111-111111111111', 'a0000000-0000-7000-8000-000000000001',
+   'session', 'session-live', '{results:write}', NULL),
   ('11111111-1111-7111-8111-111111111111', 'a0000000-0000-7000-8000-000000000009',
-   'grant-of-leaver', '{results:write}', now() + interval '1 hour');
+   'session', 'session-of-leaver', '{results:write}', NULL);
 
 -- From here on, behave as the application does: a role that owns nothing.
 SET LOCAL ROLE deuceleague_app;
@@ -114,15 +116,19 @@ BEGIN
   IF n <> 0 THEN RAISE EXCEPTION 'FAIL: an expired key still resolved'; END IF;
   RAISE NOTICE '  PASS  a live API key finds its club; a revoked or expired one finds nothing';
 
-  SELECT * INTO r FROM deuceleague_resolve_access_grant('grant-live');
-  IF r.member_id IS DISTINCT FROM 'a0000000-0000-7000-8000-000000000001' THEN
-    RAISE EXCEPTION 'FAIL: a live grant resolved to member %', r.member_id;
+  SELECT * INTO r FROM deuceleague_resolve_access_grant('link-live');
+  IF r.member_id IS DISTINCT FROM 'a0000000-0000-7000-8000-000000000001' OR r.kind <> 'login_link' THEN
+    RAISE EXCEPTION 'FAIL: a live login link resolved to member %, as a %', r.member_id, r.kind;
   END IF;
-  SELECT count(*) INTO n FROM deuceleague_resolve_access_grant('grant-expired');
-  IF n <> 0 THEN RAISE EXCEPTION 'FAIL: an expired grant still resolved'; END IF;
-  SELECT count(*) INTO n FROM deuceleague_resolve_access_grant('grant-of-leaver');
-  IF n <> 0 THEN RAISE EXCEPTION 'FAIL: a removed member''s grant still resolved'; END IF;
-  RAISE NOTICE '  PASS  a magic link finds its member, unless it expired or they were removed';
+  SELECT count(*) INTO n FROM deuceleague_resolve_access_grant('link-expired');
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL: an expired login link still resolved'; END IF;
+  SELECT * INTO r FROM deuceleague_resolve_access_grant('session-live');
+  IF r.member_id IS DISTINCT FROM 'a0000000-0000-7000-8000-000000000001' OR r.kind <> 'session' THEN
+    RAISE EXCEPTION 'FAIL: a session with no expiry resolved to member %, as a %', r.member_id, r.kind;
+  END IF;
+  SELECT count(*) INTO n FROM deuceleague_resolve_access_grant('session-of-leaver');
+  IF n <> 0 THEN RAISE EXCEPTION 'FAIL: a removed member''s session still resolved'; END IF;
+  RAISE NOTICE '  PASS  a login link or session finds its member, unless it expired or they were removed';
 
   -- A SECURITY DEFINER function runs past row-level security. Only the two
   -- resolvers may, and each needs a secret: nothing finds a club without one.

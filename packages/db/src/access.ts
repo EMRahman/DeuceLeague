@@ -1,5 +1,5 @@
 import { and, arrayContains, asc, eq, gt, isNull, lt, ne, or, sql } from "drizzle-orm";
-import { apiKey } from "./schema.js";
+import { accessGrant, apiKey } from "./schema.js";
 import type { Tx } from "./client.js";
 import { uuidv7 } from "./ids.js";
 import { toPage, type Page, type PageRequest } from "./lists.js";
@@ -126,4 +126,114 @@ export async function anotherAdminKeyExists(tx: Tx, apiKeyId: string): Promise<b
     )
     .limit(1);
   return row !== undefined;
+}
+
+// ─────────────────────────────────────────────────────────── player logins ──
+
+/** What a live access grant resolves to: its club, its member, and what kind of grant it is. */
+export type ResolvedAccessGrant = {
+  clubId: string;
+  accessGrantId: string;
+  memberId: string;
+  kind: "login_link" | "session";
+  scopes: string[];
+};
+
+/**
+ * Finds a live login link or session by the SHA-256 of its token, through
+ * deuceleague_resolve_access_grant(): the other narrow door past row-level
+ * security. Nothing for an expired link, one already exchanged, a session
+ * that was signed out, or a member who has been removed.
+ */
+export async function resolveAccessGrant(tx: Tx, tokenHash: string): Promise<ResolvedAccessGrant | null> {
+  const [row] = await tx.execute<{
+    club_id: string;
+    access_grant_id: string;
+    member_id: string;
+    kind: "login_link" | "session";
+    scopes: string[];
+  }>(
+    sql`select club_id, access_grant_id, member_id, kind, scopes
+        from deuceleague_resolve_access_grant(${tokenHash})`,
+  );
+  if (!row) return null;
+  return {
+    clubId: row.club_id,
+    accessGrantId: row.access_grant_id,
+    memberId: row.member_id,
+    kind: row.kind,
+    scopes: row.scopes,
+  };
+}
+
+/** Stores a login link. The caller hashes its token; the token never reaches the database. */
+export async function createLoginLink(
+  tx: Tx,
+  clubId: string,
+  input: { memberId: string; hash: string; scopes: string[]; expiresAt: Date },
+): Promise<{ id: string; expiresAt: Date }> {
+  const [row] = await tx
+    .insert(accessGrant)
+    .values({
+      id: uuidv7(),
+      clubId,
+      kind: "login_link",
+      memberId: input.memberId,
+      tokenHash: input.hash,
+      scopes: input.scopes,
+      expiresAt: input.expiresAt,
+    })
+    .returning({ id: accessGrant.id, expiresAt: accessGrant.expiresAt });
+  return { id: row!.id, expiresAt: row!.expiresAt! };
+}
+
+/**
+ * Uses up a login link by deleting it, returning who it was for. This is what
+ * makes a link work once: of two requests racing to exchange it, the second
+ * waits for the first, then finds nothing to delete.
+ */
+export async function consumeLoginLink(tx: Tx, linkId: string): Promise<{ memberId: string; scopes: string[] } | null> {
+  const [row] = await tx
+    .delete(accessGrant)
+    .where(and(eq(accessGrant.id, linkId), eq(accessGrant.kind, "login_link")))
+    .returning({ memberId: accessGrant.memberId, scopes: accessGrant.scopes });
+  return row ?? null;
+}
+
+/** Stores a session. It has no expiry: it lasts until it is signed out. */
+export async function createSession(
+  tx: Tx,
+  clubId: string,
+  input: { memberId: string; hash: string; scopes: string[] },
+): Promise<{ id: string }> {
+  const [row] = await tx
+    .insert(accessGrant)
+    .values({
+      id: uuidv7(),
+      clubId,
+      kind: "session",
+      memberId: input.memberId,
+      tokenHash: input.hash,
+      scopes: input.scopes,
+      expiresAt: null,
+    })
+    .returning({ id: accessGrant.id });
+  return row!;
+}
+
+/** Signs one session out. */
+export async function endSession(tx: Tx, sessionId: string): Promise<void> {
+  await tx.delete(accessGrant).where(and(eq(accessGrant.id, sessionId), eq(accessGrant.kind, "session")));
+}
+
+/**
+ * Signs a member out everywhere: every session they hold, and any login link
+ * not yet used, since that would start a new one. Returns how many sessions ended.
+ */
+export async function endMemberAccess(tx: Tx, memberId: string): Promise<number> {
+  const rows = await tx
+    .delete(accessGrant)
+    .where(eq(accessGrant.memberId, memberId))
+    .returning({ kind: accessGrant.kind });
+  return rows.filter((r) => r.kind === "session").length;
 }

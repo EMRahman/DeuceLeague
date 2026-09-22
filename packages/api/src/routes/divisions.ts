@@ -3,7 +3,6 @@ import {
   createDivision,
   deleteDivision,
   divisionInUse,
-  getCompetition,
   getDivision,
   insertFixtures,
   listDivisions,
@@ -29,6 +28,7 @@ import {
   sentFields,
   Timestamp,
   validationProblem,
+  visibleCompetition,
 } from "./shared.js";
 
 const Division = z
@@ -95,7 +95,7 @@ const list = createRoute({
   tags: ["Divisions"],
   summary: "A competition's divisions",
   description: "Top first. Not paged: a competition has a handful.",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: {
     200: {
@@ -112,7 +112,7 @@ const get = createRoute({
   path: "/v1/divisions/{id}",
   tags: ["Divisions"],
   summary: "A division",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: { 200: { description: "The division.", ...one }, ...authProblems, ...notFoundProblem },
 });
@@ -189,13 +189,13 @@ export function registerDivisions(app: OpenAPIHono<AppEnv>): void {
   app.openapi(list, async (c) => {
     const { id } = c.req.valid("param");
     const tx = c.get("tx");
-    if (!(await getCompetition(tx, id))) throw problems.notFound("competition");
+    if (!(await visibleCompetition(c, id))) throw problems.notFound("competition");
     return c.json({ data: (await listDivisions(tx, id)).map(toDivision) }, 200);
   });
 
   app.openapi(get, async (c) => {
     const division = await getDivision(c.get("tx"), c.req.valid("param").id);
-    if (!division) throw problems.notFound("division");
+    if (!division || !(await visibleCompetition(c, division.competitionId))) throw problems.notFound("division");
     return c.json(toDivision(division), 200);
   });
 

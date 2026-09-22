@@ -49,9 +49,10 @@ because of this.
 competition — and nothing takes effect until the coach activates it.
 
 **Never serve anything without a credential, and never widen a player's view
-to include PII.** Every `/v1` route needs a key or, once player logins exist, a
-session; there are no anonymous pages. Player-scoped responses return
-`display_name` only. Full name, email, phone,
+to include PII.** Every `/v1` route needs a key or a player's session; there
+are no anonymous pages. A session sees only competitions open to members,
+once activated, and acts only for its player's own side. Player-scoped
+responses return `display_name` only. Full name, email, phone,
 date of birth, gender and notes require the `members:pii` scope — including the
 email column in `member_chase_list`. Their descriptions start `PII` in
 docs/SCHEMA.md.
@@ -114,7 +115,10 @@ the query; a coach or an adapter decides what to do with the answer.
   `problems` — and the transaction rolls back, taking any events with it. Never
   read a club id from the URL or body; use `c.get("auth").clubId`.
 - Declare a route's scopes with `requires(...)` in its `createRoute`: the same
-  list becomes the spec's security requirement and the runtime check.
+  list becomes the spec's security requirement and the runtime check. A route
+  takes a player's session only through `requires.orPlayer(...)`, and must then
+  check what it reads with `visibleCompetition` and act only for the player's
+  own side; `packages/api/test/logins.test.ts` lists every such route.
 - League rules live in `packages/engine` as pure functions — no database, no
   clock; whatever they need is passed in. Standings are computed there on every
   read and never stored. A route fetches, calls the engine, and stores.

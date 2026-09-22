@@ -1,28 +1,57 @@
-import { recordEvent } from "@deuceleague/db";
+import { getCompetition, isVisibleToPlayers, recordEvent, type CompetitionRecord } from "@deuceleague/db";
 import type { Scope } from "@deuceleague/schema";
 import { z } from "@hono/zod-openapi";
 import type { AppEnv } from "../context.js";
-import { requireScopes } from "../middleware.js";
+import { requireAccess, type Access } from "../middleware.js";
 import { Problem, problems } from "../problems.js";
 
 const problemContent = { "application/problem+json": { schema: Problem } };
 
 /**
- * A route's security, declared once: the same list becomes the spec's
- * `security` entry and the runtime scope check, so the two cannot disagree.
- * With no scopes, any valid credential will do.
+ * A route's security, declared once: the same declaration becomes the spec's
+ * `security` entry and the runtime check, so the two cannot disagree.
  */
-export function requires(...scopes: Scope[]) {
+function access(declared: Access) {
   return {
-    security: [{ apiKey: scopes }],
-    middleware: [requireScopes(...scopes)],
+    security: [
+      ...(declared.apiKey ? [{ apiKey: declared.apiKey }] : []),
+      ...(declared.session ? [{ session: declared.session }] : []),
+      ...(declared.loginLink ? [{ loginLink: [] }] : []),
+    ],
+    middleware: [requireAccess(declared)],
   };
 }
+
+/**
+ * An API key holding these scopes; with none, any key will do. A player's
+ * session is refused: a route takes one only by saying so, with
+ * `requires.orPlayer`.
+ */
+export function requires(...scopes: Scope[]) {
+  return access({ apiKey: scopes });
+}
+
+/**
+ * An API key holding these scopes, or a player's session holding them. Only
+ * for a route that keeps a player to what is theirs to see and do: the
+ * competitions open to members (see visibleCompetition), and their own side
+ * of their own matches.
+ */
+requires.orPlayer = (...scopes: Scope[]) => access({ apiKey: scopes, session: scopes });
+
+/** A player's session, and nothing else. */
+requires.player = () => access({ session: [] });
+
+/** A login link, and nothing else: all a link can do is become a session. */
+requires.loginLink = () => access({ loginLink: true });
 
 /** The errors any authenticated route can return. */
 export const authProblems = {
   401: { description: "No credential, or one that is unknown, revoked or expired.", content: problemContent },
-  403: { description: "The credential lacks a scope this needs.", content: problemContent },
+  403: {
+    description: "The credential lacks a scope this needs, or is of a kind this does not take.",
+    content: problemContent,
+  },
 };
 
 export const validationProblem = {
@@ -96,6 +125,23 @@ export function definedOnly<T extends object>(body: T): { [K in keyof T]?: Exclu
 /** What routes need from a request's context. */
 export type Ctx = { get<K extends keyof AppEnv["Variables"]>(key: K): AppEnv["Variables"][K] };
 
+/** The member a player's session speaks for. Null for an API key. */
+export function playerOf(c: Ctx): string | null {
+  const { credential } = c.get("auth");
+  return credential.type === "session" ? credential.memberId : null;
+}
+
+/**
+ * The competition, if the caller may see it. A player's session sees only
+ * those open to members once the coach has activated them; to a player, a
+ * private competition or a draft answers exactly as if it did not exist.
+ */
+export async function visibleCompetition(c: Ctx, competitionId: string): Promise<CompetitionRecord | null> {
+  const competition = await getCompetition(c.get("tx"), competitionId);
+  if (!competition) return null;
+  return playerOf(c) && !isVisibleToPlayers(competition) ? null : competition;
+}
+
 /**
  * Records what a request changed, in its own transaction, with its credential
  * as the actor: if the request fails, the event goes with it.
@@ -111,7 +157,11 @@ export async function audit(
     type,
     subjectType: subject.type,
     subjectId: subject.id,
-    actor: { type: credential.type, id: credential.id },
+    // A player acts as themselves, whichever session or link they used.
+    actor:
+      credential.type === "api_key"
+        ? { type: "api_key", id: credential.id }
+        : { type: "member", id: credential.memberId },
     payload,
   });
 }

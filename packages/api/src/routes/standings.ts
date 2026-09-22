@@ -2,7 +2,6 @@ import {
   chaseList,
   competitionProgress,
   entryProgress,
-  getCompetition,
   getEntry,
   type ChaseRow,
   type ProgressCounts,
@@ -12,7 +11,16 @@ import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { AppEnv } from "../context.js";
 import { problems } from "../problems.js";
 import { competitionTables, type DivisionTable } from "../standings.js";
-import { authProblems, IdParam, iso, notFoundProblem, requires, Timestamp, validationProblem } from "./shared.js";
+import {
+  authProblems,
+  IdParam,
+  iso,
+  notFoundProblem,
+  requires,
+  Timestamp,
+  validationProblem,
+  visibleCompetition,
+} from "./shared.js";
 
 // ────────────────────────────────────────────────────────────── standings ──
 
@@ -192,7 +200,7 @@ const standings = createRoute({
     "Every division's table, top division first, computed now from the competition's rules: points, then " +
     "its tiebreaks in order, then the name, so a table never reorders itself. Each row says what separated " +
     "it from the one above.",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam, query: z.object({ division_id: z.uuid().optional() }) },
   responses: {
     200: { description: "The tables.", content: { "application/json": { schema: Standings } } },
@@ -208,7 +216,7 @@ const progress = createRoute({
   tags: ["Standings and progress"],
   summary: "How far through a competition is",
   description: "Overall and by division: how much is played, waiting on a reply or disputed, and how long is left.",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: {
     200: { description: "The competition's progress.", content: { "application/json": { schema: Progress } } },
@@ -222,7 +230,7 @@ const entry = createRoute({
   path: "/v1/entries/{id}/progress",
   tags: ["Standings and progress"],
   summary: "How far through its matches an entry is",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: {
     200: { description: "The entry's progress.", content: { "application/json": { schema: EntryProgress } } },
@@ -265,7 +273,7 @@ export function registerStandings(app: OpenAPIHono<AppEnv>): void {
     const { id } = c.req.valid("param");
     const { division_id } = c.req.valid("query");
     const tx = c.get("tx");
-    const competition = await getCompetition(tx, id);
+    const competition = await visibleCompetition(c, id);
     if (!competition) throw problems.notFound("competition");
     const tables = await competitionTables(tx, competition, { divisionId: division_id, now: new Date() });
     return c.json(toStandings(id, tables), 200);
@@ -274,7 +282,7 @@ export function registerStandings(app: OpenAPIHono<AppEnv>): void {
   app.openapi(progress, async (c) => {
     const { id } = c.req.valid("param");
     const tx = c.get("tx");
-    if (!(await getCompetition(tx, id))) throw problems.notFound("competition");
+    if (!(await visibleCompetition(c, id))) throw problems.notFound("competition");
     const p = await competitionProgress(tx, id);
     const empty = { matches: 0, played: 0, outstanding: 0, reported: 0, disputed: 0, percentPlayed: null };
     return c.json(
@@ -299,7 +307,8 @@ export function registerStandings(app: OpenAPIHono<AppEnv>): void {
   app.openapi(entry, async (c) => {
     const { id } = c.req.valid("param");
     const tx = c.get("tx");
-    if (!(await getEntry(tx, id))) throw problems.notFound("entry");
+    const found = await getEntry(tx, id);
+    if (!found || !(await visibleCompetition(c, found.competitionId))) throw problems.notFound("entry");
     const p = await entryProgress(tx, id);
     return c.json(
       { entry_id: id, matches: p?.matches ?? 0, played: p?.played ?? 0, outstanding: p?.outstanding ?? 0 },

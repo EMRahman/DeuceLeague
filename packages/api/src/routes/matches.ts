@@ -3,16 +3,17 @@ import {
   getCompetition,
   getMatch,
   insertClaim,
+  isVisibleToPlayers,
   listClaims,
   listMatches,
   recordResult,
   setMatchStatus,
+  sideOfMember,
   standingClaimIds,
   supersedeClaims,
   type ClaimRecord,
   type CompetitionRecord,
   type MatchRecord,
-  type Tx,
 } from "@deuceleague/db";
 import { compareClaims, judgeClaims, type Claim } from "@deuceleague/engine";
 import {
@@ -38,9 +39,11 @@ import {
   notFoundProblem,
   PageQuery,
   pageOf,
+  playerOf,
   requires,
   Timestamp,
   validationProblem,
+  visibleCompetition,
   type Ctx,
 } from "./shared.js";
 
@@ -89,7 +92,9 @@ const ClaimOut = z
     }),
     submitted_at: Timestamp,
     confirmed_at: Timestamp.nullable(),
-    raw_input: z.string().nullable().openapi({ description: "What was typed, when the claim came from free text." }),
+    raw_input: z.string().nullable().openapi({
+      description: "What was typed, when the claim came from free text. Never shown to a player's session.",
+    }),
   })
   .openapi("Claim");
 
@@ -115,16 +120,22 @@ const ResultFields = {
   raw_input: z.string().max(2000).optional().openapi({ description: "What the player typed, if they typed it." }),
 };
 
+const SOURCE_DEFAULT = "Defaults to `web` for a player's session, `api` for an API key.";
+
 const NewClaim = z
   .object({
-    side: SideIndex.meta({ description: "The side this claim speaks for." }),
+    side: SideIndex.optional().meta({
+      description:
+        "The side this claim speaks for. Required with an API key. A player's session speaks for its own " +
+        "side only, and may leave it out.",
+    }),
     ...ResultFields,
-    source: ClaimSource.optional().meta({ description: "Defaults to `api`." }),
+    source: ClaimSource.optional().meta({ description: SOURCE_DEFAULT }),
   })
   .openapi("NewClaim");
 
 const Acceptance = z
-  .object({ source: ClaimSource.optional().meta({ description: "Defaults to `api`." }) })
+  .object({ source: ClaimSource.optional().meta({ description: SOURCE_DEFAULT }) })
   .openapi("Acceptance");
 
 const Settlement = z.object(ResultFields).openapi("Settlement");
@@ -156,7 +167,8 @@ function toMatch(m: MatchRecord): z.infer<typeof Match> {
   };
 }
 
-function toClaim(c: ClaimRecord): z.infer<typeof ClaimOut> {
+/** A claim as the caller sees it. What was typed is kept from players: it can say anything, about anyone. */
+function toClaim(c: ClaimRecord, forPlayer: boolean): z.infer<typeof ClaimOut> {
   return {
     id: c.id,
     side: c.sideIndex as SideIndex | null,
@@ -169,7 +181,7 @@ function toClaim(c: ClaimRecord): z.infer<typeof ClaimOut> {
     accepts_claim_id: c.acceptsSubmissionId,
     submitted_at: iso(c.submittedAt),
     confirmed_at: iso(c.confirmedAt),
-    raw_input: c.rawInput,
+    raw_input: forPlayer ? null : c.rawInput,
   };
 }
 
@@ -190,7 +202,8 @@ function liveClaims(claims: ClaimRecord[]): [ClaimRecord | null, ClaimRecord | n
 }
 
 /** The match as the caller should now see it, with every claim and where it stands. */
-async function detail(tx: Tx, matchId: string): Promise<z.infer<typeof MatchDetail>> {
+async function detail(c: Ctx, matchId: string): Promise<z.infer<typeof MatchDetail>> {
+  const tx = c.get("tx");
   const match = (await getMatch(tx, matchId))!;
   const claims = await listClaims(tx, matchId);
   const [side0, side1] = liveClaims(claims);
@@ -198,7 +211,7 @@ async function detail(tx: Tx, matchId: string): Promise<z.infer<typeof MatchDeta
     match.status === "played" ? null : judgeClaims(side0 && asClaim(side0), side1 && asClaim(side1));
   return {
     ...toMatch(match),
-    claims: claims.map(toClaim),
+    claims: claims.map((claim) => toClaim(claim, playerOf(c) !== null)),
     waiting_on: verdict?.status === "reported" ? verdict.waitingOn : null,
     differences: verdict?.status === "disputed" ? verdict.differences : [],
   };
@@ -211,10 +224,12 @@ async function detail(tx: Tx, matchId: string): Promise<z.infer<typeof MatchDeta
  * played. A draft has not started; a complete competition is a record, and
  * the coach reopens it to change a result.
  */
-async function openMatch(tx: Tx, matchId: string): Promise<{ match: MatchRecord; competition: CompetitionRecord }> {
+async function openMatch(c: Ctx, matchId: string): Promise<{ match: MatchRecord; competition: CompetitionRecord }> {
+  const tx = c.get("tx");
   const match = await getMatch(tx, matchId, { lock: true });
   if (!match) throw problems.notFound("match");
   const competition = await getCompetition(tx, match.competitionId);
+  if (competition && playerOf(c) && !isVisibleToPlayers(competition)) throw problems.notFound("match");
   if (competition?.state !== "active") {
     throw problems.conflict(
       "competition_not_active",
@@ -223,6 +238,26 @@ async function openMatch(tx: Tx, matchId: string): Promise<{ match: MatchRecord;
     );
   }
   return { match, competition };
+}
+
+/**
+ * The side a new claim speaks for. An API key names it. A player's session
+ * speaks for its own side and no other, so it may leave the side out.
+ */
+async function claimingSide(c: Ctx, match: MatchRecord, named: SideIndex | undefined): Promise<SideIndex> {
+  const memberId = playerOf(c);
+  if (memberId === null) {
+    if (named === undefined) {
+      throw problems.validation([{ path: "side", message: "required with an API key: the side the claim is for" }]);
+    }
+    return named;
+  }
+  const own = await sideOfMember(c.get("tx"), match.id, memberId);
+  if (own === null) throw problems.notYourMatch();
+  if (named !== undefined && named !== own) {
+    throw problems.notYourSide(`You play on side ${own}; a player reports only for their own side.`);
+  }
+  return own as SideIndex;
 }
 
 /** The result, checked against the competition's format: what catches a transposed score at entry. */
@@ -249,6 +284,9 @@ function ledgerEntry(claim: Claim, checked: ValidatedResult, playedOn: string | 
   };
 }
 
+/** Where a claim came from, when the caller does not say: a player's session is a website or app. */
+const defaultSource = (c: Ctx) => (playerOf(c) === null ? "api" : "web");
+
 async function announceResult(
   c: Ctx,
   match: MatchRecord,
@@ -274,18 +312,33 @@ async function announceResult(
 
 const matchDetail = { content: { "application/json": { schema: MatchDetail } } };
 
+/** What refuses a claim from a player's session, on top of what refuses any credential. */
+const playerRefusals = {
+  403: {
+    ...authProblems[403],
+    description:
+      `${authProblems[403].description} For a player's session: \`not_your_match\` when they are not ` +
+      "playing in it, `not_your_side` when the claim is the other side's to make.",
+  },
+};
+
 const list = createRoute({
   method: "get",
   path: "/v1/matches",
   tags: ["Matches"],
   summary: "List matches",
-  description: "Oldest first. A fixture is simply a match that is `open`.",
-  ...requires("league:read"),
+  description:
+    "Oldest first. A fixture is simply a match that is `open`. A player's session sees the matches of " +
+    "competitions open to members, once they are no longer drafts.",
+  ...requires.orPlayer("league:read"),
   request: {
     query: PageQuery.extend({
       competition_id: z.uuid().optional(),
       division_id: z.uuid().optional(),
       entry_id: z.uuid().optional().openapi({ description: "Matches this entry was drawn in." }),
+      member_id: z.uuid().optional().openapi({
+        description: "Matches this member plays in, singles or doubles. With a player's own id, their matches.",
+      }),
       status: MatchStatus.optional(),
     }),
   },
@@ -301,7 +354,7 @@ const get = createRoute({
   path: "/v1/matches/{id}",
   tags: ["Matches"],
   summary: "A match, with every claim made about it",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: { 200: { description: "The match.", ...matchDetail }, ...authProblems, ...notFoundProblem },
 });
@@ -316,8 +369,9 @@ const report = createRoute({
     "claim: the same result puts it in the ledger, a different one makes the match `disputed`, and none " +
     "leaves it `reported` until the other side answers — however long that takes. A side's new claim " +
     "replaces its previous one, which is kept. Sending the same claim again changes nothing, so a retry " +
-    "is safe. Once a match is played, only the coach can change it.",
-  ...requires("results:write"),
+    "is safe. Once a match is played, only the coach can change it. A player's session reports for its own " +
+    "side of its own matches, and nothing else.",
+  ...requires.orPlayer("results:write"),
   request: {
     params: IdParam,
     body: { content: { "application/json": { schema: NewClaim } }, required: true },
@@ -327,6 +381,7 @@ const report = createRoute({
     200: { description: "The same claim was already standing; nothing changed.", ...matchDetail },
     ...validationProblem,
     ...authProblems,
+    ...playerRefusals,
     ...notFoundProblem,
     ...conflictProblem("`already_played`, or `competition_not_active`."),
   },
@@ -340,8 +395,9 @@ const accept = createRoute({
   description:
     "The side that did not make the claim agrees to it instead of typing the score again, and the result " +
     "enters the ledger. The claim is named, so nobody accepts a score they have not seen: if it has since " +
-    "been replaced, this is refused. Accepting again changes nothing.",
-  ...requires("results:write"),
+    "been replaced, this is refused. Accepting again changes nothing. A player's session accepts only a claim " +
+    "made by the other side of its own match.",
+  ...requires.orPlayer("results:write"),
   request: {
     params: z.object({ id: z.uuid(), claim_id: z.uuid() }),
     body: { content: { "application/json": { schema: Acceptance } }, required: false },
@@ -350,6 +406,7 @@ const accept = createRoute({
     201: { description: "Accepted; the match is played.", ...matchDetail },
     200: { description: "Already accepted; nothing changed.", ...matchDetail },
     ...authProblems,
+    ...playerRefusals,
     ...notFoundProblem,
     ...conflictProblem("`claim_not_live`: the claim was replaced or settled; or `competition_not_active`."),
   },
@@ -386,7 +443,9 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
       competitionId: q.competition_id,
       divisionId: q.division_id,
       entryId: q.entry_id,
+      memberId: q.member_id,
       status: q.status,
+      forPlayer: playerOf(c) !== null,
       limit: q.limit,
       after: q.after,
     });
@@ -396,19 +455,21 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
   app.openapi(get, async (c) => {
     const tx = c.get("tx");
     const { id } = c.req.valid("param");
-    if (!(await getMatch(tx, id))) throw problems.notFound("match");
-    return c.json(await detail(tx, id), 200);
+    const match = await getMatch(tx, id);
+    if (!match || !(await visibleCompetition(c, match.competitionId))) throw problems.notFound("match");
+    return c.json(await detail(c, id), 200);
   });
 
   app.openapi(report, async (c) => {
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
     const tx = c.get("tx");
-    const { match, competition } = await openMatch(tx, id);
+    const { match, competition } = await openMatch(c, id);
+    const side = await claimingSide(c, match, body.side);
     const { claim, checked } = checkResult(body, competition.matchFormat);
 
     if (match.status === "played") {
-      if (compareClaims(ledgerClaim(match), claim).length === 0) return c.json(await detail(tx, id), 200);
+      if (compareClaims(ledgerClaim(match), claim).length === 0) return c.json(await detail(c, id), 200);
       throw problems.conflict(
         "already_played",
         "The result is already in the ledger",
@@ -418,34 +479,34 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
 
     const claims = await listClaims(tx, id);
     const live = liveClaims(claims);
-    const mine = live[body.side];
-    const theirs = live[body.side === 0 ? 1 : 0];
+    const mine = live[side];
+    const theirs = live[side === 0 ? 1 : 0];
     const unchanged =
       mine && compareClaims(asClaim(mine), claim).length === 0 && (body.played_on ?? mine.playedOn) === mine.playedOn;
-    if (unchanged) return c.json(await detail(tx, id), 200);
+    if (unchanged) return c.json(await detail(c, id), 200);
 
     if (mine) await supersedeClaims(tx, [mine.id]);
     const created = await insertClaim(tx, c.get("auth").clubId, {
       matchId: id,
-      sideIndex: body.side,
+      sideIndex: side,
       outcome: claim.outcome,
       score: claim.score,
       retiredSide: claim.retiredSide,
       playedOn: body.played_on ?? null,
       state: "pending",
       acceptsSubmissionId: null,
-      source: body.source ?? "api",
+      source: body.source ?? defaultSource(c),
       rawInput: body.raw_input ?? null,
-      submittedByMemberId: null,
+      submittedByMemberId: playerOf(c),
     });
     await audit(c, "match.claim.reported", { type: "match", id }, {
       claim_id: created.id,
-      side: body.side,
+      side,
       replaces: mine?.id ?? null,
     });
 
     const other = theirs && asClaim(theirs);
-    const verdict = body.side === 0 ? judgeClaims(claim, other) : judgeClaims(other, claim);
+    const verdict = side === 0 ? judgeClaims(claim, other) : judgeClaims(other, claim);
     if (verdict.status === "played") {
       // The second of two matching reports is the one that settled it.
       await confirmClaims(tx, [created.id, theirs!.id]);
@@ -458,21 +519,29 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
     } else {
       await setMatchStatus(tx, id, "reported");
     }
-    return c.json(await detail(tx, id), 201);
+    return c.json(await detail(c, id), 201);
   });
 
   app.openapi(accept, async (c) => {
     const { id, claim_id } = c.req.valid("param");
     const body = c.req.valid("json") ?? {};
     const tx = c.get("tx");
-    const { match, competition } = await openMatch(tx, id);
+    const { match, competition } = await openMatch(c, id);
     const claims = await listClaims(tx, id);
     const accepted = claims.find((cl) => cl.id === claim_id);
     if (!accepted) throw problems.notFound("claim on this match");
 
     const side = accepted.sideIndex === 0 ? 1 : 0;
+    const memberId = playerOf(c);
+    if (memberId !== null) {
+      const own = await sideOfMember(tx, id, memberId);
+      if (own === null) throw problems.notYourMatch();
+      if (own !== side) {
+        throw problems.notYourSide("That claim is your own side's; a player accepts only the other side's.");
+      }
+    }
     const already = claims.find((cl) => cl.acceptsSubmissionId === claim_id && cl.state === "confirmed");
-    if (already && match.acceptedSubmissionId === already.id) return c.json(await detail(tx, id), 200);
+    if (already && match.acceptedSubmissionId === already.id) return c.json(await detail(c, id), 200);
     if (accepted.state !== "pending" || accepted.sideIndex === null) {
       throw problems.conflict(
         "claim_not_live",
@@ -493,9 +562,9 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
       playedOn: accepted.playedOn,
       state: "confirmed",
       acceptsSubmissionId: accepted.id,
-      source: body.source ?? "api",
+      source: body.source ?? defaultSource(c),
       rawInput: null,
-      submittedByMemberId: null,
+      submittedByMemberId: playerOf(c),
     });
     await confirmClaims(tx, [accepted.id]);
     await audit(c, "match.claim.accepted", { type: "match", id }, {
@@ -510,19 +579,19 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
     const entry = ledgerEntry(claim, checked, accepted.playedOn, acceptance.id);
     await recordResult(tx, id, entry);
     await announceResult(c, match, "accepted", entry, null);
-    return c.json(await detail(tx, id), 201);
+    return c.json(await detail(c, id), 201);
   });
 
   app.openapi(settle, async (c) => {
     const { id } = c.req.valid("param");
     const body = c.req.valid("json");
     const tx = c.get("tx");
-    const { match, competition } = await openMatch(tx, id);
+    const { match, competition } = await openMatch(c, id);
     const { claim, checked } = checkResult(body, competition.matchFormat);
     const playedOn = body.played_on ?? match.playedOn;
 
     if (match.status === "played" && compareClaims(ledgerClaim(match), claim).length === 0 && playedOn === match.playedOn) {
-      return c.json(await detail(tx, id), 200);
+      return c.json(await detail(c, id), 200);
     }
 
     // A coach entry speaks for the match: whatever stood before is replaced, and kept.
@@ -543,6 +612,6 @@ export function registerMatches(app: OpenAPIHono<AppEnv>): void {
     const entry = ledgerEntry(claim, checked, playedOn, entryClaim.id);
     await recordResult(tx, id, entry);
     await announceResult(c, match, "settled", entry, match.acceptedSubmissionId);
-    return c.json(await detail(tx, id), 201);
+    return c.json(await detail(c, id), 201);
   });
 }

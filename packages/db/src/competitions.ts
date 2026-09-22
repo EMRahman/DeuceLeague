@@ -1,5 +1,5 @@
 import type { MatchFormat, RulesSpec } from "@deuceleague/schema";
-import { and, asc, count, eq, gt, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, ne, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "./client.js";
 import { uuidv7 } from "./ids.js";
 import { toPage, type Page, type PageRequest } from "./lists.js";
@@ -19,9 +19,24 @@ export type CompetitionChanges = Partial<{
   visibility: string;
 }>;
 
+/**
+ * The competitions a player's session may see: those open to members, once
+ * the coach has activated them. A private one is the coach's alone, and a
+ * draft is the coach's working copy — next season's placements before the
+ * coach has decided them.
+ */
+export function visibleToPlayers(): SQL {
+  return and(eq(competition.visibility, "members"), ne(competition.state, "draft"))!;
+}
+
+/** Whether a player's session may see this competition. The same rule as visibleToPlayers(). */
+export function isVisibleToPlayers(c: Pick<CompetitionRecord, "visibility" | "state">): boolean {
+  return c.visibility === "members" && c.state !== "draft";
+}
+
 export async function listCompetitions(
   tx: Tx,
-  options: { seasonId: string | undefined; state: string | undefined } & PageRequest,
+  options: { seasonId: string | undefined; state: string | undefined; forPlayer: boolean } & PageRequest,
 ): Promise<Page<CompetitionRecord>> {
   const rows = await tx
     .select()
@@ -31,6 +46,7 @@ export async function listCompetitions(
         options.after ? gt(competition.id, options.after) : undefined,
         options.seasonId ? eq(competition.seasonId, options.seasonId) : undefined,
         options.state ? eq(competition.state, options.state) : undefined,
+        options.forPlayer ? visibleToPlayers() : undefined,
       ),
     )
     .orderBy(asc(competition.id))

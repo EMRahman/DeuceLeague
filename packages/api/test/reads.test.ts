@@ -270,7 +270,10 @@ test("demo:seed builds the demo through the API, with read keys that stay the sa
 test("the spec lists the read routes with the scopes they need", async () => {
   const spec = (await send("GET", "/openapi.json")).body;
   const security = (path: string) => spec.paths[path]?.get?.security ?? spec.paths[path]?.post?.security;
-  assert.deepEqual(security("/v1/competitions/{id}/standings"), [{ apiKey: ["league:read"] }]);
+  assert.deepEqual(security("/v1/competitions/{id}/standings"), [
+    { apiKey: ["league:read"] },
+    { session: ["league:read"] },
+  ]);
   assert.deepEqual(security("/v1/chase-list"), [{ apiKey: ["members:read"] }]);
   assert.deepEqual(security("/v1/competitions/{id}/placements"), [{ apiKey: ["league:write"] }]);
   assert.equal(Object.keys(spec.paths).some((p) => p.startsWith("/v1/public")), false, "no routes without a credential");

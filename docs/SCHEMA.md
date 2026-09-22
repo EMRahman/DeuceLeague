@@ -240,7 +240,7 @@ A credential for a non-member client — a bot, an app — to call the API as th
 
 ## access_grant
 
-A short-lived, single-member token backing magic links and player sessions.
+A player's way in: a one-time login link, or the session it is exchanged for. Each speaks for one member. Revoking one deletes it, so every row still works or has expired.
 
 **Row-level security:** enabled (policies: `tenant_isolation`)
 
@@ -249,11 +249,11 @@ A short-lived, single-member token backing magic links and player sessions.
 | `id` | `uuid` | no | `gen_random_uuid()` | Primary key. The application generates a UUIDv7 so ids sort chronologically and player-facing URLs can't be enumerated; the column default (gen_random_uuid()) is only a fallback for rows inserted without one. |
 | `club_id` | `uuid` | no | — | Which club this row belongs to. Enforced by a row-level security policy comparing it to deuceleague_current_club(). |
 | `member_id` | `uuid` | no | — | Which member this grant authenticates. Unlike an API key, a grant always speaks for exactly one member. |
-| `token_hash` | `text` | no | — | SHA-256 hash of the token. The token itself is shown once, in the magic link or session cookie, and only this hash is stored. |
-| `scopes` | `text[]` | no | — | Which scopes this grant carries. |
-| `expires_at` | `timestamp with time zone` | no | — | When this grant stops being valid. |
-| `used_at` | `timestamp with time zone` | yes | — | When a one-time magic link was first used. A session token ignores this; the API refuses reuse only for the former. |
+| `token_hash` | `text` | no | — | SHA-256 hash of the token. The token itself is shown once — in the login link, or to the website holding the session — and only this hash is stored. |
+| `scopes` | `text[]` | no | — | Which scopes this grant carries: a player's, league:read and results:write. The API narrows them further, to competitions open to members and the player's own side. |
+| `expires_at` | `timestamp with time zone` | yes | — | When this grant stops working. Always set for a login link; null for a session, which lasts until it is signed out. |
 | `created_at` | `timestamp with time zone` | no | `now()` | When this row was created. |
+| `kind` | `text` | no | — | login_link: works once, to be exchanged for a session, and expires within minutes. session: what a signed-in player presents; it does not expire, and ends when it is signed out or the member is removed. |
 
 **Primary key:** `access_grant_pkey` (`id`)
 
@@ -269,8 +269,14 @@ A short-lived, single-member token backing magic links and player sessions.
 **Indexes:**
 
 - `access_grant_expiry_ix`: `CREATE INDEX access_grant_expiry_ix ON public.access_grant USING btree (expires_at)`
+- `access_grant_member_ix`: `CREATE INDEX access_grant_member_ix ON public.access_grant USING btree (member_id)`
 - `access_grant_pkey`: `CREATE UNIQUE INDEX access_grant_pkey ON public.access_grant USING btree (id)`
 - `access_grant_token_hash_unique`: `CREATE UNIQUE INDEX access_grant_token_hash_unique ON public.access_grant USING btree (token_hash)`
+
+**Check constraints:**
+
+- `access_grant_kind_ck`: `CHECK ((kind = ANY (ARRAY['login_link'::text, 'session'::text])))`
+- `access_grant_link_expires_ck`: `CHECK (((kind <> 'login_link'::text) OR (expires_at IS NOT NULL)))`
 
 **Referenced by:**
 
@@ -907,9 +913,9 @@ Trigger function that refuses any UPDATE or DELETE on event, enforcing that the 
 
 ### `deuceleague_resolve_access_grant(token_hash text)`
 
-Returns `TABLE(club_id uuid, access_grant_id uuid, member_id uuid, scopes text[], used_at timestamp with time zone)`. SECURITY DEFINER.
+Returns `TABLE(club_id uuid, access_grant_id uuid, member_id uuid, kind text, scopes text[])`. SECURITY DEFINER.
 
-Looks up an unexpired access grant, for a member who has not been removed, by the SHA-256 hash of its token. SECURITY DEFINER, for the same reason as deuceleague_resolve_api_key().
+Looks up a live access grant — a login link that has not expired, or a session — for a member who has not been removed, by the SHA-256 hash of its token. Returns its kind, so the API can accept a link only for exchanging it. SECURITY DEFINER, for the same reason as deuceleague_resolve_api_key().
 
 ### `deuceleague_resolve_api_key(key_hash text)`
 

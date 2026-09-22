@@ -316,6 +316,21 @@ EXCEPTION WHEN raise_exception THEN
   RAISE NOTICE '  PASS  the event log rejects deletes';
 END $$;
 
+-- ── logins ──────────────────────────────────────────────────────────────────
+
+DO $$
+BEGIN
+  INSERT INTO access_grant (club_id, member_id, kind, token_hash, scopes, expires_at)
+    VALUES ('11111111-1111-7111-8111-111111111111', 'a0000000-0000-7000-8000-000000000001',
+            'session', 'session-for-good', '{league:read,results:write}', NULL);
+  INSERT INTO access_grant (club_id, member_id, kind, token_hash, scopes, expires_at)
+    VALUES ('11111111-1111-7111-8111-111111111111', 'a0000000-0000-7000-8000-000000000001',
+            'login_link', 'link-for-good', '{league:read,results:write}', NULL);
+  RAISE EXCEPTION 'FAIL: a login link was made that never expires';
+EXCEPTION WHEN check_violation THEN
+  RAISE NOTICE '  PASS  a session may last for good; a login link must expire';
+END $$;
+
 -- ── everything else ─────────────────────────────────────────────────────────
 
 DO $$

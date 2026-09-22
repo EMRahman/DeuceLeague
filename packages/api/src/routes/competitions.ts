@@ -33,10 +33,12 @@ import {
   notFoundProblem,
   PageQuery,
   pageOf,
+  playerOf,
   requires,
   sentFields,
   Timestamp,
   validationProblem,
+  visibleCompetition,
 } from "./shared.js";
 
 type Preset = keyof typeof MATCH_FORMATS;
@@ -171,8 +173,8 @@ const list = createRoute({
   path: "/v1/competitions",
   tags: ["Competitions"],
   summary: "List competitions",
-  description: "Oldest first.",
-  ...requires("league:read"),
+  description: "Oldest first. A player's session sees those open to members, once they are no longer drafts.",
+  ...requires.orPlayer("league:read"),
   request: { query: PageQuery.extend({ season_id: z.uuid().optional(), state: CompetitionState.optional() }) },
   responses: {
     200: {
@@ -189,7 +191,7 @@ const get = createRoute({
   path: "/v1/competitions/{id}",
   tags: ["Competitions"],
   summary: "A competition",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: { 200: { description: "The competition.", ...one }, ...authProblems, ...notFoundProblem },
 });
@@ -235,12 +237,18 @@ const patch = createRoute({
 export function registerCompetitions(app: OpenAPIHono<AppEnv>): void {
   app.openapi(list, async (c) => {
     const { season_id, state, limit, after } = c.req.valid("query");
-    const page = await listCompetitions(c.get("tx"), { seasonId: season_id, state, limit, after });
+    const page = await listCompetitions(c.get("tx"), {
+      seasonId: season_id,
+      state,
+      forPlayer: playerOf(c) !== null,
+      limit,
+      after,
+    });
     return c.json({ data: page.rows.map(toCompetition), next_cursor: page.next }, 200);
   });
 
   app.openapi(get, async (c) => {
-    const competition = await getCompetition(c.get("tx"), c.req.valid("param").id);
+    const competition = await visibleCompetition(c, c.req.valid("param").id);
     if (!competition) throw problems.notFound("competition");
     return c.json(toCompetition(competition), 200);
   });

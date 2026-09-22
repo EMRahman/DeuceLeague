@@ -4,7 +4,7 @@ Open-source club tennis league software: the database and the API. Everything
 people see — websites, phone apps, Telegram bots — is built on top by whoever
 wants it, and they keep whatever they put on it.
 
-**Status:** data model complete and verified — 13 tables, 7 views, 64 database checks
+**Status:** data model complete and verified — 13 tables, 7 views, 65 database checks
 green against a real Postgres. The API is being built: see
 [docs/API.md](docs/API.md) for the plan and progress.
 

@@ -27,8 +27,15 @@ export {
   createApiKey,
   revokeApiKey,
   anotherAdminKeyExists,
+  resolveAccessGrant,
+  createLoginLink,
+  consumeLoginLink,
+  createSession,
+  endSession,
+  endMemberAccess,
   type ResolvedApiKey,
   type ApiKeyRecord,
+  type ResolvedAccessGrant,
 } from "./access.js";
 export {
   createClub,
@@ -63,6 +70,8 @@ export {
 } from "./seasons.js";
 export {
   listCompetitions,
+  visibleToPlayers,
+  isVisibleToPlayers,
   getCompetition,
   createCompetition,
   updateCompetition,
@@ -98,6 +107,7 @@ export { insertFixtures, type NewFixture } from "./fixtures.js";
 export {
   listMatches,
   getMatch,
+  sideOfMember,
   listClaims,
   insertClaim,
   confirmClaims,

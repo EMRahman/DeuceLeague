@@ -3,7 +3,6 @@ import {
   createEntry,
   deleteEntry,
   deleteOpenFixtures,
-  getCompetition,
   getDivision,
   getEntry,
   listEntries,
@@ -31,6 +30,7 @@ import {
   sentFields,
   Timestamp,
   validationProblem,
+  visibleCompetition,
 } from "./shared.js";
 
 const Entry = z
@@ -205,7 +205,7 @@ const list = createRoute({
   tags: ["Entries"],
   summary: "A competition's entries",
   description: "In the order they were made. Not paged: a competition has a few dozen at most.",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: {
     params: IdParam,
     query: z.object({ division_id: z.uuid().optional(), state: EntryState.optional() }),
@@ -226,7 +226,7 @@ const get = createRoute({
   path: "/v1/entries/{id}",
   tags: ["Entries"],
   summary: "An entry",
-  ...requires("league:read"),
+  ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: { 200: { description: "The entry.", ...one }, ...authProblems, ...notFoundProblem },
 });
@@ -307,14 +307,14 @@ export function registerEntries(app: OpenAPIHono<AppEnv>): void {
     const { id } = c.req.valid("param");
     const { division_id, state } = c.req.valid("query");
     const tx = c.get("tx");
-    if (!(await getCompetition(tx, id))) throw problems.notFound("competition");
+    if (!(await visibleCompetition(c, id))) throw problems.notFound("competition");
     const entries = await listEntries(tx, id, { divisionId: division_id, state });
     return c.json({ data: entries.map(toEntry) }, 200);
   });
 
   app.openapi(get, async (c) => {
     const entry = await getEntry(c.get("tx"), c.req.valid("param").id);
-    if (!entry) throw problems.notFound("entry");
+    if (!entry || !(await visibleCompetition(c, entry.competitionId))) throw problems.notFound("entry");
     return c.json(toEntry(entry), 200);
   });
 

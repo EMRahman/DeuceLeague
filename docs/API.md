@@ -10,10 +10,11 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** phases 1 to 5 of 7 are done — a club can be set up, run and
+> **Status:** phases 1 to 6 of 7 are done — a club can be set up, run and
 > read through the API: structure, results, the event feed, standings,
-> progress, the chase list and placements into next season. Player logins and
-> self-hosting remain. See [Build order](#build-order).
+> progress, the chase list and placements into next season; and players can
+> sign in to read their league and report their own results. Self-hosting
+> remains. See [Build order](#build-order).
 
 ## One club per credential
 
@@ -35,15 +36,15 @@ row-level security, because either would switch tenancy off without a sound.
 | Caller | Credential | Can do |
 |---|---|---|
 | A coach's tools, bots and scripts | API key: `Authorization: Bearer dl_…` | whatever the key's scopes allow |
-| A player | a session, from a magic link | read their league; report and accept results for their own matches only |
+| A player | a session, `Bearer dls_…`, from a login link | read their league; report and accept results for their own matches only |
 
 Nobody else. Every `/v1` route needs a credential: competitions, tables and
 results are shown only to someone who has authenticated, never to an anonymous
 visitor. Only `/healthz` and `/openapi.json` answer without one.
 
-A key is shown once, when it is created; only its SHA-256 is stored. A coach
-who would rather log in than hold a key is a member with an access grant that
-carries coach scopes — there is no separate user-account system.
+A key, a link or a session is shown once, when it is created; only its
+SHA-256 is stored. Logging in is for players: a coach works through a key,
+usually held by their coding agent. There is no separate user-account system.
 
 ## Scopes
 
@@ -62,10 +63,14 @@ is always deliberate, and recorded in the event log. A key can grant only the
 scopes it holds itself, so an admin key without `members:pii` cannot mint one
 that has it.
 
+A player's session holds `league:read` and `results:write` too, but they mean
+less on a session than on a key — see [Player logins](#services).
+
 ## Services
 
-**Me.** `GET /v1/me` — which club, which credential, which scopes. The first
-call anything makes, and the quickest way to check a key works.
+**Me.** `GET /v1/me` — which club, which credential, which scopes, and for a
+player's session, who is signed in. The first call anything makes, and the
+quickest way to check a key works.
 
 **Club and keys** (`admin`). Read and change the club's name, time zone and
 branding — they are the coach's settings; any credential can still learn which
@@ -83,17 +88,37 @@ display name, which becomes "Erased member", an entry name that might spell
 theirs out, and anything they typed when reporting a score. Events record
 which fields changed, never the values, because the log cannot be erased.
 
-**Player logins** (`members:write`). Mint a one-time login link for a member.
-It is returned to the caller, whose own tooling delivers it — the core does not
-send email. The link works once and expires within minutes; the player
-exchanges it for a session.
+**Player logins.** A key holding `members:write` makes a login link for a
+member, `POST /v1/members/{id}/login-link`, and gets back its token. The
+caller's own tooling puts it in a link and delivers it — the core does not send
+email. The link works once, for fifteen minutes. The player's website
+exchanges it for a session, `POST /v1/session` with the link's token as the
+credential, from a page the player submits rather than on opening the link,
+because mail scanners open links before people do.
 
 A session never expires. A player logs in once per phone and never again,
 because a league is used a few times a month and a login screen each time is
-how players drift away. It ends only when they sign out, when the coach signs
-them out everywhere — for a lost phone — or when the member is removed. That is
-safe to leave open because a session can act only for that player's own
-matches, and a result still needs the other side to agree.
+how players drift away. It ends only when they sign out (`DELETE /v1/session`),
+when the coach signs them out everywhere (`POST /v1/members/{id}/sign-out`) —
+for a lost phone — or when the member is removed. That is safe to leave open
+because a session can act only for that player's own matches, and a result
+still needs the other side to agree. Ending a session deletes it, as using a
+link does: nothing is kept that no longer works.
+
+A session does less than its scopes suggest. It reads seasons, and the
+competitions open to members once the coach has activated them; a private
+competition, or a draft holding next season's placements before the coach has
+decided them, answers as if it did not exist. It reports and accepts results
+for its own side of its own matches, without having to name the side. It
+cannot read the member list, the chase list or the event feed, or change
+anything else, and everything it sees names people by display name only. A
+route takes a session only by saying so — `requires.orPlayer` in the code, a
+`session` entry in the spec's security — and the API refuses a player
+anywhere else, even on a route that forgot to check.
+
+Each link made is logged with the key that made it, and each sign-in with the
+link it used, so if a key holding `members:write` leaks, the event feed says
+which members to sign out.
 
 Browsers have their own limits, which the website works with: it sets the
 session cookie from its own server, never from page scripts (Safari clears
@@ -138,10 +163,11 @@ or played. A disputed match says exactly what differs, in words a player can
 act on. A side can accept the other's score instead of retyping it, naming the
 claim it accepts, so nobody agrees to a score they have not seen. The coach can
 settle any match (`league:write`), including one already played; the claims it
-replaces are kept, marked superseded. A player may claim only for their own
-side, and sending the same claim twice is harmless, so a bot that retries does
-no damage. Two claims on one match are judged one after the other, so both
-sides reporting at the same moment still agree.
+replaces are kept, marked superseded. A player's session claims only for its
+own side, so it need not name the side; a key must. Sending the same claim
+twice is harmless, so a bot that retries does no damage. Two claims on one
+match are judged one after the other, so both sides reporting at the same
+moment still agree.
 
 Results are recorded while a competition is active. A complete one is a
 record, so correcting it means reopening it first. The results deadline is not
@@ -233,8 +259,8 @@ Each phase ends with its tests green and is committed on its own.
 5. ✓ **Read endpoints and placements.** Standings, progress, the chase list,
    placements into a draft competition, and `npm run demo:seed`. No
    endpoint serves anything without a credential.
-6. **Player logins.** `access_grant` changes so a session can have no expiry
-   while a login link still must, and so a session can be revoked.
+6. ✓ **Player logins.** A login link that works once and a session that never
+   expires, signing out, and what a player's session may see and do.
 7. **Self-hosting.** A Dockerfile and Compose service, the setup guide, the
    demo instance, and a small reference website, so a club has player login
    and score reporting out of the box. The website is an adapter built on the

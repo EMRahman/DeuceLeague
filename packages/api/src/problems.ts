@@ -65,19 +65,31 @@ export function problemResponse(c: Context, error: ApiError): Response {
 
 const REALM = 'Bearer realm="deuceleague"';
 
+const CREDENTIAL_NAMES = {
+  api_key: "an API key",
+  session: "a player's session",
+  login_link: "a login link, to exchange for a session",
+};
+
 /** The problems every route can return, named once so they read the same everywhere. */
 export const problems = {
   missingCredential: () =>
     new ApiError(401, "missing_credential", "No credential was presented", {
-      detail: "Send an API key as `Authorization: Bearer dl_…`.",
+      detail: "Send an API key as `Authorization: Bearer dl_…`, or a player's session as `Bearer dls_…`.",
       headers: { "WWW-Authenticate": REALM },
     }),
-  // One answer for unknown, revoked and expired alike: telling them apart would
-  // tell someone holding a stolen key whether it was ever real.
+  // One answer for unknown, revoked, expired and used alike: telling them apart
+  // would tell someone holding a stolen key or link whether it was ever real.
   invalidCredential: () =>
     new ApiError(401, "invalid_credential", "The credential is not valid", {
-      detail: "The key is unknown, revoked or expired.",
+      detail: "The key or token is unknown, revoked or expired, or a login link that was already used.",
       headers: { "WWW-Authenticate": `${REALM}, error="invalid_token"` },
+    }),
+  /** A valid credential of a kind this route does not take, such as a player's session where only a key will do. */
+  credentialNotAccepted: (accepted: ("api_key" | "session" | "login_link")[]) =>
+    new ApiError(403, "credential_not_accepted", "This credential cannot be used here", {
+      detail: `This takes ${accepted.map((kind) => CREDENTIAL_NAMES[kind]).join(" or ")}.`,
+      extra: { accepted_credentials: accepted },
     }),
   insufficientScope: (missing: string[]) =>
     new ApiError(403, "insufficient_scope", "The credential does not allow this", {
@@ -93,6 +105,13 @@ export const problems = {
   /** `what` names the record, e.g. "season". Another club's record gets the same answer. */
   notFound: (what?: string) =>
     new ApiError(404, "not_found", "Nothing here", what ? { detail: `No ${what} with that id in this club.` } : {}),
+  /** A player's session acting on a match they are not playing in. */
+  notYourMatch: () =>
+    new ApiError(403, "not_your_match", "You are not playing in this match", {
+      detail: "A player reports and accepts results only for their own matches.",
+    }),
+  /** A player's session speaking for the other side of their match. */
+  notYourSide: (detail: string) => new ApiError(403, "not_your_side", "That is not your side", { detail }),
   conflict: (code: string, title: string, detail?: string) =>
     new ApiError(409, code, title, detail === undefined ? {} : { detail }),
   internal: () =>

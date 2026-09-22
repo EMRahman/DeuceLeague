@@ -3,7 +3,8 @@ import { and, asc, eq, gt, inArray, ne, sql, type SQL } from "drizzle-orm";
 import type { Tx } from "./client.js";
 import { uuidv7 } from "./ids.js";
 import { toPage, type Page, type PageRequest } from "./lists.js";
-import { match, matchSide, resultSubmission } from "./schema.js";
+import { visibleToPlayers } from "./competitions.js";
+import { competition, entryMember, match, matchSide, resultSubmission } from "./schema.js";
 
 export type MatchRecord = typeof match.$inferSelect & {
   /** Side 0 then side 1: the entry drawn to play each, and how it is written. */
@@ -41,7 +42,10 @@ export async function listMatches(
     competitionId: string | undefined;
     divisionId: string | undefined;
     entryId: string | undefined;
+    memberId: string | undefined;
     status: string | undefined;
+    /** Only matches in competitions a player's session may see. */
+    forPlayer: boolean;
   } & PageRequest,
 ): Promise<Page<MatchRecord>> {
   const where: (SQL | undefined)[] = [
@@ -51,6 +55,19 @@ export async function listMatches(
     options.status ? eq(match.status, options.status) : undefined,
     options.entryId
       ? inArray(match.id, tx.select({ id: matchSide.matchId }).from(matchSide).where(eq(matchSide.entryId, options.entryId)))
+      : undefined,
+    options.memberId
+      ? inArray(
+          match.id,
+          tx
+            .select({ id: matchSide.matchId })
+            .from(matchSide)
+            .innerJoin(entryMember, eq(entryMember.entryId, matchSide.entryId))
+            .where(eq(entryMember.memberId, options.memberId)),
+        )
+      : undefined,
+    options.forPlayer
+      ? inArray(match.competitionId, tx.select({ id: competition.id }).from(competition).where(visibleToPlayers()))
       : undefined,
   ];
   const rows = await tx
@@ -74,6 +91,19 @@ export async function getMatch(tx: Tx, matchId: string, options: { lock?: boolea
   if (!row) return null;
   const [withSidesRow] = await withSides(tx, [row]);
   return withSidesRow ?? null;
+}
+
+/**
+ * The side a member plays on in a match, or null if they are on neither. A
+ * member is in at most one entry per competition, so never on both sides.
+ */
+export async function sideOfMember(tx: Tx, matchId: string, memberId: string): Promise<number | null> {
+  const [row] = await tx
+    .select({ side: matchSide.sideIndex })
+    .from(matchSide)
+    .innerJoin(entryMember, eq(entryMember.entryId, matchSide.entryId))
+    .where(and(eq(matchSide.matchId, matchId), eq(entryMember.memberId, memberId)));
+  return row?.side ?? null;
 }
 
 /** Every claim ever made about a match, oldest first. */

@@ -88,6 +88,13 @@ export const SubmissionSource = z.enum([
 export const ActorType = z.enum(["member", "api_key", "system"]);
 
 /**
+ * What an access grant is. A `login_link` works once and expires within
+ * minutes; exchanging it creates a `session`, which does not expire and ends
+ * only when it is signed out. Both speak for one member.
+ */
+export const AccessGrantKind = z.enum(["login_link", "session"]);
+
+/**
  * What an API key or access grant may do. Stored as text arrays, so this list
  * has no CHECK constraint to mirror; the API validates against it. A new key
  * defaults to `league:read` + `results:write`, and `members:pii` is always a
@@ -105,6 +112,13 @@ export const Scope = z.enum([
 
 export const DEFAULT_SCOPES = ["league:read", "results:write"] as const;
 
+/**
+ * What a player's session holds: reading their league and reporting results.
+ * The API narrows both further, to competitions open to members and to the
+ * player's own side, so the same scopes on a session mean less than on a key.
+ */
+export const PLAYER_SCOPES = ["league:read", "results:write"] as const;
+
 export type SeasonState = z.infer<typeof SeasonState>;
 export type SeasonKind = z.infer<typeof SeasonKind>;
 export type CompetitionState = z.infer<typeof CompetitionState>;
@@ -121,4 +135,5 @@ export type MatchOutcome = z.infer<typeof MatchOutcome>;
 export type SubmissionState = z.infer<typeof SubmissionState>;
 export type SubmissionSource = z.infer<typeof SubmissionSource>;
 export type ActorType = z.infer<typeof ActorType>;
+export type AccessGrantKind = z.infer<typeof AccessGrantKind>;
 export type Scope = z.infer<typeof Scope>;

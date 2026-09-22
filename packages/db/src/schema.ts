@@ -154,7 +154,11 @@ export const apiKey = pgTable(
   ],
 );
 
-/** Short-lived, single-member tokens. Backs magic links and player sessions. */
+/**
+ * A player's way in: a one-time login link, or the session it is exchanged
+ * for. Each speaks for one member. Revoking one deletes it — a used link, a
+ * signed-out session — so every row here still works, or has expired.
+ */
 export const accessGrant = pgTable(
   "access_grant",
   {
@@ -163,10 +167,11 @@ export const accessGrant = pgTable(
       .notNull()
       .references(() => club.id, { onDelete: "cascade" }),
     memberId: uuid("member_id").notNull(),
+    kind: text("kind").notNull(),
     tokenHash: text("token_hash").notNull().unique(),
     scopes: text("scopes").array().notNull(),
-    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    usedAt: timestamp("used_at", { withTimezone: true }),
+    /** A login link always expires; a session does not, so players stay signed in. */
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
     createdAt: createdAt(),
   },
   (t) => [
@@ -175,7 +180,10 @@ export const accessGrant = pgTable(
       foreignColumns: [member.id, member.clubId],
       name: "access_grant_member_fk",
     }).onDelete("cascade"),
+    index("access_grant_member_ix").on(t.memberId),
     index("access_grant_expiry_ix").on(t.expiresAt),
+    oneOf("access_grant_kind_ck", "kind", ["login_link", "session"]),
+    check("access_grant_link_expires_ck", sql`kind <> 'login_link' or expires_at is not null`),
   ],
 );
 
