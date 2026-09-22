@@ -14,7 +14,7 @@ import {
   type Standings,
 } from "./api.js";
 import type { Mailer } from "./mail.js";
-import { describe, readReportForm, scoreLine } from "./score.js";
+import { describe, playedOn, readReportForm, scoreLine } from "./score.js";
 import {
   CompetitionPage,
   ConfirmSignIn,
@@ -95,7 +95,7 @@ function breakdowns(standings: Standings, matches: Match[]): Record<string, Brea
         const match = byId.get(line.match_id);
         const side = match?.sides.find((s) => s.entry_id === row.entry_id)?.side ?? 0;
         const score = match?.result ? describe(match.result, side, names(match)) : "";
-        return { line, opponent: labelOf(line.opponent_entry_id), score };
+        return { line, opponent: labelOf(line.opponent_entry_id), score, date: playedOn(match?.result?.played_on) };
       });
       const counted = new Set(row.matches.map((l) => l.match_id));
       const toPlay = matches
@@ -309,7 +309,9 @@ export function createWebsite(options: WebsiteOptions) {
       const opponent = namesOf(m)[mine === 0 ? 1 : 0];
       const item = (note: string): MyMatch => ({ id: m.id, competition: competition.name, opponent, note });
       if (m.status === "played") {
-        played.push(item(m.result?.score ? scoreLine(m.result.score, mine) : (m.result?.outcome ?? "")));
+        const result = m.result?.score ? scoreLine(m.result.score, mine) : (m.result?.outcome ?? "");
+        const date = playedOn(m.result?.played_on);
+        played.push(item(date ? `${result} · ${date}` : result));
       } else if (competition.state !== "active") {
         continue;
       } else if (m.status === "open") {

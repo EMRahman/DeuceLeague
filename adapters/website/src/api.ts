@@ -138,6 +138,8 @@ export type StandingsRow = {
   outstanding: number;
   matches: MatchLine[];
   all_played_bonus: number;
+  /** Where it would go if the competition ended now: the engine's suggestion, never a decision. */
+  movement: "promoted" | "relegated" | null;
 };
 
 export type Standings = {

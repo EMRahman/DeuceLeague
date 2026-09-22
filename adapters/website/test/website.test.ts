@@ -217,6 +217,8 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.match(samRow, /^<details class="row">/, "someone else's row starts closed");
   assert.match(samRow, /Beat Alex P\./);
   assert.match(samRow, /6-4, 6-3/, "the score from Sam's side, whoever is looking");
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  assert.ok(samRow.includes(today), `the day it was played, ${today}`);
   assert.match(samRow, /Win 4 · Sets won 2/);
   assert.match(samRow, /Turned up to every match/);
   assert.match(samRow, /Total<\/span><span class="pts">7 pts/);
@@ -270,4 +272,28 @@ test("a form posted from another site is refused, and the site says when it has 
   assert.equal(unset.status, 503);
   assert.match(unset.html, /not set up yet/);
   assert.equal((await website(undefined).app.request(`${SITE}/healthz`)).status, 200);
+});
+
+test("every division shows on one page, with its promotion and relegation places marked", async () => {
+  const club = await newClub("website-movement");
+  const { competitionId, divisionIds } = await league(club, { discipline: "singles" }, 2);
+  const { rules } = (await send("GET", `/v1/competitions/${competitionId}`, club.key)).body;
+  const oneUpOneDown = { ...rules, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } };
+  assert.equal((await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { rules: oneUpOneDown })).status, 200);
+  const me = await member(club, { display_name: "Aaron", email: "aaron@example.org" });
+  await enter(club, competitionId, divisionIds[0]!, [me]);
+  await enter(club, competitionId, divisionIds[0]!, [await member(club, { display_name: "Bella" })]);
+  await enter(club, competitionId, divisionIds[1]!, [await member(club, { display_name: "Carl" })]);
+  await enter(club, competitionId, divisionIds[1]!, [await member(club, { display_name: "Dina" })]);
+  for (const d of divisionIds) await send("POST", `/v1/divisions/${d}/fixtures`, club.key);
+  assert.equal((await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { state: "active" })).status, 200);
+
+  const site = website(await websiteKey(club));
+  const page = (await (await signIn(site, "aaron@example.org")).get(`/competitions/${competitionId}`)).html;
+  assert.match(page, /Division 1[\s\S]*Division 2/, "both divisions, top first, on the same page");
+  // Nothing played: name order. Bella is bottom of Division 1, Carl top of Division 2.
+  assert.match(page, /<tr class="me">[\s\S]*?Aaron<\/summary>/, "the top division promotes nobody");
+  assert.match(page, /<tr class="relegated">[\s\S]*?Bella<\/summary>/);
+  assert.match(page, /<tr class="promoted">[\s\S]*?Carl<\/summary>/);
+  assert.match(page, /Promotion places/);
 });

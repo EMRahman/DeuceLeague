@@ -94,6 +94,33 @@ test("standings are computed from the matches on every read, and outstanding mat
   assert.deepEqual([cal.outstanding, cal.unplayed], [0, 1], "past the deadline, an outstanding match is unplayed");
 });
 
+test("each row says whether it would go up or down if the competition ended now", async () => {
+  const c = await newClub("movement");
+  const rules = { ...DEFAULT_RULES, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } };
+  const { competitionId, divisionIds } = await competitionOf(
+    c,
+    [["A1", "A2", "A3"], ["B1", "B2", "B3"], ["C1", "C2", "C3"]],
+    { rules },
+  );
+  // Nothing played: each table is in name order, so the first is top and the last bottom.
+  const table = await send("GET", `/v1/competitions/${competitionId}/standings`, c.key);
+  const moves = table.body.divisions.map((d: { rows: { label: string; movement: string | null }[] }) =>
+    d.rows.map((r) => `${r.label} ${r.movement ?? "-"}`),
+  );
+  assert.deepEqual(moves, [
+    ["A1 -", "A2 -", "A3 relegated"],
+    ["B1 promoted", "B2 -", "B3 relegated"],
+    ["C1 promoted", "C2 -", "C3 -"],
+  ], "the top division promotes nobody, and the bottom relegates nobody");
+
+  const one = await send("GET", `/v1/competitions/${competitionId}/standings?division_id=${divisionIds[1]}`, c.key);
+  assert.deepEqual(
+    one.body.divisions[0].rows.map((r: { movement: string | null }) => r.movement),
+    ["promoted", null, "relegated"],
+    "asking for one division still knows the ones around it",
+  );
+});
+
 test("progress counts what is played, waiting and disputed, by competition, division and entry", async () => {
   const c = await newClub("progress");
   const { competitionId, entries: e, matches } = await competitionOf(c, [["Ann", "Bea", "Cal"]]);

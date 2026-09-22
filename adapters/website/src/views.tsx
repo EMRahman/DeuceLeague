@@ -1,6 +1,6 @@
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Side, Standings, StandingsRow } from "./api.js";
-import { describe, OUTCOMES, setRows } from "./score.js";
+import { describe, OUTCOMES, playedOn, setRows } from "./score.js";
 
 /**
  * Every page, as plain server-rendered HTML: no scripts, so it works on any
@@ -10,9 +10,11 @@ import { describe, OUTCOMES, setRows } from "./score.js";
 
 const STYLE = `
 :root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
-  --warn: #8a4b08; --warn-bg: #fdf1e2; --card: #fff; color-scheme: light dark; }
+  --warn: #8a4b08; --warn-bg: #fdf1e2; --card: #fff; --up: #2f6b3a; --up-bg: #e9f4ea; --down: #a3341f; --down-bg: #fbece8;
+  color-scheme: light dark; }
 @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe7; --muted: #a09e98; --line: #33322f;
-  --accent: #6fbf7c; --accent-fg: #0f1a11; --warn: #f0b36a; --warn-bg: #2d2214; --card: #1f1f1d; } }
+  --accent: #6fbf7c; --accent-fg: #0f1a11; --warn: #f0b36a; --warn-bg: #2d2214; --card: #1f1f1d;
+  --up: #7fcf8b; --up-bg: #1c2b1e; --down: #f0907c; --down-bg: #33201b; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
 header, main, footer { max-width: 44rem; margin: 0 auto; padding: 0 16px; }
@@ -37,6 +39,17 @@ th, td { text-align: right; padding: .4rem .3rem; border-bottom: 1px solid var(-
 th:nth-child(2), td:nth-child(2) { text-align: left; width: 100%; }
 th { font-size: .8rem; color: var(--muted); font-weight: 500; }
 tr.me td { font-weight: 700; }
+tr.promoted td { background: var(--up-bg); }
+tr.relegated td { background: var(--down-bg); }
+tr.promoted td:first-child { box-shadow: inset 3px 0 var(--up); }
+tr.relegated td:first-child { box-shadow: inset 3px 0 var(--down); }
+.move { font-size: .7rem; margin-left: .15rem; }
+tr.promoted .move { color: var(--up); }
+tr.relegated .move { color: var(--down); }
+.key { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .85rem; color: var(--muted); margin-bottom: 1rem; }
+.key span::before { content: ""; display: inline-block; width: .8rem; height: .8rem; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
+.key .up::before { background: var(--up-bg); box-shadow: inset 3px 0 var(--up); }
+.key .down::before { background: var(--down-bg); box-shadow: inset 3px 0 var(--down); }
 label { display: block; font-weight: 500; margin-bottom: .25rem; }
 input, select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .6rem; width: 100%; }
 input[type=number] { width: 4.5rem; text-align: center; }
@@ -260,6 +273,11 @@ export const CompetitionPage: FC<{
     <h1>{competition.name}</h1>
     {standings.final && <p class="muted">Final tables.</p>}
     <p class="muted">Tap a name to see their matches and what each was worth.</p>
+    <p class="key">
+      <span class="up">Promotion places</span>
+      <span class="down">Relegation places</span>
+      <span>{standings.final ? "The coach confirms every move." : "If the season ended today; the coach confirms every move."}</span>
+    </p>
     {standings.divisions.map((d) => (
       <section class="card">
         <h2 style="margin-top:0">{d.name}</h2>
@@ -276,8 +294,12 @@ export const CompetitionPage: FC<{
           </thead>
           <tbody>
             {d.rows.map((r) => (
-              <tr class={mine?.entryId === r.entry_id ? "me" : ""}>
-                <td>{r.position ?? "–"}</td>
+              <tr class={[mine?.entryId === r.entry_id ? "me" : "", r.movement ?? ""].filter(Boolean).join(" ")}>
+                <td>
+                  {r.position ?? "–"}
+                  {r.movement === "promoted" && <span class="move" title="Promotion place" aria-label="promotion place">▲</span>}
+                  {r.movement === "relegated" && <span class="move" title="Relegation place" aria-label="relegation place">▼</span>}
+                </td>
                 <td>
                   {/* The row opens in place: no page to leave, and no script needed. Your own starts open. */}
                   <details class="row" open={mine?.entryId === r.entry_id}>
@@ -400,7 +422,13 @@ export const MatchPage: FC<{
 
   let status: Child;
   if (match.status === "played" && match.result) {
-    status = <p>Result: <strong>{describe(match.result, from, names)}</strong></p>;
+    const date = playedOn(match.result.played_on);
+    status = (
+      <p>
+        Result: <strong>{describe(match.result, from, names)}</strong>
+        {date && <span class="muted">, played {date}</span>}
+      </p>
+    );
   } else if (mine === null) {
     status = <p class="muted">{match.status === "open" ? "Not played yet." : "Waiting for the players to agree."}</p>;
   } else if (match.status === "disputed" && mineLive && theirsLive) {
@@ -477,7 +505,7 @@ function itemLabel(item: MatchLine["items"][number], line: MatchLine): string {
 
 const plural = (n: number) => `${n} ${Math.abs(n) === 1 ? "pt" : "pts"}`;
 
-export type PlayedLine = { line: MatchLine; opponent: string; score: string };
+export type PlayedLine = { line: MatchLine; opponent: string; score: string; date: string };
 
 /** One row of a table, opened: the matches that count, what each earned, and who is left to play. */
 export type Breakdown = { played: PlayedLine[]; toPlay: { id: string; opponent: string }[] };
@@ -489,13 +517,14 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, br
     ) : (
       <>
         <ul class="matches">
-          {breakdown.played.map(({ line, opponent, score }) => (
+          {breakdown.played.map(({ line, opponent, score, date }) => (
             <li>
               <span>
                 <a href={`/matches/${line.match_id}`}>
                   {line.result === "won" ? "Beat" : line.result === "lost" ? "Lost to" : "Did not play"} {opponent}
                 </a>
                 {score && <span class="muted"> · {score}</span>}
+                {date && <span class="muted"> · {date}</span>}
                 <br />
                 <span class="why">{line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}</span>
               </span>

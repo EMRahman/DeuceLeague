@@ -1,12 +1,14 @@
 import {
   chaseList,
+  optedOutEntryIds,
   competitionProgress,
   entryProgress,
   getEntry,
   type ChaseRow,
   type ProgressCounts,
 } from "@deuceleague/db";
-import { TiebreakRule } from "@deuceleague/schema";
+import { suggestPlacements } from "@deuceleague/engine";
+import { RulesSpec, TiebreakRule } from "@deuceleague/schema";
 import { createRoute, z, type OpenAPIHono } from "@hono/zod-openapi";
 import type { AppEnv } from "../context.js";
 import { problems } from "../problems.js";
@@ -79,6 +81,12 @@ const Row = z
     all_played_bonus: z.number().openapi({
       description: "For turning up to every match once all are in, if the rules give it; otherwise 0.",
     }),
+    movement: z.enum(["promoted", "relegated"]).nullable().openapi({
+      description:
+        "Where the entry would go if the competition ended now, by its own movement rules — the same " +
+        "suggestion placements would make. Null: held. The top division promotes nobody and the bottom " +
+        "relegates nobody. Only ever a suggestion: the coach decides.",
+    }),
   })
   .openapi("StandingsRow");
 
@@ -99,6 +107,7 @@ const Standings = z
 function toStandings(
   competitionId: string,
   tables: { final: boolean; divisions: DivisionTable[] },
+  movement: ReadonlyMap<string, "promoted" | "relegated">,
 ): z.infer<typeof Standings> {
   return {
     competition_id: competitionId,
@@ -132,6 +141,7 @@ function toStandings(
           items: m.items,
         })),
         all_played_bonus: r.allPlayedBonus,
+        movement: movement.get(r.entryId) ?? null,
       })),
     })),
   };
@@ -317,8 +327,19 @@ export function registerStandings(app: OpenAPIHono<AppEnv>): void {
     const tx = c.get("tx");
     const competition = await visibleCompetition(c, id);
     if (!competition) throw problems.notFound("competition");
-    const tables = await competitionTables(tx, competition, { divisionId: division_id, now: new Date() });
-    return c.json(toStandings(id, tables), 200);
+    // Every division, even when one is asked for: who goes up depends on the division above.
+    const tables = await competitionTables(tx, competition, { now: new Date() });
+    const suggestions = suggestPlacements(
+      tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
+      RulesSpec.parse(competition.rules).movement,
+      tables.divisions.map(({ division }) => ({ ordinal: division.ordinal, name: division.name })),
+      new Set(await optedOutEntryIds(tx, id)),
+    );
+    const movement = new Map(
+      suggestions.flatMap((s) => (s.reason === "promoted" || s.reason === "relegated" ? [[s.entryId, s.reason]] : [])),
+    );
+    const shown = { ...tables, divisions: tables.divisions.filter((d) => !division_id || d.division.id === division_id) };
+    return c.json(toStandings(id, shown, movement), 200);
   });
 
   app.openapi(progress, async (c) => {

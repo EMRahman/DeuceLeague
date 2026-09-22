@@ -103,3 +103,14 @@ export function describe(
       return "Not played";
   }
 }
+
+/** A played-on date as a player reads it: "14 Sep 2026". Dates are calendar days, so no time zone moves them. */
+export function playedOn(date: string | null | undefined): string {
+  if (!date) return "";
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
