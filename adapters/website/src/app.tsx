@@ -16,7 +16,7 @@ import {
 } from "./api.js";
 import type { Mailer } from "./mail.js";
 import type { Weather } from "./weather.js";
-import { deadlineLine, describe, playedOn, readReportForm } from "./score.js";
+import { deadlineLine, describe, readReportForm, shortDate } from "./score.js";
 import {
   CompetitionPage,
   ConfirmSignIn,
@@ -99,12 +99,16 @@ function breakdowns(standings: Standings, matches: Match[]): Record<string, Brea
   const names = (m: Match): [string, string] => [m.sides[0]?.label ?? "Side 1", m.sides[1]?.label ?? "Side 2"];
   return Object.fromEntries(
     rows.map((row) => {
-      const played = row.matches.map((line) => {
-        const match = byId.get(line.match_id);
-        const side = match?.sides.find((s) => s.entry_id === row.entry_id)?.side ?? 0;
-        const score = match?.result ? describe(match.result, side, names(match)) : "";
-        return { line, opponent: labelOf(line.opponent_entry_id), score, date: playedOn(match?.result?.played_on) };
-      });
+      const played = row.matches
+        .map((line) => {
+          const match = byId.get(line.match_id);
+          const side = match?.sides.find((s) => s.entry_id === row.entry_id)?.side ?? 0;
+          const score = match?.result ? describe(match.result, side, names(match)) : "";
+          const on = match?.result?.played_on ?? "";
+          return { line, opponent: labelOf(line.opponent_entry_id), score, date: shortDate(on), on };
+        })
+        // Newest first, as the home page lists them.
+        .sort((x, y) => (x.on < y.on ? 1 : x.on > y.on ? -1 : 0));
       const counted = new Set(row.matches.map((l) => l.match_id));
       const toPlay = matches
         .filter((m) => m.status !== "played" && !counted.has(m.id) && m.sides.some((s) => s.entry_id === row.entry_id))
@@ -345,8 +349,8 @@ export function createWebsite(options: WebsiteOptions) {
       if (m.status === "played" && m.result) {
         const outcome = m.result.winning_side === mine ? "Won" : m.result.winning_side === null ? "" : "Lost";
         const result = [outcome, describe(m.result, mine, names)].filter(Boolean).join(" ");
-        const date = playedOn(m.result.played_on);
-        played.push({ ...item(date ? `${result} · ${date}` : result), on: m.result.played_on ?? "" });
+        const date = shortDate(m.result.played_on);
+        played.push({ ...item(date ? `${date} · ${result}` : result), on: m.result.played_on ?? "" });
       } else if (competition.state !== "active") {
         continue;
       } else if (m.status === "open") {

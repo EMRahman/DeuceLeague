@@ -360,8 +360,8 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
   </ul>
 );
 
-/** Who is left to play, a line per competition: opponents only, each a link to the match. */
-const ToPlay: FC<{ matches: MyMatch[] }> = ({ matches }) => {
+/** Matches as a line per competition — opponents only, each a link to the match: for To play and Waiting. */
+const ByCompetition: FC<{ matches: MyMatch[] }> = ({ matches }) => {
   const byCompetition = new Map<string, MyMatch[]>();
   for (const m of matches) byCompetition.set(m.competition, [...(byCompetition.get(m.competition) ?? []), m]);
   return (
@@ -525,8 +525,8 @@ export const Home: FC<{
 
     {p.waiting.length > 0 && (
       <section class="card">
-        <h2>Waiting for your opponent</h2>
-        <MatchRows matches={p.waiting} />
+        <h2>Waiting for your opponent ({p.waiting.length})</h2>
+        <ByCompetition matches={p.waiting} />
       </section>
     )}
     {p.answer.length > 0 && (
@@ -574,7 +574,7 @@ export const Home: FC<{
     {p.toPlay.length > 0 && (
       <section class="card">
         <h2>To play ({p.toPlay.length})</h2>
-        <ToPlay matches={p.toPlay} />
+        <ByCompetition matches={p.toPlay} />
       </section>
     )}
     {p.weather && <WeatherBox {...p.weather} />}
@@ -1027,11 +1027,11 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, br
           {breakdown.played.map(({ line, opponent, score, date }) => (
             <li>
               <span>
+                {date && <span class="muted">{date} · </span>}
                 <a href={`/matches/${line.match_id}`}>
                   {line.result === "won" ? "Beat" : line.result === "lost" ? "Lost to" : "Did not play"} {opponent}
                 </a>
                 {score && <span class="muted"> · {score}</span>}
-                {date && <span class="muted"> · {date}</span>}
               </span>
               {/* Where the points came from, on hover or a tap: focusable, so a phone can open it without a script. */}
               <span class="pts tip" tabindex={0}>

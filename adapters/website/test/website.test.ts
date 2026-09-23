@@ -200,7 +200,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.equal(claimed.claims[0].source, "web");
 
   const samHome = await samPhone.get("/");
-  assert.match(samHome.html, /Waiting for your opponent/);
+  assert.match(samHome.html, /Waiting for your opponent \(1\)<\/h2><dl class="toplay"><dt>Men&#39;s Singles<\/dt>/, "a line per competition");
   assert.ok(
     samHome.html.indexOf("Waiting for your opponent") < samHome.html.indexOf("Where you stand"),
     "waiting comes first on the page",
@@ -251,8 +251,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.match(samRow, /^<details class="row">/, "someone else's row starts closed");
   assert.match(samRow, /Beat Alex P\./);
   assert.match(samRow, /6-4, 6-3/, "the score from Sam's side, whoever is looking");
-  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-  assert.ok(samRow.includes(today), `the day it was played, ${today}`);
+  // The day it was played comes first, without the year: it is this season.
+  const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  assert.ok(samRow.includes(`<span class="muted">${today} · </span><a href=`), `the day first, ${today}`);
   // What earned them sits in a tooltip on the points, not in the row.
   assert.match(samRow, /<span class="pts tip" tabindex="0">6 pts<span class="tiptext" role="tooltip">Win 4 · Sets won 2<\/span>/);
   assert.match(samRow, /Turned up to every match/);
