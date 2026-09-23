@@ -89,11 +89,11 @@ table.outlook th[scope=row] { position: sticky; left: 0; z-index: 1; background:
 table.outlook td span[role=img] { font-size: 1.05rem; }
 table.outlook .good { background: var(--up-bg); color: var(--up); font-weight: 600; }
 table.outlook thead .good { box-shadow: inset 0 2px var(--up); }
-table.outlook .late { opacity: .4; }
+table.outlook .last { border-right: 2px dashed var(--down); }
+table.outlook thead .last { color: var(--down); }
 .weather .legend { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: .75rem 0 0; font-size: .78rem; color: var(--muted); }
-.weather .swatch::before { content: ""; display: inline-block; width: .75rem; height: .75rem; border-radius: 3px; margin-right: .35rem; vertical-align: -1px; border: 1px solid var(--line); }
-.weather .swatch.good::before { background: var(--up-bg); border-color: var(--up); }
-.weather .swatch.late::before { background: var(--line); opacity: .5; }
+.weather .lastday { color: var(--down); }
+.weather .lastday::before { content: ""; display: inline-block; height: .9rem; margin-right: .4rem; vertical-align: -2px; border-left: 2px dashed var(--down); }
 .weather .credit { margin-left: auto; }
 .weather .credit a { color: var(--muted); }
 .tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem; }
@@ -407,10 +407,9 @@ const WeatherBox: FC<{ venues: VenueForecast[]; lastDay: string | null }> = ({ v
       </div>
     ))}
     <p class="legend">
-      <span class="swatch good" title="Little chance of rain, light wind">
-        Good for tennis
-      </span>
-      <span class="swatch late">After deadline</span>
+      {lastDay !== null && venues.some((v) => v.forecast.days.some((d) => d.date === lastDay)) && (
+        <span class="lastday">Last day of season</span>
+      )}
       <span class="credit">
         <a href="https://open-meteo.com/">Open-Meteo</a>
       </span>
@@ -426,7 +425,8 @@ const ForecastTable: FC<{ forecast: Forecast; lastDay: string | null }> = ({ for
       ...conditions(d.code),
       weekday: date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }),
       day: date.getUTCDate(),
-      class: [goodForTennis(d, forecast.wind) ? "good" : "", lastDay !== null && d.date > lastDay ? "late" : ""]
+      // Green for a good day; a red dashed edge on the season's last day.
+      class: [goodForTennis(d, forecast.wind) ? "good" : "", d.date === lastDay ? "last" : ""]
         .filter(Boolean)
         .join(" ") || undefined,
     };
@@ -438,7 +438,13 @@ const ForecastTable: FC<{ forecast: Forecast; lastDay: string | null }> = ({ for
           <tr>
             <th scope="row" />
             {days.map((d) => (
-              <th scope="col" class={d.class}>
+              <th
+                scope="col"
+                class={d.class}
+                title={[d.class?.includes("good") ? "Good for tennis" : "", d.date === lastDay ? "Last day of season" : ""]
+                  .filter(Boolean)
+                  .join(" · ") || undefined}
+              >
                 {d.weekday}
                 <br />
                 {d.day}

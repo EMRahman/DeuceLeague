@@ -385,13 +385,16 @@ test("the home page shows the outlook at the courts, when the site knows where t
   const day = (date: string, code: number, rain: number, wind: number) => ({
     date, code, high: 19, low: 11, rain, wind, gusts: wind + 8,
   });
+  // league() closes results at 22:59 UTC, 60 days out: that day in London.
+  const lastDay = new Date(Date.now() + 60 * 86_400_000).toISOString().slice(0, 10);
   const forecast = {
     temperature: "°C" as const,
     wind: "mph" as const,
     days: [
       day("2026-09-24", 1, 5, 8), // sunny and calm: good
       day("2026-09-25", 63, 90, 18), // rain
-      day("2099-01-01", 0, 0, 3), // after the season's results deadline
+      day(lastDay, 3, 50, 20), // the season's last day
+      day("2099-01-01", 0, 0, 3), // well after it: good, and nothing more
     ],
   };
   const venues = [
@@ -404,11 +407,13 @@ test("the home page shows the outlook at the courts, when the site knows where t
   assert.match(home, /<label><input type="radio" name="venue" value="0" checked=""\/?>David Lloyd Cheam<\/label>/);
   assert.match(home, /<label><input type="radio" name="venue" value="1"\/?>David Lloyd Epsom<\/label>/);
   assert.match(home, /<div class="forecast" data-venue="0">[\s\S]*<div class="forecast" data-venue="1">/);
-  assert.match(home, /<th scope="col" class="good">Thu<br\/?>24<\/th>/, "a good day, outlined");
+  assert.match(home, /<th scope="col" class="good" title="Good for tennis">Thu<br\/?>24<\/th>/, "a good day, in green");
   assert.match(home, /aria-label="Rain" title="Rain">🌧️/);
   assert.match(home, /<th scope="row">Rain %<\/th><td class="good">5<\/td><td>90<\/td>/);
   assert.match(home, /<th scope="row">Wind mph<\/th><td class="good" title="Gusting 16 mph">8<\/td><td title="Gusting 26 mph">18<\/td>/);
-  assert.match(home, /<th scope="col" class="good late">/, "past the deadline, faded");
+  assert.match(home, /<th scope="col" class="last" title="Last day of season">/, "the season's last day, marked");
+  assert.match(home, /<span class="lastday">Last day of season<\/span>/);
+  assert.doesNotMatch(home, /Good for tennis<\/span>|After deadline|class="[^"]*late/, "no swatches, nothing faded");
 
   // No forecast, or a failed one: the page is the same, without the box.
   const failing = website(await websiteKey(club), async () => {
