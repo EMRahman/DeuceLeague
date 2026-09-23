@@ -15,6 +15,7 @@ import {
   type Standings,
 } from "./api.js";
 import type { Mailer } from "./mail.js";
+import type { Weather } from "./weather.js";
 import { deadlineLine, describe, playedOn, readReportForm } from "./score.js";
 import {
   CompetitionPage,
@@ -35,6 +36,7 @@ import {
 
 export { apiClient, type Api, type Fetch } from "./api.js";
 export { logMailer, smtpMailer, type Mailer } from "./mail.js";
+export { openMeteo, type Forecast, type Weather } from "./weather.js";
 
 export type WebsiteOptions = {
   api: Api;
@@ -43,6 +45,8 @@ export type WebsiteOptions = {
   /** The address players use, for the links in emails. */
   publicUrl: string;
   mail: Mailer;
+  /** The outlook at the courts, for the home page. Left out, the page shows none. */
+  weather?: Weather;
   log?: (line: string) => void;
 };
 
@@ -391,6 +395,17 @@ export function createWebsite(options: WebsiteOptions) {
     );
     const deadline = current ? deadlineLine(current.results_deadline_at, p.me.club.timezone) : null;
 
+    // The weather is a help, never a reason the page fails: without it the page shows without the box.
+    const forecast = options.weather
+      ? await options.weather().catch((error: unknown) => {
+          log(`weather: ${error instanceof Error ? error.message : String(error)}`);
+          return null;
+        })
+      : null;
+    const lastDay = current?.results_deadline_at
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: p.me.club.timezone }).format(new Date(current.results_deadline_at))
+      : null;
+
     return c.html(
       <Home
         frame={frameOf(p, "matches")}
@@ -403,6 +418,7 @@ export function createWebsite(options: WebsiteOptions) {
         // Newest first: the last match played is the one a player looks for.
         played={played.sort((x, y) => (x.on < y.on ? 1 : x.on > y.on ? -1 : 0))}
         standings={standings}
+        weather={forecast ? { forecast, lastDay } : null}
       />,
     );
   });

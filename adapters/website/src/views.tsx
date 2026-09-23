@@ -1,6 +1,7 @@
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
+import { conditions, goodForTennis, type Forecast } from "./weather.js";
 
 /**
  * Every page, as plain server-rendered HTML: no scripts, so it works on any
@@ -53,6 +54,20 @@ a.rowlink .chev { color: var(--muted); }
 .answer .actions { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
 .answer form { margin: 0; }
 .standing .where { color: var(--muted); font-size: .9rem; }
+dl.toplay { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .45rem .9rem; }
+dl.toplay dt { color: var(--muted); font-size: .85rem; padding-top: .1rem; }
+dl.toplay dd { margin: 0; }
+dl.toplay .sep { color: var(--muted); }
+@media (max-width: 420px) { dl.toplay { grid-template-columns: 1fr; gap: 0; } dl.toplay dd { margin-bottom: .5rem; } }
+.weather ol.days { list-style: none; display: flex; gap: .45rem; overflow-x: auto; margin: 0 -1rem; padding: 0 1rem .4rem; scrollbar-width: thin; }
+.weather li { flex: 0 0 5.4rem; display: flex; flex-direction: column; align-items: center; gap: .1rem; font-size: .8rem;
+  padding: .5rem .3rem; border: 1px solid var(--line); border-radius: 10px; text-align: center; }
+.weather li.good { border-color: var(--up); box-shadow: inset 0 0 0 1px var(--up); background: var(--up-bg); }
+.weather li.late { opacity: .45; }
+.weather .when { white-space: nowrap; }
+.weather .icon { font-size: 1.5rem; line-height: 1.2; }
+.weather .temp { font-size: .95rem; font-weight: 700; }
+.weather .source { font-size: .75rem; color: var(--muted); margin: .4rem 0 0; }
 .tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem; }
 .tag.up { background: var(--up-bg); color: var(--up); }
 .tag.down { background: var(--down-bg); color: var(--down); }
@@ -314,6 +329,72 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
   </ul>
 );
 
+/** Who is left to play, a line per competition: opponents only, each a link to the match. */
+const ToPlay: FC<{ matches: MyMatch[] }> = ({ matches }) => {
+  const byCompetition = new Map<string, MyMatch[]>();
+  for (const m of matches) byCompetition.set(m.competition, [...(byCompetition.get(m.competition) ?? []), m]);
+  return (
+    <dl class="toplay">
+      {[...byCompetition].map(([competition, ms]) => (
+        <>
+          <dt>{competition}</dt>
+          <dd>
+            {ms.map((m, i) => (
+              <>
+                {i > 0 && <span class="sep"> · </span>}
+                <a href={`/matches/${m.id}`}>{m.opponent}</a>
+              </>
+            ))}
+          </dd>
+        </>
+      ))}
+    </dl>
+  );
+};
+
+/** The next fortnight at the courts, a tile a day: to help pick a day to play. */
+const WeatherBox: FC<{ forecast: Forecast; lastDay: string | null }> = ({ forecast, lastDay }) => (
+  <section class="card weather">
+    <h2>Weather at the courts</h2>
+    <p class="hint">Outlined: a good day for tennis — little chance of rain, light wind.</p>
+    <ol class="days">
+      {forecast.days.map((d) => {
+        const { icon, words } = conditions(d.code);
+        const good = goodForTennis(d, forecast.wind);
+        const late = lastDay !== null && d.date > lastDay;
+        const date = new Date(`${d.date}T12:00:00Z`);
+        const label = date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+        const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+        return (
+          <li
+            class={[good ? "good" : "", late ? "late" : ""].filter(Boolean).join(" ") || undefined}
+            title={late ? "After the results deadline" : good ? "Looks good for tennis" : undefined}
+          >
+            <span class="when">
+              <strong>{label}</strong> {day}
+            </span>
+            <span class="icon" role="img" aria-label={words}>
+              {icon}
+            </span>
+            <span class="temp">
+              {d.high}
+              {forecast.temperature === "°C" ? "°" : "°F"}
+              <span class="muted"> {d.low}°</span>
+            </span>
+            <span title="Chance of rain">💧 {d.rain === null ? "–" : `${d.rain}%`}</span>
+            <span title={`Wind, gusting ${d.gusts} ${forecast.wind}`}>
+              💨 {d.wind} {forecast.wind}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+    <p class="source">
+      Forecast from <a href="https://open-meteo.com/">Open-Meteo</a>.
+    </p>
+  </section>
+);
+
 export const Movement: FC<{ movement: "promoted" | "relegated" | null }> = ({ movement }) =>
   movement === "promoted" ? (
     <span class="tag up">▲ going up</span>
@@ -337,6 +418,8 @@ export const Home: FC<{
   waiting: MyMatch[];
   played: MyMatch[];
   standings: MyStanding[];
+  /** The outlook at the courts, and the last day results are taken. Null when no location is set. */
+  weather: { forecast: Forecast; lastDay: string | null } | null;
 }> = (p) => (
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
@@ -383,10 +466,11 @@ export const Home: FC<{
 
     {p.toPlay.length > 0 && (
       <section class="card">
-        <h2>To play</h2>
-        <MatchRows matches={p.toPlay} />
+        <h2>To play ({p.toPlay.length})</h2>
+        <ToPlay matches={p.toPlay} />
       </section>
     )}
+    {p.weather && <WeatherBox {...p.weather} />}
     {p.waiting.length > 0 && (
       <section class="card">
         <h2>Waiting for your opponent</h2>

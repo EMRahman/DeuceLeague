@@ -4,7 +4,7 @@
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { apiClient, createWebsite } from "../dist/app.js";
+import { apiClient, createWebsite, type Weather } from "../dist/app.js";
 import {
   app as api,
   closeAll,
@@ -23,8 +23,8 @@ const SITE = "https://league.example";
 
 type Mail = { to: string; subject: string; text: string };
 
-/** The website for this club, with its email captured rather than sent. */
-function website(key: string | undefined) {
+/** The website for this club, with its email captured rather than sent, and any weather made up. */
+function website(key: string | undefined, weather?: Weather) {
   const outbox: Mail[] = [];
   const app = createWebsite({
     api: apiClient("http://api.internal", (url, init) => Promise.resolve(api.request(url, init))),
@@ -33,6 +33,7 @@ function website(key: string | undefined) {
     mail: async (m) => {
       outbox.push(m);
     },
+    ...(weather ? { weather } : {}),
     log: () => {},
   });
   return { app, outbox };
@@ -160,8 +161,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   const alexPhone = await signIn(site, "alex@example.org");
 
   const home = await samPhone.get("/");
-  assert.match(home.html, /To play/);
-  assert.match(home.html, /Alex P\./);
+  // Who is left to play: a line per competition, the opponents as links.
+  assert.match(home.html, /To play \(1\)/);
+  assert.ok(home.html.includes(`<dl class="toplay"><dt>Men&#39;s Singles</dt><dd><a href="/matches/${match.id}">Alex P.</a>`), home.html);
   const page = await samPhone.get(`/matches/${match.id}`);
   assert.match(page.html, /Report the score/);
 
@@ -362,4 +364,42 @@ test("the site can go on a phone's home screen", async () => {
   const page = await browser(site).get("/");
   assert.match(page.html, /<link rel="manifest" href="\/manifest.webmanifest"\/?>/);
   assert.match(page.headers.get("content-security-policy") ?? "", /manifest-src 'self'/);
+});
+
+test("the home page shows the outlook at the courts, when the site knows where they are", async () => {
+  const club = await newClub("website-weather");
+  const { competitionId, divisionIds } = await league(club);
+  const zoe = await member(club, { display_name: "Zoe", email: "zoe@example.org" });
+  await enter(club, competitionId, divisionIds[0]!, [zoe]);
+  await enter(club, competitionId, divisionIds[0]!, [await member(club)]);
+  await send("POST", `/v1/divisions/${divisionIds[0]}/fixtures`, club.key);
+  await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { state: "active" });
+
+  const day = (date: string, code: number, rain: number, wind: number) => ({
+    date, code, high: 19, low: 11, rain, wind, gusts: wind + 8,
+  });
+  const forecast = {
+    temperature: "°C" as const,
+    wind: "mph" as const,
+    days: [
+      day("2026-09-24", 1, 5, 8), // sunny and calm: good
+      day("2026-09-25", 63, 90, 18), // rain
+      day("2099-01-01", 0, 0, 3), // after the season's results deadline
+    ],
+  };
+  const home = (await (await signIn(website(await websiteKey(club), async () => forecast), "zoe@example.org")).get("/")).html;
+  assert.match(home, /Weather at the courts/);
+  assert.match(home, /<li class="good" title="Looks good for tennis"><span class="when"><strong>Thu<\/strong> 24 Sept/);
+  assert.match(home, /aria-label="Rain">🌧️/);
+  assert.match(home, /💧 90%/);
+  assert.match(home, /💨 18 mph/);
+  assert.match(home, /<li class="good late" title="After the results deadline">/, "past the deadline, dimmed");
+
+  // No forecast, or a failed one: the page is the same, without the box.
+  const failing = website(await websiteKey(club), async () => {
+    throw new Error("down");
+  });
+  const without = await (await signIn(failing, "zoe@example.org")).get("/");
+  assert.equal(without.status, 200);
+  assert.doesNotMatch(without.html, /Weather at the courts/);
 });

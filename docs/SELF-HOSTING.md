@@ -165,6 +165,20 @@ percent-encoded (`@` is `%40`):
 | Amazon SES | `smtp://<SMTP user>:<SMTP password>@email-smtp.<region>.amazonaws.com:587` |
 | Gmail (app password) | `smtps://you%40gmail.com:<app password>@smtp.gmail.com:465` |
 
+Optionally, give the home page a 14-day weather outlook at the courts — rain
+chance and wind, to help players pick a day — by adding where they are
+(right-click the courts in a map app to copy the coordinates):
+
+```bash
+WEATHER_LATITUDE=51.4343
+WEATHER_LONGITUDE=-0.2141
+# °C and mph; or metric (°C, km/h), or us (°F, mph)
+WEATHER_UNITS=uk
+```
+
+It comes from Open-Meteo, which is free for non-commercial use and needs no
+account; the website asks for it with the coordinates alone.
+
 Your email service will ask you to add SPF and DKIM records for the sending
 domain. Add them: without them sign-in links land in spam.
 
