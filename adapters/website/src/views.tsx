@@ -99,7 +99,6 @@ details.row[open] summary { margin-bottom: .4rem; }
   background: var(--fg); color: var(--bg); padding: .4rem .6rem; border-radius: 8px; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
 .tip:hover .tiptext, .tip:focus .tiptext, .tip:focus-within .tiptext { display: block; }
 .tip:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 4px; }
-.total { display: flex; justify-content: space-between; font-weight: 700; padding-top: .4rem; }
 details.rules { margin: 1.5rem 0; }
 details.rules ul { padding-left: 1.2rem; margin: .5rem 0 0; }
 summary { cursor: pointer; color: var(--accent); }
@@ -874,10 +873,6 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, br
             </li>
           )}
         </ul>
-        <div class="total">
-          <span>Total</span>
-          <span class="pts">{pts(row.points)}</span>
-        </div>
       </>
     )}
     {breakdown.toPlay.length > 0 && (

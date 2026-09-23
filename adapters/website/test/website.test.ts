@@ -243,7 +243,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   // What earned them sits in a tooltip on the points, not in the row.
   assert.match(samRow, /<span class="pts tip" tabindex="0">6 pts<span class="tiptext" role="tooltip">Win 4 · Sets won 2<\/span>/);
   assert.match(samRow, /Turned up to every match/);
-  assert.match(samRow, /Total<\/span><span class="pts">7 pts/);
+  assert.doesNotMatch(samRow, /Total/, "the table's own Pts column is the total");
   const alexRow = rowOf("Alex P.");
   assert.match(alexRow, /^<details class="row" open/, "your own row starts open");
   assert.match(alexRow, /Lost to Sam K\./);
