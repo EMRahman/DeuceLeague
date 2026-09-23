@@ -4,7 +4,7 @@
 
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { apiClient, createWebsite, type Weather } from "../dist/app.js";
+import { apiClient, createWebsite, parseVenues, type Weather } from "../dist/app.js";
 import {
   app as api,
   closeAll,
@@ -387,13 +387,21 @@ test("the home page shows the outlook at the courts, when the site knows where t
       day("2099-01-01", 0, 0, 3), // after the season's results deadline
     ],
   };
-  const home = (await (await signIn(website(await websiteKey(club), async () => forecast), "zoe@example.org")).get("/")).html;
+  const venues = [
+    { venue: "David Lloyd Cheam", forecast },
+    { venue: "David Lloyd Epsom", forecast: { ...forecast, days: forecast.days.slice(1) } },
+  ];
+  const home = (await (await signIn(website(await websiteKey(club), async () => venues), "zoe@example.org")).get("/")).html;
   assert.match(home, /Weather at the courts/);
-  assert.match(home, /<li class="good" title="Looks good for tennis"><span class="when"><strong>Thu<\/strong> 24 Sept/);
-  assert.match(home, /aria-label="Rain">🌧️/);
-  assert.match(home, /💧 90%/);
-  assert.match(home, /💨 18 mph/);
-  assert.match(home, /<li class="good late" title="After the results deadline">/, "past the deadline, dimmed");
+  // A pill per venue, the first chosen; a table per venue, a column a day.
+  assert.match(home, /<label><input type="radio" name="venue" value="0" checked=""\/?>David Lloyd Cheam<\/label>/);
+  assert.match(home, /<label><input type="radio" name="venue" value="1"\/?>David Lloyd Epsom<\/label>/);
+  assert.match(home, /<div class="forecast" data-venue="0">[\s\S]*<div class="forecast" data-venue="1">/);
+  assert.match(home, /<th scope="col" class="good">Thu<br\/?>24<\/th>/, "a good day, outlined");
+  assert.match(home, /aria-label="Rain" title="Rain">🌧️/);
+  assert.match(home, /<th scope="row">Rain %<\/th><td class="good">5<\/td><td>90<\/td>/);
+  assert.match(home, /<th scope="row">Wind mph<\/th><td class="good" title="Gusting 16 mph">8<\/td><td title="Gusting 26 mph">18<\/td>/);
+  assert.match(home, /<th scope="col" class="good late">/, "past the deadline, faded");
 
   // No forecast, or a failed one: the page is the same, without the box.
   const failing = website(await websiteKey(club), async () => {
@@ -402,4 +410,13 @@ test("the home page shows the outlook at the courts, when the site knows where t
   const without = await (await signIn(failing, "zoe@example.org")).get("/");
   assert.equal(without.status, 200);
   assert.doesNotMatch(without.html, /Weather at the courts/);
+});
+
+test("venues are written Name@latitude,longitude, separated by semicolons", () => {
+  assert.deepEqual(parseVenues("David Lloyd Cheam@51.3550,-0.2255; David Lloyd Raynes Park @ 51.4059, -0.2229"), [
+    { name: "David Lloyd Cheam", latitude: 51.355, longitude: -0.2255 },
+    { name: "David Lloyd Raynes Park", latitude: 51.4059, longitude: -0.2229 },
+  ]);
+  assert.throws(() => parseVenues("Somewhere"), /Name@latitude,longitude/);
+  assert.throws(() => parseVenues("Mars@120,10"), /not on Earth/);
 });

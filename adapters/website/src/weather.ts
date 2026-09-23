@@ -10,6 +10,9 @@
 
 export type Units = "uk" | "metric" | "us";
 
+/** A place the club plays, and where it is. */
+export type Venue = { name: string; latitude: number; longitude: number };
+
 export type WeatherConfig = { latitude: number; longitude: number; units: Units };
 
 export type ForecastDay = {
@@ -27,7 +30,10 @@ export type ForecastDay = {
 
 export type Forecast = { days: ForecastDay[]; temperature: "°C" | "°F"; wind: "mph" | "km/h" };
 
-export type Weather = () => Promise<Forecast>;
+export type VenueForecast = { venue: string; forecast: Forecast };
+
+/** The outlook at each of the club's venues, in the order they were given. */
+export type Weather = () => Promise<VenueForecast[]>;
 
 const UNITS: Record<Units, { temperature: "celsius" | "fahrenheit"; wind: "mph" | "kmh" }> = {
   uk: { temperature: "celsius", wind: "mph" },
@@ -35,8 +41,48 @@ const UNITS: Record<Units, { temperature: "celsius" | "fahrenheit"; wind: "mph" 
   us: { temperature: "fahrenheit", wind: "mph" },
 };
 
-/** The next 14 days at the courts, from Open-Meteo, kept for an hour. */
-export function openMeteo(config: WeatherConfig, fetcher: typeof fetch = fetch): Weather {
+/**
+ * The next 14 days at each venue. A venue whose forecast cannot be had today
+ * is left out rather than failing the others; with none, it throws.
+ */
+export function openMeteo(venues: Venue[], units: Units, fetcher: typeof fetch = fetch): Weather {
+  const each = venues.map((v) => ({
+    venue: v.name,
+    get: atCourts({ latitude: v.latitude, longitude: v.longitude, units }, fetcher),
+  }));
+  return async () => {
+    const got = await Promise.allSettled(each.map(async (v) => ({ venue: v.venue, forecast: await v.get() })));
+    const ok = got.flatMap((g) => (g.status === "fulfilled" ? [g.value] : []));
+    if (ok.length === 0) {
+      const first = got.find((g): g is PromiseRejectedResult => g.status === "rejected");
+      throw first?.reason ?? new Error("no venues");
+    }
+    return ok;
+  };
+}
+
+/**
+ * Venues as the WEATHER_VENUES setting writes them: `Name@latitude,longitude`,
+ * separated by semicolons.
+ */
+export function parseVenues(text: string): Venue[] {
+  return text
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const match = /^(.+?)@\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/.exec(part);
+      if (!match) throw new Error(`"${part}" should be Name@latitude,longitude`);
+      const [, name, lat, lon] = match;
+      const latitude = Number(lat);
+      const longitude = Number(lon);
+      if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) throw new Error(`"${part}" is not on Earth`);
+      return { name: name!.trim(), latitude, longitude };
+    });
+}
+
+/** The next 14 days at one place, from Open-Meteo, kept for an hour. */
+function atCourts(config: WeatherConfig, fetcher: typeof fetch): () => Promise<Forecast> {
   const units = UNITS[config.units];
   const url = new URL("https://api.open-meteo.com/v1/forecast");
   url.search = new URLSearchParams({

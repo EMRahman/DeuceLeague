@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseVenues } from "./weather.js";
 
 /** An empty `NAME=` line in .env means unset, not zero. */
 const unsetIfEmpty = <T extends z.ZodType>(schema: T) => z.preprocess((v) => (v === "" ? undefined : v), schema);
@@ -27,17 +28,27 @@ const Config = z
     /** smtp://user:pass@host:587 or smtps://…:465. Unset: each link is written to the log instead. */
     SMTP_URL: z.url().optional().or(z.literal("").transform(() => undefined)),
     MAIL_FROM: z.string().optional().or(z.literal("").transform(() => undefined)),
-    /** Where the courts are, for the weather outlook on the home page. Both unset: no outlook. */
-    WEATHER_LATITUDE: unsetIfEmpty(z.coerce.number().min(-90).max(90).optional()),
-    WEATHER_LONGITUDE: unsetIfEmpty(z.coerce.number().min(-180).max(180).optional()),
+    /**
+     * Where the club plays, for the weather outlook on the home page:
+     * `Name@latitude,longitude`, several separated by `;`. Unset: no outlook.
+     */
+    WEATHER_VENUES: unsetIfEmpty(
+      z
+        .string()
+        .transform((text, ctx) => {
+          try {
+            return parseVenues(text);
+          } catch (error) {
+            ctx.addIssue({ code: "custom", message: error instanceof Error ? error.message : String(error) });
+            return z.NEVER;
+          }
+        })
+        .optional(),
+    ),
     /** uk: °C and mph. metric: °C and km/h. us: °F and mph. */
     WEATHER_UNITS: z.enum(["uk", "metric", "us"]).default("uk"),
     /** Where the website listens. Not PORT, which the API reads from the same .env. */
     WEBSITE_PORT: z.coerce.number().int().min(1).max(65535).default(8080),
-  })
-  .refine((c) => (c.WEATHER_LATITUDE === undefined) === (c.WEATHER_LONGITUDE === undefined), {
-    path: ["WEATHER_LONGITUDE"],
-    message: "set WEATHER_LATITUDE and WEATHER_LONGITUDE together, or neither",
   })
   .refine((c) => !c.SMTP_URL || c.MAIL_FROM, {
     path: ["MAIL_FROM"],

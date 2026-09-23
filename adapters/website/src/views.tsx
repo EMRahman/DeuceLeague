@@ -1,7 +1,7 @@
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
-import { conditions, goodForTennis, type Forecast } from "./weather.js";
+import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
 
 /**
  * Every page, as plain server-rendered HTML: no scripts, so it works on any
@@ -12,6 +12,15 @@ import { conditions, goodForTennis, type Forecast } from "./weather.js";
  * one of four things — agree a score, report one, see where they stand, see
  * who is left to play — so each is at most a tap or two from the home page.
  */
+
+/** The venues the weather switcher can hold: its CSS is written for this many. */
+const MAX_VENUES = 8;
+
+/** Shows the forecast whose venue pill is chosen: one rule per possible venue. */
+const VENUE_SWITCH = Array.from(
+  { length: MAX_VENUES },
+  (_, i) => `.weather:has(input[name=venue][value="${i}"]:checked) .forecast[data-venue="${i}"] { display: block; }`,
+).join("\n");
 
 const STYLE = `
 :root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
@@ -59,15 +68,26 @@ dl.toplay dt { color: var(--muted); font-size: .85rem; padding-top: .1rem; }
 dl.toplay dd { margin: 0; }
 dl.toplay .sep { color: var(--muted); }
 @media (max-width: 420px) { dl.toplay { grid-template-columns: 1fr; gap: 0; } dl.toplay dd { margin-bottom: .5rem; } }
-.weather ol.days { list-style: none; display: flex; gap: .45rem; overflow-x: auto; margin: 0 -1rem; padding: 0 1rem .4rem; scrollbar-width: thin; }
-.weather li { flex: 0 0 5.4rem; display: flex; flex-direction: column; align-items: center; gap: .1rem; font-size: .8rem;
-  padding: .5rem .3rem; border: 1px solid var(--line); border-radius: 10px; text-align: center; }
-.weather li.good { border-color: var(--up); box-shadow: inset 0 0 0 1px var(--up); background: var(--up-bg); }
-.weather li.late { opacity: .45; }
-.weather .when { white-space: nowrap; }
-.weather .icon { font-size: 1.5rem; line-height: 1.2; }
-.weather .temp { font-size: .95rem; font-weight: 700; }
-.weather .source { font-size: .75rem; color: var(--muted); margin: .4rem 0 0; }
+.pills { display: flex; gap: .4rem; overflow-x: auto; margin: 0 0 .6rem; scrollbar-width: none; }
+.pills label { position: relative; white-space: nowrap; margin: 0; font-weight: 500; font-size: .85rem; padding: .35rem .8rem; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+.pills input { position: absolute; opacity: 0; pointer-events: none; }
+.pills label:has(input:checked) { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.pills label:has(input:focus-visible) { box-shadow: 0 0 0 2px var(--accent); }
+.weather .forecast { display: none; }
+.weather .venue-name { display: none; }
+/* One venue: no pills, so show it. */
+.weather .forecast:only-of-type { display: block; }
+${VENUE_SWITCH}
+@supports not selector(:has(*)) { .weather .forecast, .weather .venue-name { display: block; } }
+.weather .scroll { overflow-x: auto; margin: 0 -1rem; padding: 0 1rem; }
+table.outlook { width: auto; font-size: .8rem; }
+table.outlook th, table.outlook td { width: auto; text-align: center; padding: .25rem .3rem; border-bottom: 0; min-width: 2rem; }
+table.outlook thead th { color: var(--fg); font-weight: 600; line-height: 1.2; }
+table.outlook th[scope=row] { position: sticky; left: 0; z-index: 1; background: var(--card); text-align: left; white-space: nowrap; color: var(--muted); font-weight: 500; padding-right: .5rem; }
+table.outlook td span[role=img] { font-size: 1.05rem; }
+table.outlook .good { background: var(--up-bg); color: var(--up); font-weight: 600; }
+table.outlook thead .good { box-shadow: inset 0 2px var(--up); }
+table.outlook .late { opacity: .4; }
 .tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem; }
 .tag.up { background: var(--up-bg); color: var(--up); }
 .tag.down { background: var(--down-bg); color: var(--down); }
@@ -352,48 +372,103 @@ const ToPlay: FC<{ matches: MyMatch[] }> = ({ matches }) => {
   );
 };
 
-/** The next fortnight at the courts, a tile a day: to help pick a day to play. */
-const WeatherBox: FC<{ forecast: Forecast; lastDay: string | null }> = ({ forecast, lastDay }) => (
+/**
+ * The next fortnight at the club's venues, to help pick a day to play: a
+ * column a day, pills to switch venue. The switch is radio buttons and CSS,
+ * so it needs no script; a browser without :has() shows every venue.
+ */
+const WeatherBox: FC<{ venues: VenueForecast[]; lastDay: string | null }> = ({ venues, lastDay }) => (
   <section class="card weather">
     <h2>Weather at the courts</h2>
-    <p class="hint">Outlined: a good day for tennis — little chance of rain, light wind.</p>
-    <ol class="days">
-      {forecast.days.map((d) => {
-        const { icon, words } = conditions(d.code);
-        const good = goodForTennis(d, forecast.wind);
-        const late = lastDay !== null && d.date > lastDay;
-        const date = new Date(`${d.date}T12:00:00Z`);
-        const label = date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
-        const day = date.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-        return (
-          <li
-            class={[good ? "good" : "", late ? "late" : ""].filter(Boolean).join(" ") || undefined}
-            title={late ? "After the results deadline" : good ? "Looks good for tennis" : undefined}
-          >
-            <span class="when">
-              <strong>{label}</strong> {day}
-            </span>
-            <span class="icon" role="img" aria-label={words}>
-              {icon}
-            </span>
-            <span class="temp">
-              {d.high}
-              {forecast.temperature === "°C" ? "°" : "°F"}
-              <span class="muted"> {d.low}°</span>
-            </span>
-            <span title="Chance of rain">💧 {d.rain === null ? "–" : `${d.rain}%`}</span>
-            <span title={`Wind, gusting ${d.gusts} ${forecast.wind}`}>
-              💨 {d.wind} {forecast.wind}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
-    <p class="source">
-      Forecast from <a href="https://open-meteo.com/">Open-Meteo</a>.
+    {venues.length > 1 && (
+      <div class="pills" role="radiogroup" aria-label="Venue">
+        {venues.slice(0, MAX_VENUES).map((v, i) => (
+          <label>
+            <input type="radio" name="venue" value={String(i)} checked={i === 0} />
+            {v.venue}
+          </label>
+        ))}
+      </div>
+    )}
+    {venues.slice(0, MAX_VENUES).map((v, i) => (
+      <div class="forecast" data-venue={String(i)}>
+        {venues.length > 1 && <p class="venue-name">{v.venue}</p>}
+        <ForecastTable forecast={v.forecast} lastDay={lastDay} />
+      </div>
+    ))}
+    <p class="hint">
+      Green: good for tennis — little rain, light wind. Faded: after the results deadline. From{" "}
+      <a href="https://open-meteo.com/">Open-Meteo</a>.
     </p>
   </section>
 );
+
+const ForecastTable: FC<{ forecast: Forecast; lastDay: string | null }> = ({ forecast, lastDay }) => {
+  const days = forecast.days.map((d) => {
+    const date = new Date(`${d.date}T12:00:00Z`);
+    return {
+      ...d,
+      ...conditions(d.code),
+      weekday: date.toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" }),
+      day: date.getUTCDate(),
+      class: [goodForTennis(d, forecast.wind) ? "good" : "", lastDay !== null && d.date > lastDay ? "late" : ""]
+        .filter(Boolean)
+        .join(" ") || undefined,
+    };
+  });
+  return (
+    <div class="scroll">
+      <table class="outlook">
+        <thead>
+          <tr>
+            <th scope="row" />
+            {days.map((d) => (
+              <th scope="col" class={d.class}>
+                {d.weekday}
+                <br />
+                {d.day}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row" />
+            {days.map((d) => (
+              <td class={d.class}>
+                <span role="img" aria-label={d.words} title={d.words}>
+                  {d.icon}
+                </span>
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row">{forecast.temperature}</th>
+            {days.map((d) => (
+              <td class={d.class} title={`Low ${d.low}${forecast.temperature}`}>
+                {d.high}
+              </td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row">Rain %</th>
+            {days.map((d) => (
+              <td class={d.class}>{d.rain ?? "–"}</td>
+            ))}
+          </tr>
+          <tr>
+            <th scope="row">Wind {forecast.wind}</th>
+            {days.map((d) => (
+              <td class={d.class} title={`Gusting ${d.gusts} ${forecast.wind}`}>
+                {d.wind}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
 export const Movement: FC<{ movement: "promoted" | "relegated" | null }> = ({ movement }) =>
   movement === "promoted" ? (
@@ -419,7 +494,7 @@ export const Home: FC<{
   played: MyMatch[];
   standings: MyStanding[];
   /** The outlook at the courts, and the last day results are taken. Null when no location is set. */
-  weather: { forecast: Forecast; lastDay: string | null } | null;
+  weather: { venues: VenueForecast[]; lastDay: string | null } | null;
 }> = (p) => (
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>

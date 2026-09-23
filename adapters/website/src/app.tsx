@@ -36,7 +36,7 @@ import {
 
 export { apiClient, type Api, type Fetch } from "./api.js";
 export { logMailer, smtpMailer, type Mailer } from "./mail.js";
-export { openMeteo, type Forecast, type Weather } from "./weather.js";
+export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
 export type WebsiteOptions = {
   api: Api;
@@ -418,7 +418,7 @@ export function createWebsite(options: WebsiteOptions) {
         // Newest first: the last match played is the one a player looks for.
         played={played.sort((x, y) => (x.on < y.on ? 1 : x.on > y.on ? -1 : 0))}
         standings={standings}
-        weather={forecast ? { forecast, lastDay } : null}
+        weather={forecast ? { venues: forecast, lastDay } : null}
       />,
     );
   });

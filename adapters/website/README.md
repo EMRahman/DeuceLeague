@@ -45,7 +45,7 @@ running: `npm run website`, configured from the repository's `.env`:
 | `PUBLIC_URL` | The address players use; links in emails point here. |
 | `API_URL` | Where the API answers, from this server. Default `http://localhost:3000`. |
 | `SMTP_URL`, `MAIL_FROM` | How emails go out. Without them, each link is written to the log. |
-| `WEATHER_LATITUDE`, `WEATHER_LONGITUDE` | Where the courts are, for a 14-day outlook on the home page: rain chance, wind and temperature, with good days for tennis outlined, to help players pick a day. From [Open-Meteo](https://open-meteo.com/), free for non-commercial use, asked by the server with the coordinates alone. Unset: no outlook. |
+| `WEATHER_VENUES` | Where the club plays, as `Name@latitude,longitude`, several separated by `;`. The home page shows a 14-day outlook for each — temperature, rain chance and wind, a column a day, good days for tennis in green — with a pill per venue to switch between them. From [Open-Meteo](https://open-meteo.com/), free for non-commercial use, asked by the server with the coordinates alone. Unset: no outlook. |
 | `WEATHER_UNITS` | `uk` (°C, mph; the default), `metric` (°C, km/h) or `us` (°F, mph). |
 | `WEBSITE_PORT` | Default 8080. |
 

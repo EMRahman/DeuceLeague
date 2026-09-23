@@ -26,15 +26,7 @@ const app = createWebsite({
   key: config.WEBSITE_API_KEY,
   publicUrl: config.PUBLIC_URL,
   mail: config.SMTP_URL && config.MAIL_FROM ? smtpMailer(config.SMTP_URL, config.MAIL_FROM) : logMailer(),
-  ...(config.WEATHER_LATITUDE !== undefined && config.WEATHER_LONGITUDE !== undefined
-    ? {
-        weather: openMeteo({
-          latitude: config.WEATHER_LATITUDE,
-          longitude: config.WEATHER_LONGITUDE,
-          units: config.WEATHER_UNITS,
-        }),
-      }
-    : {}),
+  ...(config.WEATHER_VENUES?.length ? { weather: openMeteo(config.WEATHER_VENUES, config.WEATHER_UNITS) } : {}),
 });
 
 const server = serve({ fetch: app.fetch, port: config.WEBSITE_PORT }, (info) => {

@@ -166,12 +166,12 @@ percent-encoded (`@` is `%40`):
 | Gmail (app password) | `smtps://you%40gmail.com:<app password>@smtp.gmail.com:465` |
 
 Optionally, give the home page a 14-day weather outlook at the courts — rain
-chance and wind, to help players pick a day — by adding where they are
-(right-click the courts in a map app to copy the coordinates):
+chance and wind, to help players pick a day — by naming where the club plays
+(right-click the courts in a map app to copy the coordinates). Several venues
+get a pill each to switch between them:
 
 ```bash
-WEATHER_LATITUDE=51.4343
-WEATHER_LONGITUDE=-0.2141
+WEATHER_VENUES="Centre Courts@51.4343,-0.2141;Park Courts@51.4059,-0.2229"
 # °C and mph; or metric (°C, km/h), or us (°F, mph)
 WEATHER_UNITS=uk
 ```
