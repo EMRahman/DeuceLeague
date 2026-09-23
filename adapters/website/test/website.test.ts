@@ -271,7 +271,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   assert.ok(samRow.includes(`<span class="muted">${today} · </span><a href=`), `the day first, ${today}`);
   // What earned them sits in a tooltip on the points, not in the row.
-  assert.match(samRow, /<span class="pts tip" tabindex="0">6 pts<span class="tiptext" role="tooltip">Win 4 · Sets won 2<\/span>/);
+  assert.match(samRow, /<span class="pts tip" tabindex="0">6 pts<span class="tiptext" role="tooltip">Played 1 · Win 3 · Sets won 2<\/span>/);
   assert.match(samRow, /Turned up to every match/);
   assert.doesNotMatch(samRow, /Total/, "the table's own Pts column is the total");
   const alexRow = rowOf("Alex P.");

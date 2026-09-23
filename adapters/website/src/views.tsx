@@ -781,7 +781,11 @@ export const CompetitionPage: FC<{
                         {r.label}
                         {r.standing === "withdrawn" && <span class="muted"> (withdrawn)</span>}
                       </summary>
-                      <RowBreakdown row={r} breakdown={breakdowns[r.entry_id] ?? { played: [], toPlay: [] }} />
+                      <RowBreakdown
+                        row={r}
+                        breakdown={breakdowns[r.entry_id] ?? { played: [], toPlay: [] }}
+                        lossPlayed={competition.rules.points.lossPlayed}
+                      />
                     </details>
                   </td>
                   <td>{r.played}</td>
@@ -946,7 +950,7 @@ export const MatchPage: FC<{
         </p>
         {earned && (
           <p class="muted">
-            Earned you {pts(earned.points)}: {earned.items.map((i) => `${itemLabel(i, earned)} ${i.points}`).join(" · ")}.
+            Earned you {pts(earned.points)}: {breakdownText(earned, competition.rules.points.lossPlayed)}.
           </p>
         )}
       </>
@@ -1053,6 +1057,21 @@ function itemLabel(item: MatchLine["items"][number], line: MatchLine): string {
   }
 }
 
+/**
+ * What earned a match's points, in words: "Played 1 · Win 3 · Sets won 2".
+ * The engine gives a win as one number, playing included; a win played out is
+ * shown as the playing part — what a loss earns — and the rest for winning.
+ */
+function breakdownText(line: MatchLine, lossPlayed: number): string {
+  return line.items
+    .flatMap((i) =>
+      i.for === "result" && line.result === "won" && line.outcome === "completed" && lossPlayed > 0 && i.points > lossPlayed
+        ? [`Played ${lossPlayed}`, `Win ${i.points - lossPlayed}`]
+        : [`${itemLabel(i, line)} ${i.points}`],
+    )
+    .join(" · ");
+}
+
 /** A difference with its sign, as a table prints it: +8, 0, −3. */
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "0");
 
@@ -1061,7 +1080,11 @@ export type PlayedLine = { line: MatchLine; opponent: string; score: string; dat
 /** One row of a table, opened: the matches that count, what each earned, and who is left to play. */
 export type Breakdown = { played: PlayedLine[]; toPlay: { id: string; opponent: string }[] };
 
-const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, breakdown }) => (
+const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown; lossPlayed: number }> = ({
+  row,
+  breakdown,
+  lossPlayed,
+}) => (
   <div class="breakdown">
     {breakdown.played.length === 0 ? (
       <p class="muted">No results yet.</p>
@@ -1081,7 +1104,7 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, br
               <span class="pts tip" tabindex={0}>
                 {pts(line.points)}
                 <span class="tiptext" role="tooltip">
-                  {line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}
+                  {breakdownText(line, lossPlayed)}
                 </span>
               </span>
             </li>
