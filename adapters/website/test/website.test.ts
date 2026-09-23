@@ -70,6 +70,12 @@ function browser(site: Site) {
   };
 }
 
+/** The option chosen in one of the score form's dropdowns: "" when blank. */
+function picked(html: string, name: string): string | undefined {
+  const select = new RegExp(`<select name="${name}"[^>]*>[\\s\\S]*?</select>`).exec(html)?.[0];
+  return select?.match(/<option value="(\d*)" selected/)?.[1];
+}
+
 /** The key the setup guide tells a coach to make for the website. */
 const websiteKey = (club: TestClub) => keyWith(club, "members:read", "members:write", "members:pii");
 
@@ -170,6 +176,12 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.ok(home.html.includes(`<dl class="toplay"><dt>Men&#39;s Singles</dt><dd><a href="/matches/${match.id}">Alex P.</a>`), home.html);
   const page = await samPhone.get(`/matches/${match.id}`);
   assert.match(page.html, /Report the score/);
+  // Dropdowns: a set runs 0-7, the match tiebreak 0-30, each blank to start.
+  const options = (name: string) =>
+    [...(new RegExp(`<select name="${name}"[^>]*>([\\s\\S]*?)</select>`).exec(page.html)?.[1] ?? "").matchAll(/value="(\d*)"/g)].map((m) => m[1]);
+  assert.deepEqual(options("mine_1"), ["", "0", "1", "2", "3", "4", "5", "6", "7"]);
+  assert.equal(options("theirs_3").at(-1), "30");
+  assert.equal(picked(page.html, "mine_1"), "");
 
   // The API's own check, in the player's words: 6-6 is not a set.
   const refused = await samPhone.post(`/matches/${match.id}/report`, {
@@ -180,8 +192,8 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.equal(refused.status, 400);
   assert.match(refused.html, /6-6 is not a completed set/);
   // What was sent stays in the form, to correct rather than retype.
-  assert.match(refused.html, /name="mine_1" [^>]*value="6"/);
-  assert.match(refused.html, /name="theirs_1" [^>]*value="6"/);
+  assert.equal(picked(refused.html, "mine_1"), "6");
+  assert.equal(picked(refused.html, "theirs_1"), "6");
 
   const reported = await samPhone.post(`/matches/${match.id}/report`, {
     outcome: "completed",
@@ -210,9 +222,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   // Changing it starts from the score Sam sent.
   const samChange = (await samPhone.get(`/matches/${match.id}`)).html;
   assert.match(samChange, /Filled in with your score/);
-  assert.match(samChange, /name="mine_1" [^>]*value="6"/);
-  assert.match(samChange, /name="theirs_1" [^>]*value="4"/);
-  assert.match(samChange, /name="theirs_2" [^>]*value="3"/);
+  assert.equal(picked(samChange, "mine_1"), "6");
+  assert.equal(picked(samChange, "theirs_1"), "4");
+  assert.equal(picked(samChange, "theirs_2"), "3");
   assert.ok(
     samHome.html.indexOf("Where you stand") < samHome.html.indexOf("Waiting for your opponent"),
     "where you stand comes first on the page, then what is waiting",
@@ -228,8 +240,8 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.match(alexPage.html, /Sam K\. reported <strong>4-6, 3-6<\/strong>/, "read from Alex's side");
   // Alex has sent nothing, so the form starts from Sam's score, turned round to Alex's side.
   assert.match(alexPage.html, /Filled in with Sam K\.&#39;s score/);
-  assert.match(alexPage.html, /name="mine_1" [^>]*value="4"/);
-  assert.match(alexPage.html, /name="theirs_1" [^>]*value="6"/);
+  assert.equal(picked(alexPage.html, "mine_1"), "4");
+  assert.equal(picked(alexPage.html, "theirs_1"), "6");
   const alexHome = await alexPhone.get("/");
   assert.match(alexHome.html, /Needs your answer/);
   assert.match(alexHome.html, /They say <strong>4-6, 3-6<\/strong>/);

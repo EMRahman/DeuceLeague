@@ -7,13 +7,21 @@ import type { MatchFormat, Outcome, Score, Side } from "./api.js";
  * whether a score is legal is the API's to say, against the competition's format.
  */
 
-/** One row per set that could be played, the last named for what it is. */
-export function setRows(format: MatchFormat): { n: number; label: string }[] {
+/** The most a match tiebreak's score box offers. */
+const TIEBREAK_MAX = 30;
+
+/**
+ * One row per set that could be played, the last named for what it is, and the
+ * most games (or tiebreak points) its score boxes offer: a set runs to one past
+ * its tiebreak (7-6), or to 20 for a set played out without one.
+ */
+export function setRows(format: MatchFormat): { n: number; label: string; max: number }[] {
   const count = format.setsToWin * 2 - 1;
+  const setMax = format.set.tiebreakAt === null ? 20 : format.set.tiebreakAt + 1;
   return Array.from({ length: count }, (_, i) => {
     const n = i + 1;
-    const final = n === count && count > 1;
-    return { n, label: final && format.finalSet.type === "champions_tiebreak" ? "Match tiebreak" : `Set ${n}` };
+    const tiebreak = n === count && count > 1 && format.finalSet.type === "champions_tiebreak";
+    return { n, label: tiebreak ? "Match tiebreak" : `Set ${n}`, max: tiebreak ? TIEBREAK_MAX : setMax };
   });
 }
 

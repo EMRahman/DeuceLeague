@@ -146,7 +146,7 @@ details.rules ul { padding-left: 1.2rem; margin: .5rem 0 0; }
 summary { cursor: pointer; color: var(--accent); }
 label { display: block; font-weight: 500; margin-bottom: .25rem; }
 input, select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .6rem; width: 100%; }
-input[type=number] { width: 4.5rem; text-align: center; }
+input[type=number], .sets select { width: 4.5rem; text-align: center; }
 fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 .choices { display: grid; gap: .4rem; }
@@ -833,6 +833,26 @@ export const CompetitionPage: FC<{
 
 // ──────────────────────────────────────────────────────────────── a match ──
 
+/** A score box as a list to pick from — 0 to `max` — blank for a set not played. */
+const ScoreSelect: FC<{ name: string; max: number; value: string | undefined; id?: string; label?: string }> = ({
+  name,
+  max,
+  value,
+  id,
+  label,
+}) => (
+  <select name={name} id={id} aria-label={label}>
+    <option value="" selected={!value}>
+      –
+    </option>
+    {Array.from({ length: max + 1 }, (_, n) => (
+      <option value={String(n)} selected={value === String(n)}>
+        {n}
+      </option>
+    ))}
+  </select>
+);
+
 const ScoreForm: FC<{
   matchId: string;
   format: Competition["match_format"];
@@ -882,23 +902,12 @@ const ScoreForm: FC<{
         {setRows(format).map((row) => (
           <>
             <label for={`mine_${row.n}`}>{row.label}</label>
-            <input
-              id={`mine_${row.n}`}
-              name={`mine_${row.n}`}
-              type="number"
-              min="0"
-              max="99"
-              inputmode="numeric"
-              value={values[`mine_${row.n}`]}
-            />
-            <input
+            <ScoreSelect id={`mine_${row.n}`} name={`mine_${row.n}`} max={row.max} value={values[`mine_${row.n}`]} />
+            <ScoreSelect
               name={`theirs_${row.n}`}
+              max={row.max}
               value={values[`theirs_${row.n}`]}
-              type="number"
-              min="0"
-              max="99"
-              inputmode="numeric"
-              aria-label={`${row.label}, ${opponent}`}
+              label={`${row.label}, ${opponent}`}
             />
           </>
         ))}
