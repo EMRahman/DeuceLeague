@@ -224,7 +224,6 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   // games are for wider screens; the difference and points always show.
   assert.match(table.html, /<td class="wide">12<\/td><td class="wide">7<\/td><td>\+5<\/td>/);
   assert.match(table.html, /<td class="wide">7<\/td><td class="wide">12<\/td><td>−5<\/td>/);
-  assert.match(table.html, /Won 1 · Lost 0 · Games 12–7/, "and in the opened row");
 
   // Each row opens in place to show that player's matches and what each earned.
   // Seen by Alex: every row, Alex's own open.

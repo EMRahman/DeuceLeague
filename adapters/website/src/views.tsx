@@ -78,7 +78,7 @@ tr.relegated td:first-child { box-shadow: inset 3px 0 var(--down); }
 .move { font-size: .7rem; margin-left: .15rem; }
 tr.promoted .move { color: var(--up); }
 tr.relegated .move { color: var(--down); }
-/* On a phone the table keeps what decides a place; the rest is in the opened row. */
+/* On a phone the table keeps what decides a place. */
 @media (max-width: 559px) { .wide { display: none; } }
 .key { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .85rem; color: var(--muted); margin-bottom: .75rem; }
 .key span::before { content: ""; display: inline-block; width: .8rem; height: .8rem; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
@@ -838,9 +838,6 @@ export type Breakdown = { played: PlayedLine[]; toPlay: { id: string; opponent: 
 
 const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, breakdown }) => (
   <div class="breakdown">
-    <p class="muted" style="margin:0 0 .3rem">
-      Won {row.won} · Lost {row.lost} · Games {row.games_won}–{row.games_lost}
-    </p>
     {breakdown.played.length === 0 ? (
       <p class="muted">No results yet.</p>
     ) : (
