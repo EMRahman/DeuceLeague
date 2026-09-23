@@ -138,8 +138,8 @@ export function deadlineLine(deadline: string | null, timezone: string, now: Dat
   const dayOf = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(d);
   const days = Math.round((Date.parse(dayOf(at)) - Date.parse(dayOf(now))) / 86_400_000);
   const when = at.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: timezone });
-  if (at.getTime() <= now.getTime()) return "Results are closed. The coach settles anything left.";
-  if (days === 0) return `Results close today (${when}).`;
-  if (days === 1) return `Results close tomorrow (${when}).`;
-  return `Results close in ${days} days (${when}).`;
+  if (at.getTime() <= now.getTime()) return "Results are closed; the coach settles anything left";
+  if (days === 0) return `Results close today (${when})`;
+  if (days === 1) return `Results close tomorrow (${when})`;
+  return `Results close in ${days} days (${when})`;
 }
