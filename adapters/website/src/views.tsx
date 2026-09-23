@@ -102,9 +102,8 @@ table.outlook thead .last { color: var(--down); }
 .tabs { display: flex; gap: .4rem; overflow-x: auto; margin: 0 -16px 1rem; padding: 0 16px .25rem; scrollbar-width: none; }
 .tabs a { white-space: nowrap; text-decoration: none; color: var(--fg); border: 1px solid var(--line); border-radius: 999px; padding: .35rem .8rem; font-size: .9rem; }
 .tabs a[aria-current] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-/* The competitions you are playing in: marked with a dot and a stronger border. */
+/* The competitions you are playing in: bold, with the club green for a border. */
 .tabs a.mine { font-weight: 600; border-color: var(--accent); }
-.tabs a.mine::before { content: "●"; font-size: .6rem; margin-right: .35rem; vertical-align: 2px; }
 .jump { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .9rem; margin-bottom: .75rem; }
 .jump .mine { font-weight: 700; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
