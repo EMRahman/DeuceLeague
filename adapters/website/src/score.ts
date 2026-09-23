@@ -76,6 +76,27 @@ export function readReportForm(form: Record<string, string>, mine: Side, format:
   return { ok: true, report: { outcome, score, retired_side, ...(played_on ? { played_on } : {}) } };
 }
 
+/**
+ * A claim as the score form's fields, from the side `mine`: what fills the
+ * form in when a player changes a score, so they correct it rather than retype it.
+ */
+export function claimToForm(
+  claim: { outcome: Outcome; score: Score | null; retired_side: Side | null; played_on: string | null },
+  mine: Side,
+): Record<string, string> {
+  const theirs: Side = mine === 0 ? 1 : 0;
+  const values: Record<string, string> = {
+    outcome: OUTCOMES.some((o) => o.value === claim.outcome) ? claim.outcome : "completed",
+  };
+  if (claim.retired_side !== null) values.stopped = claim.retired_side === mine ? "me" : "them";
+  claim.score?.sets.forEach(({ games }, i) => {
+    values[`mine_${i + 1}`] = String(games[mine]);
+    values[`theirs_${i + 1}`] = String(games[theirs]);
+  });
+  if (claim.played_on) values.played_on = claim.played_on;
+  return values;
+}
+
 /** A score from one side's point of view: "6-4, 3-6, 10-7". */
 export function scoreLine(score: Score | null, from: Side = 0): string {
   if (!score) return "";

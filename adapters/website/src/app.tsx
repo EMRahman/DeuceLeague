@@ -32,6 +32,7 @@ import {
   type MyMatch,
   type MyStanding,
   type ToAnswer,
+  type Waiting,
 } from "./views.js";
 
 export { apiClient, type Api, type Fetch } from "./api.js";
@@ -337,7 +338,7 @@ export function createWebsite(options: WebsiteOptions) {
 
     const answer: ToAnswer[] = [];
     const toPlay: MyMatch[] = [];
-    const waiting: MyMatch[] = [];
+    const waiting: Waiting[] = [];
     const played: (MyMatch & { on: string })[] = [];
     for (const m of matches) {
       const competition = byId.get(m.competition_id);
@@ -368,7 +369,7 @@ export function createWebsite(options: WebsiteOptions) {
             mine: m.status === "disputed" && own ? describe(own, mine, names) : null,
           });
         } else {
-          waiting.push(item("reported"));
+          waiting.push({ ...item("reported"), mine: own ? describe(own, mine, names) : null });
         }
       }
     }
@@ -482,7 +483,14 @@ export function createWebsite(options: WebsiteOptions) {
   };
 
   /** The match page, with whatever went wrong with the last thing the player sent. */
-  async function matchPage(c: Context, p: Player, id: string, messages: string[] = [], status: 200 | 400 | 409 = 200) {
+  async function matchPage(
+    c: Context,
+    p: Player,
+    id: string,
+    messages: string[] = [],
+    status: 200 | 400 | 409 = 200,
+    sent: Record<string, string> | null = null,
+  ) {
     const match = await api<MatchDetail>("GET", `/v1/matches/${id}`, p.session);
     const [competition, entries, standings] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
@@ -506,6 +514,7 @@ export function createWebsite(options: WebsiteOptions) {
         today={today(p.me.club.timezone)}
         messages={messages}
         done={done && messages.length === 0 ? done(names[mine === 0 ? 1 : 0]) : null}
+        sent={sent}
       />,
       status,
     );
@@ -543,14 +552,14 @@ export function createWebsite(options: WebsiteOptions) {
       Object.entries(await c.req.parseBody()).map(([k, v]) => [k, typeof v === "string" ? v : ""]),
     );
     const read = readReportForm(form, mine, competition.match_format);
-    if (!read.ok) return matchPage(c, p, id, read.errors, 400);
+    if (!read.ok) return matchPage(c, p, id, read.errors, 400, form);
     try {
       const after = await api<MatchDetail>("POST", `/v1/matches/${id}/claims`, p.session, { ...read.report, source: "web" });
       // The same score as the other side's: it counts at once.
       return c.redirect(`/matches/${id}?done=${after.status === "played" ? "accepted" : "sent"}`, 303);
     } catch (error) {
       const { messages, status } = explain(error);
-      return matchPage(c, p, id, messages, status);
+      return matchPage(c, p, id, messages, status, form);
     }
   });
 

@@ -179,6 +179,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   });
   assert.equal(refused.status, 400);
   assert.match(refused.html, /6-6 is not a completed set/);
+  // What was sent stays in the form, to correct rather than retype.
+  assert.match(refused.html, /name="mine_1" [^>]*value="6"/);
+  assert.match(refused.html, /name="theirs_1" [^>]*value="6"/);
 
   const reported = await samPhone.post(`/matches/${match.id}/report`, {
     outcome: "completed",
@@ -200,10 +203,19 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.equal(claimed.claims[0].source, "web");
 
   const samHome = await samPhone.get("/");
-  assert.match(samHome.html, /Waiting for your opponent \(1\)<\/h2><dl class="toplay"><dt>Men&#39;s Singles<\/dt>/, "a line per competition");
+  // Laid out as Needs your answer is: who, then the score Sam sent and a way to change it.
+  assert.match(samHome.html, /Waiting for your opponent \(1\)/);
+  assert.match(samHome.html, /You said <strong>6-4, 6-3<\/strong>/);
+  assert.ok(samHome.html.includes(`href="/matches/${match.id}#report">Change score</a>`));
+  // Changing it starts from the score Sam sent.
+  const samChange = (await samPhone.get(`/matches/${match.id}`)).html;
+  assert.match(samChange, /Filled in with your score/);
+  assert.match(samChange, /name="mine_1" [^>]*value="6"/);
+  assert.match(samChange, /name="theirs_1" [^>]*value="4"/);
+  assert.match(samChange, /name="theirs_2" [^>]*value="3"/);
   assert.ok(
-    samHome.html.indexOf("Waiting for your opponent") < samHome.html.indexOf("Where you stand"),
-    "waiting comes first on the page",
+    samHome.html.indexOf("Where you stand") < samHome.html.indexOf("Waiting for your opponent"),
+    "where you stand comes first on the page, then what is waiting",
   );
   // The season and how long is left; and where Sam stands, linking to Sam's own row.
   assert.match(samHome.html, /Season \w+ · Results close in (59|60|61) days/);
@@ -214,12 +226,16 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   // Alex agrees from the home page, without opening the match: the score from Alex's side, and one button.
   const alexPage = await alexPhone.get(`/matches/${match.id}`);
   assert.match(alexPage.html, /Sam K\. reported <strong>4-6, 3-6<\/strong>/, "read from Alex's side");
+  // Alex has sent nothing, so the form starts from Sam's score, turned round to Alex's side.
+  assert.match(alexPage.html, /Filled in with Sam K\.&#39;s score/);
+  assert.match(alexPage.html, /name="mine_1" [^>]*value="4"/);
+  assert.match(alexPage.html, /name="theirs_1" [^>]*value="6"/);
   const alexHome = await alexPhone.get("/");
   assert.match(alexHome.html, /Needs your answer/);
   assert.match(alexHome.html, /They say <strong>4-6, 3-6<\/strong>/);
   // Whose score the button agrees to, said plainly; the other way is entering your own.
   assert.match(alexHome.html, /<button type="submit" class="small">Accept theirs<\/button>/);
-  assert.match(alexHome.html, />Enter mine<\/a>/);
+  assert.ok(alexHome.html.includes(`href="/matches/${match.id}#report">Change score</a>`));
   const claimId = /name="claim_id" value="([^"]+)"/.exec(alexHome.html)?.[1]!;
   const agreed = await alexPhone.post(`/matches/${match.id}/accept`, { claim_id: claimId, back: "home" });
   assert.equal(agreed.location, "/?done=accepted", "back to the home page");

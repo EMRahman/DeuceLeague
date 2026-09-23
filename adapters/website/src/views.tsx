@@ -1,7 +1,7 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
-import { describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
+import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
 
 /**
@@ -63,7 +63,10 @@ a.rowlink .chev { color: var(--muted); }
 .answer-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .35rem .75rem; margin-top: .15rem; }
 .answer .actions { display: flex; align-items: center; gap: .75rem; font-size: .9rem; white-space: nowrap; }
 .answer form { margin: 0; }
-button.small { padding: .4rem .8rem; min-height: 38px; font-size: .9rem; }
+/* A link that does what a button does: opens the score form. */
+a.button { display: inline-flex; align-items: center; font-weight: 600; border-radius: 10px; padding: .7rem 1.1rem; min-height: 44px; background: var(--accent); color: var(--accent-fg); text-decoration: none; }
+a.button.quiet { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; }
+button.small, a.button.small { padding: .4rem .8rem; min-height: 38px; font-size: .9rem; }
 .standing .where { color: var(--muted); font-size: .9rem; }
 dl.toplay { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .45rem .9rem; }
 dl.toplay dt { color: var(--muted); font-size: .85rem; padding-top: .1rem; }
@@ -331,6 +334,9 @@ export type ToAnswer = MyMatch & {
   mine: string | null;
 };
 
+/** A score this player has put in, waiting for the opponent's answer. */
+export type Waiting = MyMatch & { mine: string | null };
+
 /** Where the player stands in one competition. */
 export type MyStanding = {
   competitionId: string;
@@ -512,7 +518,7 @@ export const Home: FC<{
   notice: string | null;
   answer: ToAnswer[];
   toPlay: MyMatch[];
-  waiting: MyMatch[];
+  waiting: Waiting[];
   played: MyMatch[];
   standings: MyStanding[];
   /** The outlook at the courts, and the last day results are taken. Null when no location is set. */
@@ -523,10 +529,49 @@ export const Home: FC<{
     {p.notice && <Notice ok messages={[p.notice]} />}
     {p.deadline && <p class="deadline">{p.deadline}</p>}
 
+    {p.standings.length > 0 && (
+      <section class="card">
+        <h2>Where you stand</h2>
+        <ul class="list">
+          {p.standings.map((s) => (
+            <li class="standing">
+              <a class="rowlink" href={`/competitions/${s.competitionId}#mine`}>
+                <span>
+                  <span class="title">{s.competition}</span>
+                  <Movement movement={s.movement} />
+                  <br />
+                  <span class="where">
+                    {s.division}
+                    {s.position ? ` · ${ordinal(s.position)}` : ""} · {s.points} pts
+                  </span>
+                </span>
+                <span class="chev">›</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
     {p.waiting.length > 0 && (
       <section class="card">
         <h2>Waiting for your opponent ({p.waiting.length})</h2>
-        <ByCompetition matches={p.waiting} />
+        <ul class="list">
+          {p.waiting.map((m) => (
+            <li class="answer">
+              <div>
+                <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
+              </div>
+              <div class="answer-row">
+                <span>{m.mine ? <>You said <strong>{m.mine}</strong></> : <span class="muted">{m.note}</span>}</span>
+                <span class="actions">
+                  <a class="button small quiet" href={`/matches/${m.id}#report`}>
+                    Change score
+                  </a>
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
       </section>
     )}
     {p.answer.length > 0 && (
@@ -562,7 +607,9 @@ export const Home: FC<{
                       </button>
                     </form>
                   )}
-                  <a href={`/matches/${m.id}`}>{m.theirs ? (m.mine ? "Change mine" : "Enter mine") : "Open"}</a>
+                  <a class="button small quiet" href={`/matches/${m.id}#report`}>
+                    Change score
+                  </a>
                 </span>
               </div>
             </li>
@@ -582,29 +629,6 @@ export const Home: FC<{
       <p class="muted">You have no matches outstanding.</p>
     )}
 
-    {p.standings.length > 0 && (
-      <section>
-        <h2>Where you stand</h2>
-        <ul class="list">
-          {p.standings.map((s) => (
-            <li class="standing">
-              <a class="rowlink" href={`/competitions/${s.competitionId}#mine`}>
-                <span>
-                  <span class="title">{s.competition}</span>
-                  <Movement movement={s.movement} />
-                  <br />
-                  <span class="where">
-                    {s.division}
-                    {s.position ? ` · ${ordinal(s.position)}` : ""} · {s.points} pts
-                  </span>
-                </span>
-                <span class="chev">›</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
 
     {p.played.length > 0 && (
       <details>
@@ -813,15 +837,20 @@ const ScoreForm: FC<{
   again: boolean;
   /** A pair, for doubles: "Us", not "Me". */
   pair: boolean;
-}> = ({ matchId, format, opponent, today, again, pair }) => (
-  <form method="post" action={`/matches/${matchId}/report`} class="card report">
-    <h2>{again ? "Enter the score again" : "Report the score"}</h2>
+  /** What the fields start with: a claim already made, or what was just sent and refused. */
+  values: Record<string, string>;
+  /** Whose score filled the form in, to say so. */
+  filledFrom: string | null;
+}> = ({ matchId, format, opponent, today, again, pair, values, filledFrom }) => (
+  <form method="post" action={`/matches/${matchId}/report`} class="card report" id="report">
+    <h2>{again ? "Change the score" : "Report the score"}</h2>
+    {filledFrom && <p class="hint">Filled in with {filledFrom}: change what is wrong and send it.</p>}
     <fieldset>
       <legend>How did it end?</legend>
       <div class="choices">
-        {OUTCOMES.map((o, i) => (
+        {OUTCOMES.map((o) => (
           <label>
-            <input type="radio" name="outcome" value={o.value} checked={i === 0} />
+            <input type="radio" name="outcome" value={o.value} checked={(values.outcome ?? OUTCOMES[0]!.value) === o.value} />
             {o.label}
           </label>
         ))}
@@ -831,11 +860,11 @@ const ScoreForm: FC<{
       <legend>Who retired, conceded or did not turn up?</legend>
       <div class="choices">
         <label>
-          <input type="radio" name="stopped" value="me" />
+          <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />
           {pair ? "Us" : "Me"}
         </label>
         <label>
-          <input type="radio" name="stopped" value="them" />
+          <input type="radio" name="stopped" value="them" checked={values.stopped === "them"} />
           {opponent}
         </label>
       </div>
@@ -849,9 +878,18 @@ const ScoreForm: FC<{
         {setRows(format).map((row) => (
           <>
             <label for={`mine_${row.n}`}>{row.label}</label>
-            <input id={`mine_${row.n}`} name={`mine_${row.n}`} type="number" min="0" max="99" inputmode="numeric" />
+            <input
+              id={`mine_${row.n}`}
+              name={`mine_${row.n}`}
+              type="number"
+              min="0"
+              max="99"
+              inputmode="numeric"
+              value={values[`mine_${row.n}`]}
+            />
             <input
               name={`theirs_${row.n}`}
+              value={values[`theirs_${row.n}`]}
               type="number"
               min="0"
               max="99"
@@ -864,7 +902,7 @@ const ScoreForm: FC<{
     </div>
     <div class="field">
       <label for="played_on">Played on</label>
-      <input id="played_on" name="played_on" type="date" value={today} max={today} />
+      <input id="played_on" name="played_on" type="date" value={values.played_on || today} max={today} />
     </div>
     <button type="submit">Send the score</button>
     <p class="muted" style="margin:.75rem 0 0">
@@ -886,7 +924,9 @@ export const MatchPage: FC<{
   today: string;
   messages: string[];
   done: string | null;
-}> = ({ frame, match, competition, division, mine, names, earned, today, messages, done }) => {
+  /** What was just sent and refused, to put back in the form rather than make them retype it. */
+  sent: Record<string, string> | null;
+}> = ({ frame, match, competition, division, mine, names, earned, today, messages, done, sent }) => {
   const from: Side = mine ?? 0;
   const theirs: Side = from === 0 ? 1 : 0;
   const live = (side: Side) => match.claims.find((c) => c.state === "pending" && c.side === side) ?? null;
@@ -975,6 +1015,10 @@ export const MatchPage: FC<{
           today={today}
           again={mineLive !== null}
           pair={competition.discipline === "doubles"}
+          // Start from what was just sent, else their own score, else the other side's: a
+          // score is changed by correcting it, not by typing it all again.
+          values={sent ?? (mineLive ? claimToForm(mineLive, from) : theirsLive ? claimToForm(theirsLive, from) : {})}
+          filledFrom={sent ? null : mineLive ? "your score" : theirsLive ? `${names[theirs]}'s score` : null}
         />
       )}
       {mine !== null && competition.state !== "active" && match.status !== "played" && (
