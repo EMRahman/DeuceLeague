@@ -213,6 +213,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   const alexHome = await alexPhone.get("/");
   assert.match(alexHome.html, /Needs your answer/);
   assert.match(alexHome.html, /They say <strong>4-6, 3-6<\/strong>/);
+  // Whose score the button agrees to, said plainly; the other way is entering your own.
+  assert.match(alexHome.html, /<button type="submit" class="small">Accept theirs<\/button>/);
+  assert.match(alexHome.html, />Enter mine<\/a>/);
   const claimId = /name="claim_id" value="([^"]+)"/.exec(alexHome.html)?.[1]!;
   const agreed = await alexPhone.post(`/matches/${match.id}/accept`, { claim_id: claimId, back: "home" });
   assert.equal(agreed.location, "/?done=accepted", "back to the home page");

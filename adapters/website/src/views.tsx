@@ -59,10 +59,11 @@ ul.list > li:last-child { border-bottom: 0; }
 a.rowlink { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 44px; padding: .6rem 0; color: inherit; text-decoration: none; }
 a.rowlink .title { color: var(--accent); font-weight: 600; }
 a.rowlink .chev { color: var(--muted); }
-.answer { padding: .75rem 0; }
-.answer .claim { margin: .15rem 0 .6rem; }
-.answer .actions { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
+.answer { padding: .55rem 0; }
+.answer-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .35rem .75rem; margin-top: .15rem; }
+.answer .actions { display: flex; align-items: center; gap: .75rem; font-size: .9rem; white-space: nowrap; }
 .answer form { margin: 0; }
+button.small { padding: .4rem .8rem; min-height: 38px; font-size: .9rem; }
 .standing .where { color: var(--muted); font-size: .9rem; }
 dl.toplay { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .45rem .9rem; }
 dl.toplay dt { color: var(--muted); font-size: .85rem; padding-top: .1rem; }
@@ -521,31 +522,35 @@ export const Home: FC<{
         <ul class="list">
           {p.answer.map((m) => (
             <li class="answer">
-              <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
-              {m.theirs ? (
-                <p class="claim">
-                  {m.mine ? (
-                    <>
-                      You said <strong>{m.mine}</strong>; they said <strong>{m.theirs.says}</strong>.
-                    </>
-                  ) : (
-                    <>
-                      They say <strong>{m.theirs.says}</strong>.
-                    </>
-                  )}
-                </p>
-              ) : (
-                <p class="claim muted">{m.note}</p>
-              )}
-              <div class="actions">
-                {m.theirs && (
-                  <form method="post" action={`/matches/${m.id}/accept`}>
-                    <input type="hidden" name="claim_id" value={m.theirs.claimId} />
-                    <input type="hidden" name="back" value="home" />
-                    <button type="submit">That's right</button>
-                  </form>
+              <div>
+                <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
+              </div>
+              <div class="answer-row">
+                {m.theirs ? (
+                  <span>
+                    They say <strong>{m.theirs.says}</strong>
+                    {m.mine && (
+                      <span class="muted">
+                        {" "}
+                        · you said <strong>{m.mine}</strong>
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span class="muted">{m.note}</span>
                 )}
-                <a href={`/matches/${m.id}`}>{m.theirs ? "Different score?" : "Open"}</a>
+                <span class="actions">
+                  {m.theirs && (
+                    <form method="post" action={`/matches/${m.id}/accept`}>
+                      <input type="hidden" name="claim_id" value={m.theirs.claimId} />
+                      <input type="hidden" name="back" value="home" />
+                      <button type="submit" class="small">
+                        Accept theirs
+                      </button>
+                    </form>
+                  )}
+                  <a href={`/matches/${m.id}`}>{m.theirs ? (m.mine ? "Change mine" : "Enter mine") : "Open"}</a>
+                </span>
               </div>
             </li>
           ))}
@@ -951,7 +956,7 @@ export const MatchPage: FC<{
       {canAct && theirsLive && (
         <form method="post" action={`/matches/${match.id}/accept`} style="margin-bottom:1.5rem">
           <input type="hidden" name="claim_id" value={theirsLive.id} />
-          <button type="submit">Accept {say(theirsLive)}</button>
+          <button type="submit">Accept theirs: {say(theirsLive)}</button>
         </form>
       )}
       {canAct && (
