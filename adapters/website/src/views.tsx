@@ -682,8 +682,11 @@ export const RulesExplained: FC<{ rules: Rules; tiebreakFormat: string }> = ({ r
           If someone retires, the winner gets {pts(p.retiredWin)} in all and the player who retired {pts(p.retiredLoss)}.
         </li>
         <li>
-          A walkover or concession: {pts(p.walkoverWin)} to the player who turned up, {pts(p.walkoverLoss)} to the one
-          who did not.
+          A walkover: {pts(p.walkoverWin)} to the player who turned up, {pts(p.walkoverLoss)} to the one who did not.
+        </li>
+        <li>
+          Injured and could not play: {pts(p.concededWin)} to the opponent, {pts(p.concededLoss)} to the injured
+          player.
         </li>
         {(p.closeLoss || p.convincingWin) && (
           <li>Games are counted across all the sets; a match tiebreak counts as one game.</li>
@@ -881,7 +884,7 @@ const ScoreForm: FC<{
       </div>
     </fieldset>
     <fieldset class="stopped">
-      <legend>Who retired, conceded or did not turn up?</legend>
+      <legend>Who retired, was injured or did not turn up?</legend>
       <div class="choices">
         <label>
           <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />
@@ -1048,11 +1051,11 @@ function itemLabel(item: MatchLine["items"][number], line: MatchLine): string {
   switch (item.for) {
     case "result":
       if (line.result === "won") {
-        return { completed: "Win", retired: "Win, opponent retired", walkover: "Win by walkover", conceded: "Win, conceded" }[
+        return { completed: "Win", retired: "Win, opponent retired", walkover: "Win by walkover", conceded: "Win, opponent injured" }[
           line.outcome ?? "completed"
         ];
       }
-      return { completed: "Played", retired: "Retired", walkover: "Did not turn up", conceded: "Conceded" }[
+      return { completed: "Played", retired: "Retired", walkover: "Did not turn up", conceded: "Injured" }[
         line.outcome ?? "completed"
       ];
     case "sets":

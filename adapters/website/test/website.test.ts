@@ -182,6 +182,9 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.deepEqual(options("mine_1"), ["", "0", "1", "2", "3", "4", "5", "6", "7"]);
   assert.equal(options("theirs_3").at(-1), "30");
   assert.equal(picked(page.html, "mine_1"), "");
+  // A concession is only ever through injury here, so the form calls it that.
+  assert.match(page.html, /value="conceded"\/?>Injured: someone couldn&#39;t play/);
+  assert.doesNotMatch(page.html, /conceded without playing/);
 
   // The API's own check, in the player's words: 6-6 is not a set.
   const refused = await samPhone.post(`/matches/${match.id}/report`, {

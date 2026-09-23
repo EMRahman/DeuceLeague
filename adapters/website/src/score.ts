@@ -29,7 +29,8 @@ export const OUTCOMES: { value: Outcome; label: string }[] = [
   { value: "completed", label: "We played it out" },
   { value: "retired", label: "Someone retired part-way" },
   { value: "walkover", label: "Walkover: someone did not turn up" },
-  { value: "conceded", label: "Someone conceded without playing" },
+  // The API's "conceded". At this club nobody concedes but through injury, so it is called that.
+  { value: "conceded", label: "Injured: someone couldn't play" },
 ];
 
 /** Which outcomes carry a score, and which need to say who stopped. */
@@ -56,7 +57,7 @@ export function readReportForm(form: Record<string, string>, mine: Side, format:
   if (SOMEONE_STOPPED.includes(outcome)) {
     if (form.stopped === "me") retired_side = mine;
     else if (form.stopped === "them") retired_side = theirs;
-    else errors.push("Say who retired, conceded or did not turn up.");
+    else errors.push("Say who retired, was injured or did not turn up.");
   }
 
   let score: Score | null = null;
@@ -127,7 +128,7 @@ export function describe(
     case "walkover":
       return `Walkover: ${stopped} did not turn up`;
     case "conceded":
-      return `${stopped} conceded`;
+      return `${stopped} was injured and could not play`;
     case "unplayed":
       return "Not played";
   }
