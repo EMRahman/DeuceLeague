@@ -398,6 +398,10 @@ export function createWebsite(options: WebsiteOptions) {
     // The seasons under way. Finished ones are in the tables' season row, so their
     // matches and tables do not crowd out what needs doing now.
     const live = seasons.filter((s) => s.season.state === "active");
+    const seasonOf = new Map(
+      live.flatMap((s) => s.competitions.map((competition) => [competition.id, s.season] as const)),
+    );
+    const now = new Date();
     const registered = await registrations(p, live.flatMap((s) => s.competitions));
     const byId = new Map(registered.map((r) => [r.competition.id, r.competition]));
     const entries = registered.flatMap((r) => (r.entry ? [r.entry] : []));
@@ -409,6 +413,7 @@ export function createWebsite(options: WebsiteOptions) {
         m.status !== "open" &&
         !(m.status === "played" && m.result) &&
         byId.get(m.competition_id)?.state === "active" &&
+        !deadlinePassed(seasonOf.get(m.competition_id)?.results_deadline_at ?? null, now) &&
         sideIn(m, entries) !== null,
     );
     const [details, tables] = await Promise.all([
@@ -432,6 +437,7 @@ export function createWebsite(options: WebsiteOptions) {
     const answer: ToAnswer[] = [];
     const toPlay: MyMatch[] = [];
     const waiting: Waiting[] = [];
+    const closed: MyMatch[] = [];
     const played: (MyMatch & { on: string })[] = [];
     for (const m of matches) {
       const competition = byId.get(m.competition_id);
@@ -447,6 +453,9 @@ export function createWebsite(options: WebsiteOptions) {
         played.push({ ...item(date ? `${date} · ${result}` : result), on: m.result.played_on ?? "" });
       } else if (competition.state !== "active") {
         continue;
+      } else if (deadlinePassed(seasonOf.get(competition.id)?.results_deadline_at ?? null, now)) {
+        const note = m.status === "open" ? "not reported" : m.status === "disputed" ? "scores differ" : "not agreed";
+        closed.push(item(note));
       } else if (m.status === "open") {
         toPlay.push(item("report score"));
       } else {
@@ -484,28 +493,32 @@ export function createWebsite(options: WebsiteOptions) {
       }
     }
 
-    // The deadline of the season they are playing in now.
-    const current = live.find((s) =>
+    // Each active season the player is in can have its own deadline. The
+    // weather marks one only when there is only one unambiguous last day.
+    const playingSeasons = live.filter((s) =>
       registered.some((r) => r.entry && r.competition.season_id === s.season.id),
-    )?.season;
-    const deadline = current ? deadlineLine(current.results_deadline_at, p.me.club.timezone) : null;
-    const reportingClosed = deadlinePassed(current?.results_deadline_at ?? null);
+    );
+    const deadlines = playingSeasons.map(({ season }) => {
+      const line = deadlineLine(season.results_deadline_at, p.me.club.timezone);
+      return line ? `${season.name} · ${line}` : season.name;
+    });
 
     const forecast = await within(forecasting, WEATHER_GRACE_MS);
-    const lastDay = current?.results_deadline_at
-      ? new Intl.DateTimeFormat("en-CA", { timeZone: p.me.club.timezone }).format(new Date(current.results_deadline_at))
+    const onlyDeadline = playingSeasons.length === 1 ? playingSeasons[0]!.season.results_deadline_at : null;
+    const lastDay = onlyDeadline
+      ? new Intl.DateTimeFormat("en-CA", { timeZone: p.me.club.timezone }).format(new Date(onlyDeadline))
       : null;
 
     return c.html(
       <Home
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
-        deadline={current ? (deadline ? `${current.name} · ${deadline}` : current.name) : null}
-        reportingClosed={reportingClosed}
+        deadlines={deadlines}
         notice={c.req.query("done") === "accepted" ? "Agreed. The result counts now." : null}
         answer={answer}
         toPlay={toPlay}
         waiting={waiting}
+        closed={closed}
         // Newest first: the last match played is the one a player looks for.
         played={played.sort((x, y) => (x.on < y.on ? 1 : x.on > y.on ? -1 : 0))}
         standings={standings}

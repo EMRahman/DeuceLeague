@@ -312,7 +312,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.notEqual((await send("GET", `/v1/entries/${samEntry}`, club.key)).body.opted_out_at, null);
 });
 
-test("a passed deadline makes unresolved results read-only before a player starts typing", async () => {
+test("a passed deadline makes unresolved results read-only", async () => {
   const club = await newClub("website-deadline");
   const { seasonId, competitionId, divisionIds } = await league(club);
   const sam = await member(club, { display_name: "Sam K.", email: "sam-deadline@example.org" });
@@ -337,6 +337,17 @@ test("a passed deadline makes unresolved results read-only before a player start
   });
   assert.equal(sent.status, 303);
 
+  const disputed = await alexPhone.post(`/matches/${match.id}/report`, {
+    outcome: "completed",
+    mine_1: "6",
+    theirs_1: "3",
+    mine_2: "6",
+    theirs_2: "2",
+    stopped: "",
+    played_on: day(0),
+  });
+  assert.equal(disputed.status, 303);
+
   const closed = await send("PATCH", `/v1/seasons/${seasonId}`, club.key, {
     results_deadline_at: new Date(Date.now() - 60_000).toISOString(),
   });
@@ -344,12 +355,15 @@ test("a passed deadline makes unresolved results read-only before a player start
 
   const home = await alexPhone.get("/");
   assert.match(home.html, /Results are closed; the coach settles anything left/);
-  assert.match(home.html, /Scores awaiting agreement/);
+  assert.match(home.html, /Results closed \(1\)/);
+  assert.doesNotMatch(home.html, /Needs your answer/);
   assert.doesNotMatch(home.html, new RegExp(`action="/matches/${match.id}/accept"`));
   assert.doesNotMatch(home.html, /Change score/);
 
   const page = await alexPhone.get(`/matches/${match.id}`);
+  assert.match(page.html, /The two reported scores do not match\./);
   assert.match(page.html, /Results are closed\. Ask the coach if a result is missing or needs correcting\./);
+  assert.doesNotMatch(page.html, /Accept theirs, or enter yours again/);
   assert.doesNotMatch(page.html, /Accept theirs:/);
   assert.doesNotMatch(page.html, /Report the score/);
   assert.doesNotMatch(page.html, /Change the score/);
@@ -366,6 +380,65 @@ test("a passed deadline makes unresolved results read-only before a player start
   });
   assert.equal(refused.status, 409);
   assert.match(refused.html, /Results are closed/);
+});
+
+test("each active season keeps its own reporting deadline on the home page", async () => {
+  const club = await newClub("website-two-deadlines");
+  const closedLeague = await league(club);
+  const openLeague = await league(club);
+  const renamed = await send("PATCH", `/v1/competitions/${openLeague.competitionId}`, club.key, {
+    name: "Autumn Singles",
+  });
+  assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+
+  const sam = await member(club, { display_name: "Sam K.", email: "sam-two-seasons@example.org" });
+  const alex = await member(club, { display_name: "Alex P.", email: "alex-two-seasons@example.org" });
+  const prepare = async (competitionId: string, divisionId: string) => {
+    await enter(club, competitionId, divisionId, [sam]);
+    await enter(club, competitionId, divisionId, [alex]);
+    await send("POST", `/v1/divisions/${divisionId}/fixtures`, club.key);
+    await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { state: "active" });
+    return (await send("GET", `/v1/matches?competition_id=${competitionId}`, club.key)).body.data[0];
+  };
+  const closedMatch = await prepare(closedLeague.competitionId, closedLeague.divisionIds[0]!);
+  const openMatch = await prepare(openLeague.competitionId, openLeague.divisionIds[0]!);
+
+  const site = website(await websiteKey(club));
+  const samPhone = await signIn(site, "sam-two-seasons@example.org");
+  const alexPhone = await signIn(site, "alex-two-seasons@example.org");
+  for (const match of [closedMatch, openMatch]) {
+    const sent = await samPhone.post(`/matches/${match.id}/report`, {
+      outcome: "completed",
+      mine_1: "6",
+      theirs_1: "4",
+      mine_2: "6",
+      theirs_2: "3",
+      stopped: "",
+      played_on: day(0),
+    });
+    assert.equal(sent.status, 303);
+  }
+
+  const closed = await send("PATCH", `/v1/seasons/${closedLeague.seasonId}`, club.key, {
+    results_deadline_at: new Date(Date.now() - 60_000).toISOString(),
+  });
+  assert.equal(closed.status, 200, JSON.stringify(closed.body));
+
+  const home = await alexPhone.get("/");
+  assert.equal(home.html.match(/<p class="deadline">/g)?.length, 2, "each active season shows its own deadline");
+  assert.match(home.html, /Needs your answer/);
+  assert.match(home.html, /Results closed \(1\)/);
+  assert.match(home.html, new RegExp(`action="/matches/${openMatch.id}/accept"`), "the open season remains actionable");
+  assert.doesNotMatch(home.html, new RegExp(`action="/matches/${closedMatch.id}/accept"`), "the closed season is read-only");
+
+  const closedPage = await alexPhone.get(`/matches/${closedMatch.id}`);
+  assert.match(closedPage.html, /It was not agreed before results closed\./);
+  assert.doesNotMatch(closedPage.html, /If that is right, accept it and it counts/);
+  assert.doesNotMatch(closedPage.html, /Accept theirs:/);
+
+  const openPage = await alexPhone.get(`/matches/${openMatch.id}`);
+  assert.match(openPage.html, /If that is right, accept it and it counts/);
+  assert.match(openPage.html, /Accept theirs:/);
 });
 
 test("a player cannot act on another player's match through the site", async () => {
