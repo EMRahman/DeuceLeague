@@ -105,7 +105,6 @@ table.outlook thead .last { color: var(--down); }
 /* The competitions you are playing in: marked with a dot and a stronger border. */
 .tabs a.mine { font-weight: 600; border-color: var(--accent); }
 .tabs a.mine::before { content: "●"; font-size: .6rem; margin-right: .35rem; vertical-align: 2px; }
-.tabs-key { font-size: .8rem; color: var(--muted); margin: -.6rem 0 .9rem; }
 .jump { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .9rem; margin-bottom: .75rem; }
 .jump .mine { font-weight: 700; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -704,7 +703,6 @@ export const CompetitionPage: FC<{
         ))}
       </nav>
     )}
-    {tabs.some((t) => t.mine) && tabs.length > 1 && <p class="tabs-key">● the competitions you are playing in</p>}
     <h1>{competition.name}</h1>
     {season && <p class="muted">{season}</p>}
     {standings.divisions.length > 1 && (

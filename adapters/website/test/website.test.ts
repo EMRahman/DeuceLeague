@@ -341,7 +341,7 @@ test("every division shows on one page, with its promotion and relegation places
   // Tabs for every competition, the ones Aaron plays in marked.
   assert.ok(page.includes(`href="/competitions/${competitionId}" class="mine" aria-current="page"`), page);
   assert.match(page, new RegExp(`href="/competitions/${other.body.id}"(?! class="mine")`));
-  assert.match(page, /the competitions you are playing in/);
+  assert.doesNotMatch(page, /the competitions you are playing in/, "the marked tabs say it");
   // Jump links, with Aaron's division marked, and each division an anchor.
   assert.match(page, /href="#division-1" class="mine">Division 1 \(yours\)/);
   assert.match(page, /id="division-1"[\s\S]*id="division-2"/);
