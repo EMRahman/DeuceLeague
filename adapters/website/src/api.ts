@@ -57,7 +57,14 @@ export type Me = {
   credential: { type: "session"; id: string; member: { id: string; display_name: string } } | { type: "api_key" };
 };
 
-export type Season = { id: string; name: string; state: string; results_deadline_at: string | null };
+export type Season = {
+  id: string;
+  name: string;
+  state: string;
+  starts_on: string | null;
+  ends_on: string | null;
+  results_deadline_at: string | null;
+};
 
 export type MatchFormat = {
   setsToWin: number;

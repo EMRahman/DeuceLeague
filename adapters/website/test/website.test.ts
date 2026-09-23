@@ -396,6 +396,62 @@ test("every division shows on one page, with its promotion and relegation places
   assert.doesNotMatch(page, /class="key"/);
 });
 
+test("past seasons are a tap away, in a season row over the tables", async () => {
+  const club = await newClub("website-seasons");
+  const sam = await member(club, { display_name: "Sam K.", email: "sam@example.org" });
+  const alex = await member(club, { display_name: "Alex P.", email: "alex@example.org" });
+
+  // Last season: played out, and over.
+  const old = await league(club);
+  await enter(club, old.competitionId, old.divisionIds[0]!, [sam]);
+  await enter(club, old.competitionId, old.divisionIds[0]!, [alex]);
+  await send("POST", `/v1/divisions/${old.divisionIds[0]}/fixtures`, club.key);
+  await send("PATCH", `/v1/competitions/${old.competitionId}`, club.key, { state: "active" });
+  const [match] = (await send("GET", `/v1/matches?competition_id=${old.competitionId}`, club.key)).body.data;
+  const samSide = match.sides.find((s: { label: string }) => s.label === "Sam K.").side;
+  const games = samSide === 0 ? [6, 2] : [2, 6];
+  const settled = await send("POST", `/v1/matches/${match.id}/settle`, club.key, {
+    outcome: "completed",
+    score: { sets: [{ games }, { games }] },
+    played_on: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10),
+  });
+  assert.equal(settled.status, 201, JSON.stringify(settled.body));
+  assert.equal((await send("PATCH", `/v1/competitions/${old.competitionId}`, club.key, { state: "complete" })).status, 200);
+  assert.equal((await send("PATCH", `/v1/seasons/${old.seasonId}`, club.key, { state: "complete" })).status, 200);
+
+  // This season: the same competition again, under way.
+  const now = await league(club);
+  await enter(club, now.competitionId, now.divisionIds[0]!, [sam]);
+  await enter(club, now.competitionId, now.divisionIds[0]!, [alex]);
+  await send("POST", `/v1/divisions/${now.divisionIds[0]}/fixtures`, club.key);
+  await send("PATCH", `/v1/competitions/${now.competitionId}`, club.key, { state: "active" });
+
+  const site = website(await websiteKey(club));
+  const phone = await signIn(site, "sam@example.org");
+
+  assert.equal((await phone.get("/tables")).location, `/competitions/${now.competitionId}`, "Tables opens this season");
+  const home = (await phone.get("/")).html;
+  assert.doesNotMatch(home, /Played \(/, "last season's results are not on the home page");
+
+  // The season row: the same competition in each season, this season and the past ones apart.
+  const current = (await phone.get(`/competitions/${now.competitionId}`)).html;
+  assert.ok(current.includes(`<nav class="seasonrow" aria-label="Seasons">`), current);
+  assert.match(
+    current,
+    new RegExp(
+      `class="group live"><span class="label">This season</span><a href="/competitions/${now.competitionId}" aria-current="page">` +
+        `[\\s\\S]*?class="group past"><span class="label">Past seasons</span><a href="/competitions/${old.competitionId}">`,
+    ),
+  );
+  assert.match(current, /<span class="tag now">This season<\/span>/);
+  assert.doesNotMatch(current, /is over\./);
+
+  const past = (await phone.get(`/competitions/${old.competitionId}`)).html;
+  assert.match(past, /<span class="tag past">Past season<\/span>/);
+  assert.match(past, /aria-current="page">\s*Tables/, "a finished season is still under Tables");
+  assert.doesNotMatch(past, /I am not playing next season/, "nothing to opt out of");
+});
+
 test("the site can go on a phone's home screen", async () => {
   const club = await newClub("website-manifest");
   const site = website(await websiteKey(club));

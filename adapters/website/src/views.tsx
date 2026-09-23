@@ -26,10 +26,12 @@ const VENUE_SWITCH = Array.from(
 const STYLE = `
 :root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
   --warn: #8a4b08; --warn-bg: #fdf1e2; --ok: #1f5b2c; --ok-bg: #e6f3e8; --card: #fff;
-  --up: #2f6b3a; --up-bg: #e9f4ea; --down: #a3341f; --down-bg: #fbece8; color-scheme: light dark; }
+  --up: #2f6b3a; --up-bg: #e9f4ea; --down: #a3341f; --down-bg: #fbece8; --past: #555c66; --past-bg: #eceef1;
+  color-scheme: light dark; }
 @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe7; --muted: #a09e98; --line: #33322f;
   --accent: #6fbf7c; --accent-fg: #0f1a11; --warn: #f0b36a; --warn-bg: #2d2214; --ok: #9fdcaa; --ok-bg: #1c2b1e;
-  --card: #1f1f1d; --up: #7fcf8b; --up-bg: #1c2b1e; --down: #f0907c; --down-bg: #33201b; } }
+  --card: #1f1f1d; --up: #7fcf8b; --up-bg: #1c2b1e; --down: #f0907c; --down-bg: #33201b; --past: #b3b8c0;
+  --past-bg: #262829; } }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
 header, main, footer { max-width: 44rem; margin: 0 auto; padding: 0 16px; }
@@ -107,6 +109,21 @@ table.outlook thead .last { color: var(--down); }
 .tabs a[aria-current] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 /* The competitions you are playing in: bold, with the club green for a border. */
 .tabs a.mine { font-weight: 600; border-color: var(--accent); }
+/* The season row, above the competition pills: this season in green, the past ones in grey, the one on show filled. */
+.seasonrow { display: flex; gap: .6rem; overflow-x: auto; margin: 0 -16px .75rem; padding: 0 16px .25rem; scrollbar-width: none; }
+.seasonrow .group { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; padding: .3rem .35rem .3rem .6rem; border-radius: 12px; }
+.seasonrow .group.live { background: var(--ok-bg); }
+.seasonrow .group.past { background: var(--past-bg); }
+.seasonrow .label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; margin-right: .15rem; }
+.seasonrow .live .label { color: var(--ok); }
+.seasonrow .past .label { color: var(--past); }
+.seasonrow a { white-space: nowrap; text-decoration: none; font-size: .85rem; padding: .25rem .6rem; border-radius: 999px; }
+.seasonrow .live a { color: var(--ok); font-weight: 600; }
+.seasonrow .past a { color: var(--past); }
+.seasonrow .live a[aria-current] { background: var(--accent); color: var(--accent-fg); }
+.seasonrow .past a[aria-current] { background: var(--past); color: var(--bg); font-weight: 600; }
+.tag.now { background: var(--ok-bg); color: var(--ok); }
+.tag.past { background: var(--past-bg); color: var(--past); }
 .titleline { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .75rem; margin-bottom: .75rem; }
 .titleline h1 { margin: 0; }
 .titleline span { font-size: .9rem; }
@@ -711,18 +728,56 @@ export const RulesExplained: FC<{ rules: Rules; tiebreakFormat: string }> = ({ r
   );
 };
 
+/** A season over the tables: where its link goes, whether it is on show, and whether it is under way. */
+export type SeasonLink = { id: string; name: string; href: string; current: boolean; live: boolean };
+
+/**
+ * The seasons over the tables, in two groups so neither can be mistaken for
+ * the other: this season, green, then the past ones, grey, newest first.
+ */
+const SeasonRow: FC<{ seasons: SeasonLink[] }> = ({ seasons }) => {
+  const link = (s: SeasonLink) => (
+    <a href={s.href} aria-current={s.current ? "page" : undefined}>
+      {s.name}
+    </a>
+  );
+  const live = seasons.filter((s) => s.live);
+  const past = seasons.filter((s) => !s.live);
+  return (
+    <nav class="seasonrow" aria-label="Seasons">
+      {live.length > 0 && (
+        <div class="group live">
+          <span class="label">This season</span>
+          {live.map(link)}
+        </div>
+      )}
+      {past.length > 0 && (
+        <div class="group past">
+          <span class="label">Past seasons</span>
+          {past.map(link)}
+        </div>
+      )}
+    </nav>
+  );
+};
+
 export const CompetitionPage: FC<{
   frame: Frame;
   competition: Competition;
   /** Every competition the player can see, and whether they are playing in it. */
   tabs: { id: string; name: string; mine: boolean }[];
+  /** Every season with a table to show, newest first; each links to this competition's counterpart in it. */
+  seasons: SeasonLink[];
+  /** The season's name, when it is over: its table is history. */
+  past: string | null;
   /** The season, and how long is left to report: "Summer 2026 · Results close in 7 days". */
   season: string | null;
   standings: Standings;
   mine: { entryId: string; divisionId: string; optedOut: boolean } | null;
   breakdowns: Record<string, Breakdown>;
-}> = ({ frame, competition, tabs, season, standings, mine, breakdowns }) => (
-  <Layout title={competition.name} frame={frame}>
+}> = ({ frame, competition, tabs, seasons, past, season, standings, mine, breakdowns }) => (
+  <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
+    {seasons.length > 1 && <SeasonRow seasons={seasons} />}
     {tabs.length > 1 && (
       <nav class="tabs" aria-label="Competitions">
         {tabs.map((t) => (
@@ -739,6 +794,7 @@ export const CompetitionPage: FC<{
     )}
     <div class="titleline">
       <h1>{competition.name}</h1>
+      {past ? <span class="tag past">Past season</span> : <span class="tag now">This season</span>}
       {season && <span class="muted">{season}</span>}
     </div>
     {standings.divisions.length > 1 && (

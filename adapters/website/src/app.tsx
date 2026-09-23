@@ -66,6 +66,12 @@ const RESEND_MS = 60_000;
 
 type Player = { session: string; me: Me & { credential: { type: "session" } } };
 
+/** A competition the player can see, and the entry they hold in it, if any. */
+type Registration = { competition: Competition; entry: Entry | undefined };
+
+/** A season, and the competitions in it the player can see. */
+type SeasonCompetitions = { season: Season; registered: Registration[] };
+
 /** Today on the club's calendar, as YYYY-MM-DD. */
 function today(timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
@@ -86,6 +92,14 @@ async function all<T>(api: Api, path: string, credential: string): Promise<T[]> 
     after = page.next_cursor;
   } while (after);
   return rows;
+}
+
+/** Newest first: by when the season starts, then by when it was made (ids are UUIDv7, so they sort by time). */
+function newestFirst(a: Season, b: Season): number {
+  const x = a.starts_on ?? "";
+  const y = b.starts_on ?? "";
+  if (x !== y) return x < y ? 1 : -1;
+  return a.id < b.id ? 1 : -1;
 }
 
 /**
@@ -224,7 +238,7 @@ export function createWebsite(options: WebsiteOptions) {
   }
 
   /** The competitions a player can see, each with the entry they hold in it, if any. */
-  async function registrations(p: Player): Promise<{ competition: Competition; entry: Entry | undefined }[]> {
+  async function registrations(p: Player): Promise<Registration[]> {
     const competitions = await all<Competition>(api, "/v1/competitions", p.session);
     const entries = await Promise.all(competitions.map((comp) => myEntries(p, comp.id)));
     return competitions.map((competition, i) => ({
@@ -233,9 +247,20 @@ export function createWebsite(options: WebsiteOptions) {
     }));
   }
 
+  /**
+   * Every season the player can see a competition in, newest first, each with
+   * those competitions: what the season row over the tables lists.
+   */
+  async function seasonsOf(p: Player): Promise<SeasonCompetitions[]> {
+    const [seasons, registered] = await Promise.all([all<Season>(api, "/v1/seasons", p.session), registrations(p)]);
+    return seasons
+      .sort(newestFirst)
+      .map((season) => ({ season, registered: registered.filter((r) => r.competition.season_id === season.id) }))
+      .filter((s) => s.registered.length > 0);
+  }
+
   /** "Summer 2026 · Results close in 7 days (Tue 29 Sep)", for the season a competition belongs to. */
-  async function seasonLine(p: Player, seasonId: string): Promise<string> {
-    const season = await api<Season>("GET", `/v1/seasons/${seasonId}`, p.session);
+  function seasonLine(p: Player, season: Season): string {
     const deadline = season.state === "active" ? deadlineLine(season.results_deadline_at, p.me.club.timezone) : null;
     return deadline ? `${season.name} · ${deadline}` : season.name;
   }
@@ -329,10 +354,14 @@ export function createWebsite(options: WebsiteOptions) {
     if (!p) return c.html(<SignIn frame={await anonymousFrame()} />);
     const memberId = p.me.credential.member.id;
 
-    const [matches, registered] = await Promise.all([
+    const [matches, seasons] = await Promise.all([
       all<Match>(api, `/v1/matches?member_id=${memberId}`, p.session),
-      registrations(p),
+      seasonsOf(p),
     ]);
+    // The seasons under way. Finished ones are in the tables' season row, so their
+    // matches and tables do not crowd out what needs doing now.
+    const live = seasons.filter((s) => s.season.state === "active");
+    const registered = live.flatMap((s) => s.registered);
     const byId = new Map(registered.map((r) => [r.competition.id, r.competition]));
     const entries = registered.flatMap((r) => (r.entry ? [r.entry] : []));
 
@@ -394,10 +423,7 @@ export function createWebsite(options: WebsiteOptions) {
     }
 
     // The deadline of the season they are playing in now.
-    const seasons = await all<Season>(api, "/v1/seasons", p.session);
-    const current = seasons.find(
-      (s) => s.state === "active" && registered.some((r) => r.entry && r.competition.season_id === s.id),
-    );
+    const current = live.find((s) => s.registered.some((r) => r.entry))?.season;
     const deadline = current ? deadlineLine(current.results_deadline_at, p.me.club.timezone) : null;
 
     // The weather is a help, never a reason the page fails: without it the page shows without the box.
@@ -428,35 +454,58 @@ export function createWebsite(options: WebsiteOptions) {
     );
   });
 
-  // "Tables" in the header: the player's own first competition, from which the tabs reach the rest.
+  // "Tables" in the header: the player's own competition in the newest season,
+  // from which the tabs reach the rest of it, and the season row the seasons before.
   app.get("/tables", async (c) => {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
-    const registered = await registrations(p);
-    const first = registered.find((r) => r.entry) ?? registered[0];
+    const seasons = await seasonsOf(p);
+    const now = seasons.find((s) => s.season.state === "active") ?? seasons[0];
+    const first = now?.registered.find((r) => r.entry) ?? now?.registered[0];
     if (!first) {
       return c.html(<Problem frame={frameOf(p, "tables")} title="No tables yet" detail="Nothing is under way yet." />);
     }
     return c.redirect(`/competitions/${first.competition.id}`, 303);
   });
 
+  /**
+   * Where a season's link goes from a competition: the same competition that
+   * season — Men's Singles to Men's Singles — else the one the player was in,
+   * else its first.
+   */
+  const counterpart = (s: SeasonCompetitions, name: string): Competition =>
+    (s.registered.find((r) => r.competition.name === name) ??
+      s.registered.find((r) => r.entry) ??
+      s.registered[0]!).competition;
+
   app.get("/competitions/:id", async (c) => {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
     const id = c.req.param("id");
-    const [competition, standings, registered, matches] = await Promise.all([
+    const [competition, standings, seasons, matches] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${id}`, p.session),
       api<Standings>("GET", `/v1/competitions/${id}/standings`, p.session),
-      registrations(p),
+      seasonsOf(p),
       all<Match>(api, `/v1/matches?competition_id=${id}`, p.session),
     ]);
+    const here = seasons.find((s) => s.season.id === competition.season_id);
+    const registered = here?.registered ?? [];
     const entry = registered.find((r) => r.competition.id === id)?.entry;
+    const season = here?.season ?? (await api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session));
     return c.html(
       <CompetitionPage
         frame={frameOf(p, "tables")}
         competition={competition}
         tabs={registered.map((r) => ({ id: r.competition.id, name: r.competition.name, mine: r.entry !== undefined }))}
-        season={await seasonLine(p, competition.season_id)}
+        seasons={seasons.map((s) => ({
+          id: s.season.id,
+          name: s.season.name,
+          href: `/competitions/${counterpart(s, competition.name).id}`,
+          current: s.season.id === season.id,
+          live: s.season.state === "active",
+        }))}
+        past={season.state === "active" ? null : season.name}
+        season={seasonLine(p, season)}
         standings={standings}
         mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null } : null}
         breakdowns={breakdowns(standings, matches)}

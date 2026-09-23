@@ -10,7 +10,10 @@ the home page: agree a score (straight from the home page), report one, see
 where they stand (position, and whether they are going up or down), and see
 who is left to play before the deadline. The tables show every division of a
 competition on one page, with the rules explained from the competition's own
-settings. It can be added to a phone's home screen: it serves a web app
+settings. Finished seasons stay a tap away: a season row over the tables,
+this season apart from the past ones, moves between seasons, keeping to the
+same competition.
+It can be added to a phone's home screen: it serves a web app
 manifest and icon.
 
 It is an adapter, not part of DeuceLeague's core. It reaches the league only
