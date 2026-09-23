@@ -240,7 +240,8 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.match(samRow, /6-4, 6-3/, "the score from Sam's side, whoever is looking");
   const today = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
   assert.ok(samRow.includes(today), `the day it was played, ${today}`);
-  assert.match(samRow, /Win 4 · Sets won 2/);
+  // What earned them sits in a tooltip on the points, not in the row.
+  assert.match(samRow, /<span class="pts tip" tabindex="0">6 pts<span class="tiptext" role="tooltip">Win 4 · Sets won 2<\/span>/);
   assert.match(samRow, /Turned up to every match/);
   assert.match(samRow, /Total<\/span><span class="pts">7 pts/);
   const alexRow = rowOf("Alex P.");

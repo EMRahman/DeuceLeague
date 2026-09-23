@@ -92,7 +92,13 @@ details.row[open] summary { margin-bottom: .4rem; }
 .breakdown ul.list li { display: flex; justify-content: space-between; gap: .75rem; padding: .35rem 0; }
 .breakdown p { margin: .4rem 0 0; }
 .pts { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
-.why { color: var(--muted); font-size: .85rem; }
+/* A breakdown bubble over a match's points: hover, or tap to focus; tap elsewhere to close. */
+.tip { position: relative; cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; outline: none; }
+.tip .tiptext { display: none; position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 2; width: max-content;
+  max-width: 16rem; white-space: normal; text-align: left; font-size: .8rem; font-weight: 500; line-height: 1.35;
+  background: var(--fg); color: var(--bg); padding: .4rem .6rem; border-radius: 8px; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+.tip:hover .tiptext, .tip:focus .tiptext, .tip:focus-within .tiptext { display: block; }
+.tip:focus-visible { box-shadow: 0 0 0 2px var(--accent); border-radius: 4px; }
 .total { display: flex; justify-content: space-between; font-weight: 700; padding-top: .4rem; }
 details.rules { margin: 1.5rem 0; }
 details.rules ul { padding-left: 1.2rem; margin: .5rem 0 0; }
@@ -851,10 +857,14 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown }> = ({ row, br
                 </a>
                 {score && <span class="muted"> · {score}</span>}
                 {date && <span class="muted"> · {date}</span>}
-                <br />
-                <span class="why">{line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}</span>
               </span>
-              <span class="pts">{pts(line.points)}</span>
+              {/* Where the points came from, on hover or a tap: focusable, so a phone can open it without a script. */}
+              <span class="pts tip" tabindex={0}>
+                {pts(line.points)}
+                <span class="tiptext" role="tooltip">
+                  {line.items.map((i) => `${itemLabel(i, line)} ${i.points}`).join(" · ")}
+                </span>
+              </span>
             </li>
           ))}
           {row.all_played_bonus !== 0 && (
