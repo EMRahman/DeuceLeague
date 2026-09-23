@@ -104,6 +104,9 @@ table.outlook thead .last { color: var(--down); }
 .tabs a[aria-current] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 /* The competitions you are playing in: bold, with the club green for a border. */
 .tabs a.mine { font-weight: 600; border-color: var(--accent); }
+.titleline { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .75rem; margin-bottom: .75rem; }
+.titleline h1 { margin: 0; }
+.titleline span { font-size: .9rem; }
 .jump { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .9rem; margin-bottom: .75rem; }
 .jump .mine { font-weight: 700; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
@@ -702,8 +705,10 @@ export const CompetitionPage: FC<{
         ))}
       </nav>
     )}
-    <h1>{competition.name}</h1>
-    {season && <p class="muted">{season}</p>}
+    <div class="titleline">
+      <h1>{competition.name}</h1>
+      {season && <span class="muted">{season}</span>}
+    </div>
     {standings.divisions.length > 1 && (
       <p class="jump">
         {standings.divisions.map((d) => (
