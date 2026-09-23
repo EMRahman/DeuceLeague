@@ -134,7 +134,8 @@ Everything from here on — seasons, members, competitions — goes through the
 API. A coding agent does this best from the spec at
 `https://league.your-club.org/openapi.json`, with a key of its own made for the
 job rather than the admin key. [API.md § Scopes](API.md#scopes) lists what
-each scope allows.
+each scope allows. [COACH-WORKFLOW.md](COACH-WORKFLOW.md) gives the coach plain
+language examples for the jobs repeated through a season and what to check.
 
 ## 6. The website
 

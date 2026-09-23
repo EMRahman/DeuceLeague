@@ -536,11 +536,12 @@ const ordinal = (n: number) => {
 export const Home: FC<{
   frame: Frame;
   name: string;
-  deadline: string | null;
+  deadlines: string[];
   notice: string | null;
   answer: ToAnswer[];
   toPlay: MyMatch[];
   waiting: Waiting[];
+  closed: MyMatch[];
   played: MyMatch[];
   standings: MyStanding[];
   /** The outlook at the courts, and the last day results are taken. Null when no location is set. */
@@ -549,53 +550,10 @@ export const Home: FC<{
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
     {p.notice && <Notice ok messages={[p.notice]} />}
-    {p.deadline && <p class="deadline">{p.deadline}</p>}
+    {p.deadlines.map((deadline) => (
+      <p class="deadline">{deadline}</p>
+    ))}
 
-    {p.standings.length > 0 && (
-      <section class="card">
-        <h2>Where you stand</h2>
-        <ul class="list">
-          {p.standings.map((s) => (
-            <li class="standing">
-              <a class="rowlink" href={`/competitions/${s.competitionId}#mine`}>
-                <span>
-                  <span class="title">{s.competition}</span>
-                  <Movement movement={s.movement} />
-                  <br />
-                  <span class="where">
-                    {s.division}
-                    {s.position ? ` · ${ordinal(s.position)}` : ""} · {s.points} pts
-                  </span>
-                </span>
-                <span class="chev">›</span>
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
-    {p.waiting.length > 0 && (
-      <section class="card">
-        <h2>Waiting for your opponent ({p.waiting.length})</h2>
-        <ul class="list">
-          {p.waiting.map((m) => (
-            <li class="answer">
-              <div>
-                <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
-              </div>
-              <div class="answer-row">
-                <span>{m.mine ? <>You said <strong>{m.mine}</strong></> : <span class="muted">{m.note}</span>}</span>
-                <span class="actions">
-                  <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                    Change score
-                  </a>
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
     {p.answer.length > 0 && (
       <section class="card">
         <h2>Needs your answer</h2>
@@ -646,12 +604,61 @@ export const Home: FC<{
         <ByCompetition matches={p.toPlay} />
       </section>
     )}
+    {p.standings.length > 0 && (
+      <section class="card">
+        <h2>Where you stand</h2>
+        <ul class="list">
+          {p.standings.map((s) => (
+            <li class="standing">
+              <a class="rowlink" href={`/competitions/${s.competitionId}#mine`}>
+                <span>
+                  <span class="title">{s.competition}</span>
+                  <Movement movement={s.movement} />
+                  <br />
+                  <span class="where">
+                    {s.division}
+                    {s.position ? ` · ${ordinal(s.position)}` : ""} · {s.points} pts
+                  </span>
+                </span>
+                <span class="chev">›</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+    {p.waiting.length > 0 && (
+      <section class="card">
+        <h2>Waiting for your opponent ({p.waiting.length})</h2>
+        <ul class="list">
+          {p.waiting.map((m) => (
+            <li class="answer">
+              <div>
+                <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
+              </div>
+              <div class="answer-row">
+                <span>{m.mine ? <>You said <strong>{m.mine}</strong></> : <span class="muted">{m.note}</span>}</span>
+                <span class="actions">
+                  <a class="button small quiet" href={`/matches/${m.id}#report`}>
+                    Change score
+                  </a>
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+    {p.closed.length > 0 && (
+      <section class="card">
+        <h2>Results closed ({p.closed.length})</h2>
+        <MatchRows matches={p.closed} />
+      </section>
+    )}
     {p.weather && <WeatherBox {...p.weather} />}
-    {p.answer.length + p.toPlay.length + p.waiting.length === 0 && (
+    {p.answer.length + p.toPlay.length + p.waiting.length + p.closed.length === 0 && (
       <p class="muted">You have no matches outstanding.</p>
     )}
-
-
     {p.played.length > 0 && (
       <details>
         <summary>Played ({p.played.length})</summary>
@@ -989,7 +996,7 @@ const ScoreForm: FC<{
     </div>
     <button type="submit">Send the score</button>
     <p class="muted" style="margin:.75rem 0 0">
-      {opponent} is asked to agree it. It counts once you both have.
+      It will count when {opponent} agrees it.
     </p>
   </form>
 );
@@ -998,6 +1005,7 @@ export const MatchPage: FC<{
   frame: Frame;
   match: MatchDetail;
   competition: Competition;
+  reportingClosed: boolean;
   division: string | null;
   /** The signed-in player's side, if they play in it. */
   mine: Side | null;
@@ -1009,14 +1017,15 @@ export const MatchPage: FC<{
   done: string | null;
   /** What was just sent and refused, to put back in the form rather than make them retype it. */
   sent: Record<string, string> | null;
-}> = ({ frame, match, competition, division, mine, names, earned, today, messages, done, sent }) => {
+}> = ({ frame, match, competition, reportingClosed, division, mine, names, earned, today, messages, done, sent }) => {
   const from: Side = mine ?? 0;
   const theirs: Side = from === 0 ? 1 : 0;
   const live = (side: Side) => match.claims.find((c) => c.state === "pending" && c.side === side) ?? null;
   const mineLive = live(from);
   const theirsLive = live(theirs);
   const say = (claim: Claim) => describe(claim, from, names);
-  const canAct = mine !== null && competition.state === "active" && match.status !== "played";
+  const readOnly = competition.state !== "active" || reportingClosed;
+  const canAct = mine !== null && !readOnly && match.status !== "played";
 
   let status: Child;
   if (match.status === "played" && match.result) {
@@ -1039,7 +1048,11 @@ export const MatchPage: FC<{
   } else if (match.status === "disputed" && mineLive && theirsLive) {
     status = (
       <>
-        <p>The two scores do not match. Accept theirs, or enter yours again if it was wrong.</p>
+        <p>
+          {readOnly
+            ? "The two reported scores do not match."
+            : "The two scores do not match. Accept theirs, or enter yours again if it was wrong."}
+        </p>
         <div class="claims">
           <div>
             <div class="who">You said</div>
@@ -1055,13 +1068,17 @@ export const MatchPage: FC<{
   } else if (theirsLive) {
     status = (
       <p>
-        {names[theirs]} reported <strong>{say(theirsLive)}</strong>. If that is right, accept it and it counts.
+        {names[theirs]} reported <strong>{say(theirsLive)}</strong>.
+        {readOnly && " It was not agreed before results closed."}
+        {!readOnly && " If that is right, accept it and it counts."}
       </p>
     );
   } else if (mineLive) {
     status = (
       <p>
-        You reported <strong>{say(mineLive)}</strong>. Waiting for {names[theirs]} to agree.
+        You reported <strong>{say(mineLive)}</strong>.
+        {readOnly && " It was not agreed before results closed."}
+        {!readOnly && ` Waiting for ${names[theirs]} to agree.`}
       </p>
     );
   } else {
@@ -1104,8 +1121,8 @@ export const MatchPage: FC<{
           filledFrom={sent ? null : mineLive ? "your score" : theirsLive ? `${names[theirs]}'s score` : null}
         />
       )}
-      {mine !== null && competition.state !== "active" && match.status !== "played" && (
-        <p class="muted">Results for this competition are closed. Ask the coach if something is missing.</p>
+      {mine !== null && (competition.state !== "active" || reportingClosed) && match.status !== "played" && (
+        <p class="notice">Results are closed. Ask the coach if a result is missing or needs correcting.</p>
       )}
     </Layout>
   );

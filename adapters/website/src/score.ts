@@ -179,3 +179,8 @@ export function deadlineLine(deadline: string | null, timezone: string, now: Dat
   if (days === 1) return `Results close tomorrow (${when})`;
   return `Results close in ${days} days (${when})`;
 }
+
+/** The same instant check as the API uses before accepting a result. */
+export function deadlinePassed(deadline: string | null, now: Date = new Date()): boolean {
+  return deadline !== null && new Date(deadline).getTime() <= now.getTime();
+}

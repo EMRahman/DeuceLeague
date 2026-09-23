@@ -19,7 +19,9 @@ manifest and icon.
 It is an adapter, not part of DeuceLeague's core. It reaches the league only
 through the HTTP API, like a Telegram bot or a club's own app would, and holds
 nothing of its own: no database, no accounts. MIT-licensed, so a club can
-restyle it, add its sponsors, or rewrite it in whatever it likes.
+restyle it or rewrite it in whatever it likes. The reference version reserves
+no promotional space. A club can add a notice, lesson link or sponsor
+acknowledgement if its coach chooses, while keeping match actions first.
 
 ## How it works
 
