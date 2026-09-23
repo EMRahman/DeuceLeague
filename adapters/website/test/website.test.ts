@@ -103,6 +103,10 @@ test("a player signs in with an emailed link that works once, and stays signed i
   assert.equal(start.status, 200);
   assert.match(start.html, /Sign in to the league/);
   assert.match(start.headers.get("content-security-policy") ?? "", /default-src 'none'/);
+  // The stylesheet reaches the browser as written: an escaped quote or > breaks the rule it is in.
+  const css = /<style>([\s\S]*?)<\/style>/.exec(start.html)?.[1] ?? "";
+  assert.ok(css.includes('[value="0"]:checked') && css.includes("ul.list > li"), "selectors intact");
+  assert.doesNotMatch(css, /&quot;|&gt;|&#39;|&amp;/);
   assert.equal(start.headers.get("referrer-policy"), "same-origin", "a link's token never leaves as a Referer");
 
   const sent = await b.post("/login", { email: "sam@example.org" });

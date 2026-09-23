@@ -1,3 +1,4 @@
+import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
@@ -185,7 +186,9 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
       <link rel="manifest" href="/manifest.webmanifest" />
       <link rel="icon" href="/icon.svg" type="image/svg+xml" />
       <title>{frame.club ? `${title} · ${frame.club}` : title}</title>
-      <style>{STYLE}</style>
+      {/* Raw, not escaped: JSX escapes text, which turns the quotes and > in selectors into
+          entities the browser cannot read. STYLE is a constant in this file, never input. */}
+      <style>{raw(STYLE)}</style>
     </head>
     <body>
       <header>
