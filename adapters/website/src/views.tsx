@@ -80,11 +80,6 @@ tr.promoted .move { color: var(--up); }
 tr.relegated .move { color: var(--down); }
 /* On a phone the table keeps what decides a place. */
 @media (max-width: 559px) { .wide { display: none; } }
-.key { display: flex; flex-wrap: wrap; gap: .3rem 1rem; font-size: .85rem; color: var(--muted); margin-bottom: .75rem; }
-.key span::before { content: ""; display: inline-block; width: .8rem; height: .8rem; border-radius: 2px; margin-right: .35rem; vertical-align: -1px; }
-.key .up::before { background: var(--up-bg); box-shadow: inset 3px 0 var(--up); }
-.key .down::before { background: var(--down-bg); box-shadow: inset 3px 0 var(--down); }
-.key .plain::before { display: none; }
 details.row { margin: 0; }
 details.row summary { cursor: pointer; }
 details.row[open] summary { margin-bottom: .4rem; }
@@ -538,11 +533,6 @@ export const CompetitionPage: FC<{
         ))}
       </p>
     )}
-    <p class="key">
-      <span class="up">Going up</span>
-      <span class="down">Going down</span>
-      <span class="plain">{standings.final ? "Final tables." : "If the season ended today."} Tap a name for their matches.</span>
-    </p>
 
     {standings.divisions.map((d) => (
       <section class="card" id={`division-${d.ordinal}`}>

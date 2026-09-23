@@ -345,7 +345,8 @@ test("every division shows on one page, with its promotion and relegation places
   assert.match(page, /<tr class="me" id="mine">[\s\S]*?Aaron<\/summary>/, "the top division promotes nobody");
   assert.match(page, /<tr class="relegated">[\s\S]*?Bella<\/summary>/);
   assert.match(page, /<tr class="promoted">[\s\S]*?Carl<\/summary>/);
-  assert.match(page, /Going up/);
+  assert.match(page, /aria-label="going up">▲/, "marked on the row itself; no separate key");
+  assert.doesNotMatch(page, /class="key"/);
 });
 
 test("the site can go on a phone's home screen", async () => {
