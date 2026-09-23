@@ -89,6 +89,12 @@ table.outlook td span[role=img] { font-size: 1.05rem; }
 table.outlook .good { background: var(--up-bg); color: var(--up); font-weight: 600; }
 table.outlook thead .good { box-shadow: inset 0 2px var(--up); }
 table.outlook .late { opacity: .4; }
+.weather .legend { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: .75rem 0 0; font-size: .78rem; color: var(--muted); }
+.weather .swatch::before { content: ""; display: inline-block; width: .75rem; height: .75rem; border-radius: 3px; margin-right: .35rem; vertical-align: -1px; border: 1px solid var(--line); }
+.weather .swatch.good::before { background: var(--up-bg); border-color: var(--up); }
+.weather .swatch.late::before { background: var(--line); opacity: .5; }
+.weather .credit { margin-left: auto; }
+.weather .credit a { color: var(--muted); }
 .tag { display: inline-block; font-size: .75rem; font-weight: 600; padding: .05rem .45rem; border-radius: 999px; margin-left: .35rem; }
 .tag.up { background: var(--up-bg); color: var(--up); }
 .tag.down { background: var(--down-bg); color: var(--down); }
@@ -399,9 +405,14 @@ const WeatherBox: FC<{ venues: VenueForecast[]; lastDay: string | null }> = ({ v
         <ForecastTable forecast={v.forecast} lastDay={lastDay} />
       </div>
     ))}
-    <p class="hint">
-      Green: good for tennis — little rain, light wind. Faded: after the results deadline. From{" "}
-      <a href="https://open-meteo.com/">Open-Meteo</a>.
+    <p class="legend">
+      <span class="swatch good" title="Little chance of rain, light wind">
+        Good for tennis
+      </span>
+      <span class="swatch late">After deadline</span>
+      <span class="credit">
+        <a href="https://open-meteo.com/">Open-Meteo</a>
+      </span>
     </p>
   </section>
 );
