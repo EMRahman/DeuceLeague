@@ -159,6 +159,11 @@ legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 .sets .head { font-size: .8rem; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Only what applies: no score for a walkover or concession, no "who stopped" for a match played out. */
 form.report:has(input[name=outcome][value=completed]:checked) .stopped { display: none; }
+.stopped .ask-retired, .stopped .ask-conceded, .stopped .ask-walkover { display: none; }
+form.report:has(input[name=outcome]:checked) .stopped .ask-any { display: none; }
+form.report:has(input[name=outcome][value=retired]:checked) .stopped .ask-retired,
+form.report:has(input[name=outcome][value=conceded]:checked) .stopped .ask-conceded,
+form.report:has(input[name=outcome][value=walkover]:checked) .stopped .ask-walkover { display: inline; }
 form.report:has(input[name=outcome][value=walkover]:checked) .scoring,
 form.report:has(input[name=outcome][value=conceded]:checked) .scoring { display: none; }
 .claims { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem; }
@@ -884,7 +889,13 @@ const ScoreForm: FC<{
       </div>
     </fieldset>
     <fieldset class="stopped">
-      <legend>Who retired, was injured or did not turn up?</legend>
+      {/* Asked in the words of the outcome chosen above; the full question where :has() is not supported. */}
+      <legend>
+        <span class="ask-any">Who retired, was injured or did not turn up?</span>
+        <span class="ask-retired">Who retired?</span>
+        <span class="ask-conceded">Who was injured?</span>
+        <span class="ask-walkover">Who did not turn up?</span>
+      </legend>
       <div class="choices">
         <label>
           <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />

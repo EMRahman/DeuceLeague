@@ -185,6 +185,8 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   // A concession is only ever through injury here, so the form calls it that.
   assert.match(page.html, /value="conceded"\/?>Injured: someone couldn&#39;t play/);
   assert.doesNotMatch(page.html, /conceded without playing/);
+  // Who stopped is asked in the chosen outcome's words.
+  assert.match(page.html, /<span class="ask-retired">Who retired\?<\/span><span class="ask-conceded">Who was injured\?<\/span><span class="ask-walkover">Who did not turn up\?<\/span>/);
 
   // The API's own check, in the player's words: 6-6 is not a set.
   const refused = await samPhone.post(`/matches/${match.id}/report`, {
