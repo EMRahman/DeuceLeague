@@ -19,6 +19,7 @@ adapters/website  The reference website: player sign-in and scores      MIT
 docs/DATA-MODEL.md  How the model works and why it is shaped this way
 docs/API.md         What the API offers, who can call it, and why
 docs/SELF-HOSTING.md  Running it for a club: server, HTTPS, email, backups
+docs/COACH-WORKFLOW.md Running a season through a coding agent, in plain language
 docs/SCHEMA.md      Generated column-by-column reference for every table,
                     view and function
 ```
@@ -71,8 +72,9 @@ Read [docs/DATA-MODEL.md](docs/DATA-MODEL.md) for the reasoning.
 ## Design commitments
 
 **The core renders nothing.** It emits JSON and knows nothing about HTML,
-Telegram or email. A coach who builds their own app owns their whole surface,
-including any sponsorship on it, and keeps all of the revenue.
+Telegram or email. The reference player site stays focused on league tasks.
+A coach may add club notices or sponsor acknowledgements to their own adapter,
+but decides whether they appear and keeps control of their placement.
 
 **League rules are data, not code.** Points per outcome, tiebreak ordering,
 promotion counts, how withdrawals and deadlines are handled — all JSON on the
@@ -80,6 +82,11 @@ competition. Changing how a club's league works should never require a release.
 
 **The coach decides.** The engine advises on placements; it never applies them.
 Coaches hold information the data does not.
+
+**League actions come first.** The reference website leads with scores that
+need an answer and matches still to play. It reserves no space for adverts.
+Club notices, lesson links or sponsor acknowledgements appear only if the coach
+chooses to add them, and never ahead of a player's league tasks.
 
 **No scheduling, and nothing gets sent.** There is no calendar and no reminder
 system. The core answers *who still has matches outstanding and how long is

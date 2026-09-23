@@ -97,6 +97,12 @@ has matches outstanding* (`member_chase_list`) and stops there. See
 **The core never sends anything.** No email, no push, no Telegram. It answers
 the query; a coach or an adapter decides what to do with the answer.
 
+**Keep the reference player journey about the league.** Scores needing an
+answer and matches still to play come before standings and passive information.
+Do not add adverts, lessons or sponsor blocks to the reference website by
+default. They are optional adapter presentation, controlled by the coach, and
+must stay below league actions if a club asks for them.
+
 ## Conventions
 
 - Enumerated columns are `text` + a `CHECK` constraint, mirroring an enum in

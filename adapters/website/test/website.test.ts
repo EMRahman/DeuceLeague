@@ -8,6 +8,7 @@ import { apiClient, createWebsite, parseVenues, type Weather } from "../dist/app
 import {
   app as api,
   closeAll,
+  day,
   enter,
   keyWith,
   league,
@@ -173,6 +174,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   const home = await samPhone.get("/");
   // Who is left to play: a line per competition, the opponents as links.
   assert.match(home.html, /To play \(1\)/);
+  assert.ok(home.html.indexOf("To play (1)") < home.html.indexOf("Where you stand"), "matches to play come before standings");
   assert.ok(home.html.includes(`<dl class="toplay"><dt>Men&#39;s Singles</dt><dd><a href="/matches/${match.id}">Alex P.</a>`), home.html);
   const page = await samPhone.get(`/matches/${match.id}`);
   assert.match(page.html, /Report the score/);
@@ -211,7 +213,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   });
   assert.equal(reported.status, 303, reported.html);
   assert.equal(reported.location, `/matches/${match.id}?done=sent`);
-  assert.match((await samPhone.get(reported.location!)).html, /Sent\. Alex P\. is asked to agree it\./);
+  assert.match((await samPhone.get(reported.location!)).html, /Sent\. Waiting for Alex P\. to agree it\./);
   const claimed = (await send("GET", `/v1/matches/${match.id}`, club.key)).body;
   assert.equal(claimed.status, "reported");
   // Typed as mine and theirs; stored with side 0 first.
@@ -220,7 +222,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.equal(claimed.claims[0].source, "web");
 
   const samHome = await samPhone.get("/");
-  // Laid out as Needs your answer is: who, then the score Sam sent and a way to change it.
+  // Waiting is informational: who, then the score Sam sent and a way to change it.
   assert.match(samHome.html, /Waiting for your opponent \(1\)/);
   assert.match(samHome.html, /You said <strong>6-4, 6-3<\/strong>/);
   assert.ok(samHome.html.includes(`href="/matches/${match.id}#report">Change score</a>`));
@@ -249,6 +251,10 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.equal(picked(alexPage.html, "theirs_1"), "6");
   const alexHome = await alexPhone.get("/");
   assert.match(alexHome.html, /Needs your answer/);
+  assert.ok(
+    alexHome.html.indexOf("Needs your answer") < alexHome.html.indexOf("Where you stand"),
+    "a score the player can act on comes before standings",
+  );
   assert.match(alexHome.html, /They say <strong>4-6, 3-6<\/strong>/);
   // Whose score the button agrees to, said plainly; the other way is entering your own.
   assert.match(alexHome.html, /<button type="submit" class="small">Accept theirs<\/button>/);
@@ -304,6 +310,62 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.equal(optOut, samEntry);
   assert.equal((await samPhone.post(`/entries/${samEntry}/opt-out`)).status, 303);
   assert.notEqual((await send("GET", `/v1/entries/${samEntry}`, club.key)).body.opted_out_at, null);
+});
+
+test("a passed deadline makes unresolved results read-only before a player starts typing", async () => {
+  const club = await newClub("website-deadline");
+  const { seasonId, competitionId, divisionIds } = await league(club);
+  const sam = await member(club, { display_name: "Sam K.", email: "sam-deadline@example.org" });
+  const alex = await member(club, { display_name: "Alex P.", email: "alex-deadline@example.org" });
+  await enter(club, competitionId, divisionIds[0]!, [sam]);
+  await enter(club, competitionId, divisionIds[0]!, [alex]);
+  await send("POST", `/v1/divisions/${divisionIds[0]}/fixtures`, club.key);
+  await send("PATCH", `/v1/competitions/${competitionId}`, club.key, { state: "active" });
+  const [match] = (await send("GET", `/v1/matches?competition_id=${competitionId}`, club.key)).body.data;
+
+  const site = website(await websiteKey(club));
+  const samPhone = await signIn(site, "sam-deadline@example.org");
+  const alexPhone = await signIn(site, "alex-deadline@example.org");
+  const sent = await samPhone.post(`/matches/${match.id}/report`, {
+    outcome: "completed",
+    mine_1: "6",
+    theirs_1: "4",
+    mine_2: "6",
+    theirs_2: "3",
+    stopped: "",
+    played_on: day(0),
+  });
+  assert.equal(sent.status, 303);
+
+  const closed = await send("PATCH", `/v1/seasons/${seasonId}`, club.key, {
+    results_deadline_at: new Date(Date.now() - 60_000).toISOString(),
+  });
+  assert.equal(closed.status, 200, JSON.stringify(closed.body));
+
+  const home = await alexPhone.get("/");
+  assert.match(home.html, /Results are closed; the coach settles anything left/);
+  assert.match(home.html, /Scores awaiting agreement/);
+  assert.doesNotMatch(home.html, new RegExp(`action="/matches/${match.id}/accept"`));
+  assert.doesNotMatch(home.html, /Change score/);
+
+  const page = await alexPhone.get(`/matches/${match.id}`);
+  assert.match(page.html, /Results are closed\. Ask the coach if a result is missing or needs correcting\./);
+  assert.doesNotMatch(page.html, /Accept theirs:/);
+  assert.doesNotMatch(page.html, /Report the score/);
+  assert.doesNotMatch(page.html, /Change the score/);
+
+  // A stale open page still cannot get round the API's deadline check.
+  const refused = await alexPhone.post(`/matches/${match.id}/report`, {
+    outcome: "completed",
+    mine_1: "4",
+    theirs_1: "6",
+    mine_2: "3",
+    theirs_2: "6",
+    stopped: "",
+    played_on: day(0),
+  });
+  assert.equal(refused.status, 409);
+  assert.match(refused.html, /Results are closed/);
 });
 
 test("a player cannot act on another player's match through the site", async () => {
@@ -516,6 +578,27 @@ test("the home page shows the outlook at the courts, when the site knows where t
   const without = await (await signIn(failing, "zoe@example.org")).get("/");
   assert.equal(without.status, 200);
   assert.doesNotMatch(without.html, /Weather at the courts/);
+
+  // A forecast that has not answered does not hold the league page open. It
+  // can finish afterwards and warm the provider's cache for another visit.
+  let finishForecast: ((value: typeof venues) => void) | undefined;
+  let forecastFallback: ReturnType<typeof setTimeout> | undefined;
+  const slow = website(
+    await websiteKey(club),
+    () =>
+      new Promise<typeof venues>((resolve) => {
+        finishForecast = resolve;
+        // Makes a broken implementation fail after two seconds rather than
+        // leaving the whole suite waiting forever.
+        forecastFallback = setTimeout(() => resolve(venues), 2_000);
+      }),
+  );
+  const slowPhone = await signIn(slow, "zoe@example.org");
+  const withoutSlowForecast = await slowPhone.get("/");
+  assert.equal(withoutSlowForecast.status, 200);
+  assert.doesNotMatch(withoutSlowForecast.html, /Weather at the courts/);
+  if (forecastFallback) clearTimeout(forecastFallback);
+  finishForecast!(venues);
 });
 
 test("venues are written Name@latitude,longitude, separated by semicolons", () => {

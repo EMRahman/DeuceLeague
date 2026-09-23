@@ -537,6 +537,7 @@ export const Home: FC<{
   frame: Frame;
   name: string;
   deadline: string | null;
+  reportingClosed: boolean;
   notice: string | null;
   answer: ToAnswer[];
   toPlay: MyMatch[];
@@ -551,6 +552,58 @@ export const Home: FC<{
     {p.notice && <Notice ok messages={[p.notice]} />}
     {p.deadline && <p class="deadline">{p.deadline}</p>}
 
+    {p.answer.length > 0 && (
+      <section class="card">
+        <h2>{p.reportingClosed ? "Scores awaiting agreement" : "Needs your answer"}</h2>
+        <ul class="list">
+          {p.answer.map((m) => (
+            <li class="answer">
+              <div>
+                <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
+              </div>
+              <div class="answer-row">
+                {m.theirs ? (
+                  <span>
+                    They say <strong>{m.theirs.says}</strong>
+                    {m.mine && (
+                      <span class="muted">
+                        {" "}
+                        · you said <strong>{m.mine}</strong>
+                      </span>
+                    )}
+                  </span>
+                ) : (
+                  <span class="muted">{m.note}</span>
+                )}
+                {!p.reportingClosed && (
+                  <span class="actions">
+                    {m.theirs && (
+                      <form method="post" action={`/matches/${m.id}/accept`}>
+                        <input type="hidden" name="claim_id" value={m.theirs.claimId} />
+                        <input type="hidden" name="back" value="home" />
+                        <button type="submit" class="small">
+                          Accept theirs
+                        </button>
+                      </form>
+                    )}
+                    <a class="button small quiet" href={`/matches/${m.id}#report`}>
+                      Change score
+                    </a>
+                  </span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {p.toPlay.length > 0 && (
+      <section class="card">
+        <h2>To play ({p.toPlay.length})</h2>
+        <ByCompetition matches={p.toPlay} />
+      </section>
+    )}
     {p.standings.length > 0 && (
       <section class="card">
         <h2>Where you stand</h2>
@@ -585,73 +638,23 @@ export const Home: FC<{
               </div>
               <div class="answer-row">
                 <span>{m.mine ? <>You said <strong>{m.mine}</strong></> : <span class="muted">{m.note}</span>}</span>
-                <span class="actions">
-                  <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                    Change score
-                  </a>
-                </span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
-    {p.answer.length > 0 && (
-      <section class="card">
-        <h2>Needs your answer</h2>
-        <ul class="list">
-          {p.answer.map((m) => (
-            <li class="answer">
-              <div>
-                <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
-              </div>
-              <div class="answer-row">
-                {m.theirs ? (
-                  <span>
-                    They say <strong>{m.theirs.says}</strong>
-                    {m.mine && (
-                      <span class="muted">
-                        {" "}
-                        · you said <strong>{m.mine}</strong>
-                      </span>
-                    )}
+                {!p.reportingClosed && (
+                  <span class="actions">
+                    <a class="button small quiet" href={`/matches/${m.id}#report`}>
+                      Change score
+                    </a>
                   </span>
-                ) : (
-                  <span class="muted">{m.note}</span>
                 )}
-                <span class="actions">
-                  {m.theirs && (
-                    <form method="post" action={`/matches/${m.id}/accept`}>
-                      <input type="hidden" name="claim_id" value={m.theirs.claimId} />
-                      <input type="hidden" name="back" value="home" />
-                      <button type="submit" class="small">
-                        Accept theirs
-                      </button>
-                    </form>
-                  )}
-                  <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                    Change score
-                  </a>
-                </span>
               </div>
             </li>
           ))}
         </ul>
-      </section>
-    )}
-
-    {p.toPlay.length > 0 && (
-      <section class="card">
-        <h2>To play ({p.toPlay.length})</h2>
-        <ByCompetition matches={p.toPlay} />
       </section>
     )}
     {p.weather && <WeatherBox {...p.weather} />}
     {p.answer.length + p.toPlay.length + p.waiting.length === 0 && (
       <p class="muted">You have no matches outstanding.</p>
     )}
-
-
     {p.played.length > 0 && (
       <details>
         <summary>Played ({p.played.length})</summary>
@@ -989,7 +992,7 @@ const ScoreForm: FC<{
     </div>
     <button type="submit">Send the score</button>
     <p class="muted" style="margin:.75rem 0 0">
-      {opponent} is asked to agree it. It counts once you both have.
+      It will count when {opponent} agrees it.
     </p>
   </form>
 );
@@ -998,6 +1001,7 @@ export const MatchPage: FC<{
   frame: Frame;
   match: MatchDetail;
   competition: Competition;
+  reportingClosed: boolean;
   division: string | null;
   /** The signed-in player's side, if they play in it. */
   mine: Side | null;
@@ -1009,14 +1013,14 @@ export const MatchPage: FC<{
   done: string | null;
   /** What was just sent and refused, to put back in the form rather than make them retype it. */
   sent: Record<string, string> | null;
-}> = ({ frame, match, competition, division, mine, names, earned, today, messages, done, sent }) => {
+}> = ({ frame, match, competition, reportingClosed, division, mine, names, earned, today, messages, done, sent }) => {
   const from: Side = mine ?? 0;
   const theirs: Side = from === 0 ? 1 : 0;
   const live = (side: Side) => match.claims.find((c) => c.state === "pending" && c.side === side) ?? null;
   const mineLive = live(from);
   const theirsLive = live(theirs);
   const say = (claim: Claim) => describe(claim, from, names);
-  const canAct = mine !== null && competition.state === "active" && match.status !== "played";
+  const canAct = mine !== null && competition.state === "active" && !reportingClosed && match.status !== "played";
 
   let status: Child;
   if (match.status === "played" && match.result) {
@@ -1104,8 +1108,8 @@ export const MatchPage: FC<{
           filledFrom={sent ? null : mineLive ? "your score" : theirsLive ? `${names[theirs]}'s score` : null}
         />
       )}
-      {mine !== null && competition.state !== "active" && match.status !== "played" && (
-        <p class="muted">Results for this competition are closed. Ask the coach if something is missing.</p>
+      {mine !== null && (competition.state !== "active" || reportingClosed) && match.status !== "played" && (
+        <p class="notice">Results are closed. Ask the coach if a result is missing or needs correcting.</p>
       )}
     </Layout>
   );

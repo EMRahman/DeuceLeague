@@ -16,7 +16,7 @@ import {
 } from "./api.js";
 import type { Mailer } from "./mail.js";
 import type { Weather } from "./weather.js";
-import { deadlineLine, describe, readReportForm, shortDate } from "./score.js";
+import { deadlineLine, deadlinePassed, describe, readReportForm, shortDate } from "./score.js";
 import {
   CompetitionPage,
   ConfirmSignIn,
@@ -64,6 +64,14 @@ const COOKIE_DAYS = 400;
 /** One sign-in email per address per minute, so the form cannot be used to flood someone's inbox. */
 const RESEND_MS = 60_000;
 
+/**
+ * Weather is useful, but it never holds up the jobs a player came to do. It is
+ * started alongside the league calls and gets this small grace period after
+ * those calls finish; a slow refresh can fill the provider's cache for the
+ * next visit.
+ */
+const WEATHER_GRACE_MS = 250;
+
 type Player = { session: string; me: Me & { credential: { type: "session" } } };
 
 /** A competition the player can see, and the entry they hold in it, if any. */
@@ -75,6 +83,19 @@ type SeasonCompetitions = { season: Season; competitions: Competition[] };
 /** Today on the club's calendar, as YYYY-MM-DD. */
 function today(timezone: string): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
+}
+
+/** Wait briefly for an optional result, then let the caller carry on without it. */
+async function within<T>(promise: Promise<T>, milliseconds: number): Promise<T | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), milliseconds);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 /** Every page of a list, for the few lists a player's pages need whole. */
@@ -468,8 +489,9 @@ export function createWebsite(options: WebsiteOptions) {
       registered.some((r) => r.entry && r.competition.season_id === s.season.id),
     )?.season;
     const deadline = current ? deadlineLine(current.results_deadline_at, p.me.club.timezone) : null;
+    const reportingClosed = deadlinePassed(current?.results_deadline_at ?? null);
 
-    const forecast = await forecasting;
+    const forecast = await within(forecasting, WEATHER_GRACE_MS);
     const lastDay = current?.results_deadline_at
       ? new Intl.DateTimeFormat("en-CA", { timeZone: p.me.club.timezone }).format(new Date(current.results_deadline_at))
       : null;
@@ -479,6 +501,7 @@ export function createWebsite(options: WebsiteOptions) {
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
         deadline={current ? (deadline ? `${current.name} · ${deadline}` : current.name) : null}
+        reportingClosed={reportingClosed}
         notice={c.req.query("done") === "accepted" ? "Agreed. The result counts now." : null}
         answer={answer}
         toPlay={toPlay}
@@ -563,7 +586,7 @@ export function createWebsite(options: WebsiteOptions) {
 
   /** What the match page says after the player has just done something there. */
   const DONE: Record<string, (opponent: string) => string> = {
-    sent: (opponent) => `Sent. ${opponent} is asked to agree it.`,
+    sent: (opponent) => `Sent. Waiting for ${opponent} to agree it.`,
     accepted: () => "Agreed. The result counts now.",
   };
 
@@ -577,10 +600,13 @@ export function createWebsite(options: WebsiteOptions) {
     sent: Record<string, string> | null = null,
   ) {
     const match = await api<MatchDetail>("GET", `/v1/matches/${id}`, p.session);
-    const [competition, entries, standings] = await Promise.all([
+    const [competition, entries] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
       myEntries(p, match.competition_id),
+    ]);
+    const [standings, season] = await Promise.all([
       api<Standings>("GET", `/v1/competitions/${match.competition_id}/standings`, p.session),
+      api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session),
     ]);
     const mine = sideIn(match, entries);
     const names = namesOf(match);
@@ -592,6 +618,7 @@ export function createWebsite(options: WebsiteOptions) {
         frame={frameOf(p)}
         match={match}
         competition={competition}
+        reportingClosed={deadlinePassed(season.results_deadline_at)}
         division={division?.name ?? null}
         mine={mine}
         names={names}
