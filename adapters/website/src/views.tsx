@@ -521,6 +521,12 @@ export const Home: FC<{
     {p.notice && <Notice ok messages={[p.notice]} />}
     {p.deadline && <p class="deadline">{p.deadline}</p>}
 
+    {p.waiting.length > 0 && (
+      <section class="card">
+        <h2>Waiting for your opponent</h2>
+        <MatchRows matches={p.waiting} />
+      </section>
+    )}
     {p.answer.length > 0 && (
       <section class="card">
         <h2>Needs your answer</h2>
@@ -570,12 +576,6 @@ export const Home: FC<{
       </section>
     )}
     {p.weather && <WeatherBox {...p.weather} />}
-    {p.waiting.length > 0 && (
-      <section class="card">
-        <h2>Waiting for your opponent</h2>
-        <MatchRows matches={p.waiting} />
-      </section>
-    )}
     {p.answer.length + p.toPlay.length + p.waiting.length === 0 && (
       <p class="muted">You have no matches outstanding.</p>
     )}

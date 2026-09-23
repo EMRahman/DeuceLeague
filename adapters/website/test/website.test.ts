@@ -201,6 +201,10 @@ test("a player reports a score from their side, the opponent accepts it, and it 
 
   const samHome = await samPhone.get("/");
   assert.match(samHome.html, /Waiting for your opponent/);
+  assert.ok(
+    samHome.html.indexOf("Waiting for your opponent") < samHome.html.indexOf("Where you stand"),
+    "waiting comes first on the page",
+  );
   // The season and how long is left; and where Sam stands, linking to Sam's own row.
   assert.match(samHome.html, /Season \w+ · Results close in (59|60|61) days/);
   assert.match(samHome.html, /Where you stand/);
