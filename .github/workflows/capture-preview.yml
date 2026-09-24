@@ -6,8 +6,11 @@ on:
 
 jobs:
   capture:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,3 +23,12 @@ jobs:
         with:
           name: product-preview
           path: product-preview.png
+      - name: Commit the rendered preview
+        run: |
+          mkdir -p docs/images
+          mv product-preview.png docs/images/product-preview.png
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/images/product-preview.png
+          git commit -m "Docs: capture phone previews [skip ci]"
+          git push
