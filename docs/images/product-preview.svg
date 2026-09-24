@@ -1,33 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="700" viewBox="0 0 1080 700" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1260" height="760" viewBox="0 0 1260 760" role="img" aria-labelledby="title desc">
   <title id="title">DeuceLeague mobile website preview</title>
   <desc id="desc">Three phone screens showing a player's home page, league tables and score reporting.</desc>
   <defs>
+    <linearGradient id="backdrop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f5ef"/>
+      <stop offset="1" stop-color="#e8eee7"/>
+    </linearGradient>
     <filter id="shadow" x="-20%" y="-10%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-opacity=".16"/>
+      <feDropShadow dx="0" dy="14" stdDeviation="15" flood-opacity=".18"/>
     </filter>
     <style>
       .ui { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1d1d1b }
       .muted { fill: #6b6a66 }
       .green { fill: #2f6b3a }
-      .small { font-size: 11px }
-      .body { font-size: 13px }
-      .label { font-size: 14px; font-weight: 650 }
-      .heading { font-size: 20px; font-weight: 750 }
+      .small { font-size: 12px }
+      .body { font-size: 14px }
+      .label { font-size: 15px; font-weight: 650 }
+      .heading { font-size: 22px; font-weight: 750 }
       .line { stroke: #e3e1db; stroke-width: 1 }
       .card { fill: #fff; stroke: #e3e1db }
       .button { fill: #2f6b3a }
-      .buttonText { fill: #fff; font-size: 12px; font-weight: 700 }
+      .buttonText { fill: #fff; font-size: 13px; font-weight: 700 }
     </style>
   </defs>
 
-  <rect width="1080" height="700" rx="24" fill="#f1efe9"/>
+  <rect width="1260" height="760" rx="30" fill="url(#backdrop)"/>
 
   <!-- Home -->
-  <g transform="translate(45 25)" filter="url(#shadow)">
-    <rect width="300" height="620" rx="38" fill="#1d1d1b"/>
-    <rect x="10" y="10" width="280" height="600" rx="29" fill="#fbfaf7"/>
-    <rect x="110" y="17" width="80" height="17" rx="9" fill="#1d1d1b"/>
-    <g class="ui" transform="translate(26 50)">
+  <g transform="translate(35 25)" filter="url(#shadow)">
+    <rect width="350" height="670" rx="48" fill="#1d1d1b"/>
+    <rect x="10" y="10" width="330" height="650" rx="39" fill="#fbfaf7"/>
+    <rect x="132" y="18" width="86" height="18" rx="9" fill="#1d1d1b"/>
+    <g class="ui" transform="translate(30 56) scale(1.15 1.1)">
       <text class="label" x="0" y="14">Local Tennis Club</text>
       <text class="small green" x="174" y="14">Matches</text>
       <text class="small" x="225" y="14">Tables</text>
@@ -60,11 +64,11 @@
   </g>
 
   <!-- Tables -->
-  <g transform="translate(390 25)" filter="url(#shadow)">
-    <rect width="300" height="620" rx="38" fill="#1d1d1b"/>
-    <rect x="10" y="10" width="280" height="600" rx="29" fill="#fbfaf7"/>
-    <rect x="110" y="17" width="80" height="17" rx="9" fill="#1d1d1b"/>
-    <g class="ui" transform="translate(26 50)">
+  <g transform="translate(455 25)" filter="url(#shadow)">
+    <rect width="350" height="670" rx="48" fill="#1d1d1b"/>
+    <rect x="10" y="10" width="330" height="650" rx="39" fill="#fbfaf7"/>
+    <rect x="132" y="18" width="86" height="18" rx="9" fill="#1d1d1b"/>
+    <g class="ui" transform="translate(30 56) scale(1.15 1.1)">
       <text class="label" x="0" y="14">Local Tennis Club</text>
       <text class="small" x="174" y="14">Matches</text>
       <text class="small green" x="225" y="14">Tables</text>
@@ -105,11 +109,11 @@
   </g>
 
   <!-- Match report -->
-  <g transform="translate(735 25)" filter="url(#shadow)">
-    <rect width="300" height="620" rx="38" fill="#1d1d1b"/>
-    <rect x="10" y="10" width="280" height="600" rx="29" fill="#fbfaf7"/>
-    <rect x="110" y="17" width="80" height="17" rx="9" fill="#1d1d1b"/>
-    <g class="ui" transform="translate(26 50)">
+  <g transform="translate(875 25)" filter="url(#shadow)">
+    <rect width="350" height="670" rx="48" fill="#1d1d1b"/>
+    <rect x="10" y="10" width="330" height="650" rx="39" fill="#fbfaf7"/>
+    <rect x="132" y="18" width="86" height="18" rx="9" fill="#1d1d1b"/>
+    <g class="ui" transform="translate(30 56) scale(1.15 1.1)">
       <text class="label" x="0" y="14">Local Tennis Club</text>
       <text class="small green" x="174" y="14">Matches</text>
       <text class="small" x="225" y="14">Tables</text>
@@ -146,7 +150,7 @@
     </g>
   </g>
 
-  <text x="195" y="678" text-anchor="middle" class="ui label">Home</text>
-  <text x="540" y="678" text-anchor="middle" class="ui label">Tables</text>
-  <text x="885" y="678" text-anchor="middle" class="ui label">Report a score</text>
+  <text x="210" y="730" text-anchor="middle" class="ui label">Home</text>
+  <text x="630" y="730" text-anchor="middle" class="ui label">Tables</text>
+  <text x="1050" y="730" text-anchor="middle" class="ui label">Report a score</text>
 </svg>
