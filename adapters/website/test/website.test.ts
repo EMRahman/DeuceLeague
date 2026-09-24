@@ -277,17 +277,21 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.match(table.html, /<td class="wide">12<\/td><td class="wide">7<\/td><td>\+5<\/td>/);
   assert.match(table.html, /<td class="wide">7<\/td><td class="wide">12<\/td><td>−5<\/td>/);
 
-  // Each row opens in place to show that player's matches and what each earned.
-  // Seen by Alex: every row, Alex's own open.
+  // Each row opens a full-width companion row to show that player's matches
+  // and what each earned. Seen by Alex: every row, Alex's own open.
   const seen = await alexPhone.get(`/competitions/${competitionId}`);
   const rowOf = (name: string) => {
-    const at = seen.html.indexOf(`${name}</summary>`);
+    const at = seen.html.indexOf(`${name}</label>`);
     assert.ok(at > 0, `${name}'s row opens`);
-    return seen.html.slice(seen.html.lastIndexOf("<details", at), seen.html.indexOf("</details>", at));
+    const start = seen.html.lastIndexOf("<tr", at);
+    const playerRowEnd = seen.html.indexOf("</tr>", at) + "</tr>".length;
+    const breakdownRowEnd = seen.html.indexOf("</tr>", playerRowEnd) + "</tr>".length;
+    return seen.html.slice(start, breakdownRowEnd);
   };
   const samRow = rowOf("Sam K.");
   // 6-4 6-3 is 12 games to 7: 4 for the win, 2 sets, not by 8. Every match in: 1 more.
-  assert.match(samRow, /^<details class="row">/, "someone else's row starts closed");
+  assert.doesNotMatch(samRow, /class="row-toggle"[^>]* checked=/, "someone else's row starts closed");
+  assert.match(samRow, /<tr class="breakdown-row"><td colspan="9">/, "the matches span the whole table");
   assert.match(samRow, /Beat Alex P\./);
   assert.match(samRow, /6-4, 6-3/, "the score from Sam's side, whoever is looking");
   // The day it was played comes first, without the year: it is this season.
@@ -298,7 +302,7 @@ test("a player reports a score from their side, the opponent accepts it, and it 
   assert.match(samRow, /Turned up to every match/);
   assert.doesNotMatch(samRow, /Total/, "the table's own Pts column is the total");
   const alexRow = rowOf("Alex P.");
-  assert.match(alexRow, /^<details class="row" open/, "your own row starts open");
+  assert.match(alexRow, /class="row-toggle"[^>]* checked=""/, "your own row starts open");
   assert.match(alexRow, /Lost to Sam K\./);
   assert.match(alexRow, /4-6, 3-6/);
   assert.match(alexRow, /Played 1/);
