@@ -70,8 +70,6 @@ table.asks td:first-child { width: 48%; }
 .mock .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin-bottom: .75rem; }
 .mock .card h4 { margin: 0 0 .25rem; font-size: 1.05rem; }
 .mock .btn { display: inline-block; margin-top: .6rem; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: .45rem .9rem; font-weight: 600; font-size: .9rem; text-decoration: none; }
-.mock .sponsors { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; font-size: .85rem; color: var(--muted); }
-.mock .sponsor { border: 1px solid var(--line); border-radius: 8px; padding: .35rem .7rem; font-weight: 600; color: var(--fg); background: var(--card); }
 
 ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 1rem 0; }
 ol.steps li { counter-increment: step; position: relative; padding: 0 0 1.1rem 2.75rem; }
@@ -121,18 +119,18 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
   </div>
   <div class="eyebrow">For coaches</div>
   <h1>A straightforward league for players and coaches.</h1>
-  <p class="lead">A club member built this for our club. Players report scores and check the tables on their phones. You run the league with Claude Code. The code is open source, so the club controls the experience and nobody can fill it with unwanted adverts or upgrade offers later.</p>
+  <p class="lead">A club member built this for our club: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. You run the league with Claude Code and can extend the website to suit your coaching and the club.</p>
 </header>
 
 <h2>Why it exists</h2>
-<p>The app we use now makes its money from us. Its screens fill up with adverts and upgrade offers, and each new version adds more of them. A club league doesn’t need that. It needs somewhere to report a score, a table and a list of who still has to play.</p>
-<p>DeuceLeague has no business model. The club runs its own copy on a small server for about the price of a can of balls a month. Nobody sits between you and your players, and every player’s details stay in the club’s own database. Optional club notices or sponsor acknowledgements can be added later if you want them; they are not part of the basic player journey.</p>
+<p>The app we use now could be simpler and more straightforward for our league. Most visits are for a few everyday tasks: report a score, agree a result, check the table or see who’s left to play. DeuceLeague puts those tasks within easy reach.</p>
+<p>It works in a browser on a phone, tablet or computer, with no separate app to install or keep updated. The club runs its own copy and keeps its own data. Because the code is open source, a coach can adapt the website with Claude Code — adding coaching information, useful links or a small page for a regular league task.</p>
 
 <div class="promises">
-  <div class="promise"><strong>No unwanted adverts</strong><span>You decide whether any club or sponsor message appears. League tasks stay first.</span></div>
+  <div class="promise"><strong>Straight to the league</strong><span>Scores, tables and matches still to play are easy to find.</span></div>
   <div class="promise"><strong>No passwords</strong><span>Players sign in once from an email link and stay signed in on that phone.</span></div>
-  <div class="promise"><strong>No app to install</strong><span>It’s a website that works on any phone, and players can add it to their home screen.</span></div>
-  <div class="promise"><strong>The club owns it</strong><span>The club keeps its own server, its own data and its own backups.</span></div>
+  <div class="promise"><strong>One less app</strong><span>Open the website in your browser, or add it to your phone’s home screen.</span></div>
+  <div class="promise"><strong>Adapt it to your club</strong><span>Extend the website with coaching information or tools for the way you run your league.</span></div>
 </div>
 
 <h2>What players see</h2>
@@ -701,21 +699,20 @@ details { margin-top: .75rem; }
   <p><strong>You stay in charge.</strong> The software suggests promotions and relegations, but it never makes them. It closes reporting at the season’s deadline, but it never decides a score. You know things the data doesn’t, such as who was injured, who’s moving away, or who ought to be in a higher division.</p>
 </div>
 
-<h2>Optional club notices</h2>
-<p>The player website belongs to the club. Its licence (MIT) lets you change it, but lessons and sponsorship have not been agreed as requirements. If you want them later, you control the content and placement. A lesson notice would link to the existing David Lloyd app or booking page rather than create another booking system here.</p>
+<h2>A website you can extend as a coach</h2>
+<p>The player website is a starting point you can adapt with Claude Code. You could add a page about your coaching, details of group sessions, club news or a link to your existing lesson booking page. You could also build a small coach screen for a task you do often, such as reviewing unresolved scores or preparing next season’s divisions.</p>
 
 <div class="mock" aria-label="Mock-up">
-  <div class="label">Optional mock-up · only if the coach asks for it</div>
+  <div class="label">Example extension · coaching information on the website</div>
   <div class="card">
     <h4>Coaching with the club pro</h4>
     <div class="muted small">Group sessions Tuesday and Thursday evenings · one-to-one by arrangement · match-play clinics before each season</div>
-    <a class="btn" href="#" onclick="return false">Open in the David Lloyd app</a>
+    <a class="btn" href="#" onclick="return false">View lesson booking options</a>
   </div>
-  <div class="sponsors"><span>League sponsored by</span><span class="sponsor">Local Physio</span><span class="sponsor">Racket Restring Co.</span><span class="sponsor">The Clubhouse Café</span></div>
 </div>
 
-<div class="callout warn">
-  <p><strong>An option, not planned work.</strong> The club record can hold branding if it is ever wanted. Nothing promotional is shown by default. You decide whether it is useful; any version stays below the player’s match actions and links lessons to the system the club already uses.</p>
+<div class="callout">
+  <p><strong>Start with what would help you.</strong> These extensions are ideas to build, not features already included. You choose what is useful for your club. Players’ match actions stay easy to reach, and lesson links can use the booking system you already have.</p>
 </div>
 
 <h2>Setting it up</h2>
@@ -755,13 +752,13 @@ details { margin-top: .75rem; }
       <li>Tables worked out fresh from the results each time, never stored</li>
       <li>An API that every screen and bot talks to</li>
     </ul>
-    <p class="small muted" style="margin:.75rem 0 0">Anyone can improve the core. If someone changes it and runs it for others, they have to share their changes, so it can never be turned back into a closed, ad-funded product.</p>
+    <p class="small muted" style="margin:.75rem 0 0">The core is open source, so other clubs and developers can inspect how it works and contribute improvements.</p>
   </div>
   <div class="box edge">
     <h3>Around it <span class="lic">yours · MIT</span></h3>
     <ul>
       <li>The player website (built)</li>
-      <li>Optional club notices, only if you ask for them</li>
+      <li>Coaching pages, club notices or a coach screen you could add</li>
       <li>A Telegram group bot</li>
       <li>A table on the club’s own website</li>
       <li>Anything else someone wants to build</li>
