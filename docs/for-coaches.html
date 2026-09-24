@@ -41,12 +41,13 @@ header.hero { padding: 3.5rem 0 1rem; }
 .promise span { color: var(--muted); font-size: .95rem; }
 
 /* Three real pages, as they look on a phone. */
-.phones { display: flex; gap: 1.25rem; overflow-x: auto; scroll-snap-type: x mandatory; padding: .5rem 16px 1rem; margin: 1.5rem -16px 0; }
-figure.phone { margin: 0; flex: 0 0 auto; width: 300px; scroll-snap-align: center; }
-.phone .frame { border: 10px solid #1d1d1b; border-radius: 34px; overflow: hidden; background: #fbfaf7; box-shadow: 0 10px 30px rgb(0 0 0 / .15); }
-.phone iframe { display: block; width: 280px; height: 560px; border: 0; }
-.phone figcaption { font-size: .9rem; color: var(--muted); margin-top: .75rem; }
-.phone figcaption strong { color: var(--fg); display: block; }
+.phones { display: flex; gap: 1.5rem; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; padding: 1rem 18px 1.5rem; margin: 1.25rem -18px 0; }
+figure.phone { margin: 0; flex: 0 0 auto; width: min(360px, calc(100vw - 30px)); scroll-snap-align: center; }
+.phone .frame { position: relative; border: 9px solid #1d1d1b; border-top-width: 25px; border-bottom-width: 15px; border-radius: 42px; overflow: hidden; background: #fbfaf7; box-shadow: 0 18px 45px rgb(0 0 0 / .18); }
+.phone .frame::before { content: ""; position: absolute; z-index: 1; top: -15px; left: 50%; width: 48px; height: 4px; border-radius: 999px; background: #555; transform: translateX(-50%); }
+.phone iframe { display: block; width: 100%; height: min(680px, calc((100vw - 48px) * 2)); border: 0; background: #fbfaf7; }
+.phone figcaption { font-size: .95rem; line-height: 1.5; color: var(--muted); margin: .9rem .35rem 0; }
+.phone figcaption strong { color: var(--fg); display: block; margin-bottom: .15rem; font-size: 1rem; }
 
 table.asks { width: 100%; border-collapse: collapse; margin: 1rem 0; }
 table.asks th { text-align: left; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: .5rem .75rem .5rem 0; border-bottom: 2px solid var(--line); }
