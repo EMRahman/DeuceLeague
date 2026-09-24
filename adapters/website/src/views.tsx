@@ -144,12 +144,16 @@ tr.promoted .move { color: var(--up); }
 tr.relegated .move { color: var(--down); }
 /* On a phone the table keeps what decides a place. */
 @media (max-width: 559px) { .wide { display: none; } }
-details.row { margin: 0; }
-details.row summary { cursor: pointer; }
-details.row[open] { position: relative; z-index: 1; }
-details.row[open] summary { margin-bottom: .5rem; }
-/* The disclosure starts in the Player column, then uses the table's full useful width. */
-.breakdown { width: min(38rem, calc(100vw - 4rem)); margin: 0 0 .5rem -1rem; padding: .15rem 0 0 .75rem; font-weight: 400; font-size: .9rem; border-left: 2px solid var(--line); }
+.row-toggle { position: absolute; width: 1px; height: 1px; margin: -1px; opacity: 0; }
+.row-label { display: inline-flex; align-items: baseline; gap: .35rem; color: var(--accent); cursor: pointer; }
+.row-label::before { content: "›"; display: inline-block; color: var(--muted); font-size: 1.15rem; line-height: 1; transform-origin: center; transition: transform .12s ease; }
+.row-toggle:checked + .row-label::before { transform: rotate(90deg); }
+.row-toggle:focus-visible + .row-label { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+.breakdown-row { display: none; }
+tr:has(.row-toggle:checked) td { border-bottom: 0; }
+tr:has(.row-toggle:checked) + .breakdown-row { display: table-row; }
+.breakdown-row > td { padding: 0 .3rem .65rem 2rem; text-align: left; white-space: normal; }
+.breakdown { width: 100%; padding: .15rem 0 0 .75rem; font-weight: 400; font-size: .9rem; border-left: 2px solid var(--line); }
 .breakdown ul.list li { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: baseline; gap: .5rem 1rem; padding: .45rem 0; }
 .breakdown p { margin: .65rem 0 0; padding-top: .65rem; border-top: 1px solid var(--line); }
 .pts { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
@@ -837,38 +841,44 @@ export const CompetitionPage: FC<{
           <tbody>
             {d.rows.map((r) => {
               const isMine = mine?.entryId === r.entry_id;
+              const toggleId = `row-${r.entry_id}`;
               return (
-                <tr
-                  class={[isMine ? "me" : "", r.movement ?? ""].filter(Boolean).join(" ")}
-                  id={isMine ? "mine" : undefined}
-                >
-                  <td>
-                    {r.position ?? "–"}
-                    {r.movement === "promoted" && <span class="move" title="Going up" aria-label="going up">▲</span>}
-                    {r.movement === "relegated" && <span class="move" title="Going down" aria-label="going down">▼</span>}
-                  </td>
-                  <td>
-                    {/* The row opens in place: no page to leave, and no script needed. Your own starts open. */}
-                    <details class="row" open={isMine}>
-                      <summary>
+                <>
+                  <tr
+                    class={[isMine ? "me" : "", r.movement ?? ""].filter(Boolean).join(" ")}
+                    id={isMine ? "mine" : undefined}
+                  >
+                    <td>
+                      {r.position ?? "–"}
+                      {r.movement === "promoted" && <span class="move" title="Going up" aria-label="going up">▲</span>}
+                      {r.movement === "relegated" && <span class="move" title="Going down" aria-label="going down">▼</span>}
+                    </td>
+                    <td>
+                      {/* A CSS-only disclosure: its companion row spans the whole table. */}
+                      <input class="row-toggle" type="checkbox" id={toggleId} checked={isMine} />
+                      <label class="row-label" for={toggleId}>
                         {r.label}
                         {r.standing === "withdrawn" && <span class="muted"> (withdrawn)</span>}
-                      </summary>
+                      </label>
+                    </td>
+                    <td>{r.played}</td>
+                    <td class="wide">{r.won}</td>
+                    <td class="wide">{r.lost}</td>
+                    <td class="wide">{r.games_won}</td>
+                    <td class="wide">{r.games_lost}</td>
+                    <td>{signed(r.games_won - r.games_lost)}</td>
+                    <td class="pts">{r.points}</td>
+                  </tr>
+                  <tr class="breakdown-row">
+                    <td colspan={9}>
                       <RowBreakdown
                         row={r}
                         breakdown={breakdowns[r.entry_id] ?? { played: [], toPlay: [] }}
                         lossPlayed={competition.rules.points.lossPlayed}
                       />
-                    </details>
-                  </td>
-                  <td>{r.played}</td>
-                  <td class="wide">{r.won}</td>
-                  <td class="wide">{r.lost}</td>
-                  <td class="wide">{r.games_won}</td>
-                  <td class="wide">{r.games_lost}</td>
-                  <td>{signed(r.games_won - r.games_lost)}</td>
-                  <td class="pts">{r.points}</td>
-                </tr>
+                    </td>
+                  </tr>
+                </>
               );
             })}
           </tbody>
