@@ -146,10 +146,12 @@ tr.relegated .move { color: var(--down); }
 @media (max-width: 559px) { .wide { display: none; } }
 details.row { margin: 0; }
 details.row summary { cursor: pointer; }
-details.row[open] summary { margin-bottom: .4rem; }
-.breakdown { font-weight: 400; font-size: .9rem; border-left: 2px solid var(--line); padding-left: .6rem; margin-bottom: .4rem; }
-.breakdown ul.list li { display: flex; justify-content: space-between; gap: .75rem; padding: .35rem 0; }
-.breakdown p { margin: .4rem 0 0; }
+details.row[open] { position: relative; z-index: 1; }
+details.row[open] summary { margin-bottom: .5rem; }
+/* The disclosure starts in the Player column, then uses the table's full useful width. */
+.breakdown { width: min(38rem, calc(100vw - 4rem)); margin: 0 0 .5rem -1rem; padding: .15rem 0 0 .75rem; font-weight: 400; font-size: .9rem; border-left: 2px solid var(--line); }
+.breakdown ul.list li { display: grid; grid-template-columns: minmax(0, 1fr) max-content; align-items: baseline; gap: .5rem 1rem; padding: .45rem 0; }
+.breakdown p { margin: .65rem 0 0; padding-top: .65rem; border-top: 1px solid var(--line); }
 .pts { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 /* A breakdown bubble over a match's points: hover, or tap to focus; tap elsewhere to close. */
 .tip { position: relative; cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; outline: none; }
