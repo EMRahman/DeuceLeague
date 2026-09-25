@@ -48,6 +48,17 @@ figure.phone { margin: 0; flex: 0 0 auto; width: min(360px, calc(100vw - 30px));
 .phone iframe { display: block; width: 100%; height: min(680px, calc((100vw - 48px) * 2)); border: 0; background: #fbfaf7; }
 .phone figcaption { font-size: .95rem; line-height: 1.5; color: var(--muted); margin: .9rem .35rem 0; }
 .phone figcaption strong { color: var(--fg); display: block; margin-bottom: .15rem; font-size: 1rem; }
+.preview-pagination { display: none; }
+@media (max-width: 699px) {
+  .phones { scrollbar-width: none; padding-bottom: .75rem; }
+  .phones::-webkit-scrollbar { display: none; }
+  .preview-pagination { display: flex; flex-direction: column; align-items: center; gap: .15rem; margin: .15rem 0 .9rem; color: var(--muted); font-size: .8rem; }
+  .preview-dots { display: flex; justify-content: center; gap: .15rem; }
+  .preview-dot { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; background: transparent; cursor: pointer; }
+  .preview-dot::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--line); transition: width .2s ease, background-color .2s ease; }
+  .preview-dot[aria-current="true"]::before { width: 18px; background: var(--accent); }
+  .preview-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 999px; }
+}
 
 table.asks { width: 100%; border-collapse: collapse; margin: 1rem 0; }
 table.asks th { text-align: left; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: .5rem .75rem .5rem 0; border-bottom: 2px solid var(--line); }
@@ -694,6 +705,14 @@ details { margin-top: .75rem; }
     <figcaption><strong>A match</strong>A player picks the score from dropdowns and presses one button. The result counts once the opponent agrees.</figcaption>
   </figure>
 </div>
+<div class="preview-pagination" aria-label="Screenshot navigation">
+  <div class="preview-dots">
+    <button class="preview-dot" type="button" aria-label="Show the home page" aria-current="true"></button>
+    <button class="preview-dot" type="button" aria-label="Show the league table"></button>
+    <button class="preview-dot" type="button" aria-label="Show score reporting"></button>
+  </div>
+  <span>Swipe for more</span>
+</div>
 <p class="muted small">These are the real pages, filled with made-up results. Links and buttons don’t work in this preview. Scroll inside each phone to see the whole page.</p>
 
 <h3>A score counts only when both sides agree</h3>
@@ -832,5 +851,47 @@ details { margin-top: .75rem; }
 </footer>
 
 </main>
+<script>
+const phoneStrip = document.querySelector(".phones");
+const phones = [...phoneStrip.querySelectorAll(".phone")];
+const previewDots = [...document.querySelectorAll(".preview-dot")];
+let previewFrame;
+
+function showActivePreview(index) {
+  previewDots.forEach((dot, dotIndex) => {
+    if (dotIndex === index) dot.setAttribute("aria-current", "true");
+    else dot.removeAttribute("aria-current");
+  });
+}
+
+function updateActivePreview() {
+  const stripCentre = phoneStrip.getBoundingClientRect().left + phoneStrip.clientWidth / 2;
+  let closestIndex = 0;
+  let closestDistance = Infinity;
+  phones.forEach((phone, index) => {
+    const bounds = phone.getBoundingClientRect();
+    const distance = Math.abs(bounds.left + bounds.width / 2 - stripCentre);
+    if (distance < closestDistance) {
+      closestIndex = index;
+      closestDistance = distance;
+    }
+  });
+  showActivePreview(closestIndex);
+}
+
+phoneStrip.addEventListener("scroll", () => {
+  cancelAnimationFrame(previewFrame);
+  previewFrame = requestAnimationFrame(updateActivePreview);
+}, { passive: true });
+
+previewDots.forEach((dot, index) => {
+  dot.addEventListener("click", () => {
+    phones[index].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  });
+});
+
+window.addEventListener("resize", updateActivePreview);
+updateActivePreview();
+</script>
 </body>
 </html>
