@@ -10,7 +10,7 @@ instance by following [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
 
 **For coaches:** [See what DeuceLeague looks like and how a coach can use it](https://emrahman.github.io/DeuceLeague/for-coaches.html).
 
-[![DeuceLeague mobile website: home, league tables and score reporting](docs/images/product-preview.svg)](https://emrahman.github.io/DeuceLeague/for-coaches.html)
+[![DeuceLeague mobile website: home, league tables and score reporting](docs/images/product-preview.png)](https://emrahman.github.io/DeuceLeague/for-coaches.html)
 
 ## What is here
 
