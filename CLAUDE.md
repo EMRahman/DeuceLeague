@@ -29,13 +29,13 @@ are what it runs.
 ## Commands
 
 ```bash
-npm test            # the SQL-injection check, then the schema and engine unit tests
+npm test            # SQL-injection check, schema/engine tests, and local D1 feasibility tests
 npm run db:verify   # migrations + constraint + RLS + event feed + API + website suites on throwaway Postgres
 npm run typecheck
 npm run db:generate # generate a migration after editing schema.ts
 npm run db:migrate  # apply migrations, as the table owner (MIGRATION_DATABASE_URL)
 npm run db:docs     # regenerate docs/SCHEMA.md from a fresh throwaway Postgres
-npm run api         # start the API (DATABASE_URL, PORT — see .env.example)
+npm run api         # start the API (DATABASE_URL, PORT — see deploy/postgres.env.example)
 npm run club:create -- --slug deuce-ltc --name "Deuce LTC"   # prints the first admin key
 npm run demo:seed   # fake demo clubs, built through the API, into an empty database
 npm run website     # the reference website (WEBSITE_API_KEY, PUBLIC_URL, SMTP_URL)
@@ -45,6 +45,82 @@ docker compose up -d --build   # the whole stack; `up -d postgres` for just the 
 `db:verify` needs Docker. Run it after any schema change — the constraint suite
 is where this project's guarantees actually live. Never use `drizzle-kit push`:
 it knows only `schema.ts` and would build a database with no row-level security.
+
+## Cloudflare migration in progress
+
+Read `docs/CLOUDFLARE-MIGRATION.md` and `docs/migrations/STAGE-4A.md` before
+continuing. `packages/db-d1` contains identity, results, club/member administration,
+league setup, fixture generation, opt-outs, standings and progress/chase reads.
+Atomic placements and the event feed are implemented. The Worker now composes
+the API and website. The protected installer registers the website secret
+atomically at bootstrap; optional sample members, league records, fixtures and
+the append-only `installation.sample.created` marker join that same commit.
+Sample seeding is initial-setup-only. The optional owner email is private member
+data, never an audit value; setup sends no mail. Normal website sign-in tests
+delivery afterwards. Both API entry points use `contracts/` and shared rules/mapping in
+`administration/`, `league/` and `results/`. Keep those rules shared while
+PostgreSQL remains available for regression checks. D1 mutations read authorization
+and domain state together. Responses reflect the commit, using readback inside
+the batch or exactly the written structure records and reserved timestamps;
+never reread outside the batch after a mutation. Fixtures use two bulk statements
+with bound JSON arrays, not per-pairing writes. Standings use shared
+`league/tables.ts`; club-calendar day counts use `league/progress.ts`, verified
+against PostgreSQL. Keep PII gating inside chase queries as well as route scopes. Placements read
+target/source state together and commit bulk divisions, entries, lineups and
+audit records atomically. The placement deadline guard forces a reread if final
+status changes with time; preserve it alongside credential and revision guards.
+Event positions use padded decimal text and a trigger that allocates IDs with
+two integer limbs in the same transaction as audit inserts, including bulk
+inserts. Preserve that ordering and append-only mapping. History import is
+currently an internal primitive requiring an empty destination audit log; the
+complete offline importer is still pending. Never coerce public event IDs or
+cursors to Number. This is not a second supported backend. PostgreSQL retains
+its guarantees below for regression and rollback. D1 SQL belongs in
+`packages/db-d1`, never in routes or adapters.
+
+`deploy/cloudflare/README.md` describes website variables and email bindings.
+Keep SMTP/logging mail in the Node-only `mail-node` entry point. Worker login
+cooldowns use revision-guarded D1 reservations with HMAC recipient keys; send
+email only after commit, outside mutation retries. Never log provider errors or
+working login links. The forecast cache accepts only public Open-Meteo JSON;
+private pages remain no-store. Keep PUBLIC_URL explicit and trusted. The Worker
+website tests intercept outbound email/weather and reload the runtime to prove
+cooldowns persist. All 11 PostgreSQL website tests pass after correcting the
+stale promotion-row assertion; preserve the current table disclosure markup.
+
+The installer shows an admin key before commit and requires saving it. The
+singleton club permanently closes initialization; never reopen it on secret
+rotation. Bootstrap/status auth is separate from /v1; the Worker applies the
+shared D1 installer-attempt bucket to browser and direct bootstrap requests.
+Keep setup secret, API keys and form values out of URLs/logs. A complete loss
+of all admin credentials is handled by `cf:recover-admin`; see
+`deploy/cloudflare/RECOVERY.md`. Its separate `db-d1/recovery` entry point must
+stay outside the application Worker. Save the generated private file before
+apply, and reuse the same operation after response loss. Recovery adds an
+audited admin key without revoking old keys or reopening setup. Remote mode
+requires explicit account/database IDs and the owner's Wrangler credentials;
+local rehearsal is verified, remote account acceptance remains pending.
+
+The root `build`/`deploy` scripts support the Cloudflare button. Deployment
+requires a provisioned DB UUID, compiles, migrates by binding name, then deploys;
+errors stop subsequent steps. `npm run deploy -- --dry-run` skips migration and
+account changes. Use the complete repository in the button, not a subdirectory.
+`.dev.vars.example` is the deployment-secret prompt list; PostgreSQL's example
+is `deploy/postgres.env.example`. Never add real credentials to either.
+`deploy/cloudflare/TRIAL.md` records the account acceptance steps. Node 22
+clean-install checks pass; email-provider choice and remote trial are pending.
+
+`npm run cf:test` builds the Worker and runs D1/Worker runtime tests;
+`npm run cf:db:migrate` applies D1 migrations locally. Neither deploys remotely.
+The root Wrangler configuration has no maintainer account or database ID.
+Miniflare tests require local sockets. Keep the test proof schema out of actual
+D1 migrations and never expose its reduced operations through the Worker.
+
+The D1 foundation uses a club-wide revision: read all decision inputs and the
+revision together, then commit writes/events with the revision guard in one
+batch. Every future state mutation must participate. Time-based predicates
+must also be checked at commit; retries only follow a definitive stale-revision
+failure. Preserve the website/API package boundary when composing one Worker.
 
 ## Rules that are not negotiable
 

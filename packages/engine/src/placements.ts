@@ -36,19 +36,19 @@ export function suggestPlacements(
   /** Entries whose players have said they are not playing in the next competition. */
   optedOut: ReadonlySet<string> = new Set(),
 ): PlacementSuggestion[] {
-  const ordinals = target.map((d) => d.ordinal);
+  const ordinals = target.map((d) => d.ordinal).sort((a, b) => a - b);
   if (ordinals.length === 0) return [];
-  const top = Math.min(...ordinals);
-  const bottom = Math.max(...ordinals);
-  // A division that no longer exists folds into the nearest one that does.
-  const clamp = (ordinal: number) => Math.min(Math.max(ordinal, top), bottom);
+  // A division that no longer exists folds into the nearest existing one,
+  // preferring the higher division on an equal distance. Ordinals may have gaps.
+  const nearest = (ordinal: number) => ordinals.reduce((best, next) =>
+    Math.abs(next - ordinal) < Math.abs(best - ordinal) ? next : best);
   const nameOf = (ordinal: number) => target.find((d) => d.ordinal === ordinal)?.name ?? `Division ${ordinal}`;
 
   const suggestions: PlacementSuggestion[] = [];
   for (const division of [...previous].sort((a, b) => a.ordinal - b.ordinal)) {
-    const here = clamp(division.ordinal);
-    const up = clamp(division.ordinal - 1);
-    const down = clamp(division.ordinal + 1);
+    const here = nearest(division.ordinal);
+    const up = ordinals.filter((n) => n < division.ordinal).at(-1) ?? here;
+    const down = ordinals.find((n) => n > division.ordinal) ?? here;
     // Someone who has opted out is out of the reckoning: they take no
     // promotion place from the entry below them, and no relegation place
     // from the one above.

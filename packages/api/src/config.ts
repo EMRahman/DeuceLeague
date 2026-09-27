@@ -7,8 +7,8 @@ import { z } from "zod";
 const Config = z.object({
   /** A connection as deuceleague_app — never the tables' owner. See docs/API.md. */
   DATABASE_URL: z
-    .string({ error: "not set — it should connect as deuceleague_app; see .env.example" })
-    .min(1, "empty — it should connect as deuceleague_app; see .env.example"),
+    .string({ error: "not set — it should connect as deuceleague_app; see deploy/postgres.env.example" })
+    .min(1, "empty — it should connect as deuceleague_app; see deploy/postgres.env.example"),
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
 });
 

@@ -4,7 +4,7 @@ import { createApp } from "./app.js";
 import { readConfig } from "./config.js";
 
 // `npm run api` runs this file. Configuration comes from the environment;
-// see .env.example.
+// see deploy/postgres.env.example.
 
 function refuseToStart(error: unknown): never {
   console.error(`DeuceLeague API not started: ${error instanceof Error ? error.message : String(error)}`);

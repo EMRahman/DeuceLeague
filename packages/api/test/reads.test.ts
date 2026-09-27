@@ -380,3 +380,18 @@ test("the spec lists the read routes with the scopes they need", async () => {
   assert.equal(Object.keys(spec.paths).some((p) => p.startsWith("/v1/public")), false, "no routes without a credential");
   assert.match(spec.components.schemas.ChaseEntry.properties.email.description, /^PII/);
 });
+
+test("placement targets with gaps in division numbering never produce a missing division", async () => {
+  const c = await newClub("placement-gaps");
+  const last = await competitionOf(c, [["A1", "A2", "A3"]]);
+  const next = (await send("POST", "/v1/competitions", c.key, { season_id: last.seasonId, name: "Next", discipline: "singles",
+    match_format: "best_of_3_sets", previous_competition_id: last.competitionId })).body;
+  const top = (await send("POST", `/v1/competitions/${next.id}/divisions`, c.key, { ordinal: 1 })).body;
+  const bottom = (await send("POST", `/v1/competitions/${next.id}/divisions`, c.key, { ordinal: 4 })).body;
+  const filled = await send("POST", `/v1/competitions/${next.id}/placements`, c.key);
+  assert.equal(filled.status, 201, JSON.stringify(filled.body));
+  assert.equal(filled.body.divisions_copied, false);
+  assert.equal(filled.body.placed.length, 3);
+  assert.ok(filled.body.placed.every((p: { division_id: string }) => [top.id, bottom.id].includes(p.division_id)));
+  assert.ok(filled.body.placed.some((p: { reason: string }) => p.reason === "relegated"));
+});

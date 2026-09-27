@@ -70,7 +70,7 @@ cd /srv/deuceleague
 ## 3. Configuration
 
 ```bash
-cp .env.example .env
+cp deploy/postgres.env.example .env
 chmod 600 .env
 ```
 
@@ -253,7 +253,7 @@ Everything above works locally too, without a domain or email. With Docker
 running:
 
 ```bash
-cp .env.example .env
+cp deploy/postgres.env.example .env
 docker compose up -d --build
 docker compose run --rm api node packages/api/dist/cli/club-create.js --slug test --name "Test Club"
 ```

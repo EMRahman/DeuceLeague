@@ -528,9 +528,11 @@ test("every division shows on one page, with its promotion and relegation places
   assert.match(page, /the top 1 of each division go up and the bottom 1/);
   assert.match(page, /Division 1[\s\S]*Division 2/, "both divisions, top first, on the same page");
   // Nothing played: name order. Bella is bottom of Division 1, Carl top of Division 2.
-  assert.match(page, /<tr class="me" id="mine">[\s\S]*?Aaron<\/summary>/, "the top division promotes nobody");
-  assert.match(page, /<tr class="relegated">[\s\S]*?Bella<\/summary>/);
-  assert.match(page, /<tr class="promoted">[\s\S]*?Carl<\/summary>/);
+  const rows = page.match(/<tr\b[^>]*>[\s\S]*?<\/tr>/g) ?? [];
+  const rowFor = (name: string) => rows.find((row) => new RegExp(`>${name}<\\/label>`).test(row)) ?? "";
+  assert.match(rowFor("Aaron"), /<tr class="me" id="mine">/, "the top division promotes nobody");
+  assert.match(rowFor("Bella"), /<tr class="relegated">/);
+  assert.match(rowFor("Carl"), /<tr class="promoted">/);
   assert.match(page, /aria-label="going up">▲/, "marked on the row itself; no separate key");
   assert.doesNotMatch(page, /class="key"/);
 });

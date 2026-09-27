@@ -1,7 +1,7 @@
 # The whole of a club's DeuceLeague: Postgres, the API and the reference
 # website, configured from one .env. docs/SELF-HOSTING.md walks through it.
 #
-#   cp .env.example .env
+#   cp deploy/postgres.env.example .env
 #   docker compose up -d --build
 #
 # Each start migrates the database first, and the API waits for that to

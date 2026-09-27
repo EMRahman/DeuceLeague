@@ -1,9 +1,10 @@
 import { serve } from "@hono/node-server";
-import { apiClient, createWebsite, logMailer, openMeteo, smtpMailer } from "./app.js";
+import { apiClient, createWebsite, openMeteo } from "./app.js";
+import { logMailer, smtpMailer } from "./mail-node.js";
 import { readConfig } from "./config.js";
 
 // `npm run website` runs this file. Configuration comes from the environment;
-// see .env.example.
+// see deploy/postgres.env.example.
 
 const config = (() => {
   try {
