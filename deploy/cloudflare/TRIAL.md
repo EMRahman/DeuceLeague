@@ -16,8 +16,10 @@ provisioning or email steps.
 
 - Use your Cloudflare account with Workers Paid for this preview, and a GitHub
   or GitLab account for the repository Cloudflare creates.
-- Prepare an email sender verified with Resend and a sending API key. Resend
-  is the initial button template's email route; native Cloudflare email is
+- Create a Resend account and a sending API key. For an owner-only trial,
+  `onboarding@resend.dev` can send to the email address associated with that
+  Resend account. For club members, verify your own sender domain first.
+  Resend is selected for the owner's first trial; native Cloudflare email is
   described below. The backend and website still run on Cloudflare.
 - In your password manager, generate and save **two independent random
   43-character alphanumeric strings**. The first is `SETUP_TOKEN`. Prefix the
@@ -30,6 +32,15 @@ provisioning or email steps.
 
 The initial installation needs no local PostgreSQL, Docker or terminal.
 Cloudflare account ownership alone does not configure email delivery.
+
+The owner currently uses Workers Free. Choosing Resend avoids a paid email
+requirement, but the **current app still needs Workers Paid** for its normal
+player journey: a local statement-count rehearsal found **143 D1 queries**
+in the signed-in sample home-page request. Free allows **50** per invocation;
+Paid allows **1,000**. The sample installer has been reduced from 62 to 46
+queries, but that does not make the rest of the website Free-compatible.
+Supporting Free requires a separate query-reduction pass and real-account
+CPU checks. No account upgrade has been made. See [D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
 
 ## Choosing email
 
@@ -52,10 +63,14 @@ before usage charges; it is already the target plan for this preview.
 For a club of this size, 3,000 monthly sign-in messages is likely ample, but
 Resend's 100/day cap could affect a launch when many members request access on
 the same day. Native sending is a reasonable first choice if the owner already
-has Workers Paid and a domain on Cloudflare. Otherwise Resend is the simpler
-deployment-template route. The owner's choice remains open; the template's
-Resend default is provisional. Account onboarding and inbox delivery must be
-checked whichever route is chosen.
+has Workers Paid and a domain on Cloudflare. The owner has selected Resend
+for now, matching the template's default. Sender onboarding and inbox delivery
+remain part of the account trial.
+
+For the [owner-only Resend test sender](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain),
+set `MAIL_FROM=onboarding@resend.dev` and use your Resend account email for
+Sample Alex. Sending to anyone else requires a verified domain and an updated
+`MAIL_FROM`. You do not need to buy or move a domain just to test your own inbox.
 
 ## Deploy
 
@@ -70,7 +85,7 @@ checked whichever route is chosen.
    | --- | --- |
    | `PUBLIC_URL` | The exact HTTPS origin above, without a path or query |
    | `MAIL_PROVIDER` | `resend` |
-   | `MAIL_FROM` | Your verified sender address, optionally `League <address>` |
+   | `MAIL_FROM` | Your verified sender, or `onboarding@resend.dev` for the owner-only test above |
    | `WEATHER_VENUES` | Empty for this trial |
    | `WEATHER_UNITS` | `uk`, `metric` or `us` |
 

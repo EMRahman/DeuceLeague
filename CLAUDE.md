@@ -108,7 +108,12 @@ account changes. Use the complete repository in the button, not a subdirectory.
 `.dev.vars.example` is the deployment-secret prompt list; PostgreSQL's example
 is `deploy/postgres.env.example`. Never add real credentials to either.
 `deploy/cloudflare/TRIAL.md` records the account acceptance steps. Node 22
-clean-install checks pass; email-provider choice and remote trial are pending.
+clean-install checks pass; Resend is selected and the remote trial is pending.
+Workers Paid remains the supported target: the signed-in sample home request
+executes 143 D1 statements, above Free's 50/query-per-invocation limit. The
+installer's sample audits use one ordered bulk statement, reducing bootstrap
+to 46 queries; preserve event allocation and atomic completion. Do not claim
+Free compatibility based on that installer check or local CPU timings.
 
 `npm run cf:test` builds the Worker and runs D1/Worker runtime tests;
 `npm run cf:db:migrate` applies D1 migrations locally. Neither deploys remotely.

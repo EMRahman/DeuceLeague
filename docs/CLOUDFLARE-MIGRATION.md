@@ -203,6 +203,15 @@ The installer needs Cloudflare and GitHub/GitLab access. The supported initial
 target is Workers Paid. Existing Cloudflare-account ownership does not establish
 that a paid plan or outbound email is already enabled.
 
+The owner selected Resend for the first trial and currently has Workers Free.
+Resend needs no Workers Paid subscription itself. However, the current combined
+website executes 143 D1 statements for the signed-in sample home page, exceeding
+Free's 50-query invocation limit (Paid: 1,000). Supporting Free therefore needs
+a separate read/query reduction pass and remote CPU validation. The installer
+now uses 46 statements after combining sample audit inserts. No subscription
+change is authorized or performed by choosing the email provider. See the
+[trial guide](../deploy/cloudflare/TRIAL.md).
+
 Build a small setup wizard, not a new general-purpose coach dashboard:
 
 - Ask for club name, slug, timezone, and an optional sample league preset.
@@ -383,10 +392,12 @@ Keep old Docker/PostgreSQL instructions accessible from the legacy tag.
 Budget **about US$5/month per club account**, excluding domain registration,
 taxes, optional services, and usage beyond included allowances. Workers Paid
 starts at $5/month; the included D1 usage should comfortably cover this sample
-club. Email Sending currently includes 3,000 monthly outbound messages on the
-paid plan. This remains an estimate until phase 5 records actual usage and
-account availability. [Workers pricing][workers-price], [D1 pricing][d1-price],
-[email pricing][email-price]
+club. The owner selected Resend, whose free plan currently includes 3,000
+monthly emails with a 100/day cap. Native Cloudflare Email Sending is an
+alternative with 3,000 monthly messages included on Workers Paid. This remains
+an estimate until phase 5 records actual usage and account availability.
+[Workers pricing][workers-price], [D1 pricing][d1-price],
+[email pricing][email-price], [Resend quotas](https://resend.com/docs/knowledge-base/account-quotas-and-limits)
 
 Use **GPT-6 Astra with High reasoning** as the preferred implementation model,
 if available in the owner's Codex model picker. Use Extra High for the atomicity,

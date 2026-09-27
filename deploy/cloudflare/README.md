@@ -4,8 +4,10 @@ The Worker composes the API and reference website over local D1. The protected
 installer, atomic service-key registration and optional sample preset are
 implemented, along with a locally rehearsed account-owner recovery command.
 The deploy-button template is prepared; use the [first-account trial guide](TRIAL.md).
-Remote acceptance and data-transfer tools remain pending. Resend is the
-provisional button default while the owner chooses the email route.
+Remote acceptance and data-transfer tools remain pending. The owner selected
+Resend for the first trial. The app still targets Workers Paid: the signed-in
+sample home page exceeds Free's per-request D1 query budget. See the trial
+guide for the measured limitation and email setup.
 
 Run `npm run cf:test` for a dry-run build and local runtime tests. The website
 tests intercept outbound email and weather; they do not contact providers.

@@ -2,9 +2,9 @@
 
 27 September 2026. This batch prepares the root repository for Deploy to
 Cloudflare and rehearses it from a clean installation on Node 22.23.3. The
-email-provider choice for the owner's actual account trial remains open;
-Resend is the provisional template default, and the application supports native
-Cloudflare Email Sending too.
+owner selected Resend for the actual account trial. The application supports
+native Cloudflare Email Sending too. The owner currently has Workers Free;
+the current website still requires Paid because of per-request query usage.
 
 ## Deployment behavior
 
@@ -43,8 +43,10 @@ repository**, not the `deploy/cloudflare` subdirectory.
   data loss, and rollback of an intentionally failing migration.
 - A clean temporary source snapshot excluded dependencies, compiled files,
   local databases and secrets. `npm ci` succeeded using Node **22.23.3**.
-- From that snapshot, `npm run cf:test` passed **166 checks**: 18 foundation
-  and 148 runtime tests. The actual `npm run deploy -- --dry-run` also passed.
+- From that snapshot, `npm run cf:test` initially passed **166 checks**: 18
+  foundation and 148 runtime tests. After the sample-query improvement below,
+  the suite passed **167 checks** (18 foundation and 149 runtime).
+  The actual `npm run deploy -- --dry-run` also passed.
 - `npm run db:verify` passed its database checks, **75 PostgreSQL API tests**
   and **11 website tests** from the clean Node 22 installation.
 - The separate schema and engine suites passed **20** and **46** tests.
@@ -56,7 +58,8 @@ Logs: `/private/tmp/deuceleague-deployment-stage4a.log`,
 `/private/tmp/deuceleague-clean-cloudflare-stage4a.log`,
 `/private/tmp/deuceleague-clean-dryrun-stage4a.log`, and
 `/private/tmp/deuceleague-clean-postgres-stage4a.log`, and
-`/private/tmp/deuceleague-clean-units-stage4a.log`.
+`/private/tmp/deuceleague-clean-units-stage4a.log`, and
+`/private/tmp/deuceleague-resend-query-budget.log`.
 
 ## Publication and account acceptance
 
@@ -68,6 +71,8 @@ branch so it does not depend on merging an unfinished migration into main.
 Existing website/coach changes from main are retained. The original working
 directory remains on its previous branch with its work preserved; publication
 uses the isolated worktree `/private/tmp/deuceleague-cloudflare-preview`.
+Both GitHub jobs passed on the published preview before the Resend/query-count
+follow-up; the PR check results record verification of subsequent commits.
 
 No Cloudflare resources were created, no remote database was migrated, and no
 external email was sent during these rehearsals. The real button form,
@@ -75,10 +80,32 @@ provisioning, provider onboarding, inbox delivery, redeploy and remote recovery
 must still be checked in the owner's disposable deployment. See the
 [account-trial guide](../../deploy/cloudflare/TRIAL.md).
 
+## Resend selection and Workers Free limit
+
+The owner chose Resend after confirming that Workers Paid is not enabled.
+An owner-only test can use Resend's `onboarding@resend.dev` sender and send to
+the address associated with that Resend account. Member delivery requires
+sender-domain verification. The trial guide records both paths.
+
+A local instrumentation pass counted executed D1 statements across the
+complete composed Worker request, rather than treating internal API calls as
+separate invocations. Sample bootstrap used 62; combining its ordered audit
+inserts reduces it to 46, with all records and the final marker still atomic.
+The regression check verifies the 50-statement ceiling and ordered audit
+positions, alongside the existing rollback/concurrency/sample-journey tests.
+
+The signed-in sample home page still uses **143** statements. Workers Free
+allows 50 per invocation, so the current website remains a **Workers Paid**
+target even with Resend. Making the whole website fit Free is separate work;
+neither local query counts nor wall-clock timings prove its edge CPU budget.
+Measurement log: `/private/tmp/deuceleague-free-query-rehearsal.log`.
+No account upgrade was made.
+
 ## Remaining work
 
-Choose the owner's email route and run the account trial. Then finish portable
-backup/restore, complete PostgreSQL-to-D1 transfer and source-freeze checks,
+Run the Resend account trial on Workers Paid, or first reduce website query
+usage and validate Workers Free if the owner chooses that direction. Then
+finish portable backup/restore, complete PostgreSQL-to-D1 transfer and source-freeze checks,
 and production cutover/release acceptance. Local deployment tests do not prove
 those operations or constitute a completed production migration.
 
