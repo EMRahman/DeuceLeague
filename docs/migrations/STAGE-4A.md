@@ -60,10 +60,14 @@ Logs: `/private/tmp/deuceleague-deployment-stage4a.log`,
 
 ## Publication and account acceptance
 
-The preview source belongs on the separate `cloudflare-preview` branch, based
-on current main, with a draft PR for review. The trial button targets that
+The preview source is published on the separate
+[`cloudflare-preview` branch](https://github.com/EMRahman/DeuceLeague/tree/cloudflare-preview),
+based on main at `bd2ac3a`, with [draft PR #8](https://github.com/EMRahman/DeuceLeague/pull/8).
+The initial implementation commit is `cb9dbff`. The trial button targets this
 branch so it does not depend on merging an unfinished migration into main.
-Source publication status is recorded in the handoff after review.
+Existing website/coach changes from main are retained. The original working
+directory remains on its previous branch with its work preserved; publication
+uses the isolated worktree `/private/tmp/deuceleague-cloudflare-preview`.
 
 No Cloudflare resources were created, no remote database was migrated, and no
 external email was sent during these rehearsals. The real button form,

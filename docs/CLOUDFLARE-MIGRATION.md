@@ -12,8 +12,9 @@ registers the website key atomically and handles interrupted responses with a
 saved admin key. The optional sample preset commits atomically with setup, and
 its owner sign-in journey passes locally with intercepted email. Account-owner
 administrator recovery now passes a local CLI rehearsal. The deploy-button
-template and migration/deploy command pass a clean Node 22 rehearsal; source
-publication and the owner's remote acceptance are the next gates. See the
+template and migration/deploy command pass a clean Node 22 rehearsal. The
+`cloudflare-preview` branch is published with [draft PR #8](https://github.com/EMRahman/DeuceLeague/pull/8);
+the owner's remote acceptance is the next gate. See the
 [stage 1 baseline](migrations/STAGE-1.md),
 [stage 1C results checkpoint](migrations/STAGE-1C.md),
 [stage 2A administration checkpoint](migrations/STAGE-2A.md) and
@@ -48,8 +49,9 @@ working D1 prototype.
 
 This plan does not assume there is a live club database to move. The first
 account trial uses fake data. A real-data cutover is a separate final stage if
-needed. The public deploy button is a deliverable of implementation; the
-current repository is not yet deployable that way.
+needed. The public deploy button now targets the preview branch through the
+[account-trial guide](../deploy/cloudflare/TRIAL.md); its real account flow
+still needs acceptance before it becomes the default installation path.
 
 ## Architecture
 
