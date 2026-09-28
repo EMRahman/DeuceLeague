@@ -42,10 +42,24 @@ that name and your Cloudflare account's Workers subdomain.
 2. Choose your Worker name and a **new database** for this test club. You can
    rename the database, but keep its binding name **DB**. Do not select an
    existing live club database.
-3. Enter the settings below. Add the three credentials as **secrets**.
-4. Keep **`npm run build`** as the build command, **`npm run deploy`** as the
+3. In the **API token** selector, choose **Create new token**. If prompted for
+   a name, use **DeuceLeague build token**. Cloudflare may offer an existing
+   token from another project; creating a separate one lets you manage this
+   club's deployment access independently. Leave the other project's token intact.
+4. Check the build token's permissions under **My Profile → API Tokens**.
+   Keep the deployment permissions and ensure **Account → Workers Scripts → Edit**
+   and **Account → D1 → Edit** are included for the account hosting this club.
+   The deploy command applies database migrations, so it needs D1 write access;
+   Cloudflare's documented default build-token permissions do not include D1.
+5. Enter the settings below. Add the three credentials as **secrets**.
+6. Keep **`npm run build`** as the build command, **`npm run deploy`** as the
    deploy command, and **Node 22** as the Node version.
-5. Deploy and wait for the build to finish.
+7. Deploy and wait for the build to finish.
+
+The Cloudflare build token authorizes deployment to your Cloudflare account.
+It is separate from `SETUP_TOKEN`, `WEBSITE_API_KEY` and `RESEND_API_KEY`; do not
+put it into those fields. See [Cloudflare's build-token settings](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)
+and [D1 permission requirements](https://developers.cloudflare.com/d1/platform/release-notes/).
 
 | Setting | Value |
 | --- | --- |
@@ -153,6 +167,7 @@ Cloudflare provisioning, account limits and delivery to your inbox.
 | What you see | What to check |
 | --- | --- |
 | Weather field will not accept a blank value | Enter `;` to disable weather in an older deploy template. |
+| Deployment or migrations fail with an authentication/permission error | Check the selected Cloudflare build token is valid, targets the right account, and includes Workers Scripts: Edit and D1: Edit. After correcting its permissions or selecting a replacement in the Worker's Settings → Builds → API token, retry the build. |
 | No provisioned D1 database ID | Find the new database in Cloudflare and check its ID matches the repository's `DB` binding. Do not create a second database just to retry. |
 | Migration failure | The deployment stopped before publishing the Worker. Correct the reported cause before retrying. The failing migration rolls back; earlier successful migrations may already be recorded. |
 | `/healthz` fails | Check migrations ran against the same database the Worker's `DB` binding uses. |
