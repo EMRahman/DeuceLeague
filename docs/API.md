@@ -10,27 +10,18 @@ so it cannot drift from the code. A coding agent reading that spec can write a
 client in whatever language a club uses, so there is deliberately no SDK to
 maintain; the effort goes into the spec instead.
 
-> **Status:** all seven phases are done — a club can be set up, run and
-> read through the API: structure, results, the event feed, standings,
-> progress, the chase list and placements into next season; players sign in
-> to read their league and report their own results; and a club runs it all
-> on a server of its own, with a reference website, by following
-> [SELF-HOSTING.md](SELF-HOSTING.md). See [Build order](#build-order).
+> **Status:** the Cloudflare Worker and D1 implementation supports installation,
+> club administration, league setup, results, standings, progress, placements,
+> the event feed, and player sign-in. See the
+> [deployment guide](../deploy/cloudflare/README.md).
 
 ## One club per credential
 
-Every request acts for exactly one club, and the club comes from the credential
-— never from the URL or the body. A request is handled like this:
-
-1. The credential is resolved to its club by one of the `deuceleague_resolve_*`
-   functions, the only way past row-level security before the club is known.
-2. Everything else runs in one transaction with `app.club_id` set to that club,
-   so the database itself scopes every query.
-3. Scopes are checked, the handler runs, and any events it records are written
-   in the same transaction: a change and its event commit together or not at all.
-
-The server refuses to start if its database role owns the tables or bypasses
-row-level security, because either would switch tenancy off without a sound.
+Each D1 database hosts one club. Every request acts for the club identified by
+its credential; clients never send a club ID. A mutation reads its authorization
+and decision inputs with the club revision, then commits the change and audit
+events in one guarded D1 batch. A confirmed stale revision retries the complete
+operation.
 
 ## Who calls it
 
@@ -207,14 +198,14 @@ website refreshing — without the core sending anything.
 
 **Meta.** `/healthz` and `/openapi.json`.
 
-**Cloudflare preview setup.** The migration Worker adds a separate `/install`
+**Installation.** The Worker has a separate `/install`
 browser flow and installation-secret-protected `/setup` and `/setup/status`
 routes. They do not accept league API keys or player sessions as installation
 credentials. Initial creation atomically registers the club, administrator and
 configured website service key; the singleton club permanently closes setup.
 Changing the installation secret cannot reset the club or issue replacement
-keys. See the [installer checkpoint](migrations/STAGE-3B1.md) for recovery and
-the remaining deployment gates. The PostgreSQL deployment is unchanged.
+keys. See the [deployment guide](../deploy/cloudflare/README.md) for recovery
+and configuration.
 
 ## Conventions
 
@@ -239,25 +230,15 @@ when one is needed, in the language the club already uses.
 `/v1/events`. A club that wants webhooks runs a small adapter that reads the
 feed and posts them.
 
-**Club sign-up.** Each club runs its own instance, and a club is created with
-`npm run club:create`, which prints its first admin key. Every endpoint needs a
-key, so the first one cannot come from the API itself; the command shares the
-API's own key code, so the key it prints is guaranteed to work.
-
-**Import and export.** It is the club's own database; `pg_dump` moves or backs
-it up.
+**Club sign-up.** A new Worker is initialized at `/install` with an
+account-owner setup secret. The installer displays the first administrator key
+once, before it creates the club.
 
 ## Running it
 
-**Your own instance.** One `docker-compose.yml` runs Postgres, the API and the
-reference website, migrating the database before the API starts; on a
-server, `deploy/compose.production.yml` adds Caddy for HTTPS and a nightly
-dump, and closes every other port. It has to be somewhere players' phones can
-reach it — always on, over HTTPS, backed up — so the setup guide,
-[SELF-HOSTING.md](SELF-HOSTING.md), is written for a coach and their coding
-agent working together, against one recommended host: a small VPS. The
-migrator sets `deuceleague_app`'s password from the environment, so no
-password is ever set by hand in SQL.
+**Your own instance.** Deploy the Worker and its D1 database by following the
+[Cloudflare deployment guide](../deploy/cloudflare/README.md). The website and
+API run together at the configured public origin.
 
 **The reference website** (`adapters/website`, MIT) is what players use out of
 the box: sign in with an emailed link, see their matches and tables, report
@@ -265,38 +246,3 @@ and agree scores. It is an adapter like any other — it reaches the league
 only through this API, with its own key for signing players in and each
 player's session for everything else — and it sends the emails the core does
 not. A club can restyle it or replace it.
-
-**The demo instance** holds fake clubs only, rebuilt nightly by
-`deploy/demo-reset.sh`, which empties the database and runs `demo:seed` to
-build them through the API itself. A read-only key
-is published in the README — `DEMO_KEY_SEED` makes that key come out the same
-every night. It is read-only
-on purpose: a shared key that can write gets vandalised and needs moderating.
-Trying writes takes a couple of minutes locally with Docker Compose.
-
-The schema supports several clubs on one instance, and keeps doing so — a
-county association can run leagues for its clubs on one instance, and the demo
-hosts several fake clubs.
-
-## Build order
-
-Each phase ends with its tests green and is committed on its own.
-
-1. ✓ **Skeleton.** Server, configuration, a transaction per request with the club
-   set, API-key authentication and scopes, problem+json errors, the OpenAPI
-   spec, `/healthz`, `GET /v1/me`, `npm run club:create`, and the start-up check
-   on the database role.
-2. ✓ **Engine.** `packages/engine`: standings, claim comparison, round robin and
-   placement suggestions, as pure functions with unit tests.
-3. ✓ **Structure.** Club, keys, members, seasons, competitions, divisions,
-   entries and fixtures.
-4. ✓ **Results and events.**
-5. ✓ **Read endpoints and placements.** Standings, progress, the chase list,
-   placements into a draft competition, and `npm run demo:seed`. No
-   endpoint serves anything without a credential.
-6. ✓ **Player logins.** A login link that works once and a session that never
-   expires, signing out, and what a player's session may see and do.
-7. ✓ **Self-hosting.** A Dockerfile and Compose service, the setup guide, the
-   demo instance, and a small reference website, so a club has player login
-   and score reporting out of the box. The website is an adapter built on the
-   API like any other, not part of it.

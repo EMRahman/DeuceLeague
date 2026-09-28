@@ -18,9 +18,6 @@
       "path": "../engine"
     },
     {
-      "path": "../db"
-    },
-    {
       "path": "../db-d1"
     }
   ]

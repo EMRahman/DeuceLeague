@@ -4,30 +4,22 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "main": "./dist/app.js",
-  "types": "./dist/app.d.ts",
+  "main": "./dist/cloudflare.js",
+  "types": "./dist/cloudflare.d.ts",
   "exports": {
-    ".": "./dist/app.js",
+    ".": "./dist/cloudflare.js",
     "./cloudflare": "./dist/cloudflare.js"
   },
-  "scripts": {
-    "build": "tsc --build",
-    "start": "tsc --build && node --env-file-if-exists=../../.env dist/server.js",
-    "club:create": "tsc --build && node --env-file-if-exists=../../.env dist/cli/club-create.js",
-    "demo:seed": "tsc --build && node --env-file-if-exists=../../.env dist/cli/demo-seed.js"
-  },
+  "scripts": { "build": "tsc --build" },
   "dependencies": {
-    "@deuceleague/db": "*",
     "@deuceleague/engine": "*",
     "@deuceleague/schema": "*",
-    "@hono/node-server": "^2.1.1",
     "@hono/zod-openapi": "^1.6.3",
     "hono": "^4.13.8",
     "zod": "^4.6.5",
     "@deuceleague/db-d1": "*"
   },
   "devDependencies": {
-    "@types/node": "^22.20.4",
-    "postgres": "^3.4.9"
+    "@types/node": "^22.20.4"
   }
 }

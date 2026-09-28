@@ -324,7 +324,7 @@ export const NotConfigured: FC = () => (
     <p>
       It needs an API key to find players and send their sign-in links: set <code>WEBSITE_API_KEY</code> to a key
       holding <code>members:read</code>, <code>members:write</code> and <code>members:pii</code>, and restart it.
-      The setup guide, docs/SELF-HOSTING.md, shows how to make one.
+      The Cloudflare deployment guide explains how to create one.
     </p>
     <p class="muted">
       The API itself answers at <a href="/v1/me">/v1</a>, to anyone holding a key; its specification is at{" "}

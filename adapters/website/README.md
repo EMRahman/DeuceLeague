@@ -40,21 +40,19 @@ acknowledgement if its coach chooses, while keeping match actions first.
 
 ## Running it
 
-With the rest of DeuceLeague, through Docker Compose: see
-[docs/SELF-HOSTING.md](../../docs/SELF-HOSTING.md). From source, with the API
-running: `npm run website`, configured from the repository's `.env`:
+The Cloudflare Worker composes this adapter with the API. Configure it through
+the [Cloudflare deployment guide](../../deploy/cloudflare/README.md):
 
 | Variable | |
 |---|---|
 | `WEBSITE_API_KEY` | A key holding `members:read`, `members:write` and `members:pii`. Until it is set, every page says how to make one. |
 | `PUBLIC_URL` | The address players use; links in emails point here. |
-| `API_URL` | Where the API answers, from this server. Default `http://localhost:3000`. |
-| `SMTP_URL`, `MAIL_FROM` | How emails go out. Without them, each link is written to the log. |
+| `MAIL_PROVIDER`, `MAIL_FROM` | Select Cloudflare Email Sending or Resend and configure its verified sender. |
+| `RESEND_API_KEY` | Required when `MAIL_PROVIDER=resend`. |
 | `WEATHER_VENUES` | Where the club plays, as `Name@latitude,longitude`, several separated by `;`. The home page shows a 14-day outlook for each — temperature, rain chance and wind, a column a day, good days for tennis in green — with a pill per venue to switch between them. From [Open-Meteo](https://open-meteo.com/), free for non-commercial use, asked by the server with the coordinates alone. Unset: no outlook. |
 | `WEATHER_UNITS` | `uk` (°C, mph; the default), `metric` (°C, km/h) or `us` (°F, mph). |
-| `WEBSITE_PORT` | Default 8080. |
-
-Its tests drive it like a browser, against the real API, in `npm run db:verify`.
+Its Worker integration tests live in `deploy/cloudflare/test/` and run through
+`npm run cf:test`.
 
 ## Changing it
 
