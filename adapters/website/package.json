@@ -9,20 +9,11 @@
   "types": "./dist/app.d.ts",
   "exports": {
     ".": "./dist/app.js",
-    "./cloudflare": "./dist/cloudflare.js",
-    "./mail-node": "./dist/mail-node.js"
+    "./cloudflare": "./dist/cloudflare.js"
   },
-  "scripts": {
-    "build": "tsc --build",
-    "start": "tsc --build && node --env-file-if-exists=../../.env dist/server.js"
-  },
+  "scripts": { "build": "tsc --build" },
   "dependencies": {
-    "@hono/node-server": "^2.1.1",
     "hono": "^4.13.8",
-    "nodemailer": "^10.0.10",
     "zod": "^4.6.5"
-  },
-  "devDependencies": {
-    "@types/node": "^22.20.4"
   }
 }

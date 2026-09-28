@@ -1,6 +1,4 @@
-import type { Tx } from "@deuceleague/db";
 import type { Scope } from "@deuceleague/schema";
-import type { Access } from "./access.js";
 
 /**
  * What presented the request: a coach's API key, a player's session, or a
@@ -17,17 +15,4 @@ export type Auth = {
   clubId: string;
   scopes: ReadonlySet<Scope>;
   credential: Credential;
-};
-
-/** What every handler can read from its context. */
-export type AppEnv = {
-  Variables: {
-    requestId: string;
-    /** This request's transaction, already scoped to the club by row-level security. */
-    tx: Tx;
-    auth: Auth;
-    /** Set once the route has checked the credential against what it takes. See requireAccess. */
-    accessChecked: boolean;
-    requiredAccess?: Access;
-  };
 };

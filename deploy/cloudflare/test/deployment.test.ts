@@ -31,7 +31,6 @@ test("template is account-independent, with only Cloudflare secret prompts and r
     assert.ok(pkg.cloudflare.bindings[name].description);
   }
   await assert.rejects(readFile(join(root, ".env.example")), { code: "ENOENT" });
-  assert.match(await readFile(join(root, "deploy/postgres.env.example"), "utf8"), /MIGRATION_DATABASE_URL=/);
 });
 
 test("deployment compiles before migrations and never deploys after migration failure", async () => {

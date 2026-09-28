@@ -131,7 +131,7 @@ test("member reads and writes independently enforce PII scopes, including null a
   assert.equal((await send(f, "/v1/members/not-an-id", "PATCH", {}, session)).body.code, "credential_not_accepted");
 });
 
-test("member patches preserve omitted fields, clear explicit nulls and retain PostgreSQL rating precision", async (t) => {
+test("member patches preserve omitted fields, clear explicit nulls and retain three-decimal rating precision", async (t) => {
   const f = await fixture(t);
   const created = await send(f, "/v1/members", "POST", { display_name: "Player", rating: 1.2345, email: "Member@test.invalid", phone: "123" });
   assert.equal(created.status, 201, JSON.stringify(created.body));

@@ -114,7 +114,7 @@ test("cooldown reservations are atomic across concurrent callers and participate
   await assert.rejects(claimWebsiteLogin(f.db, "raw@example.org"), /Invalid cooldown key/);
 });
 
-test("health failure matches the shared problem contract and the Worker bundle excludes SMTP/PostgreSQL", async () => {
+test("health failure matches the shared problem contract and the Worker bundle excludes legacy server dependencies", async () => {
   const app = createCloudflareApp({ db: { prepare() { throw new Error("secret database failure"); } } as never, log: () => {} });
   const r = await app.request("/healthz"); assert.equal(r.status, 503);
   assert.match(r.headers.get("content-type")!, /application\/problem\+json/);

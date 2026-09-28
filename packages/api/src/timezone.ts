@@ -1,6 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
-/** Whether this runtime knows the zone. Node ships the full IANA database. */
+/** Whether the runtime knows the zone. */
 function isTimeZone(zone: string): boolean {
   try {
     new Intl.DateTimeFormat("en-GB", { timeZone: zone });

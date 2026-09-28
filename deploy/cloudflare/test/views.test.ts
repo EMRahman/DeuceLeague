@@ -24,7 +24,7 @@ async function beat(f: Awaited<ReturnType<typeof playing>>, winner: number, lose
   assert.equal(r.status, 201, JSON.stringify(r.body)); return m.id as string;
 }
 
-test("D1 standings match the PostgreSQL scoring example, show point breakdowns and recompute after correction", async (t) => {
+test("D1 standings show point breakdowns and recompute after correction", async (t) => {
   const f = await playing(t, 4);
   for (const [i, name] of ["Ann", "Bea", "Cal", "Dee"].entries()) await send(f, `/v1/members/${f.members[i]![0]}`, "PATCH", { display_name: name });
   for (const [winner, loser] of [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3]]) await beat(f, winner!, loser!);
@@ -156,7 +156,7 @@ test("players see all three public views but cannot discover private or draft co
   }
 });
 
-test("empty competitions preserve the PostgreSQL no-division progress response", async (t) => {
+test("empty competitions preserve the no-division progress response", async (t) => {
   const f = await fixture(t);
   const season = await create(f, "/v1/seasons", { name: "Empty", results_deadline_at: new Date().toISOString() });
   const c = await create(f, "/v1/competitions", { name: "Empty", season_id: season.id, discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
