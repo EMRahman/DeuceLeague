@@ -14,6 +14,34 @@ Run `npm run cf:test` for a dry-run build and local runtime tests. The website
 tests intercept outbound email and weather; they do not contact providers.
 Run `npm run cf:db:migrate` to apply migrations locally. Neither command deploys.
 
+## Local verification
+
+Automated tests run locally only. There are no GitHub test jobs on PRs or pushes
+to `main`. Include the relevant command results in each PR description.
+
+For a full Cloudflare check, use Node 22 and run these from the repository root:
+
+```sh
+npm ci
+npm run typecheck
+node scripts/check-sql.mjs
+npm test -w @deuceleague/schema
+npm test -w @deuceleague/engine
+npm run cf:test
+npm run deploy -- --dry-run
+```
+
+These check the types, SQL binding rules, shared logic, local D1/Worker runtime
+and deployment bundle. They do not deploy to Cloudflare or send real emails.
+Run `npm ci` for a fresh checkout or when dependencies change. For focused fixes,
+run the relevant build/tests; documentation-only edits need link and content
+checks rather than the runtime suites.
+
+When changing shared API behavior or PostgreSQL code/schema, also run
+`npm run db:verify` locally with Docker available. It uses a disposable database.
+The separate GitHub Pages site publication and Cloudflare deployment builds
+are deployment steps, not this test workflow.
+
 ## Website configuration
 
 Use Worker variables for non-secret configuration and Worker secrets for
