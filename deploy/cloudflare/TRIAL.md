@@ -26,10 +26,10 @@ Generate and save these two **different** secrets. On macOS, Linux or WSL,
 run this command twice:
 
 ```sh
-openssl rand -base64 43
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'
 ```
 
-Use the first output as `SETUP_TOKEN`. Prefix the second output with `dl_` and
+Run it twice. Use the first output as `SETUP_TOKEN`. Prefix the second output with `dl_` and
 use that as `WEBSITE_API_KEY`. Copy the complete single-line values into your
 password manager; do not commit them to the repository or put them in a URL.
 

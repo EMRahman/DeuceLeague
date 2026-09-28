@@ -50,10 +50,10 @@
         "description": "Sender address verified with your selected email provider, such as League <league@your-club.org>."
       },
       "SETUP_TOKEN": {
-        "description": "Run `openssl rand -base64 43` and save the output as an independent secret. Enter it later at /install. Never reuse WEBSITE_API_KEY."
+        "description": "Run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\\n'` and save the output as an independent secret. Enter it later at /install. Never reuse WEBSITE_API_KEY."
       },
       "WEBSITE_API_KEY": {
-        "description": "Run `openssl rand -base64 43` again, prefix the output with dl_, and save it. Initialization registers it with website-only scopes."
+        "description": "Run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\\n'` again, prefix the output with dl_, and save it. Initialization registers it with website-only scopes."
       },
       "RESEND_API_KEY": {
         "description": "Your Resend sending API key for the verified MAIL_FROM sender. It is stored as a Worker secret, not in D1."
