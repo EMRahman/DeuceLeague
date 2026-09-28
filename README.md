@@ -21,6 +21,21 @@ npm run cf:test
 npm run deploy -- --dry-run
 ```
 
+## From VPS to Cloudflare
+
+DeuceLeague began as a Docker and PostgreSQL application hosted on a small
+VPS. That was a useful first deployment model, but it left each club with a
+server to operate, secure, back up, and update.
+
+The migration is now complete. The supported deployment is one Cloudflare
+Worker and one D1 database per club: a simpler path to install and operate,
+designed to make practical use of Cloudflare's free tier for a modest club
+league. Email and any custom domain may still have their own provider costs.
+
+The original VPS source is preserved in the immutable
+[`vps-baseline-2026-09-28`](https://github.com/EMRahman/DeuceLeague/tree/vps-baseline-2026-09-28)
+tag for reference, recovery, or anyone maintaining a separate legacy fork.
+
 ## What is here
 
 ```
@@ -43,12 +58,6 @@ placements for the next competition.
 League rules are data: scoring, tiebreaks, promotion counts, withdrawals, and
 deadlines belong to each competition. The core serves JSON. Websites, apps,
 and tools build on the API.
-
-## Legacy VPS source
-
-The former Docker/PostgreSQL/VPS implementation is preserved in the immutable
-`vps-baseline-2026-09-28` Git tag. It remains available for source recovery or
-to create a separate legacy repository.
 
 ## Licence
 
