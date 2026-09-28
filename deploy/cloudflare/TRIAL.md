@@ -5,7 +5,7 @@ It creates one website and a new database for a test club, using **Cloudflare
 Workers Free** and **Resend** for sign-in emails. You can do it in your browser;
 no terminal, Docker or local database is needed.
 
-Use the sample club for this trial. Moving an existing PostgreSQL club, rehearsing
+Use the sample club for this trial. Moving an existing club, rehearsing
 backup/restore and switching a live club remain separate migration steps.
 
 ## 1. Get ready

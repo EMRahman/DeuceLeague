@@ -1,14 +1,8 @@
-# Cloudflare development preview
+# Cloudflare deployment
 
-The Worker composes the API and reference website over local D1. The protected
-installer, atomic service-key registration and optional sample preset are
-implemented, along with a locally rehearsed account-owner recovery command.
-The deploy-button template is prepared; use the [first-account trial guide](TRIAL.md).
-Remote acceptance and data-transfer tools remain pending. The owner selected
-Resend for the first trial on Workers Free. The signed-in sample home page
-executes 143 SQL statements in 16 D1 calls; statement count alone does not prove
-a paid-plan requirement. See the trial guide for remaining row-usage/CPU
-measurements and email setup.
+The Worker composes the API and reference website over D1. It includes the
+protected installer, atomic website-key registration, optional sample league,
+email delivery, and account-owner administrator recovery.
 
 Run `npm run cf:test` for a dry-run build and local runtime tests. The website
 tests intercept outbound email and weather; they do not contact providers.
@@ -37,16 +31,14 @@ Run `npm ci` for a fresh checkout or when dependencies change. For focused fixes
 run the relevant build/tests; documentation-only edits need link and content
 checks rather than the runtime suites.
 
-When changing shared API behavior or PostgreSQL code/schema, also run
-`npm run db:verify` locally with Docker available. It uses a disposable database.
 The separate GitHub Pages site publication and Cloudflare deployment builds
 are deployment steps, not this test workflow.
 
 ## Website configuration
 
 Use Worker variables for non-secret configuration and Worker secrets for
-credentials. Local values belong in the ignored root `.dev.vars`; `cf:dev`
-does not load the PostgreSQL `.env`. Nothing reads an API URL: the website's
+credentials. Local values belong in the ignored root `.dev.vars`. Nothing
+reads an API URL: the website's
 HTTP client dispatches directly to the API handler with normal authentication.
 
 | Name | Purpose |
@@ -130,9 +122,7 @@ Both adapters await the provider acknowledgement before reporting success.
 Provider acceptance is not proof of inbox delivery; that remains an account
 trial check. A failure shows an email-delivery error, retains the one-minute
 cooldown, and is not retried automatically. No provider error body, working
-login link, email address or credential is logged by these adapters. The
-existing Node server still supports SMTP and its local logging mailer through
-the separate `@deuceleague/website/mail-node` entry point.
+login link, email address or credential is logged by these adapters.
 
 ## State and caching
 
@@ -151,5 +141,5 @@ after the website's short weather grace period. Cache/provider failure keeps
 weather optional. The cache is local to a Cloudflare data center, rather than
 shared globally. See [Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/).
 
-See the [stage 4A checkpoint](../../docs/migrations/STAGE-4A.md) and
-[migration plan](../../docs/CLOUDFLARE-MIGRATION.md).
+The legacy VPS/PostgreSQL source is preserved at the
+`vps-baseline-2026-09-28` Git tag.

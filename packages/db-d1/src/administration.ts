@@ -10,7 +10,7 @@ export type AdminSnapshot<T> = { identity: IdentitySnapshot; rows: T[]; next: st
 export type AdminPage = { id?: string; limit?: number; after?: string | undefined };
 export type MemberFilter = AdminPage & { status?: string | undefined; email?: string | undefined; includeRemoved?: boolean };
 
-/** Match PostgreSQL numeric(6,3): decimal ties round away from zero.
+/** Keep three-decimal ratings: decimal ties round away from zero.
  * SQLite round() uses a binary float, which rounds e.g. 1.2345 differently.
  */
 function rating(value: string | null | undefined): number | null {

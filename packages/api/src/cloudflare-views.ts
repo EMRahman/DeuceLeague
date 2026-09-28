@@ -51,7 +51,7 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
     return c.json(await run(c, (i) => readLeagueViews(db, i.hash, i.kind, { competitionId: id }), (s) => {
       const competition = visible(s, id);
       if (!competition) throw problems.notFound("competition");
-      // PostgreSQL's competition_progress is a rollup of division_progress:
+      // Competition progress is a rollup of division progress:
       // with no divisions it has no row, and matches without divisions do not enter it.
       const deadline = s.data.divisions.length ? s.data.seasons.find((r) => r.id === competition.seasonId)?.resultsDeadlineAt ?? null : null;
       const ids = new Set(s.data.divisions.map((d) => d.id));

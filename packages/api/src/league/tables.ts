@@ -3,7 +3,7 @@ import { computeStandings, type StandingsMatch, type StandingsRow } from "@deuce
 import { RulesSpec } from "@deuceleague/schema";
 export type DivisionTable = { division: DivisionRecord; rows: StandingsRow[] };
 
-/** Shared by PostgreSQL and D1: corrections affect the next read, never a stored table. */
+/** Corrections affect the next read, never a stored table. */
 export function tablesFromRecords(competition: LeagueCompetitionRecord, divisions: DivisionRecord[], entries: EntryRecord[],
   matches: LedgerMatch[], deadline: Date | null, now: Date): { final: boolean; divisions: DivisionTable[] } {
   const final = competition.state === "complete" || competition.state === "archived" || (deadline !== null && deadline.getTime() <= now.getTime());

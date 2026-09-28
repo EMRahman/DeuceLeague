@@ -81,7 +81,7 @@ CREATE INDEX access_grant_member_ix ON access_grant (member_id);
 CREATE INDEX access_grant_expiry_ix ON access_grant (expires_at);
 --> statement-breakpoint
 -- SQLite serializes commits. AUTOINCREMENT is a durable local cursor, unlike
--- PostgreSQL's pre-commit sequence. Legacy PG cursor mapping is a later stage.
+-- Identity and audit changes share the same D1 batch.
 CREATE TABLE event (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   club_id TEXT NOT NULL REFERENCES club(id),

@@ -1,10 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import { setTimeout } from "node:timers/promises";
 import { createCloudflareApp } from "@deuceleague/api/cloudflare";
-import { createApp } from "@deuceleague/api";
 import {
   commitIdentity, CredentialExpiredError, readIdentity, StaleSnapshotError,
 } from "@deuceleague/db-d1";
@@ -176,15 +174,4 @@ test("real identity constraints enforce one club, correct member ownership and a
     VALUES (?, ?, ?, 'login_link', ?, '[]')`).bind(randomUUID(), f.clubId, member, hash("bad")).run(), /access_grant_link_expires_ck/);
   await assert.rejects(f.db.prepare("UPDATE event SET payload = '{}'").run(), /event_append_only/);
   await assert.rejects(f.db.prepare("DELETE FROM event").run(), /event_append_only/);
-});
-
-test("all migrated Cloudflare operations and schemas match the saved contract; the complete PG spec remains unchanged", async (t) => {
-  const f = await fixture(t);
-  const baseline = JSON.parse(await readFile(new URL("../../../docs/migrations/postgres-openapi.json", import.meta.url), "utf8"));
-  const pg = createApp({ db: {} as never, log: () => {} });
-  assert.deepEqual(await (await pg.request("/openapi.json")).json(), baseline);
-  const cf = await (await f.call("/openapi.json")).json() as any;
-  assert.equal(Object.keys(cf.paths).length, 32);
-  assert.deepEqual(cf.paths, baseline.paths);
-  for (const [name, schema] of Object.entries(cf.components.schemas)) assert.deepEqual(schema, baseline.components.schemas[name], name);
 });

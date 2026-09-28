@@ -121,7 +121,7 @@ test("upgrade backfills existing D1 audits without changing or dropping them", a
   assert.equal((await page(f, p.next_cursor)).data[0]!.cursor, "1.4");
 });
 
-test("PostgreSQL saved cursors resume imported history by transaction then ID, with exact large values", async (t) => {
+test("saved cursors resume imported history by transaction then ID, with exact large values", async (t) => {
   const f = await importFixture(t);
   const a = historical("9007199254740993", "9223372036854775806");
   const b = historical(a.txId, "9223372036854775807");
