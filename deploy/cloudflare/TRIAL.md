@@ -1,209 +1,194 @@
-# First Cloudflare account trial
+# Try DeuceLeague on Cloudflare
 
-This preview installs one Worker and one fresh D1 database for a single club.
-Use fictional sample data for this first trial. PostgreSQL import, portable
-backup/restore rehearsal and production cutover are separate remaining stages.
+This guide takes you from deployment to signing in and reporting a sample score.
+It creates one website and a new database for a test club, using **Cloudflare
+Workers Free** and **Resend** for sign-in emails. You can do it in your browser;
+no terminal, Docker or local database is needed.
 
-The button uses the whole repository, including the shared workspace packages:
+Use the sample club for this trial. Moving an existing PostgreSQL club, rehearsing
+backup/restore and switching a live club remain separate migration steps.
+
+## 1. Get ready
+
+You need:
+
+- A Cloudflare account and a GitHub or GitLab account for the repository created
+  during deployment.
+- A Resend account and a sending API key.
+- A password manager to save the installation secrets and administrator key.
+
+For a first test, use `onboarding@resend.dev` as the sender and **your Resend
+account email** as the player email. This test sender can only deliver to that
+address. To email other players later, verify your own domain in Resend and
+change the sender. See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+
+Generate and save these two **different** passwords:
+
+| Name | What to generate | Used for |
+| --- | --- | --- |
+| `SETUP_TOKEN` | 43 random letters and numbers | Opening the club installer |
+| `WEBSITE_API_KEY` | Another 43 random letters and numbers, prefixed with `dl_` (46 characters total) | Connecting the website to the league API |
+
+Choose a Worker name, such as `riverside-league-trial`. Your website address
+will look like `https://riverside-league-trial.your-subdomain.workers.dev`, using
+that name and your Cloudflare account's Workers subdomain.
+
+## 2. Deploy the website
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/EMRahman/DeuceLeague/tree/main)
 
-The source is the **main** branch. A successful local rehearsal does not verify the account-specific
-provisioning or email steps.
+1. Select your account and create the repository. The button uses the whole
+   repository from `main`; keep the repository root as the build location.
+2. Choose your Worker name and a **new database** for this test club. You can
+   rename the database, but keep its binding name **DB**. Do not select an
+   existing live club database.
+3. In the **API token** selector, choose **Create new token**. If prompted for
+   a name, use **DeuceLeague build token**. Cloudflare may offer an existing
+   token from another project; creating a separate one lets you manage this
+   club's deployment access independently. Leave the other project's token intact.
+4. Check the build token's permissions under **My Profile → API Tokens**.
+   Keep the deployment permissions and ensure **Account → Workers Scripts → Edit**
+   and **Account → D1 → Edit** are included for the account hosting this club.
+   The deploy command applies database migrations, so it needs D1 write access;
+   Cloudflare's documented default build-token permissions do not include D1.
+5. Enter the settings below. Add the three credentials as **secrets**.
+6. Keep **`npm run build`** as the build command, **`npm run deploy`** as the
+   deploy command, and **Node 22** as the Node version.
+7. Deploy and wait for the build to finish.
 
-## Before clicking
+The Cloudflare build token authorizes deployment to your Cloudflare account.
+It is separate from `SETUP_TOKEN`, `WEBSITE_API_KEY` and `RESEND_API_KEY`; do not
+put it into those fields. See [Cloudflare's build-token settings](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)
+and [D1 permission requirements](https://developers.cloudflare.com/d1/platform/release-notes/).
 
-- Use your existing Cloudflare account and a GitHub or GitLab account for the
-  repository Cloudflare creates. Start the Resend trial on Workers Free;
-  upgrade only if measured account limits justify it.
-- Create a Resend account and a sending API key. For an owner-only trial,
-  `onboarding@resend.dev` can send to the email address associated with that
-  Resend account. For club members, verify your own sender domain first.
-  Resend is selected for the owner's first trial; native Cloudflare email is
-  described below. The backend and website still run on Cloudflare.
-- In your password manager, generate and save **two independent random
-  43-character alphanumeric strings**. The first is `SETUP_TOKEN`. Prefix the
-  second with `dl_` to make `WEBSITE_API_KEY` (46 characters total). The optional
-  developer helper `npm run cf:secrets` generates equivalent strong values.
-- Choose a unique Worker name, for example `riverside-league-trial`. Find your
-  account's `workers.dev` subdomain in the Cloudflare dashboard. Together these
-  determine the website address, such as
-  `https://riverside-league-trial.your-subdomain.workers.dev`.
-
-The initial installation needs no local PostgreSQL, Docker or terminal.
-Cloudflare account ownership alone does not configure email delivery.
-
-The owner currently uses Workers Free. A corrected local rehearsal counted
-**143 SQL statements in 16 D1 binding calls** for the signed-in sample home
-page. Sample installation executes 46 statements in 6 calls. Statements are
-grouped in batches; they must not be counted as separate Worker subrequests.
-The earlier claim that 143 statements proved a Paid-plan requirement was wrong.
-
-The [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#subrequests)
-page lists 1,000 internal-service subrequests on Free, separately from its
-50 ordinary subrequests. The [D1 limits](https://developers.cloudflare.com/d1/platform/limits/)
-page still describes queries per invocation differently, so confirm behavior
-in the account trial rather than claiming local statement counts reproduce
-Cloudflare enforcement. Free also has a 10 ms Worker CPU allowance per request.
-[D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) includes
-5 million rows read and 100,000 rows written per day on Free. Measure actual
-rows scanned/written and edge CPU before deciding whether an upgrade is needed.
-No account upgrade has been made; Free compatibility is not yet remotely verified.
-
-## Choosing email
-
-Both routes send player sign-in links from the website. Changing providers
-does not require moving the league database. Neither route supplies a personal
-inbox: Cloudflare's free [Email Routing](https://www.cloudflare.com/products/email-routing/)
-forwards incoming mail to an existing inbox.
-
-| Route | Setup and implications |
+| Setting | Value |
 | --- | --- |
-| Native Cloudflare Email Sending | Requires a domain using Cloudflare DNS, sender onboarding, Workers Paid and an `EMAIL` binding. Keeps hosting and delivery in one account; currently beta. Includes 3,000 outbound emails/account/month, then $0.35 per 1,000. |
-| Resend | Requires a separate Resend account, verified sender domain and API key. Works with the template's existing secret prompts. Free tier includes 3,000 emails/month, capped at 100/day. |
+| `PUBLIC_URL` | Your full `https://…workers.dev` address, with no path or query. If you do not know it yet, enter `https://setup.invalid` and follow the next section. |
+| `MAIL_PROVIDER` | `resend` |
+| `MAIL_FROM` | `onboarding@resend.dev` for the first test, or your verified sender |
+| `SETUP_TOKEN` — secret | The first password you saved |
+| `WEBSITE_API_KEY` — secret | The password starting with `dl_` |
+| `RESEND_API_KEY` — secret | Your Resend sending API key |
 
-Prices checked 27 September 2026: [Cloudflare email](https://developers.cloudflare.com/email-service/platform/pricing/),
-[Cloudflare domain setup](https://developers.cloudflare.com/email-service/get-started/send-emails/),
-and [Resend quotas](https://resend.com/docs/knowledge-base/account-quotas-and-limits).
-Workers Paid has a [$5 monthly subscription](https://developers.cloudflare.com/workers/platform/pricing/)
-before usage charges; it is an option if the Free trial demonstrates a need.
+Weather is disabled initially. If an older template asks for `WEATHER_VENUES`
+and rejects a blank value, enter a single semicolon (`;`) to leave it disabled.
 
-For a club of this size, 3,000 monthly sign-in messages is likely ample, but
-Resend's 100/day cap could affect a launch when many members request access on
-the same day. Native sending is a reasonable first choice if the owner already
-has Workers Paid and a domain on Cloudflare. The owner has selected Resend
-for now, matching the template's default. Sender onboarding and inbox delivery
-remain part of the account trial.
+### Check the website address
 
-For the [owner-only Resend test sender](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain),
-set `MAIL_FROM=onboarding@resend.dev` and use your Resend account email for
-Sample Alex. Sending to anyone else requires a verified domain and an updated
-`MAIL_FROM`. You do not need to buy or move a domain just to test your own inbox.
+Open `/healthz` at the assigned address, for example:
 
-## Deploy
+```text
+https://riverside-league-trial.your-subdomain.workers.dev/healthz
+```
 
-1. Click the button, select your account and create the repository. Use the
-   repository root; selecting only `deploy/cloudflare` would omit dependencies.
-2. Choose the Worker name and a new database for this trial. You may rename the
-   database; retain the binding name **DB**. Never select a live club database
-   for the first acceptance test.
-3. Complete the variable prompts:
+You should see `{"status":"ok"}`.
 
-   | Variable | Value |
-   | --- | --- |
-   | `PUBLIC_URL` | The exact HTTPS origin above, without a path or query |
-   | `MAIL_PROVIDER` | `resend` |
-   | `MAIL_FROM` | Your verified sender, or `onboarding@resend.dev` for the owner-only test above |
+If you used `https://setup.invalid`, or the assigned address differs from what
+you entered, open **your new repository's `wrangler.jsonc`** in its web editor.
+Set `PUBLIC_URL` under `vars` to the exact assigned HTTPS address and commit the
+change. Wait for the connected build to finish before continuing. The temporary
+address allows the health check to work but blocks the website and installer.
 
-4. Enter the three secret values: `SETUP_TOKEN`, `WEBSITE_API_KEY` and
-   `RESEND_API_KEY`. No PostgreSQL passwords or connection URLs are required.
-5. Retain the detected build command **`npm run build`** and deploy command
-   **`npm run deploy`**, and use Node **22** (`.node-version`). The deploy command
-   compiles, applies D1 migrations through `DB --remote`, then publishes the
-   Worker. A failed migration prevents that deployment. Cloudflare provisions
-   D1 before running the template's deployment commands.
-6. Check the build result and open `/healthz` at the assigned URL; it should
-   return `{"status":"ok"}`. The generated repository must retain the real D1
-   `database_id` in its `DB` binding. Record the repository, Worker and database
-   IDs privately for future maintenance.
+In Workers Builds, disable **builds for non-production branches** for this trial.
 
-If you could not determine the URL beforehand, use `https://setup.invalid` as
-a temporary `PUBLIC_URL`; the deploy form requires a non-empty value. The website
-rejects requests on the assigned Worker hostname until this is corrected, while
-`/healthz` still works. After deployment, edit
-`vars.PUBLIC_URL` in your cloned repository's `wrangler.jsonc` using GitHub's
-web editor and commit the exact assigned origin. The connected build deploys
-that configuration. Configure missing sender settings there in the same way.
-Never derive this address from an incoming request or proxy headers.
+## 3. Create your test club
 
-Keep non-secret settings in your cloned repository's Wrangler configuration;
-later deployments can overwrite dashboard-only variable changes. Keep secret
-values in Worker secrets. Disable **builds for non-production branches** in
-Workers Builds for this trial. A separate test deployment is required before
-trying schema updates against an established club database.
+1. Open `/install` on your website and enter your saved `SETUP_TOKEN`.
+2. **Save the administrator key** shown by the installer in your password
+   manager. This is a new key, separate from the two passwords above.
+3. Confirm you saved it, then enter the club name, identifier and time zone.
+4. Select the **sample league** and enter your Resend account email for
+   **Sample Alex**. Create the club.
 
-### Optional weather
+The sample includes four fictional players, singles and doubles divisions, and
+seven matches. Creating the club does not send an email.
 
-Weather starts disabled and is not a deploy-button prompt. To enable it later,
-add `WEATHER_VENUES` under `vars` in your cloned repository's `wrangler.jsonc`:
+## 4. Sign in and try a match
 
-```json
+- Open the home page and request a sign-in link using Sample Alex's email.
+- Check your inbox, open the link and press **Sign in**. The link should use
+  your website address; simply opening it does not sign you in.
+- Check that you can see singles and doubles, open a match and report a score.
+  **The score stays pending until the opponent agrees.** Sample opponents have
+  no email addresses; further opponent or coach actions use the
+  [API](../../docs/API.md) with the saved administrator key.
+- Reopen `/install`. It should show setup complete and the sample created,
+  without adding duplicate players or matches.
+- Redeploy from the same repository. Check that the club, player session,
+  administrator key and fixtures still work. Keep the same `database_id`,
+  `WEBSITE_API_KEY` and other club secrets.
+
+Keep a short record of the source commit, Worker/database names, migration
+count, and whether setup, email delivery, score reporting and redeployment
+worked. Leave credentials, private email addresses and sign-in links out of
+anything you share.
+
+## Optional weather
+
+To show forecasts, add these settings **inside the existing `vars` object** in
+your repository's `wrangler.jsonc`:
+
+```jsonc
 "WEATHER_VENUES": "Main Courts@51.4343,-0.2141;Park Courts@51.4059,-0.2229",
 "WEATHER_UNITS": "uk"
 ```
 
-Replace these example names and coordinates with your courts. Separate venues
-with semicolons; units are `uk` (the default), `metric`, or `us`. Keep the JSON
-commas between existing settings, then commit to trigger the connected build.
-Removing `WEATHER_VENUES` disables weather again.
+Replace the example names and coordinates with your courts. Each venue uses
+`Name@latitude,longitude`; separate venues with semicolons. Units can be `uk`
+(the default, Celsius/mph), `metric`, or `us`.
 
-If an older copy of the template requires `WEATHER_VENUES` during deployment,
-enter a single semicolon (`;`). The existing parser treats it as an empty venue
-list, so it disables weather without inventing a court location. The earlier
-instruction to leave this field blank worked in the app but not the deploy form.
+Keep commas between the settings, then commit to deploy the change. Remove
+`WEATHER_VENUES` to disable forecasts again.
 
-## Create the club and test the player journey
+## Settings, usage and recovery
 
-1. Open `/install` on the configured website address. Enter the saved
-   installation secret. It must not appear in the URL.
-2. Save the administrator key shown by the installer in your password manager.
-   Confirm it is saved, then enter the club name, identifier and time zone.
-3. Select the sample league and enter **your own** email for Sample Alex.
-   Creating the club adds four fictional players, singles/doubles divisions
-   and seven matches. Setup sends no email.
-4. Open the home page and request a sign-in link using your email. Confirm it
-   reaches your inbox and uses the configured HTTPS origin. Open it and press
-   **Sign in**. Opening the email link alone must not consume it.
-5. Check that Sample Alex can see singles and doubles, open a match and report
-   a score. An unanswered report must stay pending. Use the saved admin key and
-   the API for opponent/coach actions when extending the trial; sample opponents
-   deliberately have no email addresses.
-6. Reopen `/install` and confirm it reports setup complete and sample created.
-   Retrying initialization must not add another club or duplicate matches.
-7. Trigger a redeploy from the same repository. Confirm the same club, saved
-   key, player session and fixtures still work. Migrations should have nothing
-   left to apply. Do not change `database_id`, `WEBSITE_API_KEY` or club secrets
-   just to redeploy.
+- **Changing settings:** keep non-secret settings in your repository's
+  `wrangler.jsonc`. Deployments can overwrite changes made only in the Cloudflare
+  dashboard. Keep credentials in Worker secrets. The generated `DB` binding
+  must retain the database's actual `database_id`.
+- **Checking usage:** open your D1 database's **Metrics** tab to view rows read
+  and written. Also check Worker CPU usage and errors before deciding to upgrade.
+  SQL statement counts alone do not establish a need for Workers Paid. See
+  [D1 metrics](https://developers.cloudflare.com/d1/observability/metrics-analytics/)
+  and the [local rehearsal notes](README.md).
+- **Lost administrator key:** follow the [recovery guide](RECOVERY.md). Recovery
+  requires access to your Cloudflare account; `SETUP_TOKEN` cannot reopen an
+  initialized club. Record the recovery result if you rehearse it on this test club.
+- **Closing the installer:** after checking setup, you can remove `SETUP_TOKEN`
+  to disable installer and setup-status access.
+- **Future schema changes:** rehearse them on a separate test deployment before
+  applying them to an established club.
 
-The [owner recovery procedure](RECOVERY.md) is available if admin credentials
-are lost. Its remote use still needs an acceptance rehearsal on this disposable
-deployment. It requires your Cloudflare account access, not `SETUP_TOKEN`.
-You can remove `SETUP_TOKEN` after setup to disable installer/status access.
+Local tests verify application behavior, but your trial still needs to confirm
+Cloudflare provisioning, account limits and delivery to your inbox.
 
 ## Troubleshooting
 
-| Symptom | Check |
+| What you see | What to check |
 | --- | --- |
-| No provisioned D1 database ID | Check the button-created repository's DB binding and the account's new D1 database. Insert the correct generated ID there; do not run a blind second creation. |
-| Migration failure | The new Worker was not deployed. Inspect the failed migration and retry only after correcting the cause. A failing migration rolls back, but earlier successful migrations may already be recorded. |
-| `/healthz` fails | Confirm migrations ran against the same DB binding the Worker uses. |
-| `/install` is 404 | Set a saved `SETUP_TOKEN` of at least 32 characters, unless intentionally disabled after setup. |
-| `/install` is 403 | Use the exact `PUBLIC_URL` origin; check for a renamed Worker or incorrect account subdomain. |
-| Installer says configuration needs attention | Check the website secret format, sender and explicit mail provider. |
-| Website says it is not ready | Confirm `PUBLIC_URL`, website secret and provider settings; initialize through `/install`. |
-| Email delivery error | Check the provider key and verified sender; wait one minute before retrying. Do not paste provider diagnostics, login links or credentials into an issue. |
-| Provider accepted email but no inbox message | Check spam and provider delivery records. Provider acceptance is not inbox delivery. |
+| Weather field will not accept a blank value | Enter `;` to disable weather in an older deploy template. |
+| Deployment or migrations fail with an authentication/permission error | Check the selected Cloudflare build token is valid, targets the right account, and includes Workers Scripts: Edit and D1: Edit. After correcting its permissions or selecting a replacement in the Worker's Settings → Builds → API token, retry the build. |
+| No provisioned D1 database ID | Find the new database in Cloudflare and check its ID matches the repository's `DB` binding. Do not create a second database just to retry. |
+| Migration failure | The deployment stopped before publishing the Worker. Correct the reported cause before retrying. The failing migration rolls back; earlier successful migrations may already be recorded. |
+| `/healthz` fails | Check migrations ran against the same database the Worker's `DB` binding uses. |
+| `/install` returns 404 | Check `SETUP_TOKEN` exists and has at least 32 characters, unless you intentionally removed it after setup. |
+| `/install` returns 403, or the site asks you to use another address | Set `PUBLIC_URL` to the exact assigned HTTPS address. Check for a renamed Worker or incorrect subdomain. |
+| Installer needs configuration, or website says it is not ready | Check `PUBLIC_URL`, the `dl_` website secret, `MAIL_PROVIDER`, sender and Resend key. Then initialize through `/install`. |
+| Email delivery error | Check the Resend key and sender. With `onboarding@resend.dev`, use your Resend account email. Wait one minute before retrying. |
+| Resend accepted the email but nothing arrived | Check spam and Resend's delivery records. Acceptance does not guarantee inbox delivery. |
 
-## Native Cloudflare email
+When reporting a problem, leave out credentials, working sign-in links and
+provider diagnostics that could contain private details.
 
-The shipped button template prompts for Resend. For a native-only template,
-edit your own public fork before deploying: remove `RESEND_API_KEY` from
-`.dev.vars.example`, set `MAIL_PROVIDER` to `cloudflare`, and add
-`"send_email": [{ "name": "EMAIL" }]` to Wrangler configuration. Complete
-Cloudflare Email Sending onboarding for your sender domain. The deploy button's
-documented automatic-resource list does not include email setup, so verify that
-binding and sender separately in your account. Do not put a real credential
-into the example file. See the [email configuration guide](README.md#email).
+## Using native Cloudflare email instead
 
-## Record the trial
+Resend is the route used above. Native Cloudflare Email Sending requires its
+own sender onboarding and an `EMAIL` binding; a Cloudflare account alone does
+not configure it. Check the current [requirements](https://developers.cloudflare.com/email-service/get-started/send-emails/)
+and [pricing](https://developers.cloudflare.com/email-service/platform/pricing/).
 
-Record the source commit, renamed Worker/database names, migration count,
-setup result, inbox result, score-report result, redeploy result and recovery
-result. Keep credentials, private email addresses and login URLs out of this
-record. The maintainer will use those results to distinguish verified account
-behavior from the local rehearsal.
-
-The template follows Cloudflare's [deploy-button documentation](https://developers.cloudflare.com/workers/platform/deploy-buttons/),
-including secret prompts, binding-name migrations and root-repository handling.
-See also [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
-and [build branches](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/).
+To make a native-only deploy template, edit your own public fork before
+clicking its deploy button: remove `RESEND_API_KEY` from `.dev.vars.example`,
+set `MAIL_PROVIDER` to `cloudflare`, and add `"send_email": [{ "name": "EMAIL" }]`
+to Wrangler configuration. Verify the sender and binding separately in your
+account. See the [email configuration guide](README.md#email).
