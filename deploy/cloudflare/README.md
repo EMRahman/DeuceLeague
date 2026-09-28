@@ -33,6 +33,10 @@ HTTP client dispatches directly to the API handler with normal authentication.
 | `WEATHER_UNITS` | `uk` (default), `metric`, or `us`. |
 | `SETUP_TOKEN` | Existing protected API-bootstrap secret. The website does not use it. |
 
+The deploy-button template omits weather variables so initial setup does not
+require venue details. Add them to your cloned repository's `wrangler.jsonc`
+after deployment to enable forecasts; see [optional weather](TRIAL.md#optional-weather).
+
 For a new installation, run `npm run cf:secrets` locally or use a password
 manager to generate a 32-byte base64url installation secret and a separate
 `dl_`-prefixed 32-byte base64url website secret. Save both and put them in the
