@@ -22,12 +22,21 @@ account email** as the player email. This test sender can only deliver to that
 address. To email other players later, verify your own domain in Resend and
 change the sender. See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
 
-Generate and save these two **different** passwords:
+Generate and save these two **different** secrets. On macOS, Linux or WSL,
+run this command twice:
+
+```sh
+openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'
+```
+
+Run it twice. Use the first output as `SETUP_TOKEN`. Prefix the second output with `dl_` and
+use that as `WEBSITE_API_KEY`. Copy the complete single-line values into your
+password manager; do not commit them to the repository or put them in a URL.
 
 | Name | What to generate | Used for |
 | --- | --- | --- |
-| `SETUP_TOKEN` | 43 random letters and numbers | Opening the club installer |
-| `WEBSITE_API_KEY` | Another 43 random letters and numbers, prefixed with `dl_` (46 characters total) | Connecting the website to the league API |
+| `SETUP_TOKEN` | First `openssl` output | Opening the club installer |
+| `WEBSITE_API_KEY` | Second output, prefixed with `dl_` | Connecting the website to the league API |
 
 Choose a Worker name, such as `riverside-league-trial`. Your website address
 will look like `https://riverside-league-trial.your-subdomain.workers.dev`, using
