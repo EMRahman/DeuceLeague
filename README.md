@@ -11,10 +11,13 @@ instance by following [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
 **In progress:** [Cloudflare migration](docs/CLOUDFLARE-MIGRATION.md), including
 a Deploy to Cloudflare installation flow and a trial in the owner's account.
 The [latest checkpoint](docs/migrations/STAGE-4A.md) prepares deploy-button
-configuration, migration-before-deploy commands and CI, verified from a clean
+configuration and migration-before-deploy commands, verified locally from a clean
 Node 22 installation. See the [account-trial guide](deploy/cloudflare/TRIAL.md)
 for the preview button and setup steps. Remote account acceptance is still
 pending. PostgreSQL remains available for regression and rollback.
+
+Tests run locally; PRs and merges do not launch GitHub test jobs. See the
+[local verification commands](deploy/cloudflare/README.md#local-verification).
 
 **For coaches:** [See what DeuceLeague looks like and how a coach can use it](https://emrahman.github.io/DeuceLeague/for-coaches.html).
 

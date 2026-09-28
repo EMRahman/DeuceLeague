@@ -271,7 +271,7 @@ The checkboxes are pending work, not claims that tests have passed.
 | 1. Feasibility | Minimal root-built Worker/D1 package; prove atomic score/login/fixture operations; prove secure bootstrap; test resource provisioning from a deployable preview ref | Race/failure tests pass; a fresh deployment needs no copied resource IDs or repository edits |
 | 2. Persistence | Port schema, views, all DB functions, constraints, errors, event feed, and domain mutation boundaries | Existing behaviour passes against local D1, including security and concurrency cases |
 | 3. Application | Compose API and website; port config/crypto/runtime dependencies; bootstrap UI, email, persistent throttle, weather cache, sample seed | Full browser and API flows pass in the Workers runtime |
-| 4. Installation and operations | Finalize button, CI, migrations, setup/recovery/export instructions, update process, and PostgreSQL importer | Clean-clone install, upgrade, restore, and import rehearsals pass |
+| 4. Installation and operations | Finalize button, local verification, migrations, setup/recovery/export instructions, update process, and PostgreSQL importer | Clean-clone install, upgrade, restore, and import rehearsals pass |
 | 5. Owner trial | Publish the tested migration revision; owner installs with the actual button in their own account using fake data | Owner acceptance checklist below passes and evidence is recorded |
 | 6. Release/cutover | Publish the supported Cloudflare release and legacy PostgreSQL tag; move live data only if needed | Verified production setup and recovery route; PostgreSQL no longer a parallel feature target |
 
@@ -288,9 +288,14 @@ runtime. Authentication and transaction correctness determine readiness.
 
 Continue using the existing engine/schema tests. Port meaningful PostgreSQL
 constraint, progress, authorization, API, and website cases rather than deleting
-them with the old harness. Add a Workers-runtime test command and CI covering
+them with the old harness. Maintain local Workers-runtime checks covering
 fresh D1 migrations, application tests, and the deploy bundle. Preserve SQL
 binding checks and update their allowlist rules only for reviewed fixed SQL.
+
+As requested by the owner on 28 September 2026, automated test suites run locally
+only. The GitHub test workflow is retired; do not reintroduce it without an
+explicit request. Record relevant local results in PRs. Commands are listed in
+the [local verification guide](../deploy/cloudflare/README.md#local-verification).
 
 Required migration cases include:
 

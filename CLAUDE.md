@@ -119,6 +119,10 @@ Free compatibility still needs edge CPU and row-usage measurements.
 
 `npm run cf:test` builds the Worker and runs D1/Worker runtime tests;
 `npm run cf:db:migrate` applies D1 migrations locally. Neither deploys remotely.
+Run automated checks locally only; do not add GitHub test workflows unless the
+owner explicitly requests them. Record relevant local validation in the PR.
+Documentation-only changes need documentation checks, not the runtime suites.
+See `deploy/cloudflare/README.md` for the local verification commands.
 The root Wrangler configuration has no maintainer account or database ID.
 Miniflare tests require local sockets. Keep the test proof schema out of actual
 D1 migrations and never expose its reduced operations through the Worker.
