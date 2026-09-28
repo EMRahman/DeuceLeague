@@ -14,8 +14,9 @@ provisioning or email steps.
 
 ## Before clicking
 
-- Use your Cloudflare account with Workers Paid for this preview, and a GitHub
-  or GitLab account for the repository Cloudflare creates.
+- Use your existing Cloudflare account and a GitHub or GitLab account for the
+  repository Cloudflare creates. Start the Resend trial on Workers Free;
+  upgrade only if measured account limits justify it.
 - Create a Resend account and a sending API key. For an owner-only trial,
   `onboarding@resend.dev` can send to the email address associated with that
   Resend account. For club members, verify your own sender domain first.
@@ -33,14 +34,22 @@ provisioning or email steps.
 The initial installation needs no local PostgreSQL, Docker or terminal.
 Cloudflare account ownership alone does not configure email delivery.
 
-The owner currently uses Workers Free. Choosing Resend avoids a paid email
-requirement, but the **current app still needs Workers Paid** for its normal
-player journey: a local statement-count rehearsal found **143 D1 queries**
-in the signed-in sample home-page request. Free allows **50** per invocation;
-Paid allows **1,000**. The sample installer has been reduced from 62 to 46
-queries, but that does not make the rest of the website Free-compatible.
-Supporting Free requires a separate query-reduction pass and real-account
-CPU checks. No account upgrade has been made. See [D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
+The owner currently uses Workers Free. A corrected local rehearsal counted
+**143 SQL statements in 16 D1 binding calls** for the signed-in sample home
+page. Sample installation executes 46 statements in 6 calls. Statements are
+grouped in batches; they must not be counted as separate Worker subrequests.
+The earlier claim that 143 statements proved a Paid-plan requirement was wrong.
+
+The [Workers limits](https://developers.cloudflare.com/workers/platform/limits/#subrequests)
+page lists 1,000 internal-service subrequests on Free, separately from its
+50 ordinary subrequests. The [D1 limits](https://developers.cloudflare.com/d1/platform/limits/)
+page still describes queries per invocation differently, so confirm behavior
+in the account trial rather than claiming local statement counts reproduce
+Cloudflare enforcement. Free also has a 10 ms Worker CPU allowance per request.
+[D1 pricing](https://developers.cloudflare.com/d1/platform/pricing/) includes
+5 million rows read and 100,000 rows written per day on Free. Measure actual
+rows scanned/written and edge CPU before deciding whether an upgrade is needed.
+No account upgrade has been made; Free compatibility is not yet remotely verified.
 
 ## Choosing email
 
@@ -58,7 +67,7 @@ Prices checked 27 September 2026: [Cloudflare email](https://developers.cloudfla
 [Cloudflare domain setup](https://developers.cloudflare.com/email-service/get-started/send-emails/),
 and [Resend quotas](https://resend.com/docs/knowledge-base/account-quotas-and-limits).
 Workers Paid has a [$5 monthly subscription](https://developers.cloudflare.com/workers/platform/pricing/)
-before usage charges; it is already the target plan for this preview.
+before usage charges; it is an option if the Free trial demonstrates a need.
 
 For a club of this size, 3,000 monthly sign-in messages is likely ample, but
 Resend's 100/day cap could affect a launch when many members request access on

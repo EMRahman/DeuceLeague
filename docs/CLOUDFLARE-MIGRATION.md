@@ -199,18 +199,15 @@ The button must provision a fresh D1 database without a database ID from the
 maintainer's account. Run migrations by binding name. Confirm behaviour when
 the installer changes the Worker, repository, and database names. [Deploy-button documentation][deploy]
 
-The installer needs Cloudflare and GitHub/GitLab access. The supported initial
-target is Workers Paid. Existing Cloudflare-account ownership does not establish
-that a paid plan or outbound email is already enabled.
-
-The owner selected Resend for the first trial and currently has Workers Free.
-Resend needs no Workers Paid subscription itself. However, the current combined
-website executes 143 D1 statements for the signed-in sample home page, exceeding
-Free's 50-query invocation limit (Paid: 1,000). Supporting Free therefore needs
-a separate read/query reduction pass and remote CPU validation. The installer
-now uses 46 statements after combining sample audit inserts. No subscription
-change is authorized or performed by choosing the email provider. See the
-[trial guide](../deploy/cloudflare/TRIAL.md).
+The installer needs Cloudflare and GitHub/GitLab access. The owner selected
+Resend and will trial the existing Workers Free account. The earlier conclusion
+that the current website requires Paid confused SQL statements with subrequests:
+the signed-in sample home page executes 143 statements in 16 D1 binding calls.
+Sample installation uses 46 statements in 6 calls. Free's documented internal
+service allowance is 1,000 subrequests; row quotas and CPU are separate limits.
+Confirm real-account enforcement, row usage and CPU before choosing an upgrade
+or a larger optimization pass. No subscription change is authorized or performed
+by choosing the email provider. See the [trial guide](../deploy/cloudflare/TRIAL.md).
 
 Build a small setup wizard, not a new general-purpose coach dashboard:
 
@@ -325,7 +322,8 @@ locally and on remote D1. Record Worker CPU, request counts, SQL duration,
 rows read/written, storage, and user-visible latency. A provisional target is
 ordinary pages and score submissions completing within two seconds from the
 UK on normal connectivity; document actual results and investigate outliers.
-Free-tier compatibility is optional, not the initial release gate.
+The owner's first trial targets Free; verify its quotas and CPU allowance
+remotely. Paid remains an alternative if measurements justify it.
 
 ## Owner's deploy-button acceptance test
 
@@ -389,10 +387,12 @@ Keep old Docker/PostgreSQL instructions accessible from the legacy tag.
 
 ## Cost assumptions and model recommendation
 
-Budget **about US$5/month per club account**, excluding domain registration,
-taxes, optional services, and usage beyond included allowances. Workers Paid
-starts at $5/month; the included D1 usage should comfortably cover this sample
-club. The owner selected Resend, whose free plan currently includes 3,000
+Start by testing Workers Free, with no hosting subscription. Its D1 allowance
+is 5 million rows read and 100,000 written per day; actual rows scanned and
+Worker CPU still need measurement. If those constraints require an upgrade,
+budget **about US$5/month per club account**, excluding domain registration,
+taxes, optional services and usage beyond included allowances. Workers Paid
+starts at $5/month. The owner selected Resend, whose free plan includes 3,000
 monthly emails with a 100/day cap. Native Cloudflare Email Sending is an
 alternative with 3,000 monthly messages included on Workers Paid. This remains
 an estimate until phase 5 records actual usage and account availability.

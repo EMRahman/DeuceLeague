@@ -36,7 +36,7 @@ function countedDatabase(raw: D1Database) {
   return { db, reset: () => { count = 0; }, count: () => count };
 }
 
-test("sample browser installation fits 50 D1 queries and retains ordered audit positions", async (t) => {
+test("sample browser installation stays within its SQL statement budget and retains ordered audit positions", async (t) => {
   const mf = new Miniflare(convertV4MiniflareOptions({ modules: true,
     script: "export default { fetch() { return new Response('test'); } };",
     compatibilityDate: "2026-09-25", d1Databases: ["DB"],
@@ -53,7 +53,9 @@ test("sample browser installation fits 50 D1 queries and retains ordered audit p
       headers: { "content-type": "application/x-www-form-urlencoded", origin: env.PUBLIC_URL },
       body: new URLSearchParams(form),
     }), env, { waitUntil() {}, passThroughOnException() {} } as ExecutionContext);
-    assert.ok(counted.count() <= 50, `${path} executed ${counted.count()} D1 queries; Free allows 50`);
+    // An internal regression budget for this sample, not a simulation of
+    // Cloudflare's subrequest limits: many statements share one D1 batch call.
+    assert.ok(counted.count() <= 50, `${path} executed ${counted.count()} SQL statements; sample budget is 50`);
     return response;
   }
   const check = await post("/install/check", { secret: env.SETUP_TOKEN });

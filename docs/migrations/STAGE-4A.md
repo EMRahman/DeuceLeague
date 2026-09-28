@@ -4,7 +4,7 @@
 Cloudflare and rehearses it from a clean installation on Node 22.23.3. The
 owner selected Resend for the actual account trial. The application supports
 native Cloudflare Email Sending too. The owner currently has Workers Free;
-the current website still requires Paid because of per-request query usage.
+the corrected measurement below does not establish a paid-plan requirement.
 
 ## Deployment behavior
 
@@ -91,20 +91,27 @@ A local instrumentation pass counted executed D1 statements across the
 complete composed Worker request, rather than treating internal API calls as
 separate invocations. Sample bootstrap used 62; combining its ordered audit
 inserts reduces it to 46, with all records and the final marker still atomic.
-The regression check verifies the 50-statement ceiling and ordered audit
+The regression check verifies an internal 50-statement budget and ordered audit
 positions, alongside the existing rollback/concurrency/sample-journey tests.
 
-The signed-in sample home page still uses **143** statements. Workers Free
-allows 50 per invocation, so the current website remains a **Workers Paid**
-target even with Resend. Making the whole website fit Free is separate work;
-neither local query counts nor wall-clock timings prove its edge CPU budget.
-Measurement log: `/private/tmp/deuceleague-free-query-rehearsal.log`.
-No account upgrade was made.
+**Correction, 28 September:** the 143 statements execute in **16 D1 binding
+calls**, while installation's 46 statements execute in **6 calls**. The earlier
+comparison of statement count to a 50-subrequest allowance was invalid.
+Workers documents 1,000 internal-service subrequests on Free. D1's separate
+limits page uses different query wording; confirm account behavior rather than
+assuming the local statement counter implements platform enforcement.
+The first Resend trial can use Free, with actual row quotas and edge CPU still
+to be measured. This does not claim verified Free compatibility.
+
+Original statement log: `/private/tmp/deuceleague-free-query-rehearsal.log`.
+Corrected call/statement log: `/private/tmp/deuceleague-d1-calls-rehearsal.log`.
+The corrected local journey returned successful setup, login and home responses;
+email was intercepted. No account access or upgrade was used.
 
 ## Remaining work
 
-Run the Resend account trial on Workers Paid, or first reduce website query
-usage and validate Workers Free if the owner chooses that direction. Then
+Run the Resend account trial on Workers Free and measure actual quotas/CPU.
+Optimize the measured bottlenecks or consider Paid if needed. Then
 finish portable backup/restore, complete PostgreSQL-to-D1 transfer and source-freeze checks,
 and production cutover/release acceptance. Local deployment tests do not prove
 those operations or constitute a completed production migration.
