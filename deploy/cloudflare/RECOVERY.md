@@ -8,8 +8,8 @@ Recovery requires control of the Cloudflare account and its D1 database. It
 runs from your computer, outside the league website, using Wrangler's account
 authentication. `SETUP_TOKEN`, player sessions and website keys cannot perform
 it. There is no public recovery endpoint, and initialization stays closed.
-This is the migration plan's offline owner procedure; remote database access
-still requires an internet connection.
+This is an offline account-owner procedure; remote database access still
+requires an internet connection.
 
 The command adds one full administrator key and two audit events atomically.
 It does not change members, competitions, scores, website credentials or
