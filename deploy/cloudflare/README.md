@@ -65,10 +65,11 @@ The deploy-button template omits weather variables so initial setup does not
 require venue details. Add them to your cloned repository's `wrangler.jsonc`
 after deployment to enable forecasts; see [optional weather](TRIAL.md#optional-weather).
 
-For a new installation, run `npm run cf:secrets` locally or use a password
-manager to generate a 32-byte base64url installation secret and a separate
-`dl_`-prefixed 32-byte base64url website secret. Save both and put them in the
-corresponding Worker secret fields. Configure the public origin and email,
+For a new installation, run `openssl rand -base64 43` twice or use a password
+manager. Save the first output as `SETUP_TOKEN`; prefix the second output with
+`dl_` and save it as `WEBSITE_API_KEY`. Put both in the corresponding Worker
+secret fields. The optional `npm run cf:secrets` helper generates equivalent
+strong values. Configure the public origin and email,
 then open `/install`. Enter the installation secret, save the administrator
 key shown before creation, and enter the club details. Initialization registers
 the club, admin key and scoped website key together.

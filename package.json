@@ -50,10 +50,10 @@
         "description": "Sender address verified with your selected email provider, such as League <league@your-club.org>."
       },
       "SETUP_TOKEN": {
-        "description": "Generate and save an independent random 43-character alphanumeric password. Enter it later at /install. Never reuse WEBSITE_API_KEY."
+        "description": "Run `openssl rand -base64 43` and save the output as an independent secret. Enter it later at /install. Never reuse WEBSITE_API_KEY."
       },
       "WEBSITE_API_KEY": {
-        "description": "Generate another random 43-character alphanumeric password and prefix it with dl_ (46 characters total). Save it; initialization registers it with website-only scopes."
+        "description": "Run `openssl rand -base64 43` again, prefix the output with dl_, and save it. Initialization registers it with website-only scopes."
       },
       "RESEND_API_KEY": {
         "description": "Your Resend sending API key for the verified MAIL_FROM sender. It is stored as a Worker secret, not in D1."

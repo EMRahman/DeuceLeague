@@ -1,8 +1,8 @@
 # Deploy-button secret prompts. Never put real credentials in this file.
-# Generate two independent random 43-character alphanumeric strings in a
-# password manager, or run npm run cf:secrets locally.
+# Generate two independent secrets in a password manager, or run
+# `openssl rand -base64 43` twice locally.
+# Use the first output for SETUP_TOKEN and prefix the second with dl_ for WEBSITE_API_KEY.
 SETUP_TOKEN=
-# Prefix the second 43-character string with dl_ (46 characters total).
 WEBSITE_API_KEY=
 # Resend sending API key for your verified sender. Native Cloudflare email
 # is an alternative configured after deployment; see deploy/cloudflare/TRIAL.md.
