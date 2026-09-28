@@ -97,36 +97,4 @@ export const authenticate: MiddlewareHandler<AppEnv> = async (c, next) => {
   }
 };
 
-/**
- * Which credentials a route takes, and the scopes each must hold. A kind left
- * out is refused: an API key unless `apiKey` is given, a player's session
- * unless `session` is, a login link unless `loginLink` is.
- */
-export type Access = { apiKey?: Scope[]; session?: Scope[]; loginLink?: true };
-
-/** Refuses the request unless its credential is of a kind the route takes, holding every scope it needs. */
-export function requireAccess(access: Access): MiddlewareHandler<AppEnv> {
-  const accepted = [
-    ...(access.apiKey ? ["api_key" as const] : []),
-    ...(access.session ? ["session" as const] : []),
-    ...(access.loginLink ? ["login_link" as const] : []),
-  ];
-  return async (c, next) => {
-    c.set("accessChecked", true);
-    const { credential, scopes: held } = c.get("auth");
-    const needed = {
-      api_key: access.apiKey,
-      session: access.session,
-      login_link: access.loginLink && [],
-    }[credential.type];
-    if (!needed) throw problems.credentialNotAccepted(accepted);
-    const missing = needed.filter((s) => !held.has(s));
-    if (missing.length > 0) throw problems.insufficientScope(missing);
-    await next();
-  };
-}
-
-/** Refuses the request unless it carries an API key holding every one of these scopes. */
-export function requireScopes(...needed: Scope[]): MiddlewareHandler<AppEnv> {
-  return requireAccess({ apiKey: needed });
-}
+export { requireAccess, requireScopes, type Access } from "./access.js";

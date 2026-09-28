@@ -8,6 +8,14 @@ wants it, and they keep whatever they put on it.
 verified against a real Postgres by `npm run db:verify`. A club runs its own
 instance by following [docs/SELF-HOSTING.md](docs/SELF-HOSTING.md).
 
+**In progress:** [Cloudflare migration](docs/CLOUDFLARE-MIGRATION.md), including
+a Deploy to Cloudflare installation flow and a trial in the owner's account.
+The [latest checkpoint](docs/migrations/STAGE-4A.md) prepares deploy-button
+configuration, migration-before-deploy commands and CI, verified from a clean
+Node 22 installation. See the [account-trial guide](deploy/cloudflare/TRIAL.md)
+for the preview button and setup steps. Remote account acceptance is still
+pending. PostgreSQL remains available for regression and rollback.
+
 **For coaches:** [See what DeuceLeague looks like and how a coach can use it](https://emrahman.github.io/DeuceLeague/for-coaches.html).
 
 [![DeuceLeague mobile website: home, league tables and score reporting](docs/images/product-preview.png)](https://emrahman.github.io/DeuceLeague/for-coaches.html)
@@ -39,7 +47,7 @@ npm run db:verify   # migrations, constraints, RLS, the API and the website agai
 To try the whole thing — Postgres, the API and the website — with Docker:
 
 ```bash
-cp .env.example .env
+cp deploy/postgres.env.example .env
 docker compose up -d --build     # migrates, then starts the API on :3000 and the website on :8080
 docker compose run --rm api node packages/api/dist/cli/club-create.js --slug my-club --name "My Tennis Club"
 ```

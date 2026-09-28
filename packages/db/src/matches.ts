@@ -116,6 +116,8 @@ export async function listClaims(tx: Tx, matchId: string): Promise<ClaimRecord[]
 }
 
 export type NewClaim = {
+  /** The shared decision can reserve its claim id before persistence. */
+  id?: string;
   matchId: string;
   /** Null only for a coach entry, which speaks for the match. */
   sideIndex: number | null;
@@ -135,7 +137,7 @@ export async function insertClaim(tx: Tx, clubId: string, claim: NewClaim): Prom
     .insert(resultSubmission)
     .values({
       ...claim,
-      id: uuidv7(),
+      id: claim.id ?? uuidv7(),
       clubId,
       confirmedAt: claim.state === "confirmed" ? sql`now()` : null,
     })

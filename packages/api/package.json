@@ -7,7 +7,8 @@
   "main": "./dist/app.js",
   "types": "./dist/app.d.ts",
   "exports": {
-    ".": "./dist/app.js"
+    ".": "./dist/app.js",
+    "./cloudflare": "./dist/cloudflare.js"
   },
   "scripts": {
     "build": "tsc --build",
@@ -22,7 +23,8 @@
     "@hono/node-server": "^2.1.1",
     "@hono/zod-openapi": "^1.6.3",
     "hono": "^4.13.8",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "@deuceleague/db-d1": "*"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

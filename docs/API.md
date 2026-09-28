@@ -207,6 +207,15 @@ website refreshing — without the core sending anything.
 
 **Meta.** `/healthz` and `/openapi.json`.
 
+**Cloudflare preview setup.** The migration Worker adds a separate `/install`
+browser flow and installation-secret-protected `/setup` and `/setup/status`
+routes. They do not accept league API keys or player sessions as installation
+credentials. Initial creation atomically registers the club, administrator and
+configured website service key; the singleton club permanently closes setup.
+Changing the installation secret cannot reset the club or issue replacement
+keys. See the [installer checkpoint](migrations/STAGE-3B1.md) for recovery and
+the remaining deployment gates. The PostgreSQL deployment is unchanged.
+
 ## Conventions
 
 - Every path starts `/v1`. A breaking change means `/v2`, never a changed `/v1`.

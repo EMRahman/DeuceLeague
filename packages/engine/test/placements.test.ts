@@ -149,3 +149,18 @@ test("an entry that opted out is left out, and takes nobody's place with it", ()
   );
   assert.deepEqual([s.a4?.to, s.a3?.reason, s.a2?.reason], [null, "relegated", "relegated"]);
 });
+
+test("gaps in target ordinals move entries only to divisions that exist", () => {
+  const target = [{ ordinal: 1, name: "Top" }, { ordinal: 4, name: "Bottom" }];
+  const s = byId(suggestPlacements([division(1, ["a1", "a2"]), division(4, ["b1", "b2"])],
+    { promote: 1, relegate: 1, minMatchesForPromotion: 0 }, target));
+  assert.deepEqual([s.a1?.to, s.a2?.to, s.b1?.to, s.b2?.to], [1, 4, 1, 4]);
+  assert.equal(s.a2?.reason, "relegated"); assert.equal(s.b1?.reason, "promoted");
+});
+
+test("a removed division folds into the nearest existing target, with ties toward the higher division", () => {
+  const target = [{ ordinal: 1, name: "Top" }, { ordinal: 5, name: "Bottom" }];
+  const s = byId(suggestPlacements([division(3, ["tie"]), division(4, ["closer"])],
+    { promote: 0, relegate: 0, minMatchesForPromotion: 0 }, target));
+  assert.equal(s.tie?.to, 1); assert.equal(s.closer?.to, 5);
+});

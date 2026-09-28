@@ -2,8 +2,26 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "./src",
-    "outDir": "./dist"
+    "outDir": "./dist",
+    "types": [
+      "node"
+    ]
   },
-  "include": ["src/**/*.ts"],
-  "references": [{ "path": "../schema" }, { "path": "../engine" }, { "path": "../db" }]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "references": [
+    {
+      "path": "../schema"
+    },
+    {
+      "path": "../engine"
+    },
+    {
+      "path": "../db"
+    },
+    {
+      "path": "../db-d1"
+    }
+  ]
 }

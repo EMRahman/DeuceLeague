@@ -8,7 +8,9 @@
   "main": "./dist/app.js",
   "types": "./dist/app.d.ts",
   "exports": {
-    ".": "./dist/app.js"
+    ".": "./dist/app.js",
+    "./cloudflare": "./dist/cloudflare.js",
+    "./mail-node": "./dist/mail-node.js"
   },
   "scripts": {
     "build": "tsc --build",

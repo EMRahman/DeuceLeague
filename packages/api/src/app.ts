@@ -1,9 +1,10 @@
+import { problemForConstraint } from "./postgres-problems.js";
 import type { Db } from "@deuceleague/db";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import { HTTPException } from "hono/http-exception";
 import type { AppEnv } from "./context.js";
 import { authenticate, inTransaction, requestLog } from "./middleware.js";
-import { ApiError, problemForConstraint, problemResponse, problems } from "./problems.js";
+import { ApiError, problemResponse, problems } from "./problems.js";
 import { registerClub } from "./routes/club.js";
 import { registerCompetitions } from "./routes/competitions.js";
 import { registerDivisions } from "./routes/divisions.js";

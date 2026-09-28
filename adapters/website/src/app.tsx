@@ -14,7 +14,7 @@ import {
   type Side,
   type Standings,
 } from "./api.js";
-import type { Mailer } from "./mail.js";
+import { MailDeliveryError, type Mailer } from "./mail.js";
 import type { Weather } from "./weather.js";
 import { deadlineLine, deadlinePassed, describe, readReportForm, shortDate } from "./score.js";
 import {
@@ -36,7 +36,7 @@ import {
 } from "./views.js";
 
 export { apiClient, type Api, type Fetch } from "./api.js";
-export { logMailer, smtpMailer, type Mailer } from "./mail.js";
+export type { Mailer } from "./mail.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
 export type WebsiteOptions = {
@@ -48,6 +48,8 @@ export type WebsiteOptions = {
   mail: Mailer;
   /** The outlook at the courts, for the home page. Left out, the page shows none. */
   weather?: Weather;
+  /** Reserve an email cooldown before lookup. Workers inject shared persistent storage. */
+  claimLogin?: (normalizedEmail: string) => Promise<boolean>;
   log?: (line: string) => void;
 };
 
@@ -316,9 +318,13 @@ export function createWebsite(options: WebsiteOptions) {
     const answer = () => c.html(<LinkSent frame={frame} email={email} />);
     const lowered = email.toLowerCase();
     const now = Date.now();
-    if (now - (lastSent.get(lowered) ?? 0) < RESEND_MS) return answer();
-    lastSent.set(lowered, now);
-    for (const [address, at] of lastSent) if (now - at >= RESEND_MS) lastSent.delete(address);
+    if (options.claimLogin) {
+      if (!await options.claimLogin(lowered)) return answer();
+    } else {
+      if (now - (lastSent.get(lowered) ?? 0) < RESEND_MS) return answer();
+      lastSent.set(lowered, now);
+      for (const [address, at] of lastSent) if (now - at >= RESEND_MS) lastSent.delete(address);
+    }
 
     const { data } = await api<{ data: Member[] }>("GET", `/v1/members?email=${encodeURIComponent(email)}`, key!);
     const member = data[0];
@@ -733,7 +739,13 @@ export function createWebsite(options: WebsiteOptions) {
     if (error instanceof ApiProblem && error.problem.status === 404) {
       return c.html(<Problem frame={frame} title="Nothing here" detail="It may have been removed, or be private." />, 404);
     }
-    log(`error ${c.req.method} ${c.req.path}: ${error.stack ?? error.message}`);
+    if (error instanceof MailDeliveryError) {
+      log("sign-in email delivery failed");
+      return c.html(<Problem frame={frame} title="Email could not be sent"
+        detail="Please wait a minute and try again. If this continues, contact your club." />, 503);
+    }
+    // Provider/API errors can contain addresses, tokens or input. Keep logs structural.
+    log(`error ${c.req.method} ${c.req.path}`);
     return c.html(
       <Problem frame={frame} title="Something went wrong" detail="Please try again in a moment." />,
       500,

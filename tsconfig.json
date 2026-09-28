@@ -15,6 +15,12 @@
     },
     {
       "path": "adapters/website"
+    },
+    {
+      "path": "packages/db-d1"
+    },
+    {
+      "path": "deploy/cloudflare"
     }
   ]
 }

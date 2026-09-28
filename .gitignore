@@ -6,3 +6,8 @@ dist/
 !.env.example
 .DS_Store
 backups/
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.recovery/

@@ -1,23 +1,24 @@
 // Fails if any source file builds SQL from text instead of binding its values.
 //
-// Every query here goes through drizzle's sql`…` tag or postgres-js's tagged
-// template, both of which send values separately from the SQL, so input can
-// never become SQL. That is what stops injection — not the database, and not
-// a firewall in front of it. These are the ways round it, each of which can
-// paste text straight into a query:
+// Queries use drizzle/postgres-js tagged templates or D1 fixed SQL literals
+// with bind(). Values travel separately from SQL. The checks below catch text
+// construction that could turn input into executable SQL:
 //
 //   sql.raw(…)            drizzle: splices a string in as SQL
 //   sql.identifier(…)     drizzle: splices a name in as SQL
 //   .unsafe(…)            postgres-js: runs a string as SQL
 //   .execute("…")         drizzle: runs a plain string rather than an sql`…` query
+//   .prepare(expression) D1: requires a fixed literal, never interpolated text
 //
 // A line that genuinely needs one says why in a `sql-safe:` comment, on the
 // line itself or the one above, which puts the exception in front of whoever
-// reviews it. Run by `npm test` and `npm run db:verify`.
+// reviews it. D1 prepare() has no escape hatch: use a literal and bind().
+// Run by `npm test` and `npm run db:verify`.
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -39,23 +40,41 @@ function* sourceFiles(dir) {
 }
 
 const findings = [];
-for (const pkg of readdirSync(join(root, "packages"))) {
-  let files;
-  try {
-    files = [...sourceFiles(join(root, "packages", pkg, "src"))];
-  } catch {
-    continue; // a package with no src/
-  }
-  for (const file of files) {
-    const text = readFileSync(file, "utf8");
-    const lines = text.split("\n");
-    for (const [pattern, why] of rules) {
-      for (const match of text.matchAll(pattern)) {
-        const line = text.slice(0, match.index).split("\n").length;
-        const here = lines[line - 1] ?? "";
-        const above = lines[line - 2] ?? "";
-        if (here.includes("sql-safe:") || above.includes("sql-safe:")) continue;
-        findings.push(`${relative(root, file)}:${line}  ${why}\n            ${here.trim()}`);
+for (const area of ["packages", "adapters", "deploy"]) {
+  for (const pkg of readdirSync(join(root, area))) {
+    let files;
+    try {
+      files = [...sourceFiles(join(root, area, pkg, "src"))];
+    } catch {
+      continue; // a package with no src/
+    }
+    for (const file of files) {
+      const text = readFileSync(file, "utf8");
+      const lines = text.split("\n");
+      // D1 accepts SQL text. Only fixed literals may reach prepare(); values
+      // belong in bind(). Parse the AST so multiline interpolation, variables,
+      // and concatenation cannot hide from the old line-oriented rules.
+      const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+      function visit(node) {
+        if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+            && node.expression.name.text === "prepare") {
+          const argument = node.arguments[0];
+          if (!argument || !(ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument))) {
+            const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+            findings.push(`${relative(root, file)}:${line}  D1 prepare() requires a fixed SQL literal; use bind() for values`);
+          }
+        }
+        ts.forEachChild(node, visit);
+      }
+      visit(source);
+      for (const [pattern, why] of rules) {
+        for (const match of text.matchAll(pattern)) {
+          const line = text.slice(0, match.index).split("\n").length;
+          const here = lines[line - 1] ?? "";
+          const above = lines[line - 2] ?? "";
+          if (here.includes("sql-safe:") || above.includes("sql-safe:")) continue;
+          findings.push(`${relative(root, file)}:${line}  ${why}\n            ${here.trim()}`);
+        }
       }
     }
   }

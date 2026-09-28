@@ -19,9 +19,51 @@
     "api": "npm run start -w @deuceleague/api",
     "club:create": "npm run club:create -w @deuceleague/api --",
     "demo:seed": "npm run demo:seed -w @deuceleague/api",
-    "website": "npm run start -w @deuceleague/website"
+    "website": "npm run start -w @deuceleague/website",
+    "cf:test": "npm run cf:build && npm test -w @deuceleague/db-d1 && node --test --experimental-strip-types --no-warnings deploy/cloudflare/test/*.test.ts",
+    "cf:build": "tsc --build deploy/cloudflare && wrangler deploy --dry-run --outdir deploy/cloudflare/dist/bundle",
+    "cf:secrets": "node deploy/cloudflare/scripts/secrets.mjs",
+    "cf:recover-admin": "npm run build -w @deuceleague/db-d1 --silent && node deploy/cloudflare/scripts/recover-admin.mjs",
+    "cf:dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler dev",
+    "cf:db:migrate": "wrangler d1 migrations apply DB --local",
+    "build": "tsc --build deploy/cloudflare",
+    "deploy": "node deploy/cloudflare/scripts/deploy.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "@cloudflare/workers-types": "5.20260925.2",
+    "miniflare": "5.20260923.0-alpha",
+    "typescript": "^5.7.2",
+    "wrangler": "4.140.0"
+  },
+  "cloudflare": {
+    "bindings": {
+      "DB": {
+        "description": "A new D1 database for this club only. Keep the binding name DB; you may rename the database."
+      },
+      "PUBLIC_URL": {
+        "description": "Exact HTTPS address players will use, such as https://your-worker.your-subdomain.workers.dev. Use the Worker name chosen above and your account subdomain. No path. See the trial guide if setting this after deployment."
+      },
+      "MAIL_PROVIDER": {
+        "description": "Use resend for the initial button trial. Native Cloudflare email needs a separate EMAIL binding and sender setup; see deploy/cloudflare/TRIAL.md."
+      },
+      "MAIL_FROM": {
+        "description": "Sender address verified with your selected email provider, such as League <league@your-club.org>."
+      },
+      "WEATHER_VENUES": {
+        "description": "Optional; leave empty to disable weather. Format: Centre Courts@51.4343,-0.2141. Separate venues with semicolons."
+      },
+      "WEATHER_UNITS": {
+        "description": "uk (Celsius/mph), metric or us."
+      },
+      "SETUP_TOKEN": {
+        "description": "Generate and save an independent random 43-character alphanumeric password. Enter it later at /install. Never reuse WEBSITE_API_KEY."
+      },
+      "WEBSITE_API_KEY": {
+        "description": "Generate another random 43-character alphanumeric password and prefix it with dl_ (46 characters total). Save it; initialization registers it with website-only scopes."
+      },
+      "RESEND_API_KEY": {
+        "description": "Your Resend sending API key for the verified MAIL_FROM sender. It is stored as a Worker secret, not in D1."
+      }
+    }
   }
 }

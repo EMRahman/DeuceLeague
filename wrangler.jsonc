@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "deuceleague",
+  "main": "deploy/cloudflare/src/worker.ts",
+  "compatibility_date": "2026-09-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "PUBLIC_URL": "",
+    "MAIL_PROVIDER": "resend",
+    "MAIL_FROM": "",
+    "WEATHER_VENUES": "",
+    "WEATHER_UNITS": "uk"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "deuceleague",
+      // Provisioning is intentionally unbound to the maintainer's account.
+      "migrations_dir": "packages/db-d1/migrations"
+    }
+  ]
+}
