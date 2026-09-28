@@ -37,19 +37,22 @@ CREATE TRIGGER event_position_no_delete BEFORE DELETE ON event_position BEGIN
   SELECT RAISE(ABORT, 'event_append_only');
 END;
 --> statement-breakpoint
+-- Two ten-digit limbs avoid REAL promotion / signed-64-bit overflow. SQLite
+-- evaluates both assignments from the old row; the comparison is 1 exactly when
+-- low carries. Exhaustion fails the high CHECK and aborts the batch.
+-- No CASE ... END inside this body: remote D1's statement splitter takes that
+-- END for the trigger's own and rejects the migration as incomplete input.
 CREATE TRIGGER event_allocate_position AFTER INSERT ON event BEGIN
-  SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM event_sequence WHERE singleton = 1)
-    THEN RAISE(ABORT, 'event_sequence_missing') END;
-  SELECT CASE WHEN (NEW.source_tx IS NULL) <> (NEW.source_id IS NULL)
+  SELECT RAISE(ABORT, 'event_sequence_missing')
+    WHERE NOT EXISTS (SELECT 1 FROM event_sequence WHERE singleton = 1);
+  SELECT RAISE(ABORT, 'event_import_closed')
+    WHERE (NEW.source_tx IS NULL) <> (NEW.source_id IS NULL)
     OR (NEW.source_tx IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM event_sequence WHERE importing = 1 AND NEW.source_tx < epoch
         AND NEW.source_id <= printf('%010d%010d', high, low)))
-    OR (NEW.source_tx IS NULL AND EXISTS (SELECT 1 FROM event_sequence WHERE importing = 1))
-    THEN RAISE(ABORT, 'event_import_closed') END;
-  -- Two ten-digit limbs avoid REAL promotion / signed-64-bit overflow. SQLite
-  -- evaluates both assignments from the old row. Exhaustion aborts the batch.
-  UPDATE event_sequence SET high = high + CASE WHEN low = 9999999999 THEN 1 ELSE 0 END,
-    low = CASE WHEN low = 9999999999 THEN 0 ELSE low + 1 END
+    OR (NEW.source_tx IS NULL AND EXISTS (SELECT 1 FROM event_sequence WHERE importing = 1));
+  UPDATE event_sequence SET high = high + (low = 9999999999),
+    low = (low + 1) % 10000000000
     WHERE singleton = 1 AND NEW.source_tx IS NULL;
   INSERT INTO event_position (local_id, club_id, tx_id, event_id)
     SELECT NEW.id, NEW.club_id, coalesce(NEW.source_tx, epoch),
