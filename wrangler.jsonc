@@ -9,9 +9,7 @@
   "vars": {
     "PUBLIC_URL": "",
     "MAIL_PROVIDER": "resend",
-    "MAIL_FROM": "",
-    "WEATHER_VENUES": "",
-    "WEATHER_UNITS": "uk"
+    "MAIL_FROM": ""
   },
   "d1_databases": [
     {

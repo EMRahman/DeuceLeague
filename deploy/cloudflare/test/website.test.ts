@@ -127,6 +127,13 @@ test("Worker weather uses its public cache while player pages stay private", asy
   const f = await websiteFixture(t);
   await f.create("/v1/members", { display_name: "Sam", email: "sam@example.org" });
   const sam = await signIn(f, "sam@example.org");
+  // Fresh templates omit venues; older deploy forms can use ';' when blank is rejected.
+  for (const settings of [{}, { WEATHER_VENUES: "" }, { WEATHER_VENUES: ";" }]) {
+    await f.configure(settings);
+    const home = await sam.get("/"); assert.equal(home.status, 200);
+    assert.doesNotMatch(home.html, /Weather at the courts/);
+    assert.equal(f.outgoing.filter((url) => url.startsWith("https://api.open-meteo.com/")).length, 0);
+  }
   await f.configure({ WEATHER_VENUES: "Club courts@51,0" });
   for (let i = 0; i < 2; i++) {
     const home = await sam.get("/"); assert.equal(home.status, 200);

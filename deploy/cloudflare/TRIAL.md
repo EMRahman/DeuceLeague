@@ -6,10 +6,9 @@ backup/restore rehearsal and production cutover are separate remaining stages.
 
 The button uses the whole repository, including the shared workspace packages:
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/EMRahman/DeuceLeague/tree/cloudflare-preview)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/EMRahman/DeuceLeague/tree/main)
 
-The source is the **cloudflare-preview** branch, kept separate from `main`
-for this trial. A successful local rehearsal does not verify the account-specific
+The source is the **main** branch. A successful local rehearsal does not verify the account-specific
 provisioning or email steps.
 
 ## Before clicking
@@ -95,8 +94,6 @@ Sample Alex. Sending to anyone else requires a verified domain and an updated
    | `PUBLIC_URL` | The exact HTTPS origin above, without a path or query |
    | `MAIL_PROVIDER` | `resend` |
    | `MAIL_FROM` | Your verified sender, or `onboarding@resend.dev` for the owner-only test above |
-   | `WEATHER_VENUES` | Empty for this trial |
-   | `WEATHER_UNITS` | `uk`, `metric` or `us` |
 
 4. Enter the three secret values: `SETUP_TOKEN`, `WEBSITE_API_KEY` and
    `RESEND_API_KEY`. No PostgreSQL passwords or connection URLs are required.
@@ -110,8 +107,10 @@ Sample Alex. Sending to anyone else requires a verified domain and an updated
    `database_id` in its `DB` binding. Record the repository, Worker and database
    IDs privately for future maintenance.
 
-If you could not determine the URL beforehand, an empty `PUBLIC_URL` leaves
-the website closed while `/healthz` still works. After deployment, edit
+If you could not determine the URL beforehand, use `https://setup.invalid` as
+a temporary `PUBLIC_URL`; the deploy form requires a non-empty value. The website
+rejects requests on the assigned Worker hostname until this is corrected, while
+`/healthz` still works. After deployment, edit
 `vars.PUBLIC_URL` in your cloned repository's `wrangler.jsonc` using GitHub's
 web editor and commit the exact assigned origin. The connected build deploys
 that configuration. Configure missing sender settings there in the same way.
@@ -122,6 +121,26 @@ later deployments can overwrite dashboard-only variable changes. Keep secret
 values in Worker secrets. Disable **builds for non-production branches** in
 Workers Builds for this trial. A separate test deployment is required before
 trying schema updates against an established club database.
+
+### Optional weather
+
+Weather starts disabled and is not a deploy-button prompt. To enable it later,
+add `WEATHER_VENUES` under `vars` in your cloned repository's `wrangler.jsonc`:
+
+```json
+"WEATHER_VENUES": "Main Courts@51.4343,-0.2141;Park Courts@51.4059,-0.2229",
+"WEATHER_UNITS": "uk"
+```
+
+Replace these example names and coordinates with your courts. Separate venues
+with semicolons; units are `uk` (the default), `metric`, or `us`. Keep the JSON
+commas between existing settings, then commit to trigger the connected build.
+Removing `WEATHER_VENUES` disables weather again.
+
+If an older copy of the template requires `WEATHER_VENUES` during deployment,
+enter a single semicolon (`;`). The existing parser treats it as an empty venue
+list, so it disables weather without inventing a court location. The earlier
+instruction to leave this field blank worked in the app but not the deploy form.
 
 ## Create the club and test the player journey
 

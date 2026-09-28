@@ -49,12 +49,6 @@
       "MAIL_FROM": {
         "description": "Sender address verified with your selected email provider, such as League <league@your-club.org>."
       },
-      "WEATHER_VENUES": {
-        "description": "Optional; leave empty to disable weather. Format: Centre Courts@51.4343,-0.2141. Separate venues with semicolons."
-      },
-      "WEATHER_UNITS": {
-        "description": "uk (Celsius/mph), metric or us."
-      },
       "SETUP_TOKEN": {
         "description": "Generate and save an independent random 43-character alphanumeric password. Enter it later at /install. Never reuse WEBSITE_API_KEY."
       },
