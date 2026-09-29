@@ -1,10 +1,14 @@
 import { raw } from "hono/html";
 import type { FC, PropsWithChildren } from "hono/jsx";
 import {
+  CompetitionTables,
   deadlineLine,
   describe,
   playedOn,
   STYLE,
+  WeatherBox,
+  type TablesProps,
+  type VenueForecast,
   type Competition,
   type Match,
   type MatchDetail,
@@ -17,13 +21,13 @@ import {
  * players' site's style. Hono escapes everything interpolated here.
  */
 
-export type Tab = "dashboard" | "results" | "activity" | "chase" | "members";
+export type Tab = "dashboard" | "results" | "tables" | "activity" | "chase" | "members";
 
 export type Frame = { club: string | null; signedIn: boolean; tab: Tab | null };
 
 export type CoachMember = { id: string; display_name: string; email?: string | null; signed_in_at: string | null };
 
-export type CoachCompetition = Competition & { previous_competition_id: string | null };
+export type CoachCompetition = Competition & { previous_competition_id: string | null; visibility: "members" | "private" };
 
 type Counts = {
   matches: number;
@@ -102,6 +106,7 @@ ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
 const TABS: { tab: Tab; href: string; label: string }[] = [
   { tab: "dashboard", href: "/coach", label: "Dashboard" },
   { tab: "results", href: "/coach/results", label: "Results" },
+  { tab: "tables", href: "/coach/tables", label: "Tables" },
   { tab: "activity", href: "/coach/activity", label: "Activity" },
   { tab: "chase", href: "/coach/chase", label: "Chase list" },
   { tab: "members", href: "/coach/members", label: "Members" },
@@ -600,6 +605,19 @@ export const LatestEvents: FC<{
     <p class="muted">Newest first, 50 at a time.</p>
     {events.length === 0 ? <p class="muted">Nothing more.</p> : <EventList events={events} timezone={timezone} />}
     <Pager path="/coach/activity/all" from={from} next={next} />
+  </Layout>
+);
+
+/** The tables and the forecast as players see them, for the coach to know what they're looking at. */
+export const Tables: FC<{
+  frame: Frame;
+  tables: TablesProps;
+  weather: { venues: VenueForecast[]; lastDay: string | null } | null;
+}> = ({ frame, tables, weather }) => (
+  <Layout title={tables.past ? `${tables.competition.name}, ${tables.past}` : tables.competition.name} frame={frame}>
+    <p class="muted">What players see: the tables of the competitions open to members, and the courts' forecast.</p>
+    <CompetitionTables {...tables} />
+    {weather && <WeatherBox venues={weather.venues} lastDay={weather.lastDay} />}
   </Layout>
 );
 

@@ -434,7 +434,7 @@ const ByCompetition: FC<{ matches: MyMatch[] }> = ({ matches }) => {
  * column a day, pills to switch venue. The switch is radio buttons and CSS,
  * so it needs no script; a browser without :has() shows every venue.
  */
-const WeatherBox: FC<{ venues: VenueForecast[]; lastDay: string | null }> = ({ venues, lastDay }) => (
+export const WeatherBox: FC<{ venues: VenueForecast[]; lastDay: string | null }> = ({ venues, lastDay }) => (
   <section class="card weather">
     <h2>Weather at the courts</h2>
     {venues.length > 1 && (
@@ -786,8 +786,8 @@ const SeasonRow: FC<{ seasons: SeasonLink[] }> = ({ seasons }) => {
   );
 };
 
-export const CompetitionPage: FC<{
-  frame: Frame;
+/** What a competition's tables show, and where their links go. */
+export type TablesProps = {
   competition: Competition;
   /** Every competition the player can see, and whether they are playing in it. */
   tabs: { id: string; name: string; mine: boolean }[];
@@ -798,16 +798,42 @@ export const CompetitionPage: FC<{
   /** The season, and how long is left to report: "Summer 2026 · Results close in 7 days". */
   season: string | null;
   standings: Standings;
+  /** The viewer's own entry, marked in the tables; null for someone not playing, such as the coach. */
   mine: { entryId: string; divisionId: string; optedOut: boolean } | null;
   breakdowns: Record<string, Breakdown>;
-}> = ({ frame, competition, tabs, seasons, past, season, standings, mine, breakdowns }) => (
-  <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
+  /** Where a competition's tab links. */
+  competitionHref?: (id: string) => string;
+  /** Where a match links, or null to name it without a link. */
+  matchHref?: ((id: string) => string) | null;
+};
+
+const competitionPath = (id: string) => `/competitions/${id}`;
+const matchPath = (id: string) => `/matches/${id}`;
+
+/**
+ * A competition's tables as players see them: the season row, the competition
+ * tabs, each division's table with its rows opened into matches, and the rules.
+ * The players' site wraps it in its page; the coach's site shows it too.
+ */
+export const CompetitionTables: FC<TablesProps> = ({
+  competition,
+  tabs,
+  seasons,
+  past,
+  season,
+  standings,
+  mine,
+  breakdowns,
+  competitionHref = competitionPath,
+  matchHref = matchPath,
+}) => (
+  <>
     {seasons.length > 1 && <SeasonRow seasons={seasons} />}
     {tabs.length > 1 && (
       <nav class="tabs" aria-label="Competitions">
         {tabs.map((t) => (
           <a
-            href={`/competitions/${t.id}`}
+            href={competitionHref(t.id)}
             class={t.mine ? "mine" : undefined}
             aria-current={t.id === competition.id ? "page" : undefined}
             title={t.mine ? "You are playing in this" : undefined}
@@ -887,6 +913,7 @@ export const CompetitionPage: FC<{
                         row={r}
                         breakdown={breakdowns[r.entry_id] ?? { played: [], toPlay: [] }}
                         lossPlayed={competition.rules.points.lossPlayed}
+                        matchHref={matchHref}
                       />
                     </td>
                   </tr>
@@ -899,32 +926,41 @@ export const CompetitionPage: FC<{
     ))}
 
     <RulesExplained rules={competition.rules} tiebreakFormat={`Matches: ${formatHint(competition.match_format)}`} />
-
-    {mine && competition.state === "active" && (
-      <section>
-        <h2>Next season</h2>
-        {mine.optedOut ? (
-          <form method="post" action={`/entries/${mine.entryId}/opt-in`}>
-            <p>You have told the coach you are not playing in the next one.</p>
-            <button class="quiet" type="submit">
-              I have changed my mind
-            </button>
-          </form>
-        ) : (
-          <form method="post" action={`/entries/${mine.entryId}/opt-out`}>
-            <p class="muted">
-              Not playing next season? Say so here and the coach will leave you out. Your matches in this one still
-              count.
-            </p>
-            <button class="quiet" type="submit">
-              I am not playing next season
-            </button>
-          </form>
-        )}
-      </section>
-    )}
-  </Layout>
+  </>
 );
+
+export const CompetitionPage: FC<{ frame: Frame } & TablesProps> = ({ frame, ...tables }) => {
+  const { competition, past, mine } = tables;
+  return (
+    <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
+      <CompetitionTables {...tables} />
+
+      {mine && competition.state === "active" && (
+        <section>
+          <h2>Next season</h2>
+          {mine.optedOut ? (
+            <form method="post" action={`/entries/${mine.entryId}/opt-in`}>
+              <p>You have told the coach you are not playing in the next one.</p>
+              <button class="quiet" type="submit">
+                I have changed my mind
+              </button>
+            </form>
+          ) : (
+            <form method="post" action={`/entries/${mine.entryId}/opt-out`}>
+              <p class="muted">
+                Not playing next season? Say so here and the coach will leave you out. Your matches in this one still
+                count.
+              </p>
+              <button class="quiet" type="submit">
+                I am not playing next season
+              </button>
+            </form>
+          )}
+        </section>
+      )}
+    </Layout>
+  );
+};
 
 // ──────────────────────────────────────────────────────────────── a match ──
 
@@ -1200,11 +1236,12 @@ export type PlayedLine = { line: MatchLine; opponent: string; score: string; dat
 /** One row of a table, opened: the matches that count, what each earned, and who is left to play. */
 export type Breakdown = { played: PlayedLine[]; toPlay: { id: string; opponent: string }[] };
 
-const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown; lossPlayed: number }> = ({
-  row,
-  breakdown,
-  lossPlayed,
-}) => (
+const RowBreakdown: FC<{
+  row: StandingsRow;
+  breakdown: Breakdown;
+  lossPlayed: number;
+  matchHref: ((id: string) => string) | null;
+}> = ({ row, breakdown, lossPlayed, matchHref }) => (
   <div class="breakdown">
     {breakdown.played.length === 0 ? (
       <p class="muted">No results yet.</p>
@@ -1215,9 +1252,9 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown; lossPlayed: nu
             <li>
               <span>
                 {date && <span class="muted">{date} · </span>}
-                <a href={`/matches/${line.match_id}`}>
+                <MatchLink id={line.match_id} href={matchHref}>
                   {line.result === "won" ? "Beat" : line.result === "lost" ? "Lost to" : "Did not play"} {opponent}
-                </a>
+                </MatchLink>
                 {score && <span class="muted"> · {score}</span>}
               </span>
               {/* Where the points came from, on hover or a tap: focusable, so a phone can open it without a script. */}
@@ -1244,10 +1281,16 @@ const RowBreakdown: FC<{ row: StandingsRow; breakdown: Breakdown; lossPlayed: nu
         {breakdown.toPlay.map((m, i) => (
           <>
             {i > 0 && ", "}
-            <a href={`/matches/${m.id}`}>{m.opponent}</a>
+            <MatchLink id={m.id} href={matchHref}>
+              {m.opponent}
+            </MatchLink>
           </>
         ))}
       </p>
     )}
   </div>
 );
+
+/** A match's name, linked to its page where the viewer has one. */
+const MatchLink: FC<PropsWithChildren<{ id: string; href: ((id: string) => string) | null }>> = ({ id, href, children }) =>
+  href ? <a href={href(id)}>{children}</a> : <>{children}</>;

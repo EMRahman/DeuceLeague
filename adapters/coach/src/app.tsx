@@ -1,6 +1,20 @@
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { ApiProblem, type Api, type Match, type MatchDetail, type Page, type Season } from "@deuceleague/website";
+import {
+  ApiProblem,
+  breakdowns,
+  deadlineLine,
+  newestFirst,
+  within,
+  WEATHER_GRACE_MS,
+  type Api,
+  type Match,
+  type MatchDetail,
+  type Page,
+  type Season,
+  type Standings,
+  type Weather,
+} from "@deuceleague/website";
 import {
   Activity,
   Chase,
@@ -12,6 +26,7 @@ import {
   Results,
   SignIn,
   SignInLink,
+  Tables,
   type ChaseRow,
   type CoachCompetition,
   type CoachMember,
@@ -26,6 +41,8 @@ export type CoachOptions = {
   api: Api;
   /** The address players use, for the sign-in links the coach hands out. */
   publicUrl: string;
+  /** The courts' forecast, as the players' home page shows it; none without courts. */
+  weather?: Weather;
 };
 
 /** Where the coach's key lives: in a cookie only the server can read, sent only to /coach. */
@@ -303,6 +320,98 @@ export function createCoachSite(options: CoachOptions) {
         from={after}
         next={events.data.length === ACTIVITY_MORE ? events.next_cursor : null}
         timezone={who.club.timezone}
+      />,
+    );
+  });
+
+  // The tables as players see them, with the forecast: what the players' site shows,
+  // for competitions open to members, without anyone's own row marked.
+  const playersSee = (x: CoachCompetition) => x.visibility === "members" && x.state !== "draft";
+
+  async function seasonsWithTables(key: string) {
+    const [seasons, competitions] = await Promise.all([
+      all<Season>("/v1/seasons", key),
+      all<CoachCompetition>("/v1/competitions", key),
+    ]);
+    return seasons
+      .sort(newestFirst)
+      .map((season) => ({ season, competitions: competitions.filter((x) => x.season_id === season.id && playersSee(x)) }))
+      .filter((s) => s.competitions.length > 0);
+  }
+
+  app.get("/tables", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const seasons = await seasonsWithTables(who.key);
+    const first = (seasons.find((s) => s.season.state === "active") ?? seasons[0])?.competitions[0];
+    if (!first) {
+      return c.html(
+        <Problem
+          frame={frameOf(who, "tables")}
+          title="No tables yet"
+          detail="Players see tables once a competition open to members is under way."
+        />,
+      );
+    }
+    return c.redirect(`/coach/tables/${first.id}`, 303);
+  });
+
+  app.get("/tables/:id", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    // Started first and awaited last, as on the players' home page: it is the one call that leaves the server.
+    const forecasting = options.weather ? options.weather().catch(() => null) : Promise.resolve(null);
+    const seasons = await seasonsWithTables(who.key);
+    const here = seasons.find((s) => s.competitions.some((x) => x.id === id));
+    const competition = here?.competitions.find((x) => x.id === id);
+    if (!here || !competition) {
+      return c.html(
+        <Problem frame={frameOf(who, "tables")} title="Not shown to players" detail="Players can't see this competition." />,
+        404,
+      );
+    }
+    const [standings, matches] = await Promise.all([
+      api<Standings>("GET", `/v1/competitions/${id}/standings`, who.key),
+      all<Match>(`/v1/matches?competition_id=${id}`, who.key),
+    ]);
+    const live = seasons.filter((s) => s.season.state === "active");
+    const onlyDeadline = live.length === 1 ? live[0]!.season.results_deadline_at : null;
+    const deadline = here.season.state === "active" ? deadlineLine(here.season.results_deadline_at, who.club.timezone) : null;
+    const forecast = await within(forecasting, WEATHER_GRACE_MS);
+    return c.html(
+      <Tables
+        frame={frameOf(who, "tables")}
+        weather={
+          forecast?.length
+            ? {
+                venues: forecast,
+                lastDay: onlyDeadline
+                  ? new Intl.DateTimeFormat("en-CA", { timeZone: who.club.timezone }).format(new Date(onlyDeadline))
+                  : null,
+              }
+            : null
+        }
+        tables={{
+          competition,
+          tabs: here.competitions.map((x) => ({ id: x.id, name: x.name, mine: false })),
+          seasons: seasons.map((s) => ({
+            id: s.season.id,
+            name: s.season.name,
+            // The same competition that season, Men's Singles to Men's Singles, else its first.
+            href: `/coach/tables/${(s.competitions.find((x) => x.name === competition.name) ?? s.competitions[0]!).id}`,
+            current: s.season.id === here.season.id,
+            live: s.season.state === "active",
+          })),
+          past: here.season.state === "active" ? null : here.season.name,
+          season: deadline ? `${here.season.name} · ${deadline}` : here.season.name,
+          standings,
+          mine: null,
+          breakdowns: breakdowns(standings, matches),
+          competitionHref: (x) => `/coach/tables/${x}`,
+          // A match's page is the players' own; the coach sees results on Results and Activity.
+          matchHref: null,
+        }}
       />,
     );
   });

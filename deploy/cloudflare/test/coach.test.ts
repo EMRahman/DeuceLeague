@@ -129,7 +129,7 @@ test("the coach's pages show the sample league: progress, disputes, waiting resu
 
 test("the coach's pages send a signed-out browser to sign in", async (t) => {
   const f = await websiteFixture(t);
-  for (const path of ["/coach/results", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
+  for (const path of ["/coach/results", "/coach/tables", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
     const r = await browser(f).get(path);
     assert.equal(r.status, 303, path); assert.equal(r.location, "/coach");
   }
@@ -190,4 +190,26 @@ test("a browser still holding a key without league:read, from before these pages
   const r = await f.request("/coach", { headers: { cookie: `deuceleague_coach=${old}` } });
   assert.equal(r.status, 200); assert.match(await r.text(), /Coach sign-in/);
   assert.match(r.headers.get("set-cookie") ?? "", /Max-Age=0/, "the cookie is forgotten");
+});
+
+test("the coach sees the tables and the forecast as players do, for the competitions open to them", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const draft = await f.create("/v1/competitions", { season_id: season.id, name: "Next singles", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+
+  const first = await coach.get("/coach/tables");
+  assert.equal(first.status, 303); assert.match(first.location!, /^\/coach\/tables\/[0-9a-f-]{36}$/);
+  const page = await coach.get(first.location!);
+  assert.equal(page.status, 200);
+  assert.match(page.html, /<a href="\/coach\/tables" aria-current="page">Tables<\/a>/);
+  assert.match(page.html, /What players see/);
+  for (const text of ["Division 1", "Division 2", "Sample season · Results close in", "Weather at the courts", "row-toggle"]) {
+    assert.ok(page.html.includes(text), text);
+  }
+  const tabs = [...page.html.matchAll(/href="\/coach\/tables\/([0-9a-f-]{36})"/g)].map((m) => m[1]);
+  assert.equal(new Set(tabs).size, 2, "both sample competitions, and not the draft");
+  assert.ok(!tabs.includes(draft.id));
+  assert.doesNotMatch(page.html, /href="\/matches\/|\(yours\)|action="\/entries/, "nothing that is a player's own");
+  assert.equal((await coach.get(`/coach/tables/${draft.id}`)).status, 404, "players can't see a draft");
 });

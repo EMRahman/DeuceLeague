@@ -48,9 +48,10 @@ export {
   type Page,
   type Season,
   type Side,
+  type Standings,
 } from "./api.js";
 export { deadlineLine, describe, playedOn } from "./score.js";
-export { STYLE } from "./views.js";
+export { CompetitionTables, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
@@ -88,7 +89,7 @@ const RESEND_MS = 60_000;
  * those calls finish; a slow refresh can fill the provider's cache for the
  * next visit.
  */
-const WEATHER_GRACE_MS = 250;
+export const WEATHER_GRACE_MS = 250;
 
 type Player = { session: string; me: Me & { credential: { type: "session" } } };
 
@@ -104,7 +105,7 @@ function today(timezone: string): string {
 }
 
 /** Wait briefly for an optional result, then let the caller carry on without it. */
-async function within<T>(promise: Promise<T>, milliseconds: number): Promise<T | null> {
+export async function within<T>(promise: Promise<T>, milliseconds: number): Promise<T | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), milliseconds);
@@ -134,7 +135,7 @@ async function all<T>(api: Api, path: string, credential: string): Promise<T[]> 
 }
 
 /** Newest first: by when the season starts, then by when it was made (ids are UUIDv7, so they sort by time). */
-function newestFirst(a: Season, b: Season): number {
+export function newestFirst(a: Season, b: Season): number {
   const x = a.starts_on ?? "";
   const y = b.starts_on ?? "";
   if (x !== y) return x < y ? 1 : -1;
@@ -146,7 +147,7 @@ function newestFirst(a: Season, b: Season): number {
  * score from its own side, and who it has still to play. The points come from
  * the API's standings, which the engine adds up; nothing is scored here.
  */
-function breakdowns(standings: Standings, matches: Match[]): Record<string, Breakdown> {
+export function breakdowns(standings: Standings, matches: Match[]): Record<string, Breakdown> {
   const rows = standings.divisions.flatMap((d) => d.rows);
   const labelOf = (entry: string | null | undefined) => rows.find((r) => r.entry_id === entry)?.label ?? "Someone";
   const byId = new Map(matches.map((m) => [m.id, m]));

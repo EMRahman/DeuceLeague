@@ -112,10 +112,11 @@ like any other key. A key without `admin` that holds `league:read`,
 itself lasts until it expires or is revoked.
 
 The site shows the season's progress, results the players have not agreed, the
-latest results and activity, a chase list and the members, with when each signed in, and makes their sign-in
-links; see [its README](../../adapters/coach/README.md). Its pages have
-the players' site's protections: `no-store`, no framing, and no form accepted
-from another origin.
+tables and forecast as players see them, the latest results and activity, a
+chase list and the members, with when each signed in, and makes their sign-in
+links; see [its README](../../adapters/coach/README.md). Its pages have the
+players' site's protections: `no-store`, no framing, and no form accepted from
+another origin.
 
 ## Caching
 

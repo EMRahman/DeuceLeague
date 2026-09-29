@@ -49,7 +49,7 @@ that phone.
 
 The list shows when each player signed in, with those who haven't at the top,
 so you know who to nudge. Once the season is running, the dashboard, **Results**,
-**Activity** and the **Chase list** show how it is going.
+**Tables**, **Activity** and the **Chase list** show how it is going.
 
 ## 5. When you want them
 
