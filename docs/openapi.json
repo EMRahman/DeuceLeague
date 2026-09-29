@@ -4231,6 +4231,22 @@
             "format": "uuid",
             "description": "The API key or member that caused it; null for the system."
           },
+          "actor_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Coach website, 2026-09-29",
+            "description": "What the actor is called now: the key's name, or the member's display name. Looked up on reading, never stored, so an erased member reads \"Erased member\". A member's name needs `members:read`; null without it, for the system, or for a record since deleted."
+          },
+          "subject_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Sam K. v Alex P.",
+            "description": "What the subject is called now: a match as its two sides, an entry's label, a member's display name (with `members:read`), or the name of a season, competition, division, key, court or the club. Looked up on reading, like `actor_name`."
+          },
           "occurred_at": {
             "type": "string",
             "format": "date-time"
@@ -4249,6 +4265,8 @@
           "subject_id",
           "actor_type",
           "actor_id",
+          "actor_name",
+          "subject_name",
           "occurred_at",
           "payload"
         ]
@@ -4609,7 +4627,7 @@
           "Matches"
         ],
         "summary": "List matches",
-        "description": "Oldest first. A fixture is simply a match that is `open`. A player's session sees the matches of competitions open to members, once they are no longer drafts.",
+        "description": "Oldest first, or most recently changed first with `order=recent`. A fixture is simply a match that is `open`. A player's session sees the matches of competitions open to members, once they are no longer drafts.",
         "security": [
           {
             "apiKey": [
@@ -4699,6 +4717,21 @@
             },
             "required": false,
             "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "created",
+                "recent"
+              ],
+              "default": "created",
+              "description": "`created`: oldest first. `recent`: most recently changed first, so `status=played` gives the latest results; `after` carries on from that match, and a match changing while you page moves to the top."
+            },
+            "required": false,
+            "description": "`created`: oldest first. `recent`: most recently changed first, so `status=played` gives the latest results; `after` carries on from that match, and a match changing while you page moves to the top.",
+            "name": "order",
             "in": "query"
           }
         ],
@@ -8638,7 +8671,7 @@
           "Events"
         ],
         "summary": "Read the event feed",
-        "description": "Everything that has happened in the club, oldest first, in the order it is safe to read: an event appears only once nothing earlier can still appear, so reading on from `next_cursor` never skips one. This is how adapters react to change — announcing results, refreshing a website — since the core sends nothing itself.",
+        "description": "Everything that has happened in the club, oldest first, in the order it is safe to read: an event appears only once nothing earlier can still appear, so reading on from `next_cursor` never skips one. This is how adapters react to change — announcing results, refreshing a website — since the core sends nothing itself. `order=newest` reads backwards from the latest event instead, for showing people what happened; it makes no promise about events that commit while you page.",
         "security": [
           {
             "apiKey": [
@@ -8652,11 +8685,24 @@
               "type": "string",
               "pattern": "^\\d{1,20}\\.\\d{1,20}$",
               "example": "7461.1203",
-              "description": "Omit to start from the beginning."
+              "description": "Carry on after this cursor, in the order asked for. Omit to start from the beginning, or from the latest event with `order=newest`."
             },
             "required": false,
-            "description": "Omit to start from the beginning.",
+            "description": "Carry on after this cursor, in the order asked for. Omit to start from the beginning, or from the latest event with `order=newest`.",
             "name": "after",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "oldest",
+                "newest"
+              ],
+              "default": "oldest"
+            },
+            "required": false,
+            "name": "order",
             "in": "query"
           },
           {

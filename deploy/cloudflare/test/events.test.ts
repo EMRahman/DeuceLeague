@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { commitMutation, eventStatement, importEventHistory, readSnapshot, StaleSnapshotError,
   type HistoryEvent } from "@deuceleague/db-d1";
 import { Scope } from "@deuceleague/schema";
 import { change, fixture } from "./helpers.ts";
 import { hash } from "./result-helpers.ts";
+import { websiteFixture } from "./website-helpers.ts";
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 type Page = { data: { cursor: string; id: string; type: string; payload: object }[]; next_cursor: string };
@@ -112,8 +113,12 @@ test("upgrade backfills existing D1 audits without changing or dropping them", a
   const f = await fixture(t, true, false, "0005_placement_deadline_guard.sql");
   await f.member();
   const old = await f.db.prepare("SELECT id, type, payload, occurred_at FROM event ORDER BY id").all();
-  const sql = await readFile(new URL("../../../packages/db-d1/migrations/0006_event_feed.sql", import.meta.url), "utf8");
-  await f.db.batch(sql.split("--> statement-breakpoint").map((s) => f.db.prepare(s)));
+  // The upgrade itself, then the migrations since, so the database is what the Worker's code reads.
+  const directory = new URL("../../../packages/db-d1/migrations/", import.meta.url);
+  for (const file of (await readdir(directory)).filter((name) => name >= "0006" && name.endsWith(".sql")).sort()) {
+    const sql = await readFile(new URL(file, directory), "utf8");
+    await f.db.batch(sql.split("--> statement-breakpoint").map((s) => f.db.prepare(s)));
+  }
   assert.deepEqual(await f.db.prepare("SELECT id, type, payload, occurred_at FROM event ORDER BY id").all().then((r) => r.results), old.results);
   const p = await page(f);
   assert.deepEqual(p.data.map((e) => e.id), ["1", "2", "3"]);
@@ -192,4 +197,56 @@ test("event feeds and credentials remain isolated between installations", async 
   await change(a.db, [audit(a, "test.only_a")]);
   assert.equal((await b.call("/v1/events", a.admin)).status, 401);
   assert.ok(!(await page(b)).data.some((e) => e.type === "test.only_a"));
+});
+
+test("newest first reads the feed backwards, and names who did what to what as they are called now", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  type Named = Page["data"][number] & { type: string; actor_name: string | null; subject_name: string | null };
+  const read = async (query: string, token = f.admin) => {
+    const r = await f.api(`/v1/events?${query}`, token); assert.equal(r.status, 200, JSON.stringify(r.body));
+    return r.body as { data: Named[]; next_cursor: string };
+  };
+  const forwards: Named[] = []; let after = "";
+  for (;;) { const p = await read(`limit=100${after && `&after=${after}`}`); if (!p.data.length) break; forwards.push(...p.data); after = p.next_cursor; }
+  const backwards: Named[] = []; after = "";
+  for (;;) { const p = await read(`order=newest&limit=50${after && `&after=${after}`}`); if (!p.data.length) break; backwards.push(...p.data); after = p.next_cursor; }
+  assert.deepEqual(backwards.map((e) => e.cursor), forwards.map((e) => e.cursor).reverse(), "the same events, the other way");
+  // The newest: the test's website key, made after the sample.
+  assert.equal(backwards[0]!.type, "api_key.created"); assert.equal(backwards[0]!.subject_name, "Website");
+  assert.equal(backwards[1]!.type, "installation.sample.created");
+
+  const agent = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Agent", scopes: ["league:read", "results:write"] })).body.key;
+  const match = (await f.api("/v1/matches?status=open&limit=1", f.admin)).body.data[0];
+  assert.equal((await f.api(`/v1/matches/${match.id}/claims`, agent, "POST",
+    { side: 0, outcome: "completed", score: { sets: [{ games: [6, 4] }, { games: [6, 3] }] } })).status, 201);
+  const reported = (await read("order=newest&limit=1")).data[0]!;
+  assert.equal(reported.type, "match.claim.reported"); assert.equal(reported.actor_name, "Agent");
+  assert.equal(reported.subject_name, `${match.sides[0].label} v ${match.sides[1].label}`);
+
+  const alex = (await f.api("/v1/members?limit=200", f.admin)).body.data.find((m: { display_name: string }) => m.display_name === "Sample Alex");
+  assert.equal((await f.api(`/v1/members/${alex.id}/login-link`, f.admin, "POST")).status, 201);
+  const link = (await read("order=newest&limit=1")).data[0]!;
+  assert.equal(link.type, "member.login_link.created"); assert.equal(link.subject_name, "Sample Alex");
+  assert.equal((await read("order=newest&limit=1", agent)).data[0]!.subject_name, null, "a member's name needs members:read");
+  assert.equal((await f.api(`/v1/members/${alex.id}/erase`, f.admin, "POST")).status, 200);
+  const erased = (await read("order=newest&limit=5")).data.find((e) => e.subject_type === "member" && e.subject_id === alex.id)!;
+  assert.equal(erased.subject_name, "Erased member", "names are read now, so an erasure reaches them");
+});
+
+test("matches most recently changed first give the latest results, a page at a time", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const open = (await f.api("/v1/matches?status=open&limit=1", f.admin)).body.data[0];
+  assert.equal((await f.api(`/v1/matches/${open.id}/settle`, f.admin, "POST",
+    { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } })).status, 201);
+  type M = { id: string; updated_at: string };
+  const all: M[] = []; let after = "";
+  for (;;) {
+    const r = await f.api(`/v1/matches?status=played&order=recent&limit=7${after && `&after=${after}`}`, f.admin);
+    assert.equal(r.status, 200); all.push(...r.body.data);
+    if (!r.body.next_cursor) break; after = r.body.next_cursor;
+  }
+  assert.equal(all[0]!.id, open.id, "the result just settled comes first");
+  assert.equal(new Set(all.map((m) => m.id)).size, 34); assert.equal(all.length, 34);
+  const times = all.map((m) => Date.parse(m.updated_at));
+  assert.deepEqual(times, [...times].sort((a, b) => b - a));
 });

@@ -132,22 +132,42 @@ export async function commitResult(db: D1Database, state: ResultSnapshot, change
 export type MatchFilters = {
   limit: number; after?: string | undefined; competitionId?: string | undefined; divisionId?: string | undefined;
   entryId?: string | undefined; memberId?: string | undefined; status?: string | undefined;
+  /** `created`, the default: oldest first. `recent`: most recently changed first, continuing after the `after` match. */
+  order?: "created" | "recent" | undefined;
 };
 export async function readMatchPage(db: D1Database, hash: string, kind: CredentialKind, q: MatchFilters) {
-  const identity = await readIdentity(db, hash, kind, null, [
-    db.prepare(`SELECT m.*, (
+  // Most recently changed first carries on after the `after` match's own place in that order.
+  const read = q.order === "recent"
+    ? db.prepare(`SELECT m.*, (
       SELECT json_group_array(json_object('sideIndex', s.side_index, 'entryId', s.entry_id, 'label', el.label) ORDER BY s.side_index)
       FROM match_side s LEFT JOIN entry_label el ON el.entry_id = s.entry_id AND el.club_id = s.club_id
       WHERE s.match_id = m.id AND s.club_id = m.club_id
     ) AS sides_json FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
     WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
-      AND (? IS NULL OR m.id > ?) AND (? IS NULL OR m.competition_id = ?) AND (? IS NULL OR m.division_id = ?)
+      AND (? IS NULL OR (m.updated_at, m.id) < (SELECT a.updated_at, a.id FROM match a WHERE a.id = ?))
+      AND (? IS NULL OR m.competition_id = ?) AND (? IS NULL OR m.division_id = ?)
       AND (? IS NULL OR m.status = ?)
       AND (? IS NULL OR EXISTS (SELECT 1 FROM match_side s WHERE s.match_id = m.id AND s.club_id = m.club_id AND s.entry_id = ?))
       AND (? IS NULL OR EXISTS (SELECT 1 FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id AND em.club_id = s.club_id
         WHERE s.match_id = m.id AND s.club_id = m.club_id AND em.member_id = ?))
       AND (? = 0 OR (c.visibility = 'members' AND c.state <> 'draft'))
-    ORDER BY m.id LIMIT ?`).bind(q.after ?? null, q.after ?? null, q.competitionId ?? null, q.competitionId ?? null,
+    ORDER BY m.updated_at DESC, m.id DESC LIMIT ?`)
+    : db.prepare(`SELECT m.*, (
+      SELECT json_group_array(json_object('sideIndex', s.side_index, 'entryId', s.entry_id, 'label', el.label) ORDER BY s.side_index)
+      FROM match_side s LEFT JOIN entry_label el ON el.entry_id = s.entry_id AND el.club_id = s.club_id
+      WHERE s.match_id = m.id AND s.club_id = m.club_id
+    ) AS sides_json FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
+    WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
+      AND (? IS NULL OR m.id > ?)
+      AND (? IS NULL OR m.competition_id = ?) AND (? IS NULL OR m.division_id = ?)
+      AND (? IS NULL OR m.status = ?)
+      AND (? IS NULL OR EXISTS (SELECT 1 FROM match_side s WHERE s.match_id = m.id AND s.club_id = m.club_id AND s.entry_id = ?))
+      AND (? IS NULL OR EXISTS (SELECT 1 FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id AND em.club_id = s.club_id
+        WHERE s.match_id = m.id AND s.club_id = m.club_id AND em.member_id = ?))
+      AND (? = 0 OR (c.visibility = 'members' AND c.state <> 'draft'))
+    ORDER BY m.id LIMIT ?`);
+  const identity = await readIdentity(db, hash, kind, null, [
+    read.bind(q.after ?? null, q.after ?? null, q.competitionId ?? null, q.competitionId ?? null,
       q.divisionId ?? null, q.divisionId ?? null, q.status ?? null, q.status ?? null, q.entryId ?? null, q.entryId ?? null,
       q.memberId ?? null, q.memberId ?? null, kind === "session" ? 1 : 0, q.limit + 1),
   ]);

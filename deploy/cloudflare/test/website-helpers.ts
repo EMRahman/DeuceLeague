@@ -6,7 +6,7 @@ import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { migrate } from "./helpers.ts";
 
 export const SITE = "https://league.test";
-export async function websiteFixture(t: TestContext) {
+export async function websiteFixture(t: TestContext, setupOptions: { sample?: boolean; sample_email?: string } = {}) {
   const outbox: { from: string; to: string[]; subject: string; text: string }[] = [];
   const outgoing: string[] = [];
   let failMail = false;
@@ -36,7 +36,7 @@ export async function websiteFixture(t: TestContext) {
       ...(body ? { body: JSON.stringify(body) } : {}) });
     return { status: r.status, body: r.status === 204 ? null : await r.json() as any };
   }
-  const setup = await api("/setup", bindings.SETUP_TOKEN, "POST", { slug: "website-club", name: "Website club" });
+  const setup = await api("/setup", bindings.SETUP_TOKEN, "POST", { slug: "website-club", name: "Website club", ...setupOptions });
   assert.equal(setup.status, 201);
   const admin: string = setup.body.api_key;
   const key = await api("/v1/api-keys", admin, "POST", { name: "Website", scopes: ["members:read", "members:write", "members:pii"] });

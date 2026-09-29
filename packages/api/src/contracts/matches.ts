@@ -124,7 +124,7 @@ export const list = createRoute({
   tags: ["Matches"],
   summary: "List matches",
   description:
-    "Oldest first. A fixture is simply a match that is `open`. A player's session sees the matches of " +
+    "Oldest first, or most recently changed first with `order=recent`. A fixture is simply a match that is `open`. A player's session sees the matches of " +
     "competitions open to members, once they are no longer drafts.",
   ...requires.orPlayer("league:read"),
   request: {
@@ -136,6 +136,11 @@ export const list = createRoute({
         description: "Matches this member plays in, singles or doubles. With a player's own id, their matches.",
       }),
       status: MatchStatus.optional(),
+      order: z.enum(["created", "recent"]).default("created").openapi({
+        description:
+          "`created`: oldest first. `recent`: most recently changed first, so `status=played` gives the latest " +
+          "results; `after` carries on from that match, and a match changing while you page moves to the top.",
+      }),
     }),
   },
   responses: {

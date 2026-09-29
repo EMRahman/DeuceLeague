@@ -139,6 +139,7 @@ export type Claim = {
   played_on: string | null;
   state: "pending" | "confirmed" | "superseded";
   accepts_claim_id: string | null;
+  submitted_at: string;
 };
 
 export type MatchDetail = Match & { claims: Claim[]; waiting_on: Side | null; differences: string[] };

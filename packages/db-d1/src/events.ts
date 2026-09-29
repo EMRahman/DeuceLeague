@@ -15,26 +15,41 @@ function decimal(value: string): bigint {
 }
 const padded = (value: string) => decimal(value).toString().padStart(20, "0");
 
+/** An event as the feed reads it, with who did it and what to, named as they are now. */
+export type FeedRecord = HistoryEvent & { actorName: string | null; subjectName: string | null };
+
 /** Authentication and feed contents share one database snapshot. All event
- * inserts (including bulk writes) allocate their position in the same commit. */
+ * inserts (including bulk writes) allocate their position in the same commit.
+ * Newest first reads backwards from `after`, or from the end without one: it
+ * is for showing people what happened, since a consumer reading forwards is
+ * the one guaranteed never to skip an event. */
 export async function readEventFeed(db: D1Database, hash: string, kind: CredentialKind,
-  after: EventPosition, limit: number) {
+  after: EventPosition | null, limit: number, order: "oldest" | "newest" = "oldest") {
   if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid feed limit");
-  const identity = await readIdentity(db, hash, kind, null, [
-    db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
-      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload
-      FROM event_position p JOIN event e ON e.id = p.local_id
+  const newest = order === "newest";
+  const from = after ?? (newest ? { txId: MAX.toString(), id: MAX.toString() } : { txId: "0", id: "0" });
+  const read = newest
+    ? db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      FROM event_position p JOIN event e ON e.id = p.local_id JOIN event_name n ON n.event_id = e.id
+      WHERE p.club_id = (SELECT id FROM club WHERE singleton = 1)
+        AND (p.tx_id, p.event_id) < (?, ?)
+      ORDER BY p.tx_id DESC, p.event_id DESC LIMIT ?`)
+    : db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      FROM event_position p JOIN event e ON e.id = p.local_id JOIN event_name n ON n.event_id = e.id
       WHERE p.club_id = (SELECT id FROM club WHERE singleton = 1)
         AND (p.tx_id, p.event_id) > (?, ?)
-      ORDER BY p.tx_id, p.event_id LIMIT ?`).bind(padded(after.txId), padded(after.id), limit),
-  ]);
-  const events = (identity.extraResults[0]!.results as Record<string, unknown>[]).map((r) => ({
+      ORDER BY p.tx_id, p.event_id LIMIT ?`);
+  const identity = await readIdentity(db, hash, kind, null, [read.bind(padded(from.txId), padded(from.id), limit)]);
+  const events: FeedRecord[] = (identity.extraResults[0]!.results as Record<string, unknown>[]).map((r) => ({
     txId: String(r.tx_id), id: String(r.event_id), type: String(r.type),
     subjectType: String(r.subject_type), subjectId: r.subject_id as string | null,
     actorType: r.actor_type as HistoryEvent["actorType"], actorId: r.actor_id as string | null,
     occurredAt: new Date(r.occurred_at as number), payload: JSON.parse(r.payload as string) as Record<string, unknown>,
+    actorName: r.actor_name as string | null, subjectName: r.subject_name as string | null,
   }));
-  return { identity, events };
+  return { identity, events, from };
 }
 
 /** Offline import primitive, NOT an HTTP route or complete club importer.

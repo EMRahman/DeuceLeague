@@ -9,7 +9,7 @@ import { migrate } from "./helpers.ts";
 // Count actual statements executed against local D1, including all internal
 // API calls in one website request. This does not simulate edge CPU limits.
 function countedDatabase(raw: D1Database) {
-  let count = 0; let rowsRead = 0; let rowsWritten = 0;
+  let count = 0; let calls = 0; let rowsRead = 0; let rowsWritten = 0;
   // D1 bills rows read and written, which local D1 reports per statement.
   const measure = (result: unknown) => {
     for (const r of Array.isArray(result) ? result : [result]) {
@@ -25,7 +25,7 @@ function countedDatabase(raw: D1Database) {
       const method = Reflect.get(target, key);
       if (typeof method !== "function") return method;
       return (...args: unknown[]) => {
-        if (["all", "first", "run", "raw"].includes(String(key))) count++;
+        if (["all", "first", "run", "raw"].includes(String(key))) { count++; calls++; }
         const result = method.apply(target, args);
         return ["all", "run"].includes(String(key)) ? Promise.resolve(result).then(measure) : result;
       };
@@ -36,13 +36,13 @@ function countedDatabase(raw: D1Database) {
   const db = new Proxy(raw, { get(target, key) {
     if (key === "prepare") return (sql: string) => statement(target.prepare(sql));
     if (key === "batch") return (queries: D1PreparedStatement[]) => {
-      count += queries.length;
+      count += queries.length; calls++;
       return target.batch(queries.map((query) => originals.get(query) ?? query)).then(measure);
     };
     const value = Reflect.get(target, key);
     return typeof value === "function" ? value.bind(target) : value;
   } });
-  return { db, reset: () => { count = 0; rowsRead = 0; rowsWritten = 0; }, count: () => count,
+  return { db, reset: () => { count = 0; calls = 0; rowsRead = 0; rowsWritten = 0; }, count: () => count, calls: () => calls,
     rows: () => ({ read: rowsRead, written: rowsWritten }) };
 }
 
@@ -100,8 +100,20 @@ test("sample browser installation stays within its SQL statement budget and reta
   const home = await worker.fetch(new Request(env.PUBLIC_URL + "/", { headers: { cookie: `deuceleague_session=${session.token}` } }), env, ctx);
   assert.equal(home.status, 200); assert.match(await home.text(), /Hello, Sample Alex/);
   const rows = counted.rows();
-  t.diagnostic(`Sample player home: ${counted.count()} D1 statements, ${rows.read} rows read, ${rows.written} rows written`);
+  t.diagnostic(`Sample player home: ${counted.count()} D1 statements in ${counted.calls()} calls, ${rows.read} rows read, ${rows.written} rows written`);
   // Free allows 5 million rows read a day: this keeps a busy trial day of
   // player visits comfortably inside it. A regression target, not a platform limit.
   assert.ok(rows.read < 10_000, `the sample home page read ${rows.read} rows`);
+
+  // The coach's pages, each read in full on every visit.
+  for (const path of ["/coach", "/coach/results", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
+    counted.reset();
+    const page = await worker.fetch(new Request(env.PUBLIC_URL + path, { headers: { cookie: `deuceleague_coach=${admin}` } }), env, ctx);
+    assert.equal(page.status, 200, path); await page.text();
+    const read = counted.rows();
+    t.diagnostic(`Sample coach ${path}: ${counted.count()} D1 statements in ${counted.calls()} calls, ${read.read} rows read`);
+    // Workers Free allows 50 D1 queries a request, a batch counting as one.
+    assert.ok(counted.calls() <= 30, `${path} made ${counted.calls()} D1 calls; the sample budget is 30`);
+    assert.ok(read.read < 10_000, `${path} read ${read.read} rows`);
+  }
 });

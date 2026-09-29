@@ -6,6 +6,7 @@ export type FeedPosition = { txId: string; id: string };
 export type FeedEvent = FeedPosition & {
   type: string; subjectType: string; subjectId: string | null;
   actorType: string; actorId: string | null; occurredAt: Date; payload: unknown;
+  actorName: string | null; subjectName: string | null;
 };
 
 /**
@@ -16,9 +17,6 @@ const Cursor = z
   .string()
   .regex(/^\d{1,20}\.\d{1,20}$/, "a cursor from this feed, e.g. the `next_cursor` of the last page")
   .openapi({ example: "7461.1203" });
-
-/** Before the first event. */
-export const START: FeedPosition = { txId: "0", id: "0" };
 
 export const cursorOf = (p: FeedPosition) => `${p.txId}.${p.id}`;
 
@@ -36,6 +34,20 @@ const Event = z
     subject_id: z.uuid().nullable(),
     actor_type: ActorType,
     actor_id: z.uuid().nullable().openapi({ description: "The API key or member that caused it; null for the system." }),
+    actor_name: z.string().nullable().openapi({
+      example: "Coach website, 2026-09-29",
+      description:
+        "What the actor is called now: the key's name, or the member's display name. Looked up on reading, " +
+        "never stored, so an erased member reads \"Erased member\". A member's name needs `members:read`; " +
+        "null without it, for the system, or for a record since deleted.",
+    }),
+    subject_name: z.string().nullable().openapi({
+      example: "Sam K. v Alex P.",
+      description:
+        "What the subject is called now: a match as its two sides, an entry's label, a member's display name " +
+        "(with `members:read`), or the name of a season, competition, division, key, court or the club. " +
+        "Looked up on reading, like `actor_name`.",
+    }),
     occurred_at: Timestamp,
     payload: z.record(z.string(), z.unknown()).openapi({
       description: "Ids, names and what changed — never personal data, since the log cannot be erased.",
@@ -65,6 +77,8 @@ export function toEvent(e: FeedEvent): z.infer<typeof Event> {
     actor_id: e.actorId,
     occurred_at: iso(e.occurredAt),
     payload: e.payload as Record<string, unknown>,
+    actor_name: e.actorName,
+    subject_name: e.subjectName,
   };
 }
 
@@ -77,11 +91,15 @@ export const list = createRoute({
     "Everything that has happened in the club, oldest first, in the order it is safe to read: an event " +
     "appears only once nothing earlier can still appear, so reading on from `next_cursor` never skips " +
     "one. This is how adapters react to change — announcing results, refreshing a website — since the " +
-    "core sends nothing itself.",
+    "core sends nothing itself. `order=newest` reads backwards from the latest event instead, for " +
+    "showing people what happened; it makes no promise about events that commit while you page.",
   ...requires("league:read"),
   request: {
     query: z.object({
-      after: Cursor.optional().openapi({ description: "Omit to start from the beginning." }),
+      after: Cursor.optional().openapi({
+        description: "Carry on after this cursor, in the order asked for. Omit to start from the beginning, or from the latest event with `order=newest`.",
+      }),
+      order: z.enum(["oldest", "newest"]).default("oldest"),
       limit: z.coerce.number().int().min(1).max(500).default(100),
     }),
   },

@@ -3,21 +3,27 @@ import { commitIdentity, readEventFeed, retryMutation } from "@deuceleague/db-d1
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
-import { list, START, positionOf, cursorOf, toEvent } from "./contracts/events.js";
+import { list, positionOf, cursorOf, toEvent } from "./contracts/events.js";
 import { problems } from "./problems.js";
 
 export function registerCloudflareEvents(app: OpenAPIHono<CloudflareEnv>, db: D1Database) {
   app.openapi(list, async (c) => {
-    const { after, limit } = c.req.valid("query");
-    const from = after ? positionOf(after) : START;
+    const { after, limit, order } = c.req.valid("query");
     return retryMutation(async () => {
       const initial = c.get("identity");
-      const { identity, events } = await readEventFeed(db, initial.hash, initial.kind, from, limit);
+      const { identity, events, from } = await readEventFeed(db, initial.hash, initial.kind,
+        after ? positionOf(after) : null, limit, order);
       const access = c.get("requiredAccess");
       if (!access) throw problems.credentialNotAccepted(["api_key"]);
-      checkAccess(authFor(identity), access);
+      const auth = authFor(identity);
+      checkAccess(auth, access);
       await commitIdentity(db, identity, { type: "read" });
-      return c.json({ data: events.map(toEvent), next_cursor: cursorOf(events.at(-1) ?? from) }, 200);
+      // The member list needs members:read, so a member's name in the feed does too.
+      const names = auth.scopes.has("members:read");
+      const named = events.map((e) => ({ ...e,
+        actorName: e.actorType === "member" && !names ? null : e.actorName,
+        subjectName: e.subjectType === "member" && !names ? null : e.subjectName }));
+      return c.json({ data: named.map(toEvent), next_cursor: cursorOf(events.at(-1) ?? from) }, 200);
     });
   });
 }
