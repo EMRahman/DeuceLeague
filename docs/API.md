@@ -252,8 +252,8 @@ once, before it creates the club.
 API run together at the configured public origin.
 
 **The reference website** (`adapters/website`, MIT) is what players use out of
-the box: sign in with an emailed link, see their matches and tables, report
-and agree scores. It is an adapter like any other — it reaches the league
-only through this API, with its own key for signing players in and each
-player's session for everything else — and it sends the emails the core does
-not. A club can restyle it or replace it.
+the box: sign in with a link from the coach or, optionally, an emailed one,
+see their matches and tables, report and agree scores. It is an adapter like
+any other — it reaches the league only through this API, with its own key for
+signing players in and each player's session for everything else — and it
+sends any emails, since the core does not. A club can restyle it or replace it.

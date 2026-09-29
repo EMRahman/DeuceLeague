@@ -95,7 +95,8 @@ test("trusted origin and explicit email configuration govern the site without bl
   const f = await websiteFixture(t);
   const foreign = await f.request("https://attacker.invalid/"); assert.equal(foreign.status, 421);
   assert.equal((await f.request("/", { headers: { "x-forwarded-host": "attacker.invalid" } })).status, 200);
-  await f.configure({ MAIL_PROVIDER: "" }); assert.equal((await f.request("/")).status, 503);
+  // A provider that is named but unknown or incomplete is refused, not silently ignored.
+  await f.configure({ MAIL_PROVIDER: "smtp" }); assert.equal((await f.request("/")).status, 503);
   assert.equal((await f.request("/healthz")).status, 200);
   assert.equal((await f.api("/v1/me", f.admin)).status, 200);
   await f.configure({ MAIL_PROVIDER: "resend", PUBLIC_URL: "http://untrusted.example" });
@@ -154,3 +155,46 @@ test("expired links and removed members lose access through the website", async 
   const home = await sam.get("/"); assert.match(home.html, /Sign in to the league/);
   assert.match(sam.lastSetCookie(), /Max-Age=0/);
 });
+
+test("with no email configured, players sign in with a link from the coach and nothing is sent", async (t) => {
+  const f = await websiteFixture(t);
+  await f.configure({ MAIL_PROVIDER: "", MAIL_FROM: "", RESEND_API_KEY: "" });
+  const { members } = await playingWebsite(f);
+  const b = browser(f);
+  const page = await b.get("/");
+  assert.equal(page.status, 200); assert.match(page.html, /Ask your coach for a sign-in link/);
+  assert.doesNotMatch(page.html, /name="email"/);
+  const refused = await b.post("/login", { email: "sam@example.org" });
+  assert.equal(refused.status, 404); assert.match(refused.html, /Ask your coach/);
+  // The coach's key makes the link; the player opens it and presses Sign in.
+  const link = await f.api(`/v1/members/${members[0].id}/login-link`, f.admin, "POST");
+  assert.equal(link.status, 201);
+  const url = `/login?token=${encodeURIComponent(link.body.token)}`;
+  assert.equal((await b.get(url)).status, 200);
+  assert.equal((await b.post("/login/confirm", { token: link.body.token })).status, 303);
+  assert.match((await b.get("/")).html, /Hello, Sam/);
+  const again = await browser(f).post("/login/confirm", { token: link.body.token });
+  assert.equal(again.status, 401); assert.match(again.html, /Ask your coach for a new one/);
+  assert.equal(f.outbox.length, 0); assert.equal(f.outgoing.length, 0);
+});
+
+test("a club that starts without email can switch it on later; sessions and coach links carry on", async (t) => {
+  const f = await websiteFixture(t);
+  await f.configure({ MAIL_PROVIDER: "", MAIL_FROM: "", RESEND_API_KEY: "" });
+  const { members } = await playingWebsite(f);
+  const sam = browser(f);
+  const link = async (member: { id: string }) => (await f.api(`/v1/members/${member.id}/login-link`, f.admin, "POST")).body.token as string;
+  assert.equal((await sam.post("/login/confirm", { token: await link(members[0]) })).status, 303);
+  // The coach later sets up a provider: only Worker configuration changes, nothing in the club's data.
+  await f.configure({ MAIL_PROVIDER: "resend", MAIL_FROM: "Club <league@test.invalid>", RESEND_API_KEY: "re_test_only" });
+  assert.match((await sam.get("/")).html, /Hello, Sam/, "a session made before email still works");
+  assert.match((await browser(f).get("/")).html, /name="email"/);
+  const alex = await signIn(f, "alex@example.org");
+  assert.match((await alex.get("/")).html, /Hello, Alex/);
+  assert.equal(f.outbox.length, 1);
+  // Coach-made links still work alongside email, for players who prefer them.
+  const other = browser(f);
+  assert.equal((await other.post("/login/confirm", { token: await link(members[0]) })).status, 303);
+  assert.match((await other.get("/")).html, /Hello, Sam/);
+});
+

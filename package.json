@@ -38,10 +38,10 @@
         "description": "Exact HTTPS address players will use, such as https://your-worker.your-subdomain.workers.dev. Use the Worker name chosen above and your account subdomain. No path. See the trial guide if setting this after deployment."
       },
       "MAIL_PROVIDER": {
-        "description": "Use resend for the initial button trial. Native Cloudflare email needs a separate EMAIL binding and sender setup; see deploy/cloudflare/TRIAL.md."
+        "description": "Optional. Leave empty and players sign in with links from the coach. To email sign-in links, use resend (with a RESEND_API_KEY secret) or cloudflare (with an EMAIL binding); see deploy/cloudflare/TRIAL.md."
       },
       "MAIL_FROM": {
-        "description": "Sender address verified with your selected email provider, such as League <league@your-club.org>."
+        "description": "Only with MAIL_PROVIDER: a sender address verified with that provider, such as League <league@your-club.org>."
       },
       "SETUP_TOKEN": {
         "description": "Run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\\n'` and save the output as an independent secret. Enter it later at /install. Never reuse WEBSITE_API_KEY."
@@ -50,7 +50,7 @@
         "description": "Run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\\n'` again, prefix the output with dl_, and save it. Initialization registers it with website-only scopes."
       },
       "RESEND_API_KEY": {
-        "description": "Your Resend sending API key for the verified MAIL_FROM sender. It is stored as a Worker secret, not in D1."
+        "description": "Only with MAIL_PROVIDER resend: your Resend sending API key, added later as a Worker secret. It is stored as a Worker secret, not in D1."
       }
     }
   }

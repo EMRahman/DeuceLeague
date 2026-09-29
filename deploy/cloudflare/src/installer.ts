@@ -43,14 +43,15 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
     const response = await call("/setup/status", secret);
     if (!response.ok) return c.html(frame(html`<p>The installation secret was not accepted, or setup is unavailable.</p><a href="/install">Try again</a>`), response.status === 401 ? 401 : 503);
     const state = await response.json() as { initialized: boolean; website: string; sample_created: boolean };
-    let ready = true;
-    try { websiteConfig(env); } catch { ready = false; }
+    let ready = true; let email = false;
+    try { email = websiteConfig(env).mail !== null; } catch { ready = false; }
     if (state.initialized) return c.html(frame(html`<h2>Setup is complete</h2><p>This installation already has a club.</p>
       <p>Website credential: ${state.website === "registered" ? "ready" : "needs attention"}.</p>
-      <p>Email configuration: ${ready ? "present; delivery still needs testing" : "needs attention"}.</p>
+      <p>Email: ${!ready ? "needs attention" : email ? "configured; delivery still needs testing"
+        : "not set up. Players sign in with links from the coach."}</p>
       <p>Sample club: ${state.sample_created ? "created" : "not selected"}.</p>
       <p>Use your saved administrator key. Changing installation secrets does not reopen setup.</p><a href="/">Open the league</a>`));
-    if (!ready || state.website !== "unregistered") return c.html(frame(html`<p>Website or email configuration needs attention before creating the club.
+    if (!ready || state.website !== "unregistered") return c.html(frame(html`<p>Website configuration needs attention before creating the club.
       Check the deployment settings, then return here.</p><a href="/install">Check again</a>`), 503);
     return c.html(frame(html`<p>Save this administrator key in your password manager before continuing.
       It gives full control of your club and cannot be retrieved later.</p>
@@ -64,10 +65,11 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
       <p>The sample adds 22 fictional players: singles in three divisions of five, doubles in two divisions of five
       pairs, and 50 matches, most already played. Leave it unchecked for a real club. Samples can only be added during
       initial setup.</p>
-      <label>Email for Sample Alex (optional)<input type="email" name="sample_email" maxlength="254" autocomplete="email"></label>
+      <p>Sample Alex and Sample Bailey have an unplayed match against each other, so one can report a score and the
+      other agree it. Sign in as them with links made with your administrator key.</p>
+      ${email ? html`<label>Email for Sample Alex (optional)<input type="email" name="sample_email" maxlength="254" autocomplete="email"></label>
       <label>Email for Sample Bailey (optional)<input type="email" name="sample_bailey_email" maxlength="254" autocomplete="off"></label>
-      <p>Alex and Bailey have an unplayed match against each other, so one can report a score and the other agree it.
-      Use two addresses you can read. Setup sends no email; afterwards, request sign-in links from the league home page.</p>
+      <p>With these, Alex and Bailey can also request sign-in links by email. Setup sends no email.</p>` : ""}
       <button>Create club</button></form>`));
   });
   app.post("/install/create", async (c) => {
@@ -75,7 +77,7 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
     const status = await call("/setup/status", secret);
     if (!status.ok) return c.html(frame(html`<p>The installation secret was not accepted, or setup is unavailable.</p>`), status.status === 401 ? 401 : 503);
     if ((await status.json() as { initialized: boolean }).initialized) return c.html(complete(), 409);
-    try { websiteConfig(env); } catch { return c.html(frame(html`<p>Check the deployment's website and email configuration first.</p>`), 503); }
+    try { websiteConfig(env); } catch { return c.html(frame(html`<p>Check the deployment's website configuration first.</p>`), 503); }
     if (form.saved !== "yes" || !/^dl_[A-Za-z0-9_-]{43}$/.test(String(form.admin_key ?? ""))) {
       return c.html(frame(html`<p>Save a valid administrator key before creating your club.</p><a href="/install">Start again</a>`), 400);
     }
@@ -88,8 +90,9 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
       Keep your saved administrator key until you have checked setup status.</p><a href="/install">Check setup</a>`), response.status === 400 ? 400 : 503);
     return c.html(frame(html`<h2>Your club has been created</h2><p>Your saved administrator key is ready. Keep it private.</p>
       ${form.sample === "yes" ? html`<p>The sample league is ready: 22 fictional players and 50 matches.
-      Request a sign-in link on the home page with each address you supplied to play as Sample Alex or Sample Bailey.</p>` : ""}
-      <p>The website is connected. Email delivery still needs to be tested with your account.</p><a href="/">Open the league</a>`), 201);
+      Play as Sample Alex or Sample Bailey with a sign-in link from your administrator key, or by email if you set it up.</p>` : ""}
+      <p>The website is connected.${websiteConfig(env).mail ? " Email delivery still needs to be tested with your account." : ""}</p>
+      <a href="/">Open the league</a>`), 201);
   });
   app.notFound((c) => c.text("Not found", 404));
   app.onError((_error, c) => c.html(frame(html`<p>Setup is temporarily unavailable. Keep your saved administrator key and check setup again.</p>`), 503));

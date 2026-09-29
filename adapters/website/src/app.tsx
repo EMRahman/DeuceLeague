@@ -45,7 +45,8 @@ export type WebsiteOptions = {
   key: string | undefined;
   /** The address players use, for the links in emails. */
   publicUrl: string;
-  mail: Mailer;
+  /** Sends sign-in links by email. Left out, players sign in with links their coach hands them. */
+  mail?: Mailer;
   /** The outlook at the courts, for the home page. Left out, the page shows none. */
   weather?: Weather;
   /** Reserve an email cooldown before lookup. Workers inject shared persistent storage. */
@@ -306,11 +307,12 @@ export function createWebsite(options: WebsiteOptions) {
   // ─────────────────────────────────────────────────────────── signing in ──
 
   app.post("/login", async (c) => {
+    const frame = await anonymousFrame();
+    if (!mail) return c.html(<SignIn frame={frame} byEmail={false} />, 404);
     const form = await c.req.parseBody();
     const email = String(form.email ?? "").trim();
-    const frame = await anonymousFrame();
     if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 254) {
-      return c.html(<SignIn frame={frame} messages={["That does not look like an email address."]} />, 400);
+      return c.html(<SignIn frame={frame} byEmail messages={["That does not look like an email address."]} />, 400);
     }
 
     // The same answer whether or not the address is a member's, so the form
@@ -338,7 +340,7 @@ export function createWebsite(options: WebsiteOptions) {
     const url = new URL("/login", publicUrl);
     url.searchParams.set("token", link.token);
     const minutes = Math.round((Date.parse(link.expires_at) - now) / 60_000);
-    await mail({
+    await mail!({
       to: email,
       subject: `Sign in to ${frame.club}`,
       text:
@@ -365,8 +367,9 @@ export function createWebsite(options: WebsiteOptions) {
       return c.redirect("/", 303);
     } catch (error) {
       if (!(error instanceof ApiProblem) || error.problem.status !== 401) throw error;
-      const messages = ["That link has already been used, or has expired. Ask for a new one below."];
-      return c.html(<SignIn frame={await anonymousFrame()} messages={messages} />, 401);
+      const messages = [mail ? "That link has already been used, or has expired. Ask for a new one below."
+        : "That link has already been used, or has expired. Ask your coach for a new one."];
+      return c.html(<SignIn frame={await anonymousFrame()} byEmail={!!mail} messages={messages} />, 401);
     }
   });
 
@@ -385,7 +388,7 @@ export function createWebsite(options: WebsiteOptions) {
 
   app.get("/", async (c) => {
     const p = await player(c);
-    if (!p) return c.html(<SignIn frame={await anonymousFrame()} />);
+    if (!p) return c.html(<SignIn frame={await anonymousFrame()} byEmail={!!mail} />);
     const memberId = p.me.credential.member.id;
 
     // The weather is a help, never a reason the page fails: without it the page shows without the box.

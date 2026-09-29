@@ -45,8 +45,8 @@ HTTP client dispatches directly to the API handler with normal authentication.
 | --- | --- |
 | `PUBLIC_URL` | Exact canonical origin, e.g. `https://your-club.your-account.workers.dev`. HTTPS required except local loopback development. No path, query, credentials or fragment. |
 | `WEBSITE_API_KEY` | Secret for this installation with only `members:read`, `members:write`, `members:pii`. For a new club, supply a generated secret; setup registers its hash atomically. |
-| `MAIL_PROVIDER` | Explicitly `cloudflare` or `resend`. No logging mailer or automatic provider fallback. |
-| `MAIL_FROM` | Sender address, optionally with a display name. Must be accepted by the selected provider. |
+| `MAIL_PROVIDER` | Optional: empty for no email, or explicitly `cloudflare` or `resend`. No logging mailer or automatic provider fallback; a named provider that is incomplete keeps the website offline rather than silently dropping email. |
+| `MAIL_FROM` | Sender address, optionally with a display name, when `MAIL_PROVIDER` is set. Must be accepted by the selected provider. |
 | `EMAIL` | Cloudflare send-email binding, required only with `MAIL_PROVIDER=cloudflare`. |
 | `RESEND_API_KEY` | Provider secret, required only with `MAIL_PROVIDER=resend`. |
 | `SETUP_TOKEN` | Existing protected API-bootstrap secret. The website does not use it. |
@@ -59,8 +59,8 @@ For a new installation, run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n
 twice or use a password manager. Save the first output as `SETUP_TOKEN`; prefix
 the second output with `dl_` and save it as `WEBSITE_API_KEY`. Put both in the
 corresponding Worker secret fields. The optional `npm run cf:secrets` helper
-generates equivalent strong values. Configure the public origin and email,
-then open `/install`. Enter the installation secret, save the administrator
+generates equivalent strong values. Configure the public origin, and email if
+you want it, then open `/install`. Enter the installation secret, save the administrator
 key shown before creation, and enter the club details. Initialization registers
 the club, admin key and scoped website key together.
 
@@ -109,7 +109,13 @@ not transfer between hostnames; players sign in again on the new hostname.
 
 ## Email
 
-For native delivery, select `cloudflare` and add a Wrangler binding:
+Email is optional. With `MAIL_PROVIDER` empty, the sign-in page asks players for
+a link from their coach, and the coach makes one for a member with
+`POST /v1/members/{id}/login-link` and hands it over, for example on WhatsApp.
+The link opens `/login?token=…`, works once and lasts fifteen minutes, as an
+emailed one does.
+
+To email sign-in links, configure one provider. For native delivery, select `cloudflare` and add a Wrangler binding:
 
 ```json
 "send_email": [{ "name": "EMAIL" }]
