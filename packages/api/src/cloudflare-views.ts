@@ -10,6 +10,7 @@ import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import * as routes from "./contracts/standings.js";
 import { iso } from "./contracts/shared.js";
 import { daysRemaining, progressCounts, towardMinimum } from "./league/progress.js";
+import { tooFewToStay } from "./league/placements.js";
 import { playerVisible } from "./league/rules.js";
 import { tablesFromRecords } from "./league/tables.js";
 import { toStandings, toCounts, toChase } from "./league/views.js";
@@ -66,9 +67,12 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
       if (!competition) throw problems.notFound("competition");
       const deadline = s.data.seasons.find((r) => r.id === competition.seasonId)?.resultsDeadlineAt ?? null;
       const tables = tablesFromRecords(competition, s.data.divisions, s.data.entries, s.ledger, deadline, new Date(s.identity.now));
+      // Once the table is final, anyone short of the minimum leaves it as the draft would leave them out.
+      // Before then they can still play enough, so the arrows show the table as it stands.
       const suggestions = suggestPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
         RulesSpec.parse(competition.rules).movement, s.data.divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
-        new Set(s.data.entries.filter((e) => e.optedOutAt !== null).map((e) => e.id)));
+        new Set(s.data.entries.filter((e) => e.optedOutAt !== null).map((e) => e.id)),
+        tables.final ? tooFewToStay(competition, s.data.entries, s.ledger) : new Map());
       const movement = new Map(suggestions.flatMap((p) => p.reason === "promoted" || p.reason === "relegated" ? [[p.entryId, p.reason]] : []));
       return toStandings(id, { ...tables, divisions: tables.divisions.filter((d) => !division_id || d.division.id === division_id) }, movement);
     }), 200);

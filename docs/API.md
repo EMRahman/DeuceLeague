@@ -162,10 +162,14 @@ call fills it: every entry that finished is placed with its reason and a
 sentence saying why — the top three of each division promoted, the bottom
 three relegated, the rest held, by default; the draft's own rules set the
 counts, since it is the competition being built. Anyone who opted out of it is
-left out, and takes nobody's place with them. The coach then adjusts the draft as they like with the ordinary
-entry routes — moving, removing, adding newcomers — and submits it by
-activating the competition. Nothing is in effect until then: the engine
-suggests, and the coach decides.
+left out, and takes nobody's place with them; so, once the previous
+competition's tables are final, is anyone who played fewer matches than it
+expected of them (its `minMatchesToPlay`, or all their fixtures if fewer),
+with a sentence saying how many they played. A draft filled before then is
+provisional, and leaves nobody out for the minimum. The coach then adjusts the
+draft as they like with the ordinary entry routes — moving, removing, adding
+newcomers — and submits it by activating the competition. Nothing is in effect
+until then: the engine suggests, and the coach decides.
 
 **Matches** (`league:read`). `GET /v1/matches` lists matches oldest first, by
 competition, division, entry, member or status. `order=recent` lists the most
@@ -202,16 +206,18 @@ settlement of the coach's own does not.
 
 **Standings and progress** (`league:read`). Computed on request from the
 competition's rules — points, tiebreaks, unranked below the minimum played,
-and what a walkover is worth — and never stored. Each row says what separated it from the one above. Once the
-results deadline has passed, or the competition is complete, the table is
-final and a match still outstanding counts as unplayed. Progress for a
-competition and its divisions, or for an entry. Progress also counts the
-entries short of the competition's minimum: its `minMatchesToPlay` rule,
-default 4, is how many matches each entry is expected to play, or all its
-fixtures if it has fewer. Played counts as the tables count it. Nothing is
-enforced: the minimum is for chasing. `GET /v1/seasons/{id}/progress`
-gives every competition in a season at once, with who has opted out of the
-next one: a season's dashboard in one read.
+and what a walkover is worth — and never stored. Each row says what separated
+it from the one above. Once the results deadline has passed, or the
+competition is complete, the table is final and a match still outstanding
+counts as unplayed. Progress for a competition and its divisions, or for an
+entry. Progress also counts the entries short of the competition's minimum:
+its `minMatchesToPlay` rule, default 4, is how many matches each entry is
+expected to play, or all its fixtures if it has fewer. Played counts as the
+tables count it, and it matters when the next season's draft is filled: anyone
+still short is left out of it. Until the table is final, its promotion and
+relegation arrows take no account of it. `GET /v1/seasons/{id}/progress` gives
+every competition in a season at once, with who has opted out of the next one:
+a season's dashboard in one read.
 
 **Chase list.** Who has matches outstanding and how long is left, filterable
 by days remaining — `within_days=30` a month out, 14 a fortnight later. Each

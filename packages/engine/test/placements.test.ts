@@ -164,3 +164,20 @@ test("a removed division folds into the nearest existing target, with ties towar
     { promote: 0, relegate: 0, minMatchesForPromotion: 0 }, target));
   assert.equal(s.tie?.to, 1); assert.equal(s.closer?.to, 5);
 });
+
+test("someone who played too few to keep a place is not carried over, takes nobody's place, and is told why", () => {
+  const s = byId(
+    suggestPlacements(
+      [division(1, ["a1", "a2", "a3", "a4", "a5"]), division(2, ["b1", "b2", "b3", "b4", "b5"])],
+      movement,
+      divisions(2),
+      new Set(),
+      // b1 tops Division 2 and a5 is bottom of Division 1, but neither played enough.
+      new Map([["b1", { played: 1, target: 4 }], ["a5", { played: 3, target: 4 }]]),
+    ),
+  );
+  assert.equal(s.b1!.to, null); assert.equal(s.a5!.to, null);
+  assert.match(s.b1!.explanation, /^1st in Division 2, but played 1 of the 4 matches needed to keep a place, so not carried over/);
+  // Their places go to the next in line: b2 and b3 go up, a3 and a4 go down.
+  assert.deepEqual([s.b2!.reason, s.b3!.reason, s.a3!.reason, s.a4!.reason], ["promoted", "promoted", "relegated", "relegated"]);
+});

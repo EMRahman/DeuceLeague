@@ -726,7 +726,10 @@ export const Chase: FC<{
       {progress.length > 0 && (
         <div class="card">
           <h2>Short of the minimum</h2>
-          <p class="muted">Anyone with fewer fixtures than the minimum is expected to play them all.</p>
+          <p class="muted">
+            Anyone still short when the season ends is left out of next season's draft; you can add them back.
+            Anyone with fewer fixtures than the minimum is expected to play them all.
+          </p>
           <ul class="list">
             {progress.map((x) => (
               <li class="answer">

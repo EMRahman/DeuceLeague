@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import { randomUUID } from "node:crypto";
 import { commitPlacements, readPlacements, StaleSnapshotError, CredentialExpiredError, uuidv7 } from "@deuceleague/db-d1";
 import { decidePlacements } from "../../../packages/api/dist/league/placement-decision.js";
@@ -11,6 +11,13 @@ async function send(f: Fixture, path: string, method = "GET", body?: unknown, to
   const r = await f.call(path, token, method, body); return { status: r.status, body: r.status === 204 ? null : await r.json() as any };
 }
 async function create(f: Fixture, path: string, body: object) { const r = await send(f, path, "POST", body); assert.equal(r.status, 201, JSON.stringify(r.body)); return r.body; }
+/** These tests are about movement, exclusions and races, not the minimum: the source competition asks for none. */
+async function source(t: TestContext, count?: number, doubles?: boolean) {
+  const f = await playing(t, count, doubles);
+  const rules = (await send(f, `/v1/competitions/${f.ids.competition}`)).body.rules;
+  assert.equal((await send(f, `/v1/competitions/${f.ids.competition}`, "PATCH", { rules: { ...rules, minMatchesToPlay: 0 } })).status, 200);
+  return f;
+}
 async function target(f: Awaited<ReturnType<typeof playing>>, changes = {}) {
   return create(f, "/v1/competitions", { season_id: f.ids.season, name: randomUUID(), discipline: "singles", match_format: "best_of_3_sets", previous_competition_id: f.ids.competition, ...changes });
 }
@@ -28,7 +35,7 @@ async function eventCount(f: Fixture, id: string, type = "competition.placements
 }
 
 test("fills a draft with copied divisions, linked entries and per-entry audit events; activation stays explicit", async (t) => {
-  const f = await playing(t, 3); const next = await target(f);
+  const f = await source(t, 3); const next = await target(f);
   await send(f, `/v1/divisions/${f.ids.division}`, "PATCH", { name: "Top", target_size: 12 });
   const cursor = (await send(f, "/v1/events?limit=500")).body.next_cursor;
   const filled = await fill(f, next.id); assert.equal(filled.status, 201, JSON.stringify(filled.body));
@@ -55,7 +62,7 @@ test("fills a draft with copied divisions, linked entries and per-entry audit ev
 });
 
 test("draft rules govern movement and opt-outs free places; withdrawals and removed members are excluded", async (t) => {
-  const f = await playing(t, 3); const comp = (await send(f, `/v1/competitions/${f.ids.competition}`)).body;
+  const f = await source(t, 3); const comp = (await send(f, `/v1/competitions/${f.ids.competition}`)).body;
   const bottom = await create(f, `/v1/competitions/${f.ids.competition}/divisions`, {});
   const entries: string[] = [], members: string[] = [];
   for (let i = 1; i <= 4; i++) { const m = await f.member(`B${i}`); members.push(m);
@@ -73,7 +80,7 @@ test("draft rules govern movement and opt-outs free places; withdrawals and remo
 });
 
 test("doubles stay together with their custom label and role order; removal of either partner excludes the pair", async (t) => {
-  const f = await playing(t, 2, true);
+  const f = await source(t, 2, true);
   await send(f, `/v1/entries/${f.entries[0]}`, "PATCH", { display_name: "The A team", seed: 2 });
   await send(f, `/v1/members/${f.members[1]![1]}`, "DELETE");
   const next = await target(f, { discipline: "doubles" });
@@ -85,7 +92,7 @@ test("doubles stay together with their custom label and role order; removal of e
 });
 
 test("pre-existing divisions, including ordinal gaps, are retained and every selected division exists", async (t) => {
-  const f = await playing(t, 3); const next = await target(f);
+  const f = await source(t, 3); const next = await target(f);
   const top = await create(f, `/v1/competitions/${next.id}/divisions`, { ordinal: 1, name: "Coach top" });
   const low = await create(f, `/v1/competitions/${next.id}/divisions`, { ordinal: 4, name: "Coach lower" });
   const r = await fill(f, next.id); assert.equal(r.status, 201, JSON.stringify(r.body)); assert.equal(r.body.divisions_copied, false);
@@ -95,7 +102,7 @@ test("pre-existing divisions, including ordinal gaps, are retained and every sel
 });
 
 test("missing previous competition, incompatible discipline and invalid credentials cannot fill a draft", async (t) => {
-  const f = await playing(t); const next = await target(f, { previous_competition_id: null });
+  const f = await source(t); const next = await target(f, { previous_competition_id: null });
   assert.equal((await fill(f, next.id)).body.code, "no_previous_competition");
   await send(f, `/v1/competitions/${next.id}`, "PATCH", { previous_competition_id: f.ids.competition, discipline: "doubles" });
   assert.equal((await fill(f, next.id)).body.code, "discipline_mismatch");
@@ -107,7 +114,7 @@ test("missing previous competition, incompatible discipline and invalid credenti
 });
 
 test("simultaneous fills create one complete draft, never duplicate lineups or audit events", async (t) => {
-  const f = await playing(t, 4); const next = await target(f);
+  const f = await source(t, 4); const next = await target(f);
   const results = await Promise.all([fill(f, next.id), fill(f, next.id)]);
   assert.deepEqual(results.map((r) => r.status).sort(), [201, 409]);
   assert.equal(results.find((r) => r.status === 409)!.body.code, "entries_exist");
@@ -115,7 +122,7 @@ test("simultaneous fills create one complete draft, never duplicate lineups or a
 });
 
 test("a late final audit failure rolls back divisions, entries, lineups, all audits, usage and revision", async (t) => {
-  const f = await playing(t, 3); const next = await target(f);
+  const f = await source(t, 3); const next = await target(f);
   await change(f.db, [f.db.prepare("UPDATE api_key SET last_used_at = NULL"),
     f.db.prepare("CREATE TRIGGER fail_fill BEFORE INSERT ON event WHEN NEW.type = 'competition.placements_filled' BEGIN SELECT RAISE(ABORT, 'late fill failure'); END")]);
   const rev = await f.db.prepare("SELECT revision FROM mutation_clock").first("revision");
@@ -129,7 +136,7 @@ test("a late final audit failure rolls back divisions, entries, lineups, all aud
 });
 
 test("a failure while inserting lineups leaves no partial entries or copied divisions", async (t) => {
-  const f = await playing(t, 3); const next = await target(f);
+  const f = await source(t, 3); const next = await target(f);
   await change(f.db, [f.db.prepare(`CREATE TRIGGER fail_lineup BEFORE INSERT ON entry_member
     WHEN NEW.competition_id <> (SELECT id FROM competition WHERE state = 'active' LIMIT 1)
     BEGIN SELECT RAISE(ABORT, 'lineup failure'); END`)]);
@@ -138,7 +145,7 @@ test("a failure while inserting lineups leaves no partial entries or copied divi
 });
 
 test("crossing the source deadline aborts a provisional plan and the next attempt uses final tables", async (t) => {
-  const f = await playing(t); const next = await target(f);
+  const f = await source(t); const next = await target(f);
   await send(f, `/v1/seasons/${f.ids.season}`, "PATCH", { results_deadline_at: new Date(Date.now() + 700).toISOString() });
   const plan = await prepare(f, next.id); assert.equal(plan.response.final, false);
   await new Promise((r) => setTimeout(r, 750));
@@ -150,7 +157,7 @@ test("crossing the source deadline aborts a provisional plan and the next attemp
 });
 
 test("credential expiry at commit refuses an otherwise valid draft fill", async (t) => {
-  const f = await playing(t); const next = await target(f);
+  const f = await source(t); const next = await target(f);
   const key = await create(f, "/v1/api-keys", { name: "Short", scopes: ["league:write"], expires_at: new Date(Date.now() + 700).toISOString() });
   const plan = await prepare(f, next.id, key.key); await new Promise((r) => setTimeout(r, 750));
   await assert.rejects(commitPlacements(f.db, plan.snapshot, plan.writes), CredentialExpiredError);
@@ -158,7 +165,7 @@ test("credential expiry at commit refuses an otherwise valid draft fill", async 
 });
 
 test("opt-outs, removals, corrected scores, draft rules and previous-link changes invalidate prepared fills", async (t) => {
-  const f = await playing(t, 3); const next = await target(f);
+  const f = await source(t, 3); const next = await target(f);
   for (const mutate of [
     () => send(f, `/v1/entries/${f.entries[0]}/opt-out`, "POST"),
     () => send(f, `/v1/members/${f.members[1]![0]}`, "DELETE"),
@@ -175,7 +182,7 @@ test("opt-outs, removals, corrected scores, draft rules and previous-link change
 });
 
 test("fill racing a manual entry or activation never mixes two decisions", async (t) => {
-  const f = await playing(t, 3);
+  const f = await source(t, 3);
   for (const kind of ["entry", "activate"]) {
     const next = await target(f); const d = await create(f, `/v1/competitions/${next.id}/divisions`, {});
     const results = await Promise.all([fill(f, next.id), kind === "activate"
@@ -189,19 +196,63 @@ test("fill racing a manual entry or activation never mixes two decisions", async
 });
 
 test("empty sources and all-excluded drafts are harmless to fill again without duplicating divisions", async (t) => {
-  const f = await playing(t, 0); const next = await target(f);
+  const f = await source(t, 0); const next = await target(f);
   const first = await fill(f, next.id); assert.equal(first.status, 201); assert.equal(first.body.placed.length, 0); assert.equal(first.body.divisions_copied, true);
   const again = await fill(f, next.id); assert.equal(again.status, 201); assert.equal(again.body.divisions_copied, false);
   assert.equal((await summary(f, next.id)).divisions.length, 1);
-  const g = await playing(t, 2); for (const id of g.entries) await send(g, `/v1/entries/${id}/opt-out`, "POST");
+  const g = await source(t, 2); for (const id of g.entries) await send(g, `/v1/entries/${id}/opt-out`, "POST");
   const draft = await target(g); const excluded = await fill(g, draft.id);
   assert.equal(excluded.body.not_carried.length, 2); assert.equal(excluded.body.placed.length, 0);
   assert.equal((await fill(g, draft.id)).status, 201);
 });
 
 test("a foreign installation cannot fill this draft or name its source", async (t) => {
-  const f = await playing(t); const other = await playing(t); const next = await target(f);
+  const f = await source(t); const other = await source(t); const next = await target(f);
   assert.equal((await fill(f, next.id, other.admin)).status, 401);
   assert.equal((await fill(other, next.id)).status, 404);
   assert.equal((await send(f, `/v1/competitions/${next.id}`, "PATCH", { previous_competition_id: other.ids.competition })).status, 400);
+});
+
+test("filling next season leaves out anyone short of the minimum, judged by the season they played", async (t) => {
+  const { websiteFixture } = await import("./website-helpers.ts");
+  const f = await websiteFixture(t, { sample: true });
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles");
+  // A minimum of 3 leaves the sample with players on both sides of it.
+  const own = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
+  assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { rules: { ...own, minMatchesToPlay: 3 } })).status, 200);
+  // Before the deadline, the arrows ignore the minimum: nearly everyone can still play enough.
+  const arrows = async () => (await f.api(`/v1/competitions/${singles.id}/standings`, f.admin)).body.divisions
+    .flatMap((d: { rows: { label: string; movement: string | null; played: number }[] }) => d.rows);
+  assert.ok((await arrows()).some((r: { movement: string | null }) => r.movement !== null));
+  // A draft filled early is provisional: nobody is left out for the minimum yet.
+  const early = await f.create("/v1/seasons", { name: "Early" });
+  const provisional = await f.create("/v1/competitions", { season_id: early.id, name: "Early singles", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak", previous_competition_id: singles.id });
+  const early_fill = (await f.api(`/v1/competitions/${provisional.id}/placements`, f.admin, "POST")).body;
+  assert.equal(early_fill.final, false);
+  assert.ok(early_fill.not_carried.every((n: { explanation: string }) => !/needed to keep a place/.test(n.explanation)));
+
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { results_deadline_at: new Date(Date.now() - 60_000).toISOString() })).status, 200);
+  const final = await arrows();
+  const short = final.filter((r: { played: number }) => r.played < 3).map((r: { label: string }) => r.label);
+  assert.ok(short.length > 0 && short.length < final.length, "some short, some not, in the sample");
+  assert.ok(final.every((r: { label: string; movement: string | null }) => !short.includes(r.label) || r.movement === null),
+    "once final, nobody short is shown going up or down");
+
+  const next = await f.create("/v1/seasons", { name: "Next" });
+  // The draft's own minimum is 1, but the season they played asked 3: that is the one that counts.
+  const rules = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
+  const draft = await f.create("/v1/competitions", { season_id: next.id, name: "Next singles", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak", previous_competition_id: singles.id, rules: { ...rules, minMatchesToPlay: 1 } });
+  const filled = await f.api(`/v1/competitions/${draft.id}/placements`, f.admin, "POST");
+  assert.equal(filled.status, 201, JSON.stringify(filled.body));
+  const left = filled.body.not_carried as { label: string; explanation: string }[];
+  for (const label of short) {
+    const out = left.find((n) => n.label === label);
+    assert.ok(out, `${label} is left out`);
+    assert.match(out!.explanation, /but played \d of the 3 matches needed to keep a place, so not carried over/);
+  }
+  assert.ok(filled.body.placed.every((p: { label: string }) => !short.includes(p.label)), "nobody short is placed");
+  assert.equal(filled.body.placed.length + left.length, final.length);
 });

@@ -35,6 +35,8 @@ export function suggestPlacements(
   target: readonly TargetDivision[],
   /** Entries whose players have said they are not playing in the next competition. */
   optedOut: ReadonlySet<string> = new Set(),
+  /** Entries that played fewer matches than the competition expected: how many they played, of how many. */
+  tooFewToStay: ReadonlyMap<string, { played: number; target: number }> = new Map(),
 ): PlacementSuggestion[] {
   const ordinals = target.map((d) => d.ordinal).sort((a, b) => a - b);
   if (ordinals.length === 0) return [];
@@ -49,10 +51,11 @@ export function suggestPlacements(
     const here = nearest(division.ordinal);
     const up = ordinals.filter((n) => n < division.ordinal).at(-1) ?? here;
     const down = ordinals.find((n) => n > division.ordinal) ?? here;
-    // Someone who has opted out is out of the reckoning: they take no
-    // promotion place from the entry below them, and no relegation place
-    // from the one above.
-    const active = division.standings.filter((r) => r.standing !== "withdrawn" && !optedOut.has(r.entryId));
+    // Someone who has opted out, or played too few matches to keep a place, is
+    // out of the reckoning: they take no promotion place from the entry below
+    // them, and no relegation place from the one above.
+    const active = division.standings.filter((r) =>
+      r.standing !== "withdrawn" && !optedOut.has(r.entryId) && !tooFewToStay.has(r.entryId));
 
     // Promotion: the top of the ranked table, passing over anyone who played
     // too few matches — their place goes to the next entry down.
@@ -87,6 +90,16 @@ export function suggestPlacements(
           explanation:
             `${place}, but opted out of the next competition, so not carried over. ` +
             "Add them back if they change their mind.",
+        });
+      } else if (tooFewToStay.has(row.entryId) && row.standing !== "withdrawn") {
+        const { played, target } = tooFewToStay.get(row.entryId)!;
+        suggestions.push({
+          ...base,
+          to: null,
+          reason: null,
+          explanation:
+            `${place}, but played ${played} of the ${target} ${target === 1 ? "match" : "matches"} needed to keep ` +
+            "a place, so not carried over. Add them back if they are staying.",
         });
       } else if (row.standing === "withdrawn") {
         suggestions.push({

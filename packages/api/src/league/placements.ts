@@ -1,9 +1,10 @@
-import type { DivisionRecord, EntryRecord, LeagueCompetitionRecord } from "@deuceleague/db-d1";
+import type { DivisionRecord, EntryRecord, LeagueCompetitionRecord, LedgerMatch } from "@deuceleague/db-d1";
 import { suggestPlacements } from "@deuceleague/engine";
 import { RulesSpec } from "@deuceleague/schema";
 import type { z } from "@hono/zod-openapi";
 import type { NotCarried } from "../contracts/placements.js";
 import { problems } from "../problems.js";
+import { towardMinimum } from "./progress.js";
 import type { DivisionTable } from "./tables.js";
 
 export function checkPlacementTarget(target: LeagueCompetitionRecord | null, entryCount: number) {
@@ -22,12 +23,23 @@ export function checkPlacementSource(target: LeagueCompetitionRecord, previous: 
     "An entry moves as a unit, so both must be singles or both doubles.");
 }
 
+/**
+ * The entries of a competition that played fewer matches than it expected of them —
+ * its own minimum, or all their fixtures if fewer — which are not carried into
+ * the next one.
+ */
+export function tooFewToStay(competition: LeagueCompetitionRecord, entries: EntryRecord[], ledger: LedgerMatch[]) {
+  const counts = towardMinimum(RulesSpec.parse(competition.rules), competition.matchFormat, entries, ledger);
+  return new Map([...counts].filter(([, c]) => c.played < c.target));
+}
+
 /** Shared placement/exclusion decision; persistence happens only after the complete plan exists. */
 export function placementSelections(target: LeagueCompetitionRecord, tables: { divisions: DivisionTable[] },
-  divisions: DivisionRecord[], previousEntries: EntryRecord[], removed: ReadonlySet<string>) {
+  divisions: DivisionRecord[], previousEntries: EntryRecord[], removed: ReadonlySet<string>,
+  short: ReadonlyMap<string, { played: number; target: number }>) {
   const suggestions = suggestPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
     RulesSpec.parse(target.rules).movement, divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
-    new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)));
+    new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)), short);
   const before = new Map(previousEntries.map((e) => [e.id, e]));
   const selected: { source: EntryRecord; division: DivisionRecord; reason: "promoted" | "relegated" | "held";
     label: string; from: { division: number; position: number | null }; explanation: string }[] = [];
