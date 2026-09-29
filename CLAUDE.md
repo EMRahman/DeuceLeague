@@ -40,6 +40,9 @@ deploy/cloudflare Worker entry point, installer, deployment and recovery tools
   operations.
 - API changes need an OpenAPI contract in `packages/api/src/contracts` and a
   matching Cloudflare route.
+- `docs/openapi.json` and `docs/api.html` are generated API documentation. Do
+  not edit them by hand; after changing the contract or routes, run
+  `npm run docs:openapi` and commit both files. `npm test` detects stale output.
 - API responses and player pages are `no-store`. Only public Open-Meteo JSON
   may enter the Worker Cache API.
 - Never log credentials, login links, mail-provider errors, or personal data.
