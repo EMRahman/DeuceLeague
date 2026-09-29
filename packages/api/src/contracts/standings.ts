@@ -115,11 +115,6 @@ export const Progress = z
         name: z.string(),
         active_entries: z.number().int(),
         ...Counts,
-        minimum_matches: z.number().int().openapi({
-          description:
-            "What this division's entries are expected to play: the rule, or all their fixtures where they have " +
-            "fewer. 0 with no fixtures drawn yet.",
-        }),
         below_minimum: BelowMinimum,
       }),
     ),

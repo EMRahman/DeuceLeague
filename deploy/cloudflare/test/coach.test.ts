@@ -248,36 +248,17 @@ test("the chase list and dashboard say how many are short of the minimum, and wh
   assert.doesNotMatch(home, /short of the \d+-match minimum/, "the table replaces the sentence");
 });
 
-test("the coach sets a competition's minimum on the dashboard, changing nothing else in its rules", async (t) => {
+test("the dashboard's table follows a minimum the coach's agent sets", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles");
-  const before = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
-  const action = `/coach/competitions/${singles.id}/minimum`;
-  const home = await coach.get("/coach");
-  assert.match(home.html, new RegExp(`action="${action}"`));
-  assert.deepEqual(dashboardTables(home.html)["Sample singles"]!.slice(1), await expectedRows(f, singles.id));
-  assert.doesNotMatch(home.html, /5 players: 4/, "no line of targets under the setting");
-
-  const saved = await coach.post(action, { minimum: "5" });
-  assert.equal(saved.status, 303); assert.equal(saved.location, `/coach?saved=${singles.id}#competition-${singles.id}`);
-  const after = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
-  assert.deepEqual(after, { ...before, minMatchesToPlay: 5 }, "only the minimum changed");
-  const page = await coach.get(saved.location!);
-  assert.match(page.html, /Saved: each player is expected to play 5 matches/);
-  assert.deepEqual(dashboardTables(page.html)["Sample singles"]!.slice(1), await expectedRows(f, singles.id), "the table follows the new minimum");
-
-  for (const typed of ["", "abc", "51", "-1", "4.5"]) {
-    const refused = await coach.post(action, { minimum: typed });
-    assert.equal(refused.status, 400, typed); assert.match(refused.html, /whole number from 0 to 50/);
+  assert.deepEqual(dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(1), await expectedRows(f, singles.id));
+  assert.doesNotMatch((await coach.get("/coach")).html, /name="minimum"/, "the minimum is the agent's to set");
+  for (const minimum of [2, 0]) {
+    const rules = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
+    assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { rules: { ...rules, minMatchesToPlay: minimum } })).status, 200);
+    const rows = dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(1);
+    assert.deepEqual(rows, await expectedRows(f, singles.id), `minimum ${minimum}`);
   }
-  assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules.minMatchesToPlay, 5, "refusals change nothing");
-  assert.equal((await coach.post(action, { minimum: "3" }, "https://evil.invalid")).status, 403, "another site's form");
-
-  // A key that reads the league but can't change it.
-  const reader = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Reader", scopes: ["league:read", "members:read", "members:write"] })).body.key;
-  const limited = browser(f); assert.equal((await limited.post("/coach/sign-in", { key: reader })).status, 303);
-  const denied = await limited.post(action, { minimum: "3" });
-  assert.equal(denied.status, 403); assert.match(denied.html, /can(&#39;|')t change the league/);
-  assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules.minMatchesToPlay, 5);
+  assert.equal((await coach.post(`/coach/competitions/${singles.id}/minimum`, { minimum: "5" })).status, 404, "no setting on the coach's site");
 });

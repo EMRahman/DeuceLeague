@@ -3945,10 +3945,6 @@
                     "null"
                   ]
                 },
-                "minimum_matches": {
-                  "type": "integer",
-                  "description": "What this division's entries are expected to play: the rule, or all their fixtures where they have fewer. 0 with no fixtures drawn yet."
-                },
                 "below_minimum": {
                   "type": "integer",
                   "description": "Active entries that have played fewer than `minimum_matches`, or than all their fixtures if they have fewer. Played is counted as the tables count it."
@@ -3965,7 +3961,6 @@
                 "reported",
                 "disputed",
                 "percent_played",
-                "minimum_matches",
                 "below_minimum"
               ]
             }

@@ -51,7 +51,6 @@ export type Progress = Counts & {
     ordinal: number;
     name: string;
     active_entries: number;
-    minimum_matches: number;
     below_minimum: number;
   })[];
 };
@@ -118,8 +117,6 @@ table.progress tfoot td { font-weight: 600; border-bottom: 0; }
 .scroll-x { overflow-x: auto; }
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
-form.minimum { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin: 1rem 0 .35rem; }
-form.minimum label { margin: 0; }
 .after { margin-top: .75rem; }
 `;
 
@@ -224,9 +221,7 @@ export const Dashboard: FC<{
   frame: Frame;
   seasons: SeasonView[];
   timezone: string;
-  /** The competition whose minimum was just saved. */
-  saved: string | null;
-}> = ({ frame, seasons, timezone, saved }) => (
+}> = ({ frame, seasons, timezone }) => (
   <Layout title="Dashboard" frame={frame}>
     {seasons.length === 0 && (
       <>
@@ -263,12 +258,6 @@ export const Dashboard: FC<{
           {competitions.map(({ progress, optedOut, next }) => (
             <div class="card" id={`competition-${progress.competition_id}`}>
               <h2>{progress.name}</h2>
-              {saved === progress.competition_id && (
-                <div class="notice ok" role="status">
-                  Saved: each {progress.discipline === "doubles" ? "pair" : "player"} is expected to play{" "}
-                  {plural(progress.minimum_matches, "match", "matches")}.
-                </div>
-              )}
               <progress value={progress.played} max={Math.max(progress.matches, 1)} />
               <p>
                 {progress.played} of {plural(progress.matches, "match", "matches")} played
@@ -307,7 +296,6 @@ export const Dashboard: FC<{
                   : `Opted out of next season: ${optedOut.join(", ")}.`}{" "}
                 {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
               </p>
-              <MinimumSetting progress={progress} />
             </div>
           ))}
         </>
@@ -315,23 +303,6 @@ export const Dashboard: FC<{
     })}
   </Layout>
 );
-
-/**
- * How many matches each player is expected to play in a competition. A division
- * too small to give that many expects all its matches.
- */
-const MinimumSetting: FC<{ progress: SeasonProgress["competitions"][number] }> = ({ progress }) => {
-  const id = `minimum-${progress.competition_id}`;
-  return (
-    <form class="minimum" method="post" action={`/coach/competitions/${progress.competition_id}/minimum`}>
-      <label for={id}>Minimum matches each</label>
-      <input id={id} name="minimum" type="number" min="0" max="50" value={String(progress.minimum_matches)} required />
-      <button class="quiet small" type="submit">
-        Save
-      </button>
-    </form>
-  );
-};
 
 /** A division's row in the dashboard's table, or the competition's total under it. */
 const ProgressRow: FC<{
@@ -902,17 +873,12 @@ export const SignInLink: FC<{ frame: Frame; member: string; url: string; hours: 
   </Layout>
 );
 
-export const Problem: FC<{ frame: Frame; title: string; detail: string; back?: { href: string; label: string } }> = ({
-  frame,
-  title,
-  detail,
-  back = { href: "/coach/members", label: "Back to members" },
-}) => (
+export const Problem: FC<{ frame: Frame; title: string; detail: string }> = ({ frame, title, detail }) => (
   <Layout title={title} frame={frame}>
     <h1>{title}</h1>
     <p>{detail}</p>
     <p>
-      <a href={back.href}>{back.label}</a>
+      <a href="/coach/members">Back to members</a>
     </p>
   </Layout>
 );

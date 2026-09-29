@@ -5,9 +5,8 @@ the season has got, sort out results the players have not agreed, see the
 tables and forecast as players do, see what happened lately, see who to chase,
 and make a player's sign-in link to hand over, for example on WhatsApp.
 Server-rendered HTML with no scripts, in the players' site's style. It reads
-the league and changes only sign-in links and each competition's minimum
-number of matches; the coach's coding agent makes other changes through the
-API.
+the league and changes nothing in it but sign-in links; the coach's coding
+agent makes other changes through the API.
 
 Like the [players' website](../website/README.md), it is an adapter. It
 reaches the league only through the HTTP API and holds nothing of its own.
@@ -36,11 +35,6 @@ MIT-licensed.
   percentage (`GET /v1/seasons/{id}/progress`, one read a season however many
   competitions it runs). It names who has opted out of next season and says
   whether next season's competition is drafted yet.
-- **The minimum number of matches.** Each competition's card on the
-  dashboard has "Minimum matches each". Saving it reads the competition's rules and sends them back with only
-  `minMatchesToPlay` changed, since a `PATCH` replaces the rules whole. It
-  needs `league:write`, which a browser key made from the administrator key
-  holds.
 - **Results** (`/coach/results`). Disputes, with what each side says and what
   differs; reports waiting on the other side, the longest waiting first; and,
   once a season's deadline has passed, its matches nobody played. Up to 12 are
