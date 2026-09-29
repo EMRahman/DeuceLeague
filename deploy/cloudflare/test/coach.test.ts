@@ -183,3 +183,11 @@ test("activity shows the latest ten results and ten events, with fifty more a pa
     assert.equal((await coach.get(path)).status, 200, `${path}: a mangled cursor starts from the newest`);
   }
 });
+
+test("a browser still holding a key without league:read, from before these pages, is sent to sign in again", async (t) => {
+  const f = await websiteFixture(t);
+  const old = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Old coach key", scopes: ["members:read", "members:write"] })).body.key;
+  const r = await f.request("/coach", { headers: { cookie: `deuceleague_coach=${old}` } });
+  assert.equal(r.status, 200); assert.match(await r.text(), /Coach sign-in/);
+  assert.match(r.headers.get("set-cookie") ?? "", /Max-Age=0/, "the cookie is forgotten");
+});

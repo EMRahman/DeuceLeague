@@ -11,7 +11,8 @@ const score = (value: unknown): Score | null => value === null ? null : JSON.par
 function matchRecord(row: Row, sides: MatchRecord["sides"]): MatchRecord {
   return {
     id: String(row.id), clubId: String(row.club_id), competitionId: String(row.competition_id),
-    divisionId: nullableString(row.division_id), status: String(row.status), outcome: nullableString(row.outcome),
+    divisionId: nullableString(row.division_id), competitionName: String(row.competition_name),
+    divisionName: nullableString(row.division_name), status: String(row.status), outcome: nullableString(row.outcome),
     score: score(row.score), winningSide: nullableNumber(row.winning_side), retiredSide: nullableNumber(row.retired_side),
     playedOn: nullableString(row.played_on), acceptedSubmissionId: nullableString(row.accepted_submission_id),
     createdAt: new Date(Number(row.created_at)), updatedAt: new Date(Number(row.updated_at)), sides,
@@ -31,9 +32,11 @@ function claimRecord(row: Row): ClaimRecord {
 /** Exactly the same reads serve pre-decision snapshots and post-write responses. */
 function resultReads(db: D1Database, matchId: string): D1PreparedStatement[] {
   return [
-    db.prepare(`SELECT m.*, c.state AS competition_state, c.visibility, c.match_format, s.results_deadline_at
+    db.prepare(`SELECT m.*, c.state AS competition_state, c.visibility, c.match_format, s.results_deadline_at,
+        c.name AS competition_name, d.name AS division_name
       FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
       JOIN season s ON s.id = c.season_id AND s.club_id = c.club_id
+      LEFT JOIN division d ON d.id = m.division_id AND d.competition_id = m.competition_id
       WHERE m.id = ? AND m.club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(matchId),
     db.prepare(`SELECT s.side_index, s.entry_id, el.label FROM match_side s
       LEFT JOIN entry_label el ON el.entry_id = s.entry_id AND el.club_id = s.club_id
@@ -142,7 +145,9 @@ export async function readMatchPage(db: D1Database, hash: string, kind: Credenti
       SELECT json_group_array(json_object('sideIndex', s.side_index, 'entryId', s.entry_id, 'label', el.label) ORDER BY s.side_index)
       FROM match_side s LEFT JOIN entry_label el ON el.entry_id = s.entry_id AND el.club_id = s.club_id
       WHERE s.match_id = m.id AND s.club_id = m.club_id
-    ) AS sides_json FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
+    ) AS sides_json, c.name AS competition_name, d.name AS division_name
+    FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
+    LEFT JOIN division d ON d.id = m.division_id AND d.competition_id = m.competition_id
     WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
       AND (? IS NULL OR (m.updated_at, m.id) < (SELECT a.updated_at, a.id FROM match a WHERE a.id = ?))
       AND (? IS NULL OR m.competition_id = ?) AND (? IS NULL OR m.division_id = ?)
@@ -156,7 +161,9 @@ export async function readMatchPage(db: D1Database, hash: string, kind: Credenti
       SELECT json_group_array(json_object('sideIndex', s.side_index, 'entryId', s.entry_id, 'label', el.label) ORDER BY s.side_index)
       FROM match_side s LEFT JOIN entry_label el ON el.entry_id = s.entry_id AND el.club_id = s.club_id
       WHERE s.match_id = m.id AND s.club_id = m.club_id
-    ) AS sides_json FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
+    ) AS sides_json, c.name AS competition_name, d.name AS division_name
+    FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
+    LEFT JOIN division d ON d.id = m.division_id AND d.competition_id = m.competition_id
     WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
       AND (? IS NULL OR m.id > ?)
       AND (? IS NULL OR m.competition_id = ?) AND (? IS NULL OR m.division_id = ?)

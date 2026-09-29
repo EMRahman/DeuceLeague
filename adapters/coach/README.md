@@ -30,7 +30,8 @@ MIT-licensed.
 - **Dashboard** (`/coach`). For each active season: the time left to report
   results, and for each active competition how many matches are played,
   waiting on the other side or disputed, overall and by division
-  (`GET /v1/competitions/{id}/progress`). It names who has opted out of next
+  (`GET /v1/seasons/{id}/progress`, one read a season however many
+  competitions it runs). It names who has opted out of next
   season and says whether next season's competition is drafted yet.
 - **Results** (`/coach/results`). Disputes, with what each side says and what
   differs; reports waiting on the other side, the longest waiting first; and,

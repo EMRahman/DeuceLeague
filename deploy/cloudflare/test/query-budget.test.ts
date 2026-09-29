@@ -106,14 +106,41 @@ test("sample browser installation stays within its SQL statement budget and reta
   assert.ok(rows.read < 10_000, `the sample home page read ${rows.read} rows`);
 
   // The coach's pages, each read in full on every visit.
-  for (const path of ["/coach", "/coach/results", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
+  async function coachPage(path: string, label = "Sample") {
     counted.reset();
     const page = await worker.fetch(new Request(env.PUBLIC_URL + path, { headers: { cookie: `deuceleague_coach=${admin}` } }), env, ctx);
     assert.equal(page.status, 200, path); await page.text();
     const read = counted.rows();
-    t.diagnostic(`Sample coach ${path}: ${counted.count()} D1 statements in ${counted.calls()} calls, ${read.read} rows read`);
+    t.diagnostic(`${label} coach ${path}: ${counted.count()} D1 statements in ${counted.calls()} calls, ${read.read} rows read`);
     // Workers Free allows 50 D1 queries a request, a batch counting as one.
-    assert.ok(counted.calls() <= 30, `${path} made ${counted.calls()} D1 calls; the sample budget is 30`);
+    assert.ok(counted.calls() <= 30, `${path} made ${counted.calls()} D1 calls; the budget is 30`);
     assert.ok(read.read < 10_000, `${path} read ${read.read} rows`);
+    return counted.calls();
   }
+  const before = new Map<string, number>();
+  for (const path of ["/coach", "/coach/results", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
+    before.set(path, await coachPage(path));
+  }
+
+  // A big club: ten more competitions running in the season. The dashboard and
+  // results pages read the season, not each competition, so they cost the same.
+  const json = async (method: string, path: string, body?: object) => {
+    const r = await api(method, path, admin, body); assert.ok(r.ok, `${method} ${path}: ${r.status}`); return await r.json() as any;
+  };
+  const season = (await json("GET", "/v1/seasons?state=active")).data[0];
+  const members = (await json("GET", "/v1/members?limit=200")).data as { id: string }[];
+  for (let i = 1; i <= 10; i++) {
+    const competition = await json("POST", "/v1/competitions", { season_id: season.id, name: `Extra ${i}`, discipline: "singles",
+      match_format: "best_of_3_champions_tiebreak" });
+    const division = await json("POST", `/v1/competitions/${competition.id}/divisions`, {});
+    for (const member of members.slice(0, 3)) await json("POST", `/v1/competitions/${competition.id}/entries`, { division_id: division.id, member_ids: [member.id] });
+    await json("POST", `/v1/divisions/${division.id}/fixtures`);
+    await json("PATCH", `/v1/competitions/${competition.id}`, { state: "active" });
+  }
+  for (const path of ["/coach", "/coach/results"]) {
+    assert.equal(await coachPage(path, "Twelve-competition"), before.get(path), `${path} costs the same with twelve competitions`);
+  }
+  // Once reporting closes, the matches nobody played across all twelve are one read too.
+  await json("PATCH", `/v1/seasons/${season.id}`, { results_deadline_at: new Date(Date.now() - 60_000).toISOString() });
+  assert.ok(await coachPage("/coach/results", "Closed twelve-competition") <= before.get("/coach/results")! + 4);
 });

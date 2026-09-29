@@ -327,6 +327,19 @@
             ],
             "format": "uuid"
           },
+          "competition_name": {
+            "type": "string",
+            "example": "Men's Singles",
+            "description": "What the competition is called now."
+          },
+          "division_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Division 1",
+            "description": "What the division is called now."
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -395,6 +408,8 @@
           "id",
           "competition_id",
           "division_id",
+          "competition_name",
+          "division_name",
           "status",
           "sides",
           "result",
@@ -3932,6 +3947,87 @@
           "disputed",
           "percent_played",
           "divisions"
+        ]
+      },
+      "SeasonProgress": {
+        "type": "object",
+        "properties": {
+          "season_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "results_deadline_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "days_remaining": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Whole days to the results deadline, on the club's own calendar."
+          },
+          "competitions": {
+            "type": "array",
+            "items": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Progress"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "draft",
+                        "active",
+                        "complete",
+                        "archived"
+                      ]
+                    },
+                    "opted_out": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "entry_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "label": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "entry_id",
+                          "label"
+                        ]
+                      },
+                      "description": "Entries whose players said they are not playing in the next competition."
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "state",
+                    "opted_out"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "season_id",
+          "results_deadline_at",
+          "days_remaining",
+          "competitions"
         ]
       },
       "EntryProgress": {
@@ -8388,6 +8484,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Progress"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/seasons/{id}/progress": {
+      "get": {
+        "tags": [
+          "Standings and progress"
+        ],
+        "summary": "How far through a season each competition is",
+        "description": "Every competition in the season, oldest first, with the same counts as its own progress and who has opted out of the next one: a whole season's dashboard in one read. A player's session sees the competitions open to members, once they are no longer drafts.",
+        "security": [
+          {
+            "apiKey": [
+              "league:read"
+            ]
+          },
+          {
+            "session": [
+              "league:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The season's progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeasonProgress"
                 }
               }
             }

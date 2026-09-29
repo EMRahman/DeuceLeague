@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { TiebreakRule } from "@deuceleague/schema";
+import { CompetitionState, TiebreakRule } from "@deuceleague/schema";
 import { authProblems, IdParam, notFoundProblem, requires, Timestamp, validationProblem } from "./shared.js";
 
 export const MatchLine = z
@@ -110,6 +110,25 @@ export const Progress = z
   })
   .openapi("Progress");
 
+export const SeasonProgress = z
+  .object({
+    season_id: z.uuid(),
+    results_deadline_at: Timestamp.nullable(),
+    days_remaining: z.number().int().nullable().openapi({
+      description: "Whole days to the results deadline, on the club's own calendar.",
+    }),
+    competitions: z.array(
+      Progress.extend({
+        name: z.string(),
+        state: CompetitionState,
+        opted_out: z
+          .array(z.object({ entry_id: z.uuid(), label: z.string() }))
+          .openapi({ description: "Entries whose players said they are not playing in the next competition." }),
+      }),
+    ),
+  })
+  .openapi("SeasonProgress");
+
 export const EntryProgress = z
   .object({
     entry_id: z.uuid(),
@@ -170,6 +189,24 @@ export const progress = createRoute({
   request: { params: IdParam },
   responses: {
     200: { description: "The competition's progress.", content: { "application/json": { schema: Progress } } },
+    ...authProblems,
+    ...notFoundProblem,
+  },
+});
+
+export const season = createRoute({
+  method: "get",
+  path: "/v1/seasons/{id}/progress",
+  tags: ["Standings and progress"],
+  summary: "How far through a season each competition is",
+  description:
+    "Every competition in the season, oldest first, with the same counts as its own progress and who has " +
+    "opted out of the next one: a whole season's dashboard in one read. A player's session sees the " +
+    "competitions open to members, once they are no longer drafts.",
+  ...requires.orPlayer("league:read"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The season's progress.", content: { "application/json": { schema: SeasonProgress } } },
     ...authProblems,
     ...notFoundProblem,
   },

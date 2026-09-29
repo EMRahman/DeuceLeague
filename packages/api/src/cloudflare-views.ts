@@ -1,5 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { commitIdentity, readLeagueViews, readChase, retryMutation, type IdentitySnapshot } from "@deuceleague/db-d1";
+import { commitIdentity, readLeagueViews, readChase, readSeasonProgress, retryMutation, type IdentitySnapshot } from "@deuceleague/db-d1";
 import { suggestPlacements } from "@deuceleague/engine";
 import { RulesSpec } from "@deuceleague/schema";
 import type { OpenAPIHono } from "@hono/zod-openapi";
@@ -15,6 +15,23 @@ import { toStandings, toCounts, toChase } from "./league/views.js";
 import { problems } from "./problems.js";
 
 type Views = Awaited<ReturnType<typeof readLeagueViews>>;
+
+/**
+ * A competition's progress as a rollup of its divisions': with no divisions it
+ * has no deadline row, and matches without a division do not enter it.
+ */
+function competitionProgress(id: string, divisions: { id: string; ordinal: number; name: string }[],
+  entries: { divisionId: string; state: string }[], matches: { divisionId: string | null; status: string }[],
+  seasonDeadline: Date | null, timezone: string, now: Date) {
+  const deadline = divisions.length ? seasonDeadline : null;
+  const ids = new Set(divisions.map((d) => d.id));
+  const active = entries.filter((e) => e.state === "active");
+  return { competition_id: id, results_deadline_at: iso(deadline), days_remaining: daysRemaining(deadline, timezone, now),
+    active_entries: active.length, ...toCounts(progressCounts(matches.filter((m) => m.divisionId !== null && ids.has(m.divisionId)))),
+    divisions: divisions.map((d) => ({ division_id: d.id, ordinal: d.ordinal, name: d.name,
+      active_entries: active.filter((e) => e.divisionId === d.id).length,
+      ...toCounts(progressCounts(matches.filter((m) => m.divisionId === d.id))) })) };
+}
 function visible(s: Views, id: string) {
   const found = s.data.competitions.find((c) => c.id === id);
   return found && (s.identity.kind === "api_key" || playerVisible(found)) ? found : null;
@@ -51,16 +68,26 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
     return c.json(await run(c, (i) => readLeagueViews(db, i.hash, i.kind, { competitionId: id }), (s) => {
       const competition = visible(s, id);
       if (!competition) throw problems.notFound("competition");
-      // Competition progress is a rollup of division progress:
-      // with no divisions it has no row, and matches without divisions do not enter it.
-      const deadline = s.data.divisions.length ? s.data.seasons.find((r) => r.id === competition.seasonId)?.resultsDeadlineAt ?? null : null;
-      const ids = new Set(s.data.divisions.map((d) => d.id));
-      const active = s.data.entries.filter((e) => e.state === "active");
-      return { competition_id: id, results_deadline_at: iso(deadline), days_remaining: daysRemaining(deadline, s.timezone, new Date(s.identity.now)),
-        active_entries: active.length, ...toCounts(progressCounts(s.ledger.filter((m) => m.divisionId !== null && ids.has(m.divisionId)))),
-        divisions: s.data.divisions.map((d) => ({ division_id: d.id, ordinal: d.ordinal, name: d.name,
-          active_entries: active.filter((e) => e.divisionId === d.id).length,
-          ...toCounts(progressCounts(s.ledger.filter((m) => m.divisionId === d.id))) })) };
+      const deadline = s.data.seasons.find((r) => r.id === competition.seasonId)?.resultsDeadlineAt ?? null;
+      return competitionProgress(id, s.data.divisions, s.data.entries, s.ledger, deadline, s.timezone, new Date(s.identity.now));
+    }), 200);
+  });
+  app.openapi(routes.season, async (c) => {
+    const { id } = c.req.valid("param");
+    return c.json(await run(c, (i) => readSeasonProgress(db, i.hash, i.kind, id), (s) => {
+      if (!s.season) throw problems.notFound("season");
+      const now = new Date(s.identity.now);
+      const shown = s.competitions.filter((x) => s.identity.kind === "api_key"
+        || playerVisible(x as Parameters<typeof playerVisible>[0]));
+      return { season_id: id, results_deadline_at: iso(s.season.deadline),
+        days_remaining: daysRemaining(s.season.deadline, s.timezone, now),
+        competitions: shown.map((x) => {
+          const entries = s.entries.filter((e) => e.competitionId === x.id);
+          return { ...competitionProgress(x.id, s.divisions.filter((d) => d.competitionId === x.id), entries,
+            s.matches.filter((m) => m.competitionId === x.id), s.season!.deadline, s.timezone, now),
+          name: x.name, state: x.state as "draft" | "active" | "complete" | "archived",
+          opted_out: entries.filter((e) => e.optedOut).map((e) => ({ entry_id: e.id, label: e.label })) };
+        }) };
     }), 200);
   });
   app.openapi(routes.entry, async (c) => {

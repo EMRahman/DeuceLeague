@@ -1,6 +1,6 @@
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { ApiProblem, type Api, type Entry, type Match, type MatchDetail, type Page, type Season } from "@deuceleague/website";
+import { ApiProblem, type Api, type Match, type MatchDetail, type Page, type Season } from "@deuceleague/website";
 import {
   Activity,
   Chase,
@@ -17,7 +17,7 @@ import {
   type CoachMember,
   type FeedEvent,
   type Frame,
-  type Progress,
+  type SeasonProgress,
   type SeasonView,
   type Tab,
 } from "./views.js";
@@ -119,7 +119,10 @@ export function createCoachSite(options: CoachOptions) {
     try {
       const me = await api<KeyMe>("GET", "/v1/me", key);
       if (me.credential.type !== "api_key") return forget(c);
-      return { key, club: me.club, scopes: me.credential.scopes };
+      const { scopes } = me.credential;
+      // A key kept from before these pages needed more is signed out, not shown an error.
+      if (!NEEDED.every((s) => scopes.includes(s))) return forget(c);
+      return { key, club: me.club, scopes };
     } catch (error) {
       if (error instanceof ApiProblem && error.problem.status === 401) return forget(c);
       throw error;
@@ -153,40 +156,25 @@ export function createCoachSite(options: CoachOptions) {
     return items;
   }
 
-  /** The names of the divisions of these competitions, by division id. */
-  async function divisionNames(key: string, competitionIds: Iterable<string>) {
-    const names = new Map<string, string>();
-    for (const id of new Set(competitionIds)) {
-      const { data } = await api<{ data: { id: string; name: string }[] }>("GET", `/v1/competitions/${id}/divisions`, key);
-      for (const d of data) names.set(d.id, d.name);
-    }
-    return names;
-  }
-
   app.get("/", async (c) => {
     const who = await coach(c);
     if (!who) return c.html(<SignIn frame={frameOf(null)} />);
     const seasons = await all<Season>("/v1/seasons?state=active", who.key);
     const competitions = await all<CoachCompetition>("/v1/competitions", who.key);
     const views: SeasonView[] = [];
+    // One read a season, however many competitions it runs: Workers Free allows 50 D1 queries a request.
     for (const season of seasons) {
-      const running = competitions.filter((x) => x.season_id === season.id && x.state === "active");
-      const rows = [];
-      for (const competition of running) {
-        const progress = await api<Progress>("GET", `/v1/competitions/${competition.id}/progress`, who.key);
-        const { data: entries } = await api<{ data: Entry[] }>(
-          "GET",
-          `/v1/competitions/${competition.id}/entries`,
-          who.key,
-        );
-        rows.push({
-          competition,
-          progress,
-          optedOut: entries.filter((e) => e.opted_out_at).map((e) => e.label),
-          next: competitions.find((x) => x.previous_competition_id === competition.id) ?? null,
-        });
-      }
-      views.push({ season, competitions: rows });
+      const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      views.push({
+        season,
+        competitions: progress.competitions
+          .filter((x) => x.state === "active")
+          .map((x) => ({
+            progress: x,
+            optedOut: x.opted_out.map((e) => e.label),
+            next: competitions.find((n) => n.previous_competition_id === x.competition_id) ?? null,
+          })),
+      });
     }
     return c.html(<Dashboard frame={frameOf(who, "dashboard")} seasons={views} timezone={who.club.timezone} />);
   });
@@ -224,20 +212,15 @@ export function createCoachSite(options: CoachOptions) {
     const closed = new Set(
       seasons.filter((s) => s.results_deadline_at && Date.parse(s.results_deadline_at) <= Date.now()).map((s) => s.id),
     );
-    const competitions = new Map((await all<CoachCompetition>("/v1/competitions", who.key)).map((x) => [x.id, x]));
-    const late: Match[] = [];
-    for (const competition of competitions.values()) {
-      if (competition.state !== "active" || !closed.has(competition.season_id)) continue;
-      late.push(...(await all<Match>(`/v1/matches?status=open&competition_id=${competition.id}`, who.key)));
-    }
-    const divisions = await divisionNames(
-      who.key,
-      [...listed, ...late].map((m) => m.competition_id),
+    const settling = new Set(
+      (await all<CoachCompetition>("/v1/competitions", who.key))
+        .filter((x) => x.state === "active" && closed.has(x.season_id))
+        .map((x) => x.id),
     );
-    const where = (m: Match) =>
-      [competitions.get(m.competition_id)?.name, m.division_id && divisions.get(m.division_id)]
-        .filter(Boolean)
-        .join(" · ");
+    // One read for the whole club, not one a competition, then kept to those whose reporting has closed.
+    const late = settling.size
+      ? (await all<Match>("/v1/matches?status=open", who.key)).filter((m) => settling.has(m.competition_id))
+      : [];
     return c.html(
       <Results
         frame={frameOf(who, "results")}
@@ -249,25 +232,18 @@ export function createCoachSite(options: CoachOptions) {
         }}
         more={more}
         late={late}
-        where={where}
         timezone={who.club.timezone}
       />,
     );
   });
 
-  /** A page of the latest results, newest first, named by competition and division. */
-  async function latestResults(key: string, limit: number, after: string | undefined) {
-    const page = await api<Page<Listed>>(
+  /** A page of the latest results, newest first. */
+  const latestResults = (key: string, limit: number, after: string | undefined) =>
+    api<Page<Listed>>(
       "GET",
       `/v1/matches?status=played&order=recent&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ""}`,
       key,
     );
-    const competitions = new Map((await all<CoachCompetition>("/v1/competitions", key)).map((x) => [x.id, x.name]));
-    const divisions = await divisionNames(key, page.data.map((m) => m.competition_id));
-    const where = (m: Match) =>
-      [competitions.get(m.competition_id), m.division_id && divisions.get(m.division_id)].filter(Boolean).join(" · ");
-    return { page, where };
-  }
 
   const latestEvents = (key: string, limit: number, after: string | undefined) =>
     api<Page<FeedEvent>>(
@@ -285,7 +261,7 @@ export function createCoachSite(options: CoachOptions) {
   app.get("/activity", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
-    const { page, where } = await latestResults(who.key, ACTIVITY_FIRST, undefined);
+    const page = await latestResults(who.key, ACTIVITY_FIRST, undefined);
     const events = await latestEvents(who.key, ACTIVITY_FIRST, undefined);
     return c.html(
       <Activity
@@ -294,7 +270,6 @@ export function createCoachSite(options: CoachOptions) {
         moreResults={page.next_cursor !== null}
         events={events.data}
         moreEvents={events.data.length === ACTIVITY_FIRST}
-        where={where}
         timezone={who.club.timezone}
       />,
     );
@@ -304,14 +279,13 @@ export function createCoachSite(options: CoachOptions) {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const after = cursor(c, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
-    const { page, where } = await latestResults(who.key, ACTIVITY_MORE, after);
+    const page = await latestResults(who.key, ACTIVITY_MORE, after);
     return c.html(
       <LatestResults
         frame={frameOf(who, "activity")}
         results={page.data}
         from={after}
         next={page.next_cursor}
-        where={where}
         timezone={who.club.timezone}
       />,
     );

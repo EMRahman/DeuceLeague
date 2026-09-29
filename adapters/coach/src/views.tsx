@@ -41,11 +41,19 @@ export type Progress = Counts & {
   divisions: (Counts & { division_id: string; ordinal: number; name: string })[];
 };
 
+/** A competition's progress as the season's progress gives it. */
+export type SeasonProgress = {
+  competitions: (Progress & {
+    name: string;
+    state: Competition["state"];
+    opted_out: { entry_id: string; label: string }[];
+  })[];
+};
+
 export type SeasonView = {
   season: Season;
   competitions: {
-    competition: CoachCompetition;
-    progress: Progress;
+    progress: SeasonProgress["competitions"][number];
     /** Entries whose players said they are not playing next season. */
     optedOut: string[];
     /** Next season's competition, once it has been drafted from this one. */
@@ -225,9 +233,9 @@ export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: stri
             </div>
           )}
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
-          {competitions.map(({ competition, progress, optedOut, next }) => (
+          {competitions.map(({ progress, optedOut, next }) => (
             <div class="card">
-              <h2>{competition.name}</h2>
+              <h2>{progress.name}</h2>
               <progress value={progress.played} max={Math.max(progress.matches, 1)} />
               <p>
                 {progress.played} of {plural(progress.matches, "match", "matches")} played
@@ -274,6 +282,9 @@ function standing(match: MatchDetail, side: Side) {
   return match.claims.findLast((x) => x.side === side && x.state === "pending");
 }
 
+/** Where a match is played: "Men's singles · Division 2". */
+const where = (m: Match) => [m.competition_name, m.division_name].filter(Boolean).join(" · ");
+
 const namesOf = (m: Match): [string, string] => [m.sides[0]?.label ?? "Side 1", m.sides[1]?.label ?? "Side 2"];
 
 export const Results: FC<{
@@ -285,9 +296,8 @@ export const Results: FC<{
   /** Those not read in full: disputes first, then the reports waiting longest. */
   more: (Match & { updated_at: string })[];
   late: Match[];
-  where: (m: Match) => string;
   timezone: string;
-}> = ({ frame, disputed, reported, counts, more, late, where, timezone }) => (
+}> = ({ frame, disputed, reported, counts, more, late, timezone }) => (
   <Layout title="Results" frame={frame}>
     <h1>Results to sort out</h1>
     <p class="muted">
@@ -488,11 +498,7 @@ function sentence(e: FeedEvent): string {
   return verb ? `${actor} ${verb} ${noun}` : `${actor}: ${e.type}`;
 }
 
-const ResultList: FC<{ results: Listed[]; where: (m: Match) => string; timezone: string }> = ({
-  results,
-  where,
-  timezone,
-}) => (
+const ResultList: FC<{ results: Listed[]; timezone: string }> = ({ results, timezone }) => (
   <div class="card">
     <ul class="list">
       {results.map((m) => (
@@ -528,16 +534,15 @@ export const Activity: FC<{
   moreResults: boolean;
   events: FeedEvent[];
   moreEvents: boolean;
-  where: (m: Match) => string;
   timezone: string;
-}> = ({ frame, results, moreResults, events, moreEvents, where, timezone }) => (
+}> = ({ frame, results, moreResults, events, moreEvents, timezone }) => (
   <Layout title="Activity" frame={frame}>
     <h1>Activity</h1>
     <h2>Latest results</h2>
     {results.length === 0 ? (
       <p class="muted">No results yet.</p>
     ) : (
-      <ResultList results={results} where={where} timezone={timezone} />
+      <ResultList results={results} timezone={timezone} />
     )}
     {moreResults && (
       <p>
@@ -569,16 +574,15 @@ export const LatestResults: FC<{
   results: Listed[];
   from: string | undefined;
   next: string | null;
-  where: (m: Match) => string;
   timezone: string;
-}> = ({ frame, results, from, next, where, timezone }) => (
+}> = ({ frame, results, from, next, timezone }) => (
   <Layout title="Latest results" frame={frame}>
     <h1>Latest results</h1>
     <p class="muted">Newest first, 50 at a time.</p>
     {results.length === 0 ? (
       <p class="muted">No more results.</p>
     ) : (
-      <ResultList results={results} where={where} timezone={timezone} />
+      <ResultList results={results} timezone={timezone} />
     )}
     <Pager path="/coach/activity/results" from={from} next={next} />
   </Layout>

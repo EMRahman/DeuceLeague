@@ -6,6 +6,7 @@ import { daysRemaining, progressCounts } from "../../../packages/api/dist/league
 import { tablesFromRecords } from "../../../packages/api/dist/league/tables.js";
 import { playing, hash, completed } from "./result-helpers.ts";
 import { fixture } from "./helpers.ts";
+import { websiteFixture } from "./website-helpers.ts";
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function send(f: Fixture, path: string, method = "GET", body?: unknown, token = f.admin) {
@@ -183,4 +184,37 @@ test("foreign credentials and identifiers cannot expose another installation's l
   for (const path of [`/v1/competitions/${other.ids.competition}/standings`, `/v1/competitions/${other.ids.competition}/progress`, `/v1/entries/${other.entries[0]}/progress`]) assert.equal((await send(f, path)).status, 404);
   assert.equal((await send(f, "/v1/chase-list", "GET", undefined, other.admin)).status, 401);
   assert.deepEqual((await send(f, `/v1/chase-list?competition_id=${other.ids.competition}`)).body.data, []);
+});
+
+test("a season's progress gives every competition's counts and opt-outs in one read", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const draft = await f.create("/v1/competitions", { season_id: season.id, name: "Next singles", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
+  const whole = await f.api(`/v1/seasons/${season.id}/progress`, f.admin);
+  assert.equal(whole.status, 200, JSON.stringify(whole.body));
+  // Oldest first: the sample's two share a millisecond, so only the new one's place is fixed.
+  assert.deepEqual(whole.body.competitions.map((c: { name: string }) => c.name).sort(), ["Next singles", "Sample doubles", "Sample singles"]);
+  assert.equal(whole.body.competitions[2].name, "Next singles");
+  const named = (name: string) => whole.body.competitions.find((c: { name: string }) => c.name === name);
+  for (const c of whole.body.competitions.slice(0, 2)) {
+    const { name, state, opted_out, ...counts } = c;
+    assert.deepEqual(counts, (await f.api(`/v1/competitions/${c.competition_id}/progress`, f.admin)).body, `${name}: the same as its own progress`);
+  }
+  assert.equal(named("Sample singles").opted_out.length, 2); assert.equal(named("Sample doubles").opted_out.length, 0);
+  assert.equal(named("Next singles").state, "draft");
+  const alex = (await f.api("/v1/members?limit=200", f.admin)).body.data.find((m: { display_name: string }) => m.display_name === "Sample Alex");
+  const link = (await f.api(`/v1/members/${alex.id}/login-link`, f.admin, "POST")).body.token;
+  const session = (await f.api("/v1/session", link, "POST")).body.token;
+  const player = await f.api(`/v1/seasons/${season.id}/progress`, session);
+  assert.equal(player.status, 200);
+  assert.ok(!player.body.competitions.some((c: { competition_id: string }) => c.competition_id === draft.id), "a player sees no draft");
+  assert.equal((await f.api("/v1/seasons/01a0537c-583c-7067-8cd3-ac5e00807376/progress", f.admin)).status, 404);
+});
+
+test("a match names its competition and division, listed or read alone", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const listed = (await f.api("/v1/matches?limit=200", f.admin)).body.data as { id: string; competition_name: string; division_name: string }[];
+  assert.ok(listed.every((m) => /^Sample (singles|doubles)$/.test(m.competition_name) && /^Division \d$/.test(m.division_name)));
+  const one = (await f.api(`/v1/matches/${listed[0]!.id}`, f.admin)).body;
+  assert.equal(one.competition_name, listed[0]!.competition_name); assert.equal(one.division_name, listed[0]!.division_name);
 });

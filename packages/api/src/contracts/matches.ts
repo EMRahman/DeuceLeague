@@ -20,6 +20,8 @@ export const Match = z
     id: z.uuid(),
     competition_id: z.uuid(),
     division_id: z.uuid().nullable(),
+    competition_name: z.string().openapi({ example: "Men's Singles", description: "What the competition is called now." }),
+    division_name: z.string().nullable().openapi({ example: "Division 1", description: "What the division is called now." }),
     status: MatchStatus,
     sides: z
       .array(z.object({ side: SideIndex, entry_id: z.uuid().nullable(), label: z.string().nullable() }))
