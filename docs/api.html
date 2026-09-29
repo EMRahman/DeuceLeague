@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeuceLeague API reference</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    .top { display: flex; gap: 1rem; align-items: center; padding: .75rem 1rem; border-bottom: 1px solid #d9dedb; }
+    .top strong { margin-right: auto; }
+    .top a { color: #0b6e4f; }
+  </style>
+</head>
+<body>
+  <nav class="top" aria-label="Documentation">
+    <strong>DeuceLeague API</strong>
+    <a href="API.html">Guide</a>
+    <a href="openapi.json">OpenAPI JSON</a>
+  </nav>
+  <redoc spec-url="openapi.json" disable-telemetry="true" required-props-first="true"></redoc>
+  <script src="https://cdn.redoc.ly/redoc/2.5.4/bundles/redoc.standalone.js"></script>
+</body>
+</html>

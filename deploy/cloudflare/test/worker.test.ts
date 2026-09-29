@@ -21,6 +21,10 @@ test("the built Worker runs protected setup and identity against D1, and reads t
   const health = await mf.dispatchFetch("https://league.test/healthz");
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { status: "ok" });
+  const openapi = await mf.dispatchFetch("https://league.test/openapi.json");
+  assert.equal(openapi.status, 200);
+  const document = await openapi.json() as { openapi: string; paths: Record<string, unknown> };
+  assert.equal(document.openapi, "3.1.0"); assert.ok(document.paths["/v1/me"]);
   assert.equal((await mf.dispatchFetch("https://league.test/setup", { method: "POST" })).status, 401);
   const setup = await mf.dispatchFetch("https://league.test/setup", {
     method: "POST", headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },

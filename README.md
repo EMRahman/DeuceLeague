@@ -7,7 +7,8 @@ database.
 Players sign in from an emailed link, see their matches and tables, report
 scores, and agree their opponents’ results. Coaches manage the league through
 the API with an administrator key. The API contract is published at
-`/openapi.json`.
+`/openapi.json`; its generated [readable reference](https://emrahman.github.io/DeuceLeague/api.html)
+lives with this repository's GitHub Pages documentation.
 
 ## Deploy a club
 
