@@ -46,6 +46,7 @@ packages/engine   Fixtures, standings, result decisions, and placements   AGPL
 packages/db-d1    D1 schema, migrations, and persistence                  AGPL
 packages/api      HTTP API and OpenAPI contract                            AGPL
 adapters/website  Reference player website                                 MIT
+adapters/coach    Coach's website: sign-in links for players              MIT
 deploy/cloudflare Worker deployment, installer, and recovery tooling
 docs/API.md       API concepts, permissions, and workflows
 ```
@@ -63,5 +64,5 @@ and tools build on the API.
 
 ## Licence
 
-`packages/schema` and `adapters/website` are MIT. The server-side packages are
+`packages/schema`, `adapters/website` and `adapters/coach` are MIT. The server-side packages are
 AGPL-3.0-or-later.

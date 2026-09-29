@@ -25,6 +25,7 @@ packages/engine   Pure league calculations
 packages/db-d1    D1 migrations, atomic persistence, and recovery primitive
 packages/api      API contracts, authorization, and D1 route composition
 adapters/website  Player-facing HTML application
+adapters/coach    Coach's HTML application at /coach
 deploy/cloudflare Worker entry point, installer, deployment and recovery tools
 ```
 

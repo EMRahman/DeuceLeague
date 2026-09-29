@@ -90,9 +90,9 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
       Keep your saved administrator key until you have checked setup status.</p><a href="/install">Check setup</a>`), response.status === 400 ? 400 : 503);
     return c.html(frame(html`<h2>Your club has been created</h2><p>Your saved administrator key is ready. Keep it private.</p>
       ${form.sample === "yes" ? html`<p>The sample league is ready: 22 fictional players and 50 matches.
-      Play as Sample Alex or Sample Bailey with a sign-in link from your administrator key, or by email if you set it up.</p>` : ""}
+      To play as Sample Alex or Sample Bailey, make their sign-in links on the coach's site.</p>` : ""}
       <p>The website is connected.${websiteConfig(env).mail ? " Email delivery still needs to be tested with your account." : ""}</p>
-      <a href="/">Open the league</a>`), 201);
+      <p><a href="/coach">Sign in as the coach</a> with your administrator key, or <a href="/">open the league</a>.</p>`), 201);
   });
   app.notFound((c) => c.text("Not found", 404));
   app.onError((_error, c) => c.html(frame(html`<p>Setup is temporarily unavailable. Keep your saved administrator key and check setup again.</p>`), 503));

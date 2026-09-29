@@ -1,0 +1,18 @@
+{
+  "name": "@deuceleague/coach",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "The coach's website: sign in with an API key and hand players their sign-in links, built on the DeuceLeague API like any other adapter.",
+  "main": "./dist/app.js",
+  "types": "./dist/app.d.ts",
+  "exports": {
+    ".": "./dist/app.js"
+  },
+  "scripts": { "build": "tsc --build" },
+  "dependencies": {
+    "@deuceleague/website": "*",
+    "hono": "^4.13.8"
+  }
+}

@@ -108,11 +108,27 @@ not transfer between hostnames; players sign in again on the new hostname.
 ## Sign-in links
 
 Players sign in with one-time links. The sign-in page asks players for a link
-from their coach, and the coach makes one for a member with
-`POST /v1/members/{id}/login-link` and hands it over, for example on WhatsApp.
+from their coach. The coach makes one on the coach's site at `/coach`, or with
+`POST /v1/members/{id}/login-link`, and hands it over, for example on WhatsApp.
 The link opens `/login?token=…`, works once and lasts fifteen minutes. A coach
 can also let players request links by email at any time; see
 [sign-in emails](EMAIL.md).
+
+## Coach's site
+
+`/coach` is the coach's own website, from `adapters/coach`. The coach signs in
+with a key, never a login link. An administrator key is used once to make a key
+for that browser, named "Coach website" with the date, holding `league:read`,
+`league:write`, `members:read`, `members:write` and `members:pii`, and expiring
+after 90 days. The administrator key is never stored; the browser's key sits in
+an HttpOnly, `SameSite=Strict` cookie sent only to `/coach`, and can be revoked
+like any other key. A key without `admin` that holds `members:read` and
+`members:write` is kept as it is. Signing out forgets the cookie; the key
+itself lasts until it expires or is revoked.
+
+For now the site lists members and makes their sign-in links. Its pages have
+the players' site's protections: `no-store`, no framing, and no form accepted
+from another origin.
 
 ## Caching
 

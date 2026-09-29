@@ -26,7 +26,7 @@ acknowledgement if its coach chooses, while keeping match actions first.
 ## How it works
 
 - **Signing in.** With no mail provider configured, the coach makes a login
-  link for the player and hands it over, and the sign-in page says to ask
+  link for the player on the [coach's site](../coach/README.md) and hands it over, and the sign-in page says to ask
   for one. With email configured, a player types their email address. The website looks them
   up with its own key (`GET /v1/members?email=`), makes a login link
   (`POST /v1/members/{id}/login-link`) and emails it. The link opens a page
