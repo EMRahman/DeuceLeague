@@ -5,7 +5,8 @@ agent. The agent reads the API specification, shows the coach the important
 changes, and carries them out with its own scoped key. The coach should not
 need to know route names, JSON or database commands.
 
-This is the first-season workflow. Try it with the coach before building a
+Handing players their sign-in links needs no agent: the coach does it on the
+coach's site, `/coach`. This is the first-season workflow. Try it with the coach before building a
 general admin panel. If a repeated job is still awkward, build a small screen
 for that job from observed use rather than introducing a second way to manage
 everything.

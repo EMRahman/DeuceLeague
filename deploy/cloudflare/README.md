@@ -1,40 +1,15 @@
-# Cloudflare deployment
+# How the deployment works
 
-The Worker composes the API and reference website over D1. It includes the
-protected installer, atomic website-key registration, optional sample league,
-optional [sign-in emails](EMAIL.md), and account-owner administrator recovery.
+This is the technical reference for the Cloudflare deployment. To see it
+working, [try it](TRY.md); to run a club, [start your club](GO-LIVE.md). To
+work on the code, see [developing DeuceLeague](../../DEVELOPING.md).
 
-Run `npm run cf:test` for a dry-run build and local runtime tests. The website
-tests intercept outbound email and weather; they do not contact providers.
-Run `npm run cf:db:migrate` to apply migrations locally. Neither command deploys.
+One Cloudflare Worker and one D1 database serve one club. The Worker composes
+the API, the players' website, the coach's site at `/coach`, and the protected
+installer at `/install`. It also holds the account-owner
+[administrator recovery](RECOVERY.md) tooling.
 
-## Local verification
-
-Automated tests run locally only. There are no GitHub test jobs on PRs or pushes
-to `main`. Include the relevant command results in each PR description.
-
-For a full Cloudflare check, use Node 22 and run these from the repository root:
-
-```sh
-npm ci
-npm run typecheck
-node scripts/check-sql.mjs
-npm test -w @deuceleague/schema
-npm test -w @deuceleague/engine
-npm run cf:test
-npm run deploy -- --dry-run
-```
-
-These check the types, SQL binding rules, shared logic, local D1/Worker runtime
-and deployment bundle. They do not deploy to Cloudflare or send real emails.
-Run `npm ci` for a fresh checkout or when dependencies change. For focused fixes,
-run the relevant build/tests; documentation-only edits need link and content
-checks rather than the runtime suites.
-
-The separate GitHub Pages site publication and Cloudflare deployment builds
-are deployment steps, not this test workflow.
-
-## Website configuration
+## Configuration
 
 Use Worker variables for non-secret configuration and Worker secrets for
 credentials. Local values belong in the ignored root `.dev.vars`. Nothing
@@ -54,32 +29,37 @@ Court locations and forecast units are coach-managed D1 data, not deployment
 variables. A new club starts with no locations, so its player website simply
 omits weather until the coach adds one through the API; see [court forecasts](WEATHER.md).
 
-For a new installation, run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'`
-twice or use a password manager. Save the first output as `SETUP_TOKEN`; prefix
-the second output with `dl_` and save it as `WEBSITE_API_KEY`. Put both in the
-corresponding Worker secret fields. The optional `npm run cf:secrets` helper
-generates equivalent strong values. Configure the public origin, then open
-`/install`. Enter the installation
-secret, save the administrator key shown before creation, and enter the club
-details. Initialization registers the club, admin key and scoped website key
-together.
+`SETUP_TOKEN` and `WEBSITE_API_KEY` are each 32 random bytes, base64url
+encoded, with `dl_` in front of the website key; [Try it](TRY.md#1-make-two-passwords)
+shows how to make them, and `npm run cf:secrets` generates them too.
 
-For a fresh test installation, select the optional sample league. It adds a
-club in mid-season:
+## Deployment
 
-- 22 fictional players;
-- an active season with 30 days left to its deadline;
-- singles in three divisions of five, and doubles in two divisions of five pairs;
-- 50 matches, most already played, with two disputed, three waiting for
-  agreement, and the rest open;
-- two entries opted out of next season, and two members with no entry;
-- two court locations in London, marked "(sample)", so the home page shows
-  forecasts.
+The Deploy to Cloudflare button copies the repository, provisions the D1
+database into the `DB` binding, and sets up Workers Builds with
+`npm run build` and `npm run deploy`. `npm run deploy` compiles, applies the D1
+migrations remotely, and only then publishes the Worker; a failed step stops
+the ones after it. It refuses to run without a provisioned `database_id`, and
+does not support named Wrangler environments: one repository serves one club.
+`npm run deploy -- --dry-run` compiles and bundles without touching an account.
 
-The results are made by the same decision code a player's report goes through.
-Sample Alex and Sample Bailey's match against each other is open, so one can
-report and the other agree; sign in as each with a coach-made link. No sample
-player needs an email.
+Because it applies migrations, the build token needs **Account → D1 → Edit** as
+well as **Workers Scripts → Edit**; Cloudflare's default build-token
+permissions do not include D1. See
+[build-token settings](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token).
+
+## Installation
+
+`/install` takes the installation secret, shows a new administrator key to save
+before anything is created, and then takes the club details. Initialization
+registers the club, the administrator key and the scoped website key together.
+
+The optional sample league adds a club in mid-season: 22 fictional players, an
+active season with 30 days to its deadline, singles and doubles in five
+divisions, 50 matches in every state, two opt-outs, two newcomers, and two
+court locations marked "(sample)". Its results are made by the same decision
+code a player's report goes through. Sample Alex and Sample Bailey's match
+against each other is open, for a trial to report and agree.
 
 The sample commits with initialization, including a completion marker in the
 append-only event log. A failed commit rolls back everything; repeating a

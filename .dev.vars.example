@@ -7,4 +7,4 @@ WEBSITE_API_KEY=
 # Email is optional: players can sign in with links their coach hands them.
 # To send sign-in emails with Resend later, add RESEND_API_KEY as a Worker
 # secret and add MAIL_PROVIDER and MAIL_FROM to wrangler.jsonc vars; see
-# deploy/cloudflare/TRIAL.md.
+# deploy/cloudflare/EMAIL.md. For local development, see DEVELOPING.md.

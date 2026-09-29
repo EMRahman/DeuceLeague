@@ -38,7 +38,7 @@
         "description": "Exact HTTPS address players will use, such as https://your-worker.your-subdomain.workers.dev. Use the Worker name chosen above and your account subdomain. No path. See the trial guide if setting this after deployment."
       },
       "MAIL_PROVIDER": {
-        "description": "Optional, and not asked at deployment: players sign in with links from the coach. To email sign-in links later, add it under vars in wrangler.jsonc as resend (with a RESEND_API_KEY secret) or cloudflare (with an EMAIL binding); see deploy/cloudflare/TRIAL.md."
+        "description": "Optional, and not asked at deployment: players sign in with links from the coach. To email sign-in links later, add it under vars in wrangler.jsonc as resend (with a RESEND_API_KEY secret) or cloudflare (with an EMAIL binding); see deploy/cloudflare/EMAIL.md."
       },
       "MAIL_FROM": {
         "description": "Only with MAIL_PROVIDER: a sender address verified with that provider, such as League <league@your-club.org>."

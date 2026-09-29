@@ -83,6 +83,9 @@ table.asks td:first-child { width: 48%; }
 .mock .card h4 { margin: 0 0 .25rem; font-size: 1.05rem; }
 .mock .btn { display: inline-block; margin-top: .6rem; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: .45rem .9rem; font-weight: 600; font-size: .9rem; text-decoration: none; }
 
+.ctas { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1.25rem 0 0; }
+a.cta { display: inline-block; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: .7rem 1.2rem; font-weight: 700; text-decoration: none; }
+a.cta.quiet { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
 ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 1rem 0; }
 ol.steps li { counter-increment: step; position: relative; padding: 0 0 1.1rem 2.75rem; }
 ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-weight: 700; display: grid; place-items: center; font-size: .95rem; }
@@ -132,6 +135,10 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
   <div class="eyebrow">For coaches</div>
   <h1>A straightforward league for players and coaches.</h1>
   <p class="lead">A club member built this for our club: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. You run the league with Claude Code and can extend the website to suit your coaching and the club.</p>
+  <div class="ctas">
+    <a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a>
+    <a class="cta quiet" href="#setting-it-up">How setup works</a>
+  </div>
 </header>
 
 <h2>Why it exists</h2>
@@ -140,7 +147,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 
 <div class="promises">
   <div class="promise"><strong>Straight to the league</strong><span>Scores, tables and matches still to play are easy to find.</span></div>
-  <div class="promise"><strong>No passwords</strong><span>Players sign in once from an email link and stay signed in on that phone.</span></div>
+  <div class="promise"><strong>No passwords</strong><span>Players sign in once from a link you send them and stay signed in on that phone.</span></div>
   <div class="promise"><strong>One less app</strong><span>Open the website in your browser, or add it to your phone’s home screen.</span></div>
   <div class="promise"><strong>Adapt it to your club</strong><span>Extend the website with coaching information or tools for the way you run your league.</span></div>
 </div>
@@ -727,7 +734,7 @@ details { margin-top: .75rem; }
     <tr><td class="say">Set up the Autumn season from the Summer tables. Top three up, bottom three down, and put Priya in Division 3.</td><td>The Autumn competitions are drafted with every player placed, each with a reason why. You check them over, and nothing takes effect until you switch them on.</td></tr>
     <tr><td class="say">Who still has matches to play with two weeks left? Draft them a friendly nudge.</td><td>You get a list of players with matches outstanding and how many each. You decide what gets sent and to whom. The league never messages anyone on its own.</td></tr>
     <tr><td class="say">Sam and Alex can’t agree. It was 6-4 3-6 10-7 to Sam.</td><td>You settle it. Both players’ versions stay on record, and the tables update at once.</td></tr>
-    <tr><td class="say">Add the new members from this spreadsheet.</td><td>The members are created, and each can sign in with their email address.</td></tr>
+    <tr><td class="say">Add the new members from this spreadsheet.</td><td>The members are created. You then send each one a sign-in link from your coach page.</td></tr>
     <tr><td class="say">Give an extra point for winning by seven games or more.</td><td>The scoring rules are settings, so no programmer is needed. The tables recalculate straight away.</td></tr>
     <tr><td class="say">Sam’s lost his phone.</td><td>Sam is signed out on every device.</td></tr>
   </tbody>
@@ -753,25 +760,28 @@ details { margin-top: .75rem; }
   <p><strong>Start with what would help you.</strong> These extensions are ideas to build, not features already included. You choose what is useful for your club. Players’ match actions stay easy to reach, and lesson links can use the booking system you already have.</p>
 </div>
 
-<h2>Setting it up</h2>
-<p>The league runs on Cloudflare Workers and D1. The setup guide explains the account, email and website settings. A few decisions are yours, and so are the accounts. <strong>We’ll do the first setup together.</strong></p>
+<h2 id="setting-it-up">Try it, then set it up</h2>
+<p>See it working first. Deploy a sample club in mid-season to a free Cloudflare account, then play it as the coach and as two players: report a score, agree it, and watch the table change. It takes about fifteen minutes in a browser, with no email service and nothing to install.</p>
+<p><a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a></p>
+
+<p>When you’re happy, the real club is a fresh deployment without the sample. The accounts are yours, and <strong>we’ll do the first setup together.</strong></p>
 
 <ol class="steps">
   <li><strong>Create the Cloudflare account <span class="who you">you</span></strong>The club owns the account, Worker and database.</li>
-  <li><strong>Choose the address <span class="who you">you</span></strong>For example <code>league.yourclub.org</code>. You add one DNS record to the club’s domain, or we buy a new domain.</li>
-  <li><strong>Choose an email service <span class="who you">you</span></strong>This sends players their sign-in links. Use Cloudflare Email Sending or Resend, then add the DNS records the service requires.</li>
-  <li><strong>Deploy the league <span class="who claude">Claude Code</span></strong>It deploys the Worker, applies the D1 schema, configures the website and checks each step.</li>
-  <li><strong>Create the club <span class="who claude">Claude Code</span></strong>This shows the administrator key once. <strong>You keep that key in a password manager.</strong> Claude Code gets separately scoped keys for its jobs.</li>
-  <li><strong>Add members and the first season <span class="who claude">Claude Code</span></strong>Members come from a spreadsheet of names and email addresses, and divisions from our last tables.</li>
-  <li><strong>Sign in on your phone <span class="who you">you</span></strong>Then send the link to the players.</li>
+  <li><strong>Deploy the league <span class="who you">you</span></strong>The same Deploy to Cloudflare button as the trial, with a new Worker and a new database.</li>
+  <li><strong>Create the club <span class="who you">you</span></strong>The installer shows the administrator key once. <strong>You keep that key in a password manager.</strong> Claude Code gets separately scoped keys for its jobs.</li>
+  <li><strong>Add members and the first season <span class="who claude">Claude Code</span></strong>Members come from a spreadsheet of names, and divisions from our last tables.</li>
+  <li><strong>Invite the players <span class="who you">you</span></strong>Sign in to your coach page and send each player their sign-in link, for example on WhatsApp. You can see who has signed in, and nudge those who haven’t.</li>
+  <li><strong>Later, if you want <span class="who you">you</span></strong>The club’s own address, such as <code>league.yourclub.org</code>, with one DNS record; and sign-in emails, so players can ask for their own link.</li>
 </ol>
+<p><a href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/GO-LIVE.md">The full guide to starting your club</a></p>
 
 <h3>What it costs</h3>
 <div class="costs">
   <span>Cloudflare Workers and D1</span><span>often covered by the free tier at club size</span>
-  <span>Email service</span><span>depends on the selected provider</span>
-  <span>Web address</span><span>free with the club’s domain</span>
-  <span class="total">Total</span><span class="total">depends on email and domain choices</span>
+  <span>Web address</span><span>free on <code>workers.dev</code>, or with the club’s domain</span>
+  <span>Sign-in emails</span><span>optional; depends on the provider</span>
+  <span class="total">Total</span><span class="total">often nothing</span>
 </div>
 
 <h3>Looking after it</h3>
@@ -817,7 +827,7 @@ details { margin-top: .75rem; }
   <li><strong>Players’ personal details are protected.</strong> Players only see each other’s display names. Emails, phone numbers and dates of birth need a special permission that the coach controls.</li>
   <li><strong>If someone asks to be erased,</strong> their personal details are removed and their results stay, as data protection law (GDPR) requires.</li>
   <li><strong>Every change is logged,</strong> including who made it and when, and nothing in the log can be quietly edited afterwards.</li>
-  <li><strong>Automated checks</strong> run before changes are accepted, including D1 and Worker workflows, so the rules above hold.</li>
+  <li><strong>Automated checks</strong>, including D1 and Worker workflows, run before each change is merged, so the rules above hold.</li>
 </ul>
 
 <h2>Where it stands</h2>
@@ -830,7 +840,9 @@ details { margin-top: .75rem; }
       <li>Promotions and relegations into the next season, confirmed by you</li>
       <li>The list of who still has matches to play</li>
       <li>Weather at the courts</li>
-      <li>The setup guide and D1 recovery guidance</li>
+      <li>Your coach page: sign-in links for players, and who has signed in</li>
+      <li>A sample club to try it all in about fifteen minutes</li>
+      <li>Guides to trying it, starting a club and recovering access</li>
       <li>A short guide to everyday coach tasks with Claude Code</li>
     </ul>
   </div>
