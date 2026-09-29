@@ -65,11 +65,11 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
       <p>The sample adds 22 fictional players: singles in three divisions of five, doubles in two divisions of five
       pairs, and 50 matches, most already played. Leave it unchecked for a real club. Samples can only be added during
       initial setup.</p>
-      <label>Email for Sample Alex (optional)<input type="email" name="sample_email" maxlength="254" autocomplete="email"></label>
+      <p>Sample Alex and Sample Bailey have an unplayed match against each other, so one can report a score and the
+      other agree it. Sign in as them with links made with your administrator key.</p>
+      ${email ? html`<label>Email for Sample Alex (optional)<input type="email" name="sample_email" maxlength="254" autocomplete="email"></label>
       <label>Email for Sample Bailey (optional)<input type="email" name="sample_bailey_email" maxlength="254" autocomplete="off"></label>
-      <p>Alex and Bailey have an unplayed match against each other, so one can report a score and the other agree it.
-      Their emails are only for email sign-in: leave them empty if you have not set up email, and make them sign-in
-      links with your administrator key instead. Setup sends no email.</p>
+      <p>With these, Alex and Bailey can also request sign-in links by email. Setup sends no email.</p>` : ""}
       <button>Create club</button></form>`));
   });
   app.post("/install/create", async (c) => {

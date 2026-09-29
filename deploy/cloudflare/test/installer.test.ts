@@ -148,6 +148,7 @@ test("optional sample works from installation through two players' sign-in, repo
   const f = await installer(t, true); const p = await f.prepare();
   assert.match(p.html, /name="sample" value="yes"/);
   assert.doesNotMatch(p.html, /name="sample"[^>]*checked/);
+  assert.match(p.html, /name="sample_email"/); assert.match(p.html, /name="sample_bailey_email"/);
   const email = "Owner@example.org"; const second = "friend@example.org";
   const created = await f.post("/install/create", { ...p.form, sample: "yes", sample_email: email, sample_bailey_email: second });
   assert.equal(created.status, 201); assert.match(await created.text(), /sample league is ready/);
@@ -298,6 +299,8 @@ test("a deployment with no email provider installs, and says players sign in wit
   const f = await installer(t);
   await f.configure({ MAIL_PROVIDER: "", MAIL_FROM: "", RESEND_API_KEY: "" });
   const p = await f.prepare();
+  // No email means no sample email fields to puzzle over.
+  assert.match(p.html, /name="sample" value="yes"/); assert.doesNotMatch(p.html, /sample_email|sample_bailey_email/);
   const created = await f.post("/install/create", { ...p.form, sample: "yes" });
   assert.equal(created.status, 201); assert.doesNotMatch(await created.text(), /Email delivery/);
   const status = await (await f.post("/install/check", { secret: f.env.SETUP_TOKEN })).text();

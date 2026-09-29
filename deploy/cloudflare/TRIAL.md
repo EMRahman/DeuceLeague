@@ -104,8 +104,7 @@ In Workers Builds, disable **builds for non-production branches** for this trial
 2. **Save the administrator key** shown by the installer in your password
    manager. This is a new key, separate from the two passwords above.
 3. Confirm you saved it, then enter the club name, identifier and time zone.
-4. Select the **sample league** and leave the two sample emails empty. Create
-   the club.
+4. Select the **sample league** and create the club.
 
 The sample is a small club in mid-season:
 
@@ -241,7 +240,10 @@ Resend:
 1. In your repository's `wrangler.jsonc`, set `MAIL_PROVIDER` to `resend` and
    `MAIL_FROM` to your sender, and commit.
 2. Add `RESEND_API_KEY` as a **secret** in the Worker's settings.
-3. Give each member who wants email sign-in an email address.
+3. Give each member who wants email sign-in an email address, using the
+   administrator key. Members without one carry on with links from the coach.
+
+Nothing in the club's data changes: players already signed in stay signed in.
 
 For a first test, use `onboarding@resend.dev` as the sender. This test sender
 only delivers to your Resend account's own email, so only one member can receive
