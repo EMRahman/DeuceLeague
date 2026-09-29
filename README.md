@@ -22,6 +22,7 @@ service and no server.
 - [Start your club](deploy/cloudflare/GO-LIVE.md): a fresh deployment for real,
   your members and courts, and inviting players.
 - [Running the league day to day](docs/COACH-WORKFLOW.md) with a coding agent.
+- [Update your club](deploy/cloudflare/UPDATING.md) to a new DeuceLeague version.
 - [Sign-in emails](deploy/cloudflare/EMAIL.md), [court forecasts](deploy/cloudflare/WEATHER.md)
   and [recovering administrator access](deploy/cloudflare/RECOVERY.md).
 - [For coaches](https://emrahman.github.io/DeuceLeague/for-coaches.html): what
