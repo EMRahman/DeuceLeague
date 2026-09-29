@@ -42,13 +42,18 @@ export type Progress = Counts & {
   competition_id: string;
   results_deadline_at: string | null;
   days_remaining: number | null;
-  divisions: (Counts & { division_id: string; ordinal: number; name: string })[];
+  active_entries: number;
+  /** How many matches each entry is expected to play, and how many entries are short of it. */
+  minimum_matches: number;
+  below_minimum: number;
+  divisions: (Counts & { division_id: string; ordinal: number; name: string; active_entries: number; below_minimum: number })[];
 };
 
 /** A competition's progress as the season's progress gives it. */
 export type SeasonProgress = {
   competitions: (Progress & {
     name: string;
+    discipline: Competition["discipline"];
     state: Competition["state"];
     opted_out: { entry_id: string; label: string }[];
   })[];
@@ -92,6 +97,9 @@ export type ChaseRow = {
   awaiting_them: number;
   days_remaining: number | null;
   waiting_on: string[];
+  matches_played: number;
+  minimum_matches: number;
+  matches_short: number;
 };
 
 /** What the coach's pages add to the players' style. */
@@ -274,6 +282,7 @@ export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: stri
                   : `Opted out of next season: ${optedOut.join(", ")}.`}{" "}
                 {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
               </p>
+              <ShortOfMinimum progress={progress} />
             </div>
           ))}
         </>
@@ -621,12 +630,44 @@ export const Tables: FC<{
   </Layout>
 );
 
-export const Chase: FC<{ frame: Frame; rows: ChaseRow[]; within: number | null; choices: number[] }> = ({
-  frame,
-  rows,
-  within,
-  choices,
-}) => {
+/**
+ * "9 of 15 players (60%) are short of the 4-match minimum", or that none is. The
+ * minimum is the rule, or all a player's fixtures if fewer, as the API counts it.
+ */
+const ShortOfMinimum: FC<{ progress: SeasonProgress["competitions"][number] }> = ({ progress }) => {
+  const { below_minimum: short, active_entries: all, minimum_matches: minimum } = progress;
+  if (minimum === 0 || all === 0) return null;
+  const who = progress.discipline === "doubles" ? ["pair", "pairs"] : ["player", "players"];
+  return short === 0 ? (
+    <p class="muted">Nobody is short of the {minimum}-match minimum.</p>
+  ) : (
+    <p>
+      <span class="deadline">
+        {short} of {plural(all, who[0]!, who[1])} ({Math.round((100 * short) / all)}%)
+      </span>{" "}
+      {short === 1 ? "is" : "are"} short of the {minimum}-match minimum
+      {progress.divisions.length > 1 && (
+        <span class="muted">
+          {" "}
+          ·{" "}
+          {progress.divisions
+            .filter((d) => d.below_minimum > 0)
+            .map((d) => `${d.name}: ${d.below_minimum} of ${d.active_entries}`)
+            .join(", ")}
+        </span>
+      )}
+    </p>
+  );
+};
+
+export const Chase: FC<{
+  frame: Frame;
+  rows: ChaseRow[];
+  within: number | null;
+  choices: number[];
+  /** The competitions under way, for who is short of their minimum. */
+  progress: SeasonProgress["competitions"];
+}> = ({ frame, rows, within, choices, progress }) => {
   const groups = new Map<string, ChaseRow[]>();
   for (const row of rows) {
     const key = `${row.competition_name} · ${row.division_name}`;
@@ -651,6 +692,20 @@ export const Chase: FC<{ frame: Frame; rows: ChaseRow[]; within: number | null; 
           </a>
         ))}
       </nav>
+      {progress.length > 0 && (
+        <div class="card">
+          <h2>Short of the minimum</h2>
+          <p class="muted">Anyone with fewer fixtures than the minimum is expected to play them all.</p>
+          <ul class="list">
+            {progress.map((x) => (
+              <li class="answer">
+                <strong>{x.name}</strong>
+                <ShortOfMinimum progress={x} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {emails.length > 0 && (
         <p>
           <a class="button quiet small" href={`mailto:?bcc=${emails.map(encodeURIComponent).join(",")}`}>
@@ -687,6 +742,14 @@ export const Chase: FC<{ frame: Frame; rows: ChaseRow[]; within: number | null; 
                     ]
                       .filter(Boolean)
                       .join(" · ")}
+                    {r.matches_short > 0 && (
+                      <>
+                        <br />
+                        <span class="deadline">
+                          Played {r.matches_played} of {r.minimum_matches}: {r.matches_short} short
+                        </span>
+                      </>
+                    )}
                     {r.waiting_on.length > 0 && (
                       <>
                         <br />

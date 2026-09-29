@@ -426,7 +426,16 @@ export function createCoachSite(options: CoachOptions) {
       `/v1/chase-list${within === null ? "" : `?within_days=${within}`}`,
       who.key,
     );
-    return c.html(<Chase frame={frameOf(who, "chase")} rows={data} within={within} choices={WITHIN} />);
+    // Who is short of their minimum, in the competitions under way: one read a season.
+    const progress = [];
+    for (const season of await all<Season>("/v1/seasons?state=active", who.key)) {
+      const { competitions } = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      progress.push(...competitions.filter((x) => x.state === "active"
+        && (within === null || (x.days_remaining !== null && x.days_remaining <= within))));
+    }
+    return c.html(
+      <Chase frame={frameOf(who, "chase")} rows={data} within={within} choices={WITHIN} progress={progress} />,
+    );
   });
 
   app.post("/sign-in", async (c) => {

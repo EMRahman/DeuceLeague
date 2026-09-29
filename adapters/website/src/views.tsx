@@ -739,6 +739,12 @@ export const RulesExplained: FC<{ rules: Rules; tiebreakFormat: string }> = ({ r
           <li>Games are counted across all the sets; a match tiebreak counts as one game.</li>
         )}
         {splits.length > 0 && <li>Level on points? Split by {splits.join(", then ")}.</li>}
+        {rules.minMatchesToPlay > 0 && (
+          <li>
+            Play at least {rules.minMatchesToPlay} {rules.minMatchesToPlay === 1 ? "match" : "matches"} this season, or
+            all of yours if you have fewer.
+          </li>
+        )}
         <li>
           At the end, the top {rules.movement.promote} of each division go up and the bottom {rules.movement.relegate}{" "}
           go down

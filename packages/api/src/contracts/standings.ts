@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { CompetitionState, TiebreakRule } from "@deuceleague/schema";
+import { CompetitionState, Discipline, TiebreakRule } from "@deuceleague/schema";
 import { authProblems, IdParam, notFoundProblem, requires, Timestamp, validationProblem } from "./shared.js";
 
 export const MatchLine = z
@@ -89,6 +89,12 @@ export const Counts = {
   percent_played: z.number().nullable(),
 };
 
+const BelowMinimum = z.number().int().openapi({
+  description:
+    "Active entries that have played fewer than `minimum_matches`, or than all their fixtures if they have " +
+    "fewer. Played is counted as the tables count it.",
+});
+
 export const Progress = z
   .object({
     competition_id: z.uuid(),
@@ -98,6 +104,10 @@ export const Progress = z
     }),
     active_entries: z.number().int(),
     ...Counts,
+    minimum_matches: z.number().int().openapi({
+      description: "How many matches each entry is expected to play: the competition's `minMatchesToPlay` rule.",
+    }),
+    below_minimum: BelowMinimum,
     divisions: z.array(
       z.object({
         division_id: z.uuid(),
@@ -105,6 +115,7 @@ export const Progress = z
         name: z.string(),
         active_entries: z.number().int(),
         ...Counts,
+        below_minimum: BelowMinimum,
       }),
     ),
   })
@@ -120,6 +131,7 @@ export const SeasonProgress = z
     competitions: z.array(
       Progress.extend({
         name: z.string(),
+        discipline: Discipline,
         state: CompetitionState,
         opted_out: z
           .array(z.object({ entry_id: z.uuid(), label: z.string() }))
@@ -157,6 +169,11 @@ export const ChaseEntry = z
     awaiting_them: z.number().int().openapi({ description: "This member has claimed; the opponent has not answered." }),
     days_remaining: z.number().int().nullable(),
     waiting_on: z.array(z.string()).openapi({ description: "The opponents, as written on a results sheet." }),
+    matches_played: z.number().int().openapi({ description: "As the tables count it." }),
+    minimum_matches: z.number().int().openapi({
+      description: "What this member is expected to play: the competition's `minMatchesToPlay`, or every fixture if fewer.",
+    }),
+    matches_short: z.number().int().openapi({ description: "How many more to reach `minimum_matches`; 0 once reached." }),
   })
   .openapi("ChaseEntry");
 

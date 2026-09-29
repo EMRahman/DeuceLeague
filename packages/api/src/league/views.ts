@@ -57,7 +57,7 @@ export function toCounts(p: ProgressCounts) {
   };
 }
 
-export function toChase(r: ChaseRow): z.infer<typeof ChaseEntry> {
+export function toChase(r: ChaseRow, minimum: { played: number; target: number } | undefined): z.infer<typeof ChaseEntry> {
   return {
     competition_id: r.competitionId,
     competition_name: r.competitionName,
@@ -72,5 +72,8 @@ export function toChase(r: ChaseRow): z.infer<typeof ChaseEntry> {
     awaiting_them: r.awaitingThem,
     days_remaining: r.daysRemaining,
     waiting_on: r.waitingOn,
+    matches_played: minimum?.played ?? 0,
+    minimum_matches: minimum?.target ?? 0,
+    matches_short: Math.max(0, (minimum?.target ?? 0) - (minimum?.played ?? 0)),
   };
 }

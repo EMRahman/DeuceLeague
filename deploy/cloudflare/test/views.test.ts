@@ -162,7 +162,8 @@ test("empty competitions preserve the no-division progress response", async (t) 
   const season = await create(f, "/v1/seasons", { name: "Empty", results_deadline_at: new Date().toISOString() });
   const c = await create(f, "/v1/competitions", { name: "Empty", season_id: season.id, discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
   assert.deepEqual((await send(f, `/v1/competitions/${c.id}/progress`)).body,
-    { competition_id: c.id, results_deadline_at: null, days_remaining: null, active_entries: 0, matches: 0, played: 0, outstanding: 0, reported: 0, disputed: 0, percent_played: null, divisions: [] });
+    { competition_id: c.id, results_deadline_at: null, days_remaining: null, active_entries: 0, matches: 0, played: 0, outstanding: 0, reported: 0, disputed: 0, percent_played: null,
+      minimum_matches: 4, below_minimum: 0, divisions: [] });
   assert.deepEqual((await send(f, `/v1/competitions/${c.id}/standings`)).body, { competition_id: c.id, final: true, divisions: [] });
   const division = await create(f, `/v1/competitions/${c.id}/divisions`, {});
   const entry = await create(f, `/v1/competitions/${c.id}/entries`, { division_id: division.id, member_ids: [await f.member()] });
@@ -197,7 +198,7 @@ test("a season's progress gives every competition's counts and opt-outs in one r
   assert.equal(whole.body.competitions[2].name, "Next singles");
   const named = (name: string) => whole.body.competitions.find((c: { name: string }) => c.name === name);
   for (const c of whole.body.competitions.slice(0, 2)) {
-    const { name, state, opted_out, ...counts } = c;
+    const { name, discipline, state, opted_out, ...counts } = c;
     assert.deepEqual(counts, (await f.api(`/v1/competitions/${c.competition_id}/progress`, f.admin)).body, `${name}: the same as its own progress`);
   }
   assert.equal(named("Sample singles").opted_out.length, 2); assert.equal(named("Sample doubles").opted_out.length, 0);
@@ -217,4 +218,102 @@ test("a match names its competition and division, listed or read alone", async (
   assert.ok(listed.every((m) => /^Sample (singles|doubles)$/.test(m.competition_name) && /^Division \d$/.test(m.division_name)));
   const one = (await f.api(`/v1/matches/${listed[0]!.id}`, f.admin)).body;
   assert.equal(one.competition_name, listed[0]!.competition_name); assert.equal(one.division_name, listed[0]!.division_name);
+});
+
+test("progress and the chase list count who is short of the minimum, as the tables count played", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const whole = (await f.api(`/v1/seasons/${season.id}/progress`, f.admin)).body;
+  const chase = (await f.api("/v1/chase-list", f.admin)).body.data as
+    { competition_id: string; division_id: string; display_name: string; matches_played: number; minimum_matches: number; matches_short: number }[];
+  for (const c of whole.competitions) {
+    assert.equal(c.minimum_matches, 4, "the default");
+    const standings = (await f.api(`/v1/competitions/${c.competition_id}/standings`, f.admin)).body;
+    // Every sample division is a round robin of five: four fixtures each, so the target is four.
+    for (const d of standings.divisions) {
+      const short = d.rows.filter((r: { played: number }) => r.played < 4);
+      assert.equal(c.divisions.find((x: { division_id: string }) => x.division_id === d.division_id).below_minimum, short.length, d.name);
+      for (const row of d.rows) {
+        for (const r of chase.filter((x) => x.division_id === d.division_id && row.label.split(" / ").includes(x.display_name))) {
+          assert.deepEqual([r.matches_played, r.minimum_matches, r.matches_short], [row.played, 4, Math.max(0, 4 - row.played)], r.display_name);
+        }
+      }
+    }
+    assert.equal(c.below_minimum, c.divisions.reduce((n: number, d: { below_minimum: number }) => n + d.below_minimum, 0));
+  }
+  assert.ok(whole.competitions.some((c: { below_minimum: number }) => c.below_minimum > 0), "the sample is mid-season");
+
+  // A club's own minimum, and a rule saved before the minimum existed, which reads as the default.
+  const singles = whole.competitions.find((c: { name: string }) => c.name === "Sample singles");
+  const rules = (await f.api(`/v1/competitions/${singles.competition_id}`, f.admin)).body.rules;
+  assert.equal((await f.api(`/v1/competitions/${singles.competition_id}`, f.admin, "PATCH", { rules: { ...rules, minMatchesToPlay: 1 } })).status, 200);
+  const one = (await f.api(`/v1/competitions/${singles.competition_id}/progress`, f.admin)).body;
+  assert.equal(one.minimum_matches, 1);
+  const standings = (await f.api(`/v1/competitions/${singles.competition_id}/standings`, f.admin)).body;
+  assert.equal(one.below_minimum, standings.divisions.flatMap((d: { rows: { played: number }[] }) => d.rows).filter((r: { played: number }) => r.played < 1).length);
+  await f.db.prepare("UPDATE competition SET rules = json_remove(rules, '$.minMatchesToPlay') WHERE id = ?").bind(singles.competition_id).run();
+  assert.equal((await f.api(`/v1/competitions/${singles.competition_id}/progress`, f.admin)).body.minimum_matches, 4);
+  assert.equal((await f.api(`/v1/competitions/${singles.competition_id}`, f.admin)).body.rules.minMatchesToPlay, 4);
+});
+
+test("an entry with fewer fixtures than the minimum is expected to play them all", async (t) => {
+  const f = await websiteFixture(t);
+  const season = await f.create("/v1/seasons", { name: "Small", starts_on: "2026-01-01", ends_on: "2026-12-31",
+    results_deadline_at: new Date(Date.now() + 30 * 86400_000).toISOString() });
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const comp = await f.create("/v1/competitions", { season_id: season.id, name: "Three", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
+  const division = await f.create(`/v1/competitions/${comp.id}/divisions`, {});
+  for (const name of ["A", "B", "C"]) {
+    const member = await f.create("/v1/members", { display_name: name });
+    await f.create(`/v1/competitions/${comp.id}/entries`, { division_id: division.id, member_ids: [member.id] });
+  }
+  assert.equal((await f.api(`/v1/divisions/${division.id}/fixtures`, f.admin, "POST")).status, 200);
+  assert.equal((await f.api(`/v1/competitions/${comp.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const rows = (await f.api(`/v1/chase-list?competition_id=${comp.id}`, f.admin)).body.data;
+  assert.deepEqual(rows.map((r: { minimum_matches: number; matches_short: number }) => [r.minimum_matches, r.matches_short]), [[2, 2], [2, 2], [2, 2]]);
+  assert.equal((await f.api(`/v1/competitions/${comp.id}/progress`, f.admin)).body.below_minimum, 3);
+});
+
+test("the chase list counts toward the minimum as the tables do when a player withdraws", async (t) => {
+  const f = await websiteFixture(t);
+  const season = await f.create("/v1/seasons", { name: "Withdrawals", starts_on: "2026-01-01", ends_on: "2026-12-31",
+    results_deadline_at: new Date(Date.now() + 30 * 86400_000).toISOString() });
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const defaults = (await f.create("/v1/competitions", { season_id: season.id, name: "Probe", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak" })).rules;
+  // Results against a player who withdraws are void, and their remaining fixtures are walkovers to the opponents.
+  const comp = await f.create("/v1/competitions", { season_id: season.id, name: "Four", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak",
+    rules: { ...defaults, withdrawal: { playedMatches: "void", remainingMatches: "walkover_to_opponent" } } });
+  const division = await f.create(`/v1/competitions/${comp.id}/divisions`, {});
+  const entries: Record<string, string> = {};
+  for (const name of ["A", "B", "C", "D"]) {
+    const member = await f.create("/v1/members", { display_name: name });
+    entries[name] = (await f.create(`/v1/competitions/${comp.id}/entries`, { division_id: division.id, member_ids: [member.id] })).id;
+  }
+  assert.equal((await f.api(`/v1/divisions/${division.id}/fixtures`, f.admin, "POST")).status, 200);
+  assert.equal((await f.api(`/v1/competitions/${comp.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const matches = (await f.api(`/v1/matches?competition_id=${comp.id}`, f.admin)).body.data as { id: string; sides: { entry_id: string }[] }[];
+  const between = (x: string, y: string) => matches.find((m) => [x, y].every((e) => m.sides.some((s) => s.entry_id === entries[e])))!;
+  for (const [x, y] of [["A", "B"], ["A", "C"]]) {
+    assert.equal((await f.api(`/v1/matches/${between(x, y).id}/settle`, f.admin, "POST",
+      { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } })).status, 201);
+  }
+  assert.equal((await f.api(`/v1/entries/${entries.B}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
+
+  const table = (await f.api(`/v1/competitions/${comp.id}/standings`, f.admin)).body.divisions[0].rows as
+    { label: string; played: number; standing: string }[];
+  const played = Object.fromEntries(table.map((r) => [r.label, r.played]));
+  // A's win over B is void; C and D each get a walkover from B.
+  assert.deepEqual([played.A, played.C, played.D], [1, 2, 1]);
+  const chase = (await f.api(`/v1/chase-list?competition_id=${comp.id}`, f.admin)).body.data as
+    { display_name: string; matches_played: number; minimum_matches: number; matches_short: number }[];
+  assert.ok(chase.length > 0);
+  for (const r of chase) {
+    const target = r.display_name === "B" ? 0 : 3;
+    assert.deepEqual([r.matches_played, r.minimum_matches, r.matches_short],
+      [played[r.display_name], target, Math.max(0, target - played[r.display_name]!)], r.display_name);
+  }
+  const progress = (await f.api(`/v1/competitions/${comp.id}/progress`, f.admin)).body;
+  assert.equal(progress.below_minimum, ["A", "C", "D"].filter((n) => played[n]! < 3).length);
 });

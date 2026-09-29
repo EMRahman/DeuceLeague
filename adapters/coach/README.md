@@ -32,7 +32,8 @@ MIT-licensed.
   results, and for each active competition how many matches are played,
   waiting on the other side or disputed, overall and by division
   (`GET /v1/seasons/{id}/progress`, one read a season however many
-  competitions it runs). It names who has opted out of next
+  competitions it runs), and how many players are short of the minimum
+  number of matches. It names who has opted out of next
   season and says whether next season's competition is drafted yet.
 - **Results** (`/coach/results`). Disputes, with what each side says and what
   differs; reports waiting on the other side, the longest waiting first; and,
@@ -52,7 +53,9 @@ MIT-licensed.
   time.
 - **Chase list** (`/coach/chase`). Who has matches to play or scores to
   confirm, by division (`GET /v1/chase-list`), narrowed to competitions whose
-  deadline is 30, 14 or 7 days away. With `members:pii`, a BCC `mailto:` link
+  deadline is 30, 14 or 7 days away. It starts with how many players in each
+  competition are short of its minimum number of matches (`minMatchesToPlay`,
+  default 4), and marks each one who is. With `members:pii`, a BCC `mailto:` link
   addresses those with an email; the site itself sends nothing.
 - **Members** (`/coach/members`). Each member with the date and time they
   signed in, on the club's clock (`signed_in_at`: their newest device still
