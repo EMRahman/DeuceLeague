@@ -6,7 +6,8 @@ Workers Free** and **Resend** for sign-in emails. You can do it in your browser;
 no terminal, Docker or local database is needed.
 
 Use the sample club for this trial. It does not move an existing club or
-rehearse recovery for a live club; plan those operational changes separately.
+rehearse data backup/restore or administrator recovery for a live club; plan
+those operational changes separately.
 
 ## 1. Get ready
 
