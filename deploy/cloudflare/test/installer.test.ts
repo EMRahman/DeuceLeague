@@ -168,6 +168,21 @@ test("optional sample works from installation through two players' sign-in, repo
     ["SELECT count(*) AS n FROM member m WHERE NOT EXISTS (SELECT 1 FROM entry_member em WHERE em.member_id = m.id)", 2],
     // Every division is a full round robin of five.
     ["SELECT count(*) AS n FROM (SELECT division_id FROM match GROUP BY division_id HAVING count(*) = 10)", 5],
+    // The history runs forward: nothing is reported, agreed or changed before
+    // the match, entry or player it concerns existed, and nothing after now.
+    [`SELECT count(*) AS n FROM match m JOIN competition c ON c.id = m.competition_id JOIN season s ON s.id = c.season_id
+      WHERE m.updated_at < m.created_at OR m.created_at < c.created_at OR c.created_at < s.created_at
+        OR m.updated_at > unixepoch('subsec') * 1000`, 0],
+    [`SELECT count(*) AS n FROM result_submission r JOIN match m ON m.id = r.match_id
+      LEFT JOIN member p ON p.id = r.submitted_by_member_id
+      WHERE r.submitted_at < m.created_at OR r.submitted_at < p.created_at OR r.confirmed_at < r.submitted_at
+        OR r.submitted_at > m.updated_at OR r.played_on > date('now')`, 0],
+    [`SELECT count(*) AS n FROM entry e JOIN entry_member em ON em.entry_id = e.id JOIN member p ON p.id = em.member_id
+      JOIN match_side ms ON ms.entry_id = e.id JOIN match m ON m.id = ms.match_id
+      WHERE e.created_at < p.created_at OR m.created_at < e.created_at OR em.created_at <> e.created_at
+        OR e.updated_at < e.created_at OR e.opted_out_at < e.created_at`, 0],
+    // UUIDv7 ids sort by creation, so a claim's id sorts after its match's.
+    ["SELECT count(*) AS n FROM result_submission r WHERE r.id < r.match_id", 0],
   ] as const) assert.equal(await f.db.prepare(sql).first("n"), expected, sql);
   assert.equal(await f.db.prepare("SELECT email FROM member WHERE display_name = 'Sample Alex'").first("email"), email);
   assert.equal(await f.db.prepare("SELECT email FROM member WHERE display_name = 'Sample Bailey'").first("email"), second);

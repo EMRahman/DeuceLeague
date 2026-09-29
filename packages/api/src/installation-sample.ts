@@ -51,12 +51,16 @@ const OPTED_OUT = new Set(["Gray", "Morgan"]);
 /** A deliberately fictional, new-installation-only league. No mail or I/O here. */
 export function installationSample(clubId: string, timezone: string, now: Date,
   emails: { alex: string | null; bailey: string | null }): InstallationSample {
-  const members = NAMES.map((name) => ({ id: uuidv7(), displayName: `Sample ${name}`,
+  const at = (daysAgo: number, hours = 0) => new Date(now.getTime() - daysAgo * DAY + hours * 3_600_000);
+  // The club, its players and its fixtures date from the season's start, so
+  // every sample report and agreement comes after the match it is about.
+  // Ids are UUIDv7 and carry that time too.
+  const opened = at(30);
+  const base = () => ({ id: uuidv7(opened.getTime()), clubId, createdAt: opened, updatedAt: opened });
+  const members = NAMES.map((name) => ({ id: uuidv7(opened.getTime()), displayName: `Sample ${name}`, createdAt: opened,
     email: name === "Alex" ? emails.alex : name === "Bailey" ? emails.bailey : null }));
   const byName = new Map(NAMES.map((name, i) => [name, members[i]!]));
   const sample: InstallationSample = { preset: "starter-v2", members, changes: [], entries: [], matches: [], claims: [], outcomes: [], events: [] };
-  const at = (daysAgo: number, hours = 0) => new Date(now.getTime() - daysAgo * DAY + hours * 3_600_000);
-  const base = () => ({ id: uuidv7(), clubId, createdAt: now, updatedAt: now });
   const day = (date: Date) => {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
     const part = (type: string) => parts.find((p) => p.type === type)!.value;
@@ -64,7 +68,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   };
   const deadline = new Date(now.getTime() + 30 * DAY);
   const season = { ...base(), name: "Sample season", kind: null, year: null,
-    startsOn: day(at(30)), endsOn: day(deadline), resultsDeadlineAt: deadline, state: "active" };
+    startsOn: day(opened), endsOn: day(deadline), resultsDeadlineAt: deadline, state: "active" };
   function add(change: Extract<LeagueWrite, { record: unknown }>, payload: object) {
     sample.changes.push(change);
     sample.events.push({ type: `${change.type}.created`, subjectType: change.type, id: change.record.id, payload });
@@ -84,7 +88,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
       const entries: EntryRecord[] = division.map((names) => {
         const lineup = names.map((name) => byName.get(name)!);
         const optedOut = discipline === "singles" && OPTED_OUT.has(names[0]!);
-        return { ...base(), competitionId: competition.id, divisionId: record.id, displayName: null,
+        return { ...base(), ...(optedOut ? { updatedAt: at(4) } : {}), competitionId: competition.id, divisionId: record.id, displayName: null,
           label: lineup.map((m) => m.displayName).join(" / "),
           members: lineup.map((m, i) => ({ id: m.id, displayName: m.displayName, role: i === 0 ? "player" : "partner" })),
           seed: null, state: "active", placementReason: null, previousEntryId: null, withdrawnAt: null, optedOutAt: optedOut ? at(4) : null };
@@ -94,11 +98,11 @@ export function installationSample(clubId: string, timezone: string, now: Date,
         sample.events.push({ type: "entry.created", subjectType: "entry", id: entry.id, payload: { competition_id: competition.id,
           division_id: record.id, member_ids: entry.members.map((m) => m.id), placement_reason: null } });
       }
-      const fixtures = roundRobin(entries.map((e) => e.id)).map((f) => ({ ...f, id: uuidv7() }));
+      const fixtures = roundRobin(entries.map((e) => e.id)).map((f) => ({ ...f, id: uuidv7(opened.getTime()) }));
       sample.events.push({ type: "division.fixtures_generated", subjectType: "division", id: record.id,
         payload: { match_ids: fixtures.map((f) => f.id) } });
       for (const f of fixtures) {
-        sample.matches.push({ ...f, competitionId: competition.id, divisionId: record.id });
+        sample.matches.push({ ...f, competitionId: competition.id, divisionId: record.id, createdAt: opened });
         const [i, j] = [f.side0, f.side1].map((id) => entries.findIndex((e) => e.id === id)).sort((a, b) => a - b) as [number, number];
         const what = plan(discipline, d, i, j);
         if (what === "open") continue;
@@ -108,7 +112,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
         const games = WINS[played++ % WINS.length]!;
         const score = (side: SideIndex, sets = games) => ({ sets: sets.map(([w, l]) => ({ games: (side === 0 ? [w, l] : [l, w]) as [number, number] })) });
         const daysAgo = what === "reported" ? 3 + (played % 5) : 2 + (played * 7) % 26;
-        const match = new MatchState(f.id, clubId, competition.id, record.id, [f.side0, f.side1], day(at(daysAgo)));
+        const match = new MatchState(f.id, clubId, competition.id, record.id, [f.side0, f.side1], opened, day(at(daysAgo)));
         const player = (side: SideIndex) => entries.find((e) => e.id === (side === 0 ? f.side0 : f.side1))!.members[0]!.id;
         const reporter = (played % 2 === 0 ? stronger : 1 - stronger) as SideIndex;
         match.act(sample, player(reporter), reporter, at(daysAgo, 20), deadline,
@@ -136,9 +140,10 @@ class MatchState {
   record: MatchRecord;
   claims: ClaimRecord[] = [];
   ledger: ResultMutation["ledger"] = null;
-  constructor(id: string, clubId: string, competitionId: string, divisionId: string, sides: [string, string], readonly playedOn: string) {
+  constructor(id: string, clubId: string, competitionId: string, divisionId: string, sides: [string, string], created: Date,
+    readonly playedOn: string) {
     this.record = { id, clubId, competitionId, divisionId, status: "open", outcome: null, score: null, winningSide: null,
-      retiredSide: null, playedOn: null, acceptedSubmissionId: null, createdAt: new Date(0), updatedAt: new Date(0),
+      retiredSide: null, playedOn: null, acceptedSubmissionId: null, createdAt: created, updatedAt: created,
       sides: sides.map((entryId, sideIndex) => ({ sideIndex, entryId, label: null })) };
   }
   act(sample: InstallationSample, memberId: string, ownSide: SideIndex, now: Date, deadline: Date, action: ResultAction) {
