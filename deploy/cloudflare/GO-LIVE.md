@@ -69,6 +69,9 @@ can also delete the trial's repository.
 - **Settings** live in your repository's `wrangler.jsonc`, since a deployment
   overwrites changes made only in the dashboard. Passwords and keys stay in the
   Worker's secrets. Keep the `DB` binding's `database_id` as it is.
+- **Your own look:** your coding agent can change the site's pages on your
+  computer, with the sample league, before you put them live. See
+  [make the site your own](CUSTOMISE.md).
 - **Updates:** your coding agent brings new DeuceLeague versions into your
   repository as a pull request, and you choose what to take. See
   [update your club](UPDATING.md) for the prompt to give it. Merging deploys,

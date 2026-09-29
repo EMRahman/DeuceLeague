@@ -24,19 +24,22 @@ checks rather than the runtime suites.
 ## Running it locally
 
 ```sh
-cp .dev.vars.example .dev.vars
+npm run local           # http://localhost:8787, with the sample league
 ```
 
-Fill in `SETUP_TOKEN` and `WEBSITE_API_KEY` as the file explains, and add
-`PUBLIC_URL=http://localhost:8787`. Then:
+The first run writes `.dev.vars` with local secrets and creates a club with the
+sample, saving its keys to `.wrangler/local-club.txt` and copying the
+administrator key to the clipboard. Every run applies the migrations to the
+local D1, serves the Worker, recompiles on save (the Worker loads the packages'
+`dist/`, so without this an edit needs a restart), and makes fresh sign-in links
+for Sample Alex and Sample Bailey. Delete `.wrangler/` to start again. Open it
+at `localhost`, not `127.0.0.1`: the Worker answers only on `PUBLIC_URL`.
 
-```sh
-npm run cf:db:migrate   # applies the migrations to a local D1
-npm run cf:dev          # serves the Worker at http://localhost:8787
-```
-
-Open `http://localhost:8787/install` to create a club, with the sample if you
-like. `.dev.vars` is ignored by Git; never commit real credentials.
+By hand, the same is: copy `.dev.vars.example` to `.dev.vars`, fill it in and
+add `PUBLIC_URL=http://localhost:8787`; run `npm run cf:db:migrate`; then
+`npx tsc --build --watch deploy/cloudflare` alongside `npm run cf:dev`, and
+create the club at `/install`. `.dev.vars` is ignored by Git; never commit real
+credentials.
 
 ## API changes
 
