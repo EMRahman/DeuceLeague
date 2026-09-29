@@ -1,14 +1,15 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { commitIdentity, readLeagueViews, readChase, readSeasonProgress, retryMutation, type IdentitySnapshot } from "@deuceleague/db-d1";
+import { commitIdentity, readLeagueViews, readChase, readSeasonProgress, retryMutation, type IdentitySnapshot,
+  type LedgerMatch } from "@deuceleague/db-d1";
 import { suggestPlacements } from "@deuceleague/engine";
-import { RulesSpec } from "@deuceleague/schema";
+import { RulesSpec, type MatchFormat } from "@deuceleague/schema";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import * as routes from "./contracts/standings.js";
 import { iso } from "./contracts/shared.js";
-import { daysRemaining, progressCounts } from "./league/progress.js";
+import { daysRemaining, progressCounts, shortOfMinimum } from "./league/progress.js";
 import { playerVisible } from "./league/rules.js";
 import { tablesFromRecords } from "./league/tables.js";
 import { toStandings, toCounts, toChase } from "./league/views.js";
@@ -20,17 +21,22 @@ type Views = Awaited<ReturnType<typeof readLeagueViews>>;
  * A competition's progress as a rollup of its divisions': with no divisions it
  * has no deadline row, and matches without a division do not enter it.
  */
-function competitionProgress(id: string, divisions: { id: string; ordinal: number; name: string }[],
-  entries: { divisionId: string; state: string }[], matches: { divisionId: string | null; status: string }[],
+function competitionProgress(competition: { id: string; rules: unknown; matchFormat: MatchFormat },
+  divisions: { id: string; ordinal: number; name: string }[],
+  entries: { id: string; label: string; divisionId: string; state: string }[], matches: LedgerMatch[],
   seasonDeadline: Date | null, timezone: string, now: Date) {
   const deadline = divisions.length ? seasonDeadline : null;
   const ids = new Set(divisions.map((d) => d.id));
   const active = entries.filter((e) => e.state === "active");
-  return { competition_id: id, results_deadline_at: iso(deadline), days_remaining: daysRemaining(deadline, timezone, now),
+  const rules = RulesSpec.parse(competition.rules);
+  const short = shortOfMinimum(rules, competition.matchFormat, entries.filter((e) => ids.has(e.divisionId)), matches);
+  const shortIn = (divisionId: string) => active.filter((e) => e.divisionId === divisionId && short.has(e.id)).length;
+  return { competition_id: competition.id, results_deadline_at: iso(deadline), days_remaining: daysRemaining(deadline, timezone, now),
     active_entries: active.length, ...toCounts(progressCounts(matches.filter((m) => m.divisionId !== null && ids.has(m.divisionId)))),
+    minimum_matches: rules.minMatchesToPlay, below_minimum: divisions.reduce((n, d) => n + shortIn(d.id), 0),
     divisions: divisions.map((d) => ({ division_id: d.id, ordinal: d.ordinal, name: d.name,
       active_entries: active.filter((e) => e.divisionId === d.id).length,
-      ...toCounts(progressCounts(matches.filter((m) => m.divisionId === d.id))) })) };
+      ...toCounts(progressCounts(matches.filter((m) => m.divisionId === d.id))), below_minimum: shortIn(d.id) })) };
 }
 function visible(s: Views, id: string) {
   const found = s.data.competitions.find((c) => c.id === id);
@@ -69,7 +75,7 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
       const competition = visible(s, id);
       if (!competition) throw problems.notFound("competition");
       const deadline = s.data.seasons.find((r) => r.id === competition.seasonId)?.resultsDeadlineAt ?? null;
-      return competitionProgress(id, s.data.divisions, s.data.entries, s.ledger, deadline, s.timezone, new Date(s.identity.now));
+      return competitionProgress(competition, s.data.divisions, s.data.entries, s.ledger, deadline, s.timezone, new Date(s.identity.now));
     }), 200);
   });
   app.openapi(routes.season, async (c) => {
@@ -83,9 +89,9 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
         days_remaining: daysRemaining(s.season.deadline, s.timezone, now),
         competitions: shown.map((x) => {
           const entries = s.entries.filter((e) => e.competitionId === x.id);
-          return { ...competitionProgress(x.id, s.divisions.filter((d) => d.competitionId === x.id), entries,
+          return { ...competitionProgress(x, s.divisions.filter((d) => d.competitionId === x.id), entries,
             s.matches.filter((m) => m.competitionId === x.id), s.season!.deadline, s.timezone, now),
-          name: x.name, state: x.state as "draft" | "active" | "complete" | "archived",
+          name: x.name, discipline: x.discipline as "singles" | "doubles", state: x.state as "draft" | "active" | "complete" | "archived",
           opted_out: entries.filter((e) => e.optedOut).map((e) => ({ entry_id: e.id, label: e.label })) };
         }) };
     }), 200);

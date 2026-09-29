@@ -107,6 +107,12 @@ export const RulesSpec = z.object({
   withdrawal: WithdrawalSpec,
   /** Units below this many played matches are listed but marked unranked. */
   minMatchesForRanking: z.number().int().min(0).max(50).default(0),
+  /**
+   * How many matches each unit is expected to play in the competition: progress
+   * and the chase list count those short of it. Nothing is enforced or scored by
+   * it; a unit with fewer fixtures than this is expected to play them all.
+   */
+  minMatchesToPlay: z.number().int().min(0).max(50).default(4),
   /** What a walkover or concession does to the sets and games columns. */
   walkoverScore: WalkoverScore.default("nominal"),
 });
@@ -126,7 +132,8 @@ export type RulesSpec = z.infer<typeof RulesSpec>;
  * stands for in the sets and games columns. Entries level on points are split
  * by games difference, then head-to-head. The top three of each division are suggested for promotion and
  * the bottom three for relegation. A withdrawn unit's played results stand and
- * its remaining fixtures simply go unplayed.
+ * its remaining fixtures simply go unplayed. Everyone is expected to play at
+ * least four matches, or every fixture they have if fewer.
  */
 export const DEFAULT_RULES: RulesSpec = {
   version: 1,
@@ -151,5 +158,6 @@ export const DEFAULT_RULES: RulesSpec = {
   movement: { promote: 3, relegate: 3, minMatchesForPromotion: 2 },
   withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" },
   minMatchesForRanking: 0,
+  minMatchesToPlay: 4,
   walkoverScore: "nominal",
 };

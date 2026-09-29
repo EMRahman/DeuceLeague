@@ -68,7 +68,8 @@ export const NewCompetition = z
       description:
         "Defaults to the standard rules: 1 for playing, 3 more for winning and 1 per set won; 1 for losing " +
         "by 4 games or fewer or winning by 8 or more; 1 for turning up to every match; 3 in total for a " +
-        "win by retirement, walkover or concession, and 0 for that loss.",
+        "win by retirement, walkover or concession, and 0 for that loss. Everyone is expected to play at least 4 " +
+        "matches (`minMatchesToPlay`), or all their fixtures if fewer.",
     }),
     sequence_in_season: z.number().int().min(1).max(50).optional(),
     previous_competition_id: z.uuid().nullable().optional(),

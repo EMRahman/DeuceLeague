@@ -91,6 +91,8 @@ export type Rules = {
   };
   tiebreaks: string[];
   movement: { promote: number; relegate: number; minMatchesForPromotion: number };
+  /** How many matches each player is expected to play. */
+  minMatchesToPlay: number;
 };
 
 export type Competition = {

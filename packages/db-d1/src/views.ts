@@ -1,6 +1,7 @@
 import type { D1Database, D1Result } from "@cloudflare/workers-types";
 import { readIdentity, type CredentialKind } from "./identity.js";
 import { readLeague } from "./league.js";
+import type { MatchFormat } from "@deuceleague/schema";
 import type { LedgerMatch } from "./view-types.js";
 
 type Row = Record<string, unknown>;
@@ -39,6 +40,7 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     db.prepare(`WITH sides AS (
       SELECT m.competition_id, c.name AS competition_name, m.division_id, d.name AS division_name, d.ordinal,
         season.results_deadline_at, cl.timezone, em.member_id, opponent.label AS opponent_label,
+        own.entry_id, json_extract(c.rules, '$.minMatchesToPlay') AS min_rule,
         EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = m.id AND r.side_index = own.side_index AND r.state = 'pending') AS claimed,
         EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = m.id AND r.side_index <> own.side_index AND r.state = 'pending') AS opponent_claimed
       FROM match m JOIN competition c ON c.id = m.competition_id JOIN season ON season.id = c.season_id
@@ -57,7 +59,14 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
       sum(NOT claimed AND NOT opponent_claimed) AS needs_playing,
       sum(opponent_claimed) AS awaiting_you,
       sum(claimed AND NOT opponent_claimed) AS awaiting_them,
-      json_group_array(opponent_label ORDER BY opponent_label) AS waiting_on
+      json_group_array(opponent_label ORDER BY opponent_label) AS waiting_on,
+      -- Toward the competition's minimum, counted as the tables count it: a walkover
+      -- or concession only for the side that turned up.
+      sides.min_rule,
+      (SELECT count(*) FROM match_side f WHERE f.entry_id = sides.entry_id) AS fixtures,
+      (SELECT count(*) FROM match pm JOIN match_side ps ON ps.match_id = pm.id
+        WHERE ps.entry_id = sides.entry_id AND pm.status = 'played' AND (pm.outcome IN ('completed', 'retired')
+          OR (pm.outcome IN ('walkover', 'conceded') AND pm.winning_side = ps.side_index))) AS played
     FROM sides JOIN member mb ON mb.id = sides.member_id AND mb.deleted_at IS NULL CROSS JOIN permission
     GROUP BY sides.competition_id, sides.division_id, mb.id
     ORDER BY outstanding_matches DESC, mb.display_name, sides.ordinal`).bind(competitionId ?? null, competitionId ?? null, hash),
@@ -70,6 +79,7 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     outstandingMatches: Number(r.outstanding_matches), needsPlaying: Number(r.needs_playing), awaitingYou: Number(r.awaiting_you), awaitingThem: Number(r.awaiting_them),
     deadline: r.results_deadline_at === null ? null : new Date(Number(r.results_deadline_at)), timezone: String(r.timezone),
     waitingOn: JSON.parse(String(r.waiting_on)) as string[],
+    played: Number(r.played), fixtures: Number(r.fixtures), minRule: r.min_rule === null ? null : Number(r.min_rule),
   }));
   return { identity, rows };
 }
@@ -80,15 +90,19 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
   const identity = await readIdentity(db, hash, kind, null, [
     db.prepare(`SELECT id, results_deadline_at FROM season
       WHERE id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(seasonId),
-    db.prepare(`SELECT id, name, state, visibility FROM competition
+    db.prepare(`SELECT id, name, discipline, state, visibility, rules, match_format FROM competition
       WHERE season_id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1) ORDER BY id`).bind(seasonId),
     db.prepare(`SELECT d.id, d.competition_id, d.ordinal, d.name FROM division d
       JOIN competition c ON c.id = d.competition_id WHERE c.season_id = ? ORDER BY d.ordinal`).bind(seasonId),
     db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, e.opted_out_at, el.label FROM entry e
       JOIN entry_label el ON el.entry_id = e.id JOIN competition c ON c.id = e.competition_id
       WHERE c.season_id = ? ORDER BY el.label, e.id`).bind(seasonId),
-    db.prepare(`SELECT m.competition_id, m.division_id, m.status FROM match m
-      JOIN competition c ON c.id = m.competition_id WHERE c.season_id = ?`).bind(seasonId),
+    db.prepare(`SELECT m.id, m.competition_id, m.division_id, m.status, m.outcome, m.winning_side, m.retired_side, m.score,
+      s0.entry_id AS side0, s1.entry_id AS side1 FROM match m
+      JOIN competition c ON c.id = m.competition_id
+      LEFT JOIN match_side s0 ON s0.match_id = m.id AND s0.side_index = 0
+      LEFT JOIN match_side s1 ON s1.match_id = m.id AND s1.side_index = 1
+      WHERE c.season_id = ? ORDER BY m.id`).bind(seasonId),
     db.prepare("SELECT timezone FROM club WHERE singleton = 1"),
   ]);
   const [seasons, competitions, divisions, entries, matches, club] = identity.extraResults.map((r) => r.results as Row[]);
@@ -96,11 +110,14 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
   return {
     identity,
     season: season ? { id: String(season.id), deadline: season.results_deadline_at === null ? null : new Date(Number(season.results_deadline_at)) } : null,
-    competitions: competitions!.map((c) => ({ id: String(c.id), name: String(c.name), state: String(c.state), visibility: String(c.visibility) })),
+    competitions: competitions!.map((c) => ({ id: String(c.id), name: String(c.name), discipline: String(c.discipline),
+      state: String(c.state), visibility: String(c.visibility), rules: JSON.parse(String(c.rules)) as unknown,
+      matchFormat: JSON.parse(String(c.match_format)) as MatchFormat })),
     divisions: divisions!.map((d) => ({ id: String(d.id), competitionId: String(d.competition_id), ordinal: Number(d.ordinal), name: String(d.name) })),
     entries: entries!.map((e) => ({ id: String(e.id), competitionId: String(e.competition_id), divisionId: String(e.division_id),
       state: String(e.state), optedOut: e.opted_out_at !== null, label: String(e.label) })),
-    matches: matches!.map((m) => ({ competitionId: String(m.competition_id), divisionId: string(m.division_id), status: String(m.status) })),
+    // Each match as the ledger holds it, for counting who has played how many.
+    matches: ledgerRecords(identity.extraResults[4]!).map((m, i) => ({ ...m, competitionId: String(matches![i]!.competition_id) })),
     timezone: String(club![0]!.timezone),
   };
 }

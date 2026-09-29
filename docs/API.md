@@ -205,14 +205,19 @@ competition's rules — points, tiebreaks, unranked below the minimum played,
 and what a walkover is worth — and never stored. Each row says what separated it from the one above. Once the
 results deadline has passed, or the competition is complete, the table is
 final and a match still outstanding counts as unplayed. Progress for a
-competition and its divisions, or for an entry. `GET /v1/seasons/{id}/progress`
+competition and its divisions, or for an entry. Progress also counts the
+entries short of the competition's minimum: its `minMatchesToPlay` rule,
+default 4, is how many matches each entry is expected to play, or all its
+fixtures if it has fewer. Played counts as the tables count it, and nothing is
+enforced: the minimum is for chasing. `GET /v1/seasons/{id}/progress`
 gives every competition in a season at once, with who has opted out of the
 next one: a season's dashboard in one read.
 
-**Chase list.** Who has matches outstanding and how long is left, filterable by
-days remaining — `within_days=30` a month out, 14 a fortnight later. Needs
-`members:read`; emails appear only with `members:pii`. What gets sent, to
-whom, stays the coach's decision.
+**Chase list.** Who has matches outstanding and how long is left, filterable
+by days remaining — `within_days=30` a month out, 14 a fortnight later. Each
+row says how many matches the member has played toward the minimum and how
+many short they are. Needs `members:read`; emails appear only with
+`members:pii`. What gets sent, to whom, stays the coach's decision.
 
 **Events** (`league:read`). `GET /v1/events?after=<cursor>` reads the event
 feed in the order it is safe to read, so a consumer never skips an event.

@@ -2302,6 +2302,12 @@
                 "maximum": 50,
                 "default": 0
               },
+              "minMatchesToPlay": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 50,
+                "default": 4
+              },
               "walkoverScore": {
                 "type": "string",
                 "enum": [
@@ -2698,6 +2704,12 @@
                 "maximum": 50,
                 "default": 0
               },
+              "minMatchesToPlay": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 50,
+                "default": 4
+              },
               "walkoverScore": {
                 "type": "string",
                 "enum": [
@@ -2715,7 +2727,7 @@
               "movement",
               "withdrawal"
             ],
-            "description": "Defaults to the standard rules: 1 for playing, 3 more for winning and 1 per set won; 1 for losing by 4 games or fewer or winning by 8 or more; 1 for turning up to every match; 3 in total for a win by retirement, walkover or concession, and 0 for that loss."
+            "description": "Defaults to the standard rules: 1 for playing, 3 more for winning and 1 per set won; 1 for losing by 4 games or fewer or winning by 8 or more; 1 for turning up to every match; 3 in total for a win by retirement, walkover or concession, and 0 for that loss. Everyone is expected to play at least 4 matches (`minMatchesToPlay`), or all their fixtures if fewer."
           },
           "sequence_in_season": {
             "type": "integer",
@@ -3064,6 +3076,12 @@
                 "minimum": 0,
                 "maximum": 50,
                 "default": 0
+              },
+              "minMatchesToPlay": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 50,
+                "default": 4
               },
               "walkoverScore": {
                 "type": "string",
@@ -3876,6 +3894,14 @@
               "null"
             ]
           },
+          "minimum_matches": {
+            "type": "integer",
+            "description": "How many matches each entry is expected to play: the competition's `minMatchesToPlay` rule."
+          },
+          "below_minimum": {
+            "type": "integer",
+            "description": "Active entries that have played fewer than `minimum_matches`, or than all their fixtures if they have fewer. Played is counted as the tables count it."
+          },
           "divisions": {
             "type": "array",
             "items": {
@@ -3918,6 +3944,10 @@
                     "number",
                     "null"
                   ]
+                },
+                "below_minimum": {
+                  "type": "integer",
+                  "description": "Active entries that have played fewer than `minimum_matches`, or than all their fixtures if they have fewer. Played is counted as the tables count it."
                 }
               },
               "required": [
@@ -3930,7 +3960,8 @@
                 "outstanding",
                 "reported",
                 "disputed",
-                "percent_played"
+                "percent_played",
+                "below_minimum"
               ]
             }
           }
@@ -3946,6 +3977,8 @@
           "reported",
           "disputed",
           "percent_played",
+          "minimum_matches",
+          "below_minimum",
           "divisions"
         ]
       },
@@ -3983,6 +4016,13 @@
                     "name": {
                       "type": "string"
                     },
+                    "discipline": {
+                      "type": "string",
+                      "enum": [
+                        "singles",
+                        "doubles"
+                      ]
+                    },
                     "state": {
                       "type": "string",
                       "enum": [
@@ -4015,6 +4055,7 @@
                   },
                   "required": [
                     "name",
+                    "discipline",
                     "state",
                     "opted_out"
                   ]
@@ -4127,6 +4168,18 @@
               "type": "string"
             },
             "description": "The opponents, as written on a results sheet."
+          },
+          "matches_played": {
+            "type": "integer",
+            "description": "As the tables count it."
+          },
+          "minimum_matches": {
+            "type": "integer",
+            "description": "What this member is expected to play: the competition's `minMatchesToPlay`, or every fixture if fewer."
+          },
+          "matches_short": {
+            "type": "integer",
+            "description": "How many more to reach `minimum_matches`; 0 once reached."
           }
         },
         "required": [
@@ -4141,7 +4194,10 @@
           "awaiting_you",
           "awaiting_them",
           "days_remaining",
-          "waiting_on"
+          "waiting_on",
+          "matches_played",
+          "minimum_matches",
+          "matches_short"
         ]
       },
       "Placements": {
