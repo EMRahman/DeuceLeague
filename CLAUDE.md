@@ -53,8 +53,8 @@ deploy/cloudflare Worker entry point, installer, deployment and recovery tools
 See [DEVELOPING.md](DEVELOPING.md) for checks and local development,
 [deploy/cloudflare/README.md](deploy/cloudflare/README.md) for deployment
 configuration and [docs/API.md](docs/API.md) for API behaviour. The coach-facing
-guides are `deploy/cloudflare/TRY.md` (sample trial) and `GO-LIVE.md` (a real
-club).
+guides are `deploy/cloudflare/TRY.md` (sample trial), `GO-LIVE.md` (a real
+club) and `UPDATING.md` (taking a new version, through the coach's agent).
 
 The prior Docker/PostgreSQL/VPS source is retained at
 `vps-baseline-2026-09-28`; it is not a supported runtime in this branch.
