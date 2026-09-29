@@ -49,13 +49,11 @@ HTTP client dispatches directly to the API handler with normal authentication.
 | `MAIL_FROM` | Sender address, optionally with a display name. Must be accepted by the selected provider. |
 | `EMAIL` | Cloudflare send-email binding, required only with `MAIL_PROVIDER=cloudflare`. |
 | `RESEND_API_KEY` | Provider secret, required only with `MAIL_PROVIDER=resend`. |
-| `WEATHER_VENUES` | Optional `Name@latitude,longitude`, separated by `;`. |
-| `WEATHER_UNITS` | `uk` (default), `metric`, or `us`. |
 | `SETUP_TOKEN` | Existing protected API-bootstrap secret. The website does not use it. |
 
-The deploy-button template omits weather variables so initial setup does not
-require venue details. Add them to your cloned repository's `wrangler.jsonc`
-after deployment to enable forecasts; see [optional weather](TRIAL.md#optional-weather).
+Court locations and forecast units are coach-managed D1 data, not deployment
+variables. A new club starts with no locations, so its player website simply
+omits weather until the coach adds one through the API; see [optional weather](TRIAL.md#optional-weather).
 
 For a new installation, run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'`
 twice or use a password manager. Save the first output as `SETUP_TOKEN`; prefix

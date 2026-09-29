@@ -123,23 +123,22 @@ test("health failure matches the shared problem contract and the Worker bundle e
   assert.doesNotMatch(bundle, /node_modules\/(nodemailer|postgres|pg)\//);
 });
 
-test("Worker weather uses its public cache while player pages stay private", async (t) => {
+test("Worker loads database weather configuration and keeps forecasts in its public cache", async (t) => {
   const f = await websiteFixture(t);
   await f.create("/v1/members", { display_name: "Sam", email: "sam@example.org" });
   const sam = await signIn(f, "sam@example.org");
-  // Fresh templates omit venues; older deploy forms can use ';' when blank is rejected.
-  for (const settings of [{}, { WEATHER_VENUES: "" }, { WEATHER_VENUES: ";" }]) {
-    await f.configure(settings);
-    const home = await sam.get("/"); assert.equal(home.status, 200);
-    assert.doesNotMatch(home.html, /Weather at the courts/);
-    assert.equal(f.outgoing.filter((url) => url.startsWith("https://api.open-meteo.com/")).length, 0);
-  }
-  await f.configure({ WEATHER_VENUES: "Club courts@51,0" });
+  const empty = await sam.get("/"); assert.equal(empty.status, 200);
+  assert.doesNotMatch(empty.html, /Weather at the courts/);
+  assert.equal(f.outgoing.filter((url) => url.startsWith("https://api.open-meteo.com/")).length, 0);
+  assert.equal((await f.api("/v1/court-locations", f.admin, "POST", { name: "Club courts", latitude: 51, longitude: 0 })).status, 201);
   for (let i = 0; i < 2; i++) {
     const home = await sam.get("/"); assert.equal(home.status, 200);
     assert.match(home.html, /Weather at the courts/); assert.equal(home.headers.get("cache-control"), "no-store");
   }
   assert.equal(f.outgoing.filter((url) => url.startsWith("https://api.open-meteo.com/")).length, 1);
+  assert.equal((await f.api("/v1/weather", f.admin, "PATCH", { units: "metric" })).status, 200);
+  assert.match((await sam.get("/")).html, /Weather at the courts/);
+  assert.equal(f.outgoing.filter((url) => url.startsWith("https://api.open-meteo.com/")).length, 2, "units make a distinct cache key");
   assert.ok(f.outgoing.every((url) => !url.includes("sam") && !url.includes("dll_")));
 });
 

@@ -13,6 +13,7 @@ function access(declared: Access) {
   return {
     security: [
       ...(declared.apiKey ? [{ apiKey: declared.apiKey }] : []),
+      ...(declared.apiKeyAny ? declared.apiKeyAny.map((scope) => ({ apiKey: [scope] })) : []),
       ...(declared.session ? [{ session: declared.session }] : []),
       ...(declared.loginLink ? [{ loginLink: [] }] : []),
     ],
@@ -28,6 +29,9 @@ function access(declared: Access) {
 export function requires(...scopes: Scope[]) {
   return access({ apiKey: scopes });
 }
+
+/** An API key holding any one of these scopes. */
+requires.anyKey = (...scopes: Scope[]) => access({ apiKeyAny: scopes });
 
 /**
  * An API key holding these scopes, or a player's session holding them. Only

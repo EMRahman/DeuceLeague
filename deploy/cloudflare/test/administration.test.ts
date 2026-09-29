@@ -41,6 +41,43 @@ test("club settings preserve omitted fields, reject invalid zones, ignore fixed 
   assert.equal((await send(f, "/v1/club", "GET", undefined, reader.key)).status, 403);
 });
 
+test("coaches manage forecast court locations and units through the API", async (t) => {
+  const f = await fixture(t);
+  const initial = await send(f, "/v1/weather");
+  assert.equal(initial.status, 200);
+  assert.deepEqual(initial.body, { units: "uk", court_locations: [] });
+  const reader = await key(f, ["members:read"]);
+  assert.equal((await send(f, "/v1/weather", "GET", undefined, reader.key)).status, 200);
+  const adminOnly = await key(f, ["admin"]);
+  assert.equal((await send(f, "/v1/weather", "GET", undefined, adminOnly.key)).status, 200);
+  assert.equal((await send(f, "/v1/weather", "PATCH", { units: "metric" }, reader.key)).status, 403);
+  assert.equal((await send(f, "/v1/court-locations", "POST", { name: "Bad", latitude: 91, longitude: 0 })).status, 400);
+
+  const first = await send(f, "/v1/court-locations", "POST", { name: "Main Courts", latitude: 51.4343, longitude: -0.2141 });
+  assert.equal(first.status, 201);
+  assert.equal(first.body.name, "Main Courts");
+  assert.equal((await send(f, "/v1/court-locations")).body.data.length, 1);
+  const changed = await send(f, `/v1/court-locations/${first.body.id}`, "PATCH", { name: "Club Courts", longitude: -0.22 });
+  assert.equal(changed.status, 200);
+  assert.equal(changed.body.name, "Club Courts"); assert.equal(changed.body.longitude, -0.22);
+  const units = await send(f, "/v1/weather", "PATCH", { units: "metric" });
+  assert.equal(units.status, 200); assert.equal(units.body.units, "metric");
+
+  for (let i = 1; i < 8; i++) {
+    assert.equal((await send(f, "/v1/court-locations", "POST", { name: `Court ${i}`, latitude: i, longitude: i })).status, 201);
+  }
+  const limited = await send(f, "/v1/court-locations", "POST", { name: "Too many", latitude: 8, longitude: 8 });
+  assert.equal(limited.status, 409); assert.equal(limited.body.code, "court_location_limit");
+  assert.equal((await send(f, `/v1/court-locations/${randomUUID()}`, "PATCH", { name: "Missing" })).status, 404);
+  assert.equal((await send(f, `/v1/court-locations/${first.body.id}`, "DELETE")).status, 204);
+  assert.equal((await send(f, `/v1/court-locations/${first.body.id}`, "DELETE")).status, 404);
+  assert.equal(await eventCount(f, "court_location.created"), 8);
+  assert.equal(await eventCount(f, "court_location.updated"), 1);
+  assert.equal(await eventCount(f, "court_location.deleted"), 1);
+  const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'weather.updated'").first<string>("payload");
+  assert.deepEqual(JSON.parse(event!), { changed: ["units"] });
+});
+
 test("API keys grant only held scopes, default narrowly, return secrets once and list actual usage", async (t) => {
   const f = await fixture(t);
   const defaultKey = await send(f, "/v1/api-keys", "POST", { name: "Bot" });

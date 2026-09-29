@@ -61,10 +61,7 @@ export function openMeteo(venues: Venue[], units: Units, fetcher: typeof fetch =
   };
 }
 
-/**
- * Venues as the WEATHER_VENUES setting writes them: `Name@latitude,longitude`,
- * separated by semicolons.
- */
+/** Parse a compact `Name@latitude,longitude` venue list supplied by an integration. */
 export function parseVenues(text: string): Venue[] {
   return text
     .split(";")

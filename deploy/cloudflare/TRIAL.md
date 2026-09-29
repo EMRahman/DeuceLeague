@@ -80,8 +80,7 @@ and [D1 permission requirements](https://developers.cloudflare.com/d1/platform/r
 | `WEBSITE_API_KEY` — secret | The password starting with `dl_` |
 | `RESEND_API_KEY` — secret | Your Resend sending API key |
 
-Weather is disabled initially. If an older template asks for `WEATHER_VENUES`
-and rejects a blank value, enter a single semicolon (`;`) to leave it disabled.
+Weather has no locations initially. Add them after setup through the coach API.
 
 ### Check the website address
 
@@ -135,26 +134,32 @@ anything you share.
 
 ## Optional weather
 
-To show forecasts, add these settings **inside the existing `vars` object** in
-your repository's `wrangler.jsonc`:
+To show forecasts, use the administrator key you saved at setup to add one or
+more named court locations and choose the display units:
 
-```jsonc
-"WEATHER_VENUES": "Main Courts@51.4343,-0.2141;Park Courts@51.4059,-0.2229",
-"WEATHER_UNITS": "uk"
+```sh
+curl -X POST "https://your-club.example/v1/court-locations" \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  --data '{"name":"Main Courts","latitude":51.4343,"longitude":-0.2141}'
+
+curl -X PATCH "https://your-club.example/v1/weather" \
+  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
+  --data '{"units":"uk"}'
 ```
 
-Replace the example names and coordinates with your courts. Each venue uses
-`Name@latitude,longitude`; separate venues with semicolons. Units can be `uk`
-(the default, Celsius/mph), `metric`, or `us`.
+Replace the example name and coordinates with your courts; repeat the first
+request for each location (up to eight). Units can be `uk` (the default,
+Celsius/mph), `metric`, or `us`. Deleting every location hides forecasts again.
 
-Keep commas between the settings, then commit to deploy the change. Remove
-`WEATHER_VENUES` to disable forecasts again.
+Existing `WEATHER_VENUES` and `WEATHER_UNITS` variables are ignored after this
+release. Re-enter their values through the API after the migration deploys.
 
 ## Settings, usage and recovery
 
-- **Changing settings:** keep non-secret settings in your repository's
-  `wrangler.jsonc`. Deployments can overwrite changes made only in the Cloudflare
-  dashboard. Keep credentials in Worker secrets. The generated `DB` binding
+- **Changing settings:** keep Worker configuration in your repository's
+  `wrangler.jsonc`; deployments can overwrite dashboard-only changes. Club
+  settings such as forecast locations and units are changed through the API and
+  stay in D1. Keep credentials in Worker secrets. The generated `DB` binding
   must retain the database's actual `database_id`.
 - **Checking usage:** open your D1 database's **Metrics** tab to view rows read
   and written. Also check Worker CPU usage and errors before deciding to upgrade.
@@ -176,7 +181,7 @@ Cloudflare provisioning, account limits and delivery to your inbox.
 
 | What you see | What to check |
 | --- | --- |
-| Weather field will not accept a blank value | Enter `;` to disable weather in an older deploy template. |
+| Weather is not visible | Add at least one court location through `POST /v1/court-locations` with an administrator key. |
 | Deployment or migrations fail with an authentication/permission error | Check the selected Cloudflare build token is valid, targets the right account, and includes Workers Scripts: Edit and D1: Edit. After correcting its permissions or selecting a replacement in the Worker's Settings → Builds → API token, retry the build. |
 | No provisioned D1 database ID | Find the new database in Cloudflare and check its ID matches the repository's `DB` binding. Do not create a second database just to retry. |
 | Migration failure | The deployment stopped before publishing the Worker. Correct the reported cause before retrying. The failing migration rolls back; earlier successful migrations may already be recorded. |
