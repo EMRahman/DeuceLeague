@@ -41,8 +41,13 @@ const Setup = z.object({
   admin_key: SetupKey.optional(),
   sample: z.boolean().default(false),
   sample_email: z.string().trim().email().max(254).optional(),
+  sample_bailey_email: z.string().trim().email().max(254).optional(),
 }).refine((input) => input.sample || input.sample_email === undefined,
-  { path: ["sample_email"], message: "Select the sample club to set a sample sign-in email" });
+  { path: ["sample_email"], message: "Select the sample club to set a sample sign-in email" })
+  .refine((input) => input.sample || input.sample_bailey_email === undefined,
+    { path: ["sample_bailey_email"], message: "Select the sample club to set a sample sign-in email" })
+  .refine((input) => input.sample_email === undefined || input.sample_email.toLowerCase() !== input.sample_bailey_email?.toLowerCase(),
+    { path: ["sample_bailey_email"], message: "Use a different address for each sample player" });
 
 function validation(error: z.ZodError): never {
   throw problems.validation(error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
@@ -104,13 +109,14 @@ export function createCloudflareApp(options: Options) {
       if (options.websiteKey !== undefined && !SetupKey.safeParse(options.websiteKey).success) {
         throw new ApiError(503, "setup_configuration", "The website credential is not configured correctly");
       }
-      const { admin_key, sample, sample_email, ...fields } = parsed.data;
+      const { admin_key, sample, sample_email, sample_bailey_email, ...fields } = parsed.data;
       if (admin_key && admin_key === options.websiteKey) throw problems.validation([{ path: "admin_key", message: "Use a separate administrator key" }]);
       const club = { id: uuidv7(), ...fields };
       const key = admin_key ? { key: admin_key, hash: hashKey(admin_key), prefix: admin_key.slice(0, 9) } : generateApiKey();
       await initializeClub(db, state.snapshot, club, { id: uuidv7(), ...key, scopes: Scope.options },
         options.websiteKey ? { id: uuidv7(), hash: hashKey(options.websiteKey), prefix: options.websiteKey.slice(0, 9), scopes: WEBSITE_SCOPES } : undefined,
-        sample ? sampleStatements(db, club.id, installationSample(club.id, club.timezone, new Date(), sample_email ?? null)) : []);
+        sample ? sampleStatements(db, club.id, installationSample(club.id, club.timezone, new Date(),
+          { alex: sample_email ?? null, bailey: sample_bailey_email ?? null })) : []);
       return c.json({ club, api_key: key.key }, 201);
     });
   });

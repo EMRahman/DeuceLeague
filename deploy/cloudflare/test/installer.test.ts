@@ -144,50 +144,102 @@ test("installer rejects oversized forms and unconfigured origins without accepti
   await f.configure({ PUBLIC_URL: SITE, SETUP_TOKEN: "" }); assert.equal((await f.request("/install")).status, 404);
 });
 
-test("optional sample works from installation through emailed sign-in and score reporting", async (t) => {
+test("optional sample works from installation through two players' sign-in, report and agreement", async (t) => {
   const f = await installer(t, true); const p = await f.prepare();
   assert.match(p.html, /name="sample" value="yes"/);
   assert.doesNotMatch(p.html, /name="sample"[^>]*checked/);
-  const email = "Owner@example.org";
-  const created = await f.post("/install/create", { ...p.form, sample: "yes", sample_email: email });
+  const email = "Owner@example.org"; const second = "friend@example.org";
+  const created = await f.post("/install/create", { ...p.form, sample: "yes", sample_email: email, sample_bailey_email: second });
   assert.equal(created.status, 201); assert.match(await created.text(), /sample league is ready/);
   assert.equal(f.outbox.length, 0, "setup never sends mail");
   assert.deepEqual(await (await f.api("/setup/status", f.env.SETUP_TOKEN)).json(),
     { initialized: true, website: "registered", sample_created: true });
   for (const [sql, expected] of [
-    ["SELECT count(*) AS n FROM member", 4], ["SELECT count(*) AS n FROM season", 1],
-    ["SELECT count(*) AS n FROM competition WHERE state = 'active'", 2], ["SELECT count(*) AS n FROM division", 2],
-    ["SELECT count(*) AS n FROM entry", 6], ["SELECT count(*) AS n FROM entry_member", 8],
-    ["SELECT count(*) AS n FROM match WHERE status = 'open'", 7], ["SELECT count(*) AS n FROM match_side", 14],
-    ["SELECT count(*) AS n FROM member WHERE email IS NOT NULL", 1],
+    ["SELECT count(*) AS n FROM member", 22], ["SELECT count(*) AS n FROM season", 1],
+    ["SELECT count(*) AS n FROM competition WHERE state = 'active'", 2], ["SELECT count(*) AS n FROM division", 5],
+    ["SELECT count(*) AS n FROM division WHERE target_size = 5", 5],
+    ["SELECT count(*) AS n FROM entry", 25], ["SELECT count(*) AS n FROM entry_member", 35],
+    ["SELECT count(*) AS n FROM match", 50], ["SELECT count(*) AS n FROM match_side", 100],
+    ["SELECT count(*) AS n FROM match WHERE status = 'played'", 33], ["SELECT count(*) AS n FROM match WHERE status = 'open'", 12],
+    ["SELECT count(*) AS n FROM match WHERE status = 'reported'", 3], ["SELECT count(*) AS n FROM match WHERE status = 'disputed'", 2],
+    ["SELECT count(*) AS n FROM result_submission", 73], ["SELECT count(*) AS n FROM entry WHERE opted_out_at IS NOT NULL", 2],
+    ["SELECT count(*) AS n FROM member WHERE email IS NOT NULL", 2],
+    // Two newcomers: members with no entry anywhere.
+    ["SELECT count(*) AS n FROM member m WHERE NOT EXISTS (SELECT 1 FROM entry_member em WHERE em.member_id = m.id)", 2],
+    // Every division is a full round robin of five.
+    ["SELECT count(*) AS n FROM (SELECT division_id FROM match GROUP BY division_id HAVING count(*) = 10)", 5],
+    // The history runs forward: nothing is reported, agreed or changed before
+    // the match, entry or player it concerns existed, and nothing after now.
+    [`SELECT count(*) AS n FROM match m JOIN competition c ON c.id = m.competition_id JOIN season s ON s.id = c.season_id
+      WHERE m.updated_at < m.created_at OR m.created_at < c.created_at OR c.created_at < s.created_at
+        OR m.updated_at > unixepoch('subsec') * 1000`, 0],
+    [`SELECT count(*) AS n FROM result_submission r JOIN match m ON m.id = r.match_id
+      LEFT JOIN member p ON p.id = r.submitted_by_member_id
+      WHERE r.submitted_at < m.created_at OR r.submitted_at < p.created_at OR r.confirmed_at < r.submitted_at
+        OR r.submitted_at > m.updated_at OR r.played_on > date('now')`, 0],
+    [`SELECT count(*) AS n FROM entry e JOIN entry_member em ON em.entry_id = e.id JOIN member p ON p.id = em.member_id
+      JOIN match_side ms ON ms.entry_id = e.id JOIN match m ON m.id = ms.match_id
+      WHERE e.created_at < p.created_at OR m.created_at < e.created_at OR em.created_at <> e.created_at
+        OR e.updated_at < e.created_at OR e.opted_out_at < e.created_at`, 0],
+    // UUIDv7 ids sort by creation, so a claim's id sorts after its match's.
+    ["SELECT count(*) AS n FROM result_submission r WHERE r.id < r.match_id", 0],
   ] as const) assert.equal(await f.db.prepare(sql).first("n"), expected, sql);
   assert.equal(await f.db.prepare("SELECT email FROM member WHERE display_name = 'Sample Alex'").first("email"), email);
+  assert.equal(await f.db.prepare("SELECT email FROM member WHERE display_name = 'Sample Bailey'").first("email"), second);
   const audits = JSON.stringify((await f.db.prepare("SELECT * FROM event").all()).results);
-  for (const secret of [email, p.admin, f.env.SETUP_TOKEN, f.env.WEBSITE_API_KEY]) assert.ok(!audits.includes(secret));
+  for (const secret of [email, second, p.admin, f.env.SETUP_TOKEN, f.env.WEBSITE_API_KEY]) assert.ok(!audits.includes(secret));
   const statusPage = await f.post("/install/check", { secret: f.env.SETUP_TOKEN });
   assert.match(await statusPage.text(), /Sample club: created/);
-  assert.equal((await f.post("/login", { email: email.toLowerCase() })).status, 200);
-  assert.equal(f.outbox.length, 1); assert.deepEqual(f.outbox[0]!.to, [email.toLowerCase()]);
-  const link = new URL(/https:\/\/club\.test\/login\?token=\S+/.exec(f.outbox[0]!.text)![0]);
-  assert.equal((await f.request(link.href)).status, 200);
-  const signedIn = await f.post("/login/confirm", { token: link.searchParams.get("token")! });
-  assert.equal(signedIn.status, 303);
-  const cookie = signedIn.headers.get("set-cookie")!.split(";")[0]!;
-  const home = await f.request("/", { headers: { cookie } });
+  // The played sample results are real ledger entries: the tables count them.
+  const competitions = (await (await f.api("/v1/competitions", p.admin)).json() as any).data;
+  for (const competition of competitions) {
+    const table = await (await f.api(`/v1/competitions/${competition.id}/standings`, p.admin)).json() as any;
+    assert.equal(table.divisions.length, competition.discipline === "singles" ? 3 : 2);
+    assert.ok(table.divisions.every((d: any) => d.rows.length === 5 && d.rows.some((r: any) => r.played > 0)));
+    assert.ok(table.divisions.some((d: any) => d.rows.some((r: any) => r.movement === "promoted")));
+  }
+  const disputes = (await (await f.api("/v1/matches?status=disputed", p.admin)).json() as any).data;
+  for (const d of disputes) assert.ok((await (await f.api(`/v1/matches/${d.id}`, p.admin)).json() as any).differences.length > 0);
+
+  async function signIn(address: string) {
+    const sent = f.outbox.length;
+    assert.equal((await f.post("/login", { email: address.toLowerCase() })).status, 200);
+    assert.equal(f.outbox.length, sent + 1); assert.deepEqual(f.outbox.at(-1)!.to, [address.toLowerCase()]);
+    const link = new URL(/https:\/\/club\.test\/login\?token=\S+/.exec(f.outbox.at(-1)!.text)![0]);
+    assert.equal((await f.request(link.href)).status, 200);
+    const signedIn = await f.post("/login/confirm", { token: link.searchParams.get("token")! });
+    assert.equal(signedIn.status, 303);
+    return signedIn.headers.get("set-cookie")!.split(";")[0]!;
+  }
+  const alex = await signIn(email);
+  const home = await f.request("/", { headers: { cookie: alex } });
   assert.equal(home.status, 200); const html = await home.text();
   assert.match(html, /Hello, Sample Alex/); assert.match(html, /Sample singles/); assert.match(html, /Sample doubles/);
   assert.ok(!html.includes(email));
   const match = await f.db.prepare(`SELECT m.id FROM match m JOIN competition c ON c.id = m.competition_id
-    JOIN match_side s ON s.match_id = m.id JOIN entry_member em ON em.entry_id = s.entry_id
-    JOIN member p ON p.id = em.member_id WHERE c.discipline = 'singles' AND p.email = ? LIMIT 1`).bind(email).first<string>("id");
-  const report = await f.request(`/matches/${match}/report`, { method: "POST",
-    headers: { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ outcome: "completed", mine_1: "6", theirs_1: "3", mine_2: "6", theirs_2: "4" }).toString() });
+    WHERE c.discipline = 'singles' AND (SELECT count(*) FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id
+      JOIN member p ON p.id = em.member_id WHERE s.match_id = m.id AND p.email IN (?, ?)) = 2`).bind(email, second).first<string>("id");
+  assert.ok(match);
+  const before = await (await f.api(`/v1/matches/${match}`, p.admin)).json() as any;
+  assert.equal(before.status, "open", "Alex and Bailey's match is left for them to play");
+  const post = (path: string, cookie: string, form: Record<string, string>) => f.request(path, { method: "POST",
+    headers: { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(form).toString() });
+  const report = await post(`/matches/${match}/report`, alex,
+    { outcome: "completed", mine_1: "6", theirs_1: "3", mine_2: "6", theirs_2: "4" });
   assert.equal(report.status, 303);
-  const result = await (await f.api(`/v1/matches/${match}`, p.admin)).json() as any;
-  assert.equal(result.status, "reported", "sample fixtures use normal agreement rules");
-  assert.equal(result.claims.length, 1);
-  assert.equal(f.outbox.length, 1, "reporting sends nothing");
+  const reported = await (await f.api(`/v1/matches/${match}`, p.admin)).json() as any;
+  assert.equal(reported.status, "reported", "sample fixtures use normal agreement rules");
+  assert.equal(reported.claims.length, 1);
+
+  const bailey = await signIn(second);
+  assert.match(await (await f.request(`/matches/${match}`, { headers: { cookie: bailey } })).text(), /name="claim_id"/);
+  const accepted = await post(`/matches/${match}/accept`, bailey, { claim_id: reported.claims[0].id });
+  assert.equal(accepted.status, 303);
+  const played = await (await f.api(`/v1/matches/${match}`, p.admin)).json() as any;
+  assert.equal(played.status, "played");
+  const winner = played.sides.find((s: any) => s.side === played.result.winning_side).label;
+  assert.equal(winner, "Sample Alex");
+  assert.equal(f.outbox.length, 2, "reporting and agreeing send nothing");
 });
 
 test("concurrent sample setup and lost responses leave one immutable completion marker", async (t) => {
@@ -199,9 +251,9 @@ test("concurrent sample setup and lost responses leave one immutable completion 
   assert.equal((await f.post("/install/create", { ...form, secret: f.env.SETUP_TOKEN })).status, 409);
   assert.equal((await f.api("/v1/me", p.admin)).status, 200);
   assert.equal((await (await f.api("/setup/status", f.env.SETUP_TOKEN)).json() as any).sample_created, true);
-  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM member").first("n"), 4);
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM member").first("n"), 22);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM member WHERE email IS NOT NULL").first("n"), 0);
-  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM match").first("n"), 7);
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM match").first("n"), 50);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM event").first("n"), events);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM event WHERE type = 'installation.sample.created'").first("n"), 1);
   await assert.rejects(change(f.db, [f.db.prepare("DELETE FROM event WHERE type = 'installation.sample.created'")]), /event_append_only/);
@@ -215,19 +267,22 @@ test("failure at the sample completion marker rolls back every row and a correct
   for (const sql of ["SELECT count(*) AS n FROM club", "SELECT count(*) AS n FROM api_key", "SELECT count(*) AS n FROM member",
     "SELECT count(*) AS n FROM season", "SELECT count(*) AS n FROM competition", "SELECT count(*) AS n FROM division",
     "SELECT count(*) AS n FROM entry", "SELECT count(*) AS n FROM entry_member", "SELECT count(*) AS n FROM match",
-    "SELECT count(*) AS n FROM match_side", "SELECT count(*) AS n FROM event", "SELECT count(*) AS n FROM event_position"]) {
+    "SELECT count(*) AS n FROM match_side", "SELECT count(*) AS n FROM result_submission",
+    "SELECT count(*) AS n FROM event", "SELECT count(*) AS n FROM event_position"]) {
     assert.equal(await f.db.prepare(sql).first("n"), 0, sql);
   }
   assert.deepEqual(await (await f.api("/setup/status", f.env.SETUP_TOKEN)).json(),
     { initialized: false, website: "unregistered", sample_created: false });
   await change(f.db, [f.db.prepare("DROP TRIGGER fail_sample")]);
   assert.equal((await f.post("/install/create", form)).status, 201);
-  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM match").first("n"), 7);
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM match").first("n"), 50);
 });
 
 test("sample input validates before writes; a blank installation cannot later be seeded by setup", async (t) => {
   const f = await installer(t); const p = await f.prepare();
-  for (const fields of [{ sample_email: "owner@example.org" }, { sample: "yes", sample_email: "invalid" }]) {
+  for (const fields of [{ sample_email: "owner@example.org" }, { sample_bailey_email: "friend@example.org" },
+    { sample: "yes", sample_email: "invalid" }, { sample: "yes", sample_bailey_email: "invalid" },
+    { sample: "yes", sample_email: "owner@example.org", sample_bailey_email: "Owner@Example.org" }]) {
     assert.equal((await f.post("/install/create", { ...p.form, ...fields })).status, 400);
   }
   assert.equal((await f.api("/setup", f.env.SETUP_TOKEN, { name: "Test", slug: "test", sample: "true" })).status, 400);

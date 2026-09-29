@@ -64,12 +64,22 @@ then open `/install`. Enter the installation secret, save the administrator
 key shown before creation, and enter the club details. Initialization registers
 the club, admin key and scoped website key together.
 
-For a fresh test installation, select the optional sample league. It adds four
-fictional players, an active 30-day season, singles and doubles divisions, six
-entries and seven open matches. Optionally enter your own email to sign in as
-Sample Alex. Setup sends nothing: open the home page afterwards and request a
-normal sign-in link. The address stays in the private member record and never
-enters audit payloads or setup status. All other sample players have no email.
+For a fresh test installation, select the optional sample league. It adds a
+club in mid-season:
+
+- 22 fictional players;
+- an active season with 30 days left to its deadline;
+- singles in three divisions of five, and doubles in two divisions of five pairs;
+- 50 matches, most already played, with two disputed, three waiting for
+  agreement, and the rest open;
+- two entries opted out of next season, and two members with no entry.
+
+The results are made by the same decision code a player's report goes through.
+Optionally enter two different emails, to sign in as Sample Alex and Sample
+Bailey. Their match against each other is open, so one can report and the other
+agree. Setup sends nothing: open the home page afterwards and request normal
+sign-in links. The addresses stay in the private member records and never enter
+audit payloads or setup status. All other sample players have no email.
 
 The sample commits with initialization, including a completion marker in the
 append-only event log. A failed commit rolls back everything; repeating a

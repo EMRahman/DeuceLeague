@@ -19,9 +19,18 @@ You need:
 - A password manager to save the installation secrets and administrator key.
 
 For a first test, use `onboarding@resend.dev` as the sender and **your Resend
-account email** as the player email. This test sender can only deliver to that
-address. To email other players later, verify your own domain in Resend and
-change the sender. See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+account email** as the first player's email. This test sender only delivers to
+your own address. The trial has two sample players so one can report a score
+and the other agree it, and the second player needs a second address:
+
+- Try a plus alias of your Resend address, such as `you+bailey@example.com`. Many
+  mail services deliver it to your inbox, but Resend's documentation doesn't say
+  whether its test sender accepts it.
+- If sending to the alias fails with an email delivery error, verify your own
+  domain in Resend, change the sender, and use any second address you can read.
+  You need to do this before emailing real players anyway.
+
+See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
 
 Generate and save these two **different** secrets. On macOS, Linux or WSL,
 run this command twice:
@@ -106,21 +115,34 @@ In Workers Builds, disable **builds for non-production branches** for this trial
 2. **Save the administrator key** shown by the installer in your password
    manager. This is a new key, separate from the two passwords above.
 3. Confirm you saved it, then enter the club name, identifier and time zone.
-4. Select the **sample league** and enter your Resend account email for
-   **Sample Alex**. Create the club.
+4. Select the **sample league**. Enter your Resend account email for
+   **Sample Alex** and your second address for **Sample Bailey**. Create the club.
 
-The sample includes four fictional players, singles and doubles divisions, and
-seven matches. Creating the club does not send an email.
+The sample is a small club in mid-season:
 
-## 4. Sign in and try a match
+- 22 fictional players;
+- singles in three divisions of five;
+- doubles in two divisions of five pairs;
+- 50 matches. Most are already played, two are disputed, three are waiting for the
+  other side to agree, and the rest are still to play.
 
-- Open the home page and request a sign-in link using Sample Alex's email.
+Two entries have opted out of next season, and two members have no entry yet, as
+newcomers would. Alex and Bailey are in the same singles division, and their match
+against each other is left unplayed for you. Creating the club does not send an
+email.
+
+## 4. Report and agree a score
+
+- Open the home page and request a sign-in link with Sample Alex's email.
 - Check your inbox, open the link and press **Sign in**. The link should use
   your website address; simply opening it does not sign you in.
-- Check that you can see singles and doubles, open a match and report a score.
-  **The score stays pending until the opponent agrees.** Sample opponents have
-  no email addresses; further opponent or coach actions use the
-  [API](../../docs/API.md) with the saved administrator key.
+- Check that you can see singles and doubles and the tables. Open the match
+  against Sample Bailey and report a score. **The score stays pending until the
+  opponent agrees.**
+- Open a private browser window, since a browser holds one sign-in. Request a
+  link with Sample Bailey's email, sign in and agree Alex's score.
+- Check, as either player, that the match shows as played and the singles table
+  has changed.
 - Reopen `/install`. It should show setup complete and the sample created,
   without adding duplicate players or matches.
 - Redeploy from the same repository. Check that the club, player session,
@@ -163,6 +185,12 @@ release. Re-enter their values through the API after the migration deploys.
   must retain the database's actual `database_id`.
 - **Checking usage:** open your D1 database's **Metrics** tab to view rows read
   and written. Also check Worker CPU usage and errors before deciding to upgrade.
+  - In local tests, a signed-in player's home page on the sample reads about 2,700
+    rows; Free allows 5 million a day.
+  - Installing the sample writes about 3,300 rows, once; Free allows 100,000 a day.
+  - Free's 10 ms CPU limit per request hasn't been measured on Cloudflare yet.
+    After your walkthrough, open the Worker's **Observability** tab and note the
+    CPU time of the home, table and match pages.
   SQL statement counts alone do not establish a need for Workers Paid. See
   [D1 metrics](https://developers.cloudflare.com/d1/observability/metrics-analytics/)
   and the [local rehearsal notes](README.md).

@@ -61,11 +61,13 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
       <label>Club identifier<input name="slug" required minlength="3" maxlength="40" pattern="[a-z0-9]+(-[a-z0-9]+)*" placeholder="riverside-tennis"></label>
       <label>Time zone<input name="timezone" value="Europe/London" required></label>
       <label><input type="checkbox" name="sample" value="yes"> Add a sample league for testing</label>
-      <p>The sample adds four fictional players, singles and doubles divisions, and seven matches.
-      Leave it unchecked for a real club. Samples can only be added during initial setup.</p>
-      <label>Your email for sample sign-in (optional)<input type="email" name="sample_email" maxlength="254" autocomplete="email"></label>
-      <p>If you select the sample, this address belongs to Sample Alex. Use your own address.
-      Setup sends no email; afterwards, request a sign-in link from the league home page.</p>
+      <p>The sample adds 22 fictional players: singles in three divisions of five, doubles in two divisions of five
+      pairs, and 50 matches, most already played. Leave it unchecked for a real club. Samples can only be added during
+      initial setup.</p>
+      <label>Email for Sample Alex (optional)<input type="email" name="sample_email" maxlength="254" autocomplete="email"></label>
+      <label>Email for Sample Bailey (optional)<input type="email" name="sample_bailey_email" maxlength="254" autocomplete="off"></label>
+      <p>Alex and Bailey have an unplayed match against each other, so one can report a score and the other agree it.
+      Use two addresses you can read. Setup sends no email; afterwards, request sign-in links from the league home page.</p>
       <button>Create club</button></form>`));
   });
   app.post("/install/create", async (c) => {
@@ -79,13 +81,14 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
     }
     const response = await call("/setup", secret, { slug: String(form.slug ?? ""), name: String(form.name ?? ""),
       timezone: String(form.timezone ?? ""), admin_key: String(form.admin_key), sample: form.sample === "yes",
-      ...(String(form.sample_email ?? "").trim() ? { sample_email: String(form.sample_email).trim() } : {}) });
+      ...(String(form.sample_email ?? "").trim() ? { sample_email: String(form.sample_email).trim() } : {}),
+      ...(String(form.sample_bailey_email ?? "").trim() ? { sample_bailey_email: String(form.sample_bailey_email).trim() } : {}) });
     if (response.status === 409) return c.html(complete(), 409);
     if (!response.ok) return c.html(frame(html`<p>Club setup did not complete. Check the club identifier, name, time zone and sample email choice, then try again.
       Keep your saved administrator key until you have checked setup status.</p><a href="/install">Check setup</a>`), response.status === 400 ? 400 : 503);
     return c.html(frame(html`<h2>Your club has been created</h2><p>Your saved administrator key is ready. Keep it private.</p>
-      ${form.sample === "yes" ? html`<p>The sample league is ready: four fictional players and seven matches.
-      If you supplied your email, request a sign-in link on the home page to play as Sample Alex.</p>` : ""}
+      ${form.sample === "yes" ? html`<p>The sample league is ready: 22 fictional players and 50 matches.
+      Request a sign-in link on the home page with each address you supplied to play as Sample Alex or Sample Bailey.</p>` : ""}
       <p>The website is connected. Email delivery still needs to be tested with your account.</p><a href="/">Open the league</a>`), 201);
   });
   app.notFound((c) => c.text("Not found", 404));
