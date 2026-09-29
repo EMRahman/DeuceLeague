@@ -2,7 +2,7 @@
 
 The Worker composes the API and reference website over D1. It includes the
 protected installer, atomic website-key registration, optional sample league,
-email delivery, and account-owner administrator recovery.
+optional [sign-in emails](EMAIL.md), and account-owner administrator recovery.
 
 Run `npm run cf:test` for a dry-run build and local runtime tests. The website
 tests intercept outbound email and weather; they do not contact providers.
@@ -45,11 +45,10 @@ HTTP client dispatches directly to the API handler with normal authentication.
 | --- | --- |
 | `PUBLIC_URL` | Exact canonical origin, e.g. `https://your-club.your-account.workers.dev`. HTTPS required except local loopback development. No path, query, credentials or fragment. |
 | `WEBSITE_API_KEY` | Secret for this installation with only `members:read`, `members:write`, `members:pii`. For a new club, supply a generated secret; setup registers its hash atomically. |
-| `MAIL_PROVIDER` | Optional and not in the template, so deployment never asks for it. Add it under `vars` as `cloudflare` or `resend` to email sign-in links; absent or empty means no email. No logging mailer or automatic provider fallback; a named provider that is incomplete keeps the website offline rather than silently dropping email. |
-| `MAIL_FROM` | Sender address, optionally with a display name, added with `MAIL_PROVIDER`. Must be accepted by the selected provider. |
-| `EMAIL` | Cloudflare send-email binding, required only with `MAIL_PROVIDER=cloudflare`. |
-| `RESEND_API_KEY` | Provider secret, required only with `MAIL_PROVIDER=resend`. |
 | `SETUP_TOKEN` | Existing protected API-bootstrap secret. The website does not use it. |
+
+Email needs no deployment configuration. Its optional settings are added later;
+see [sign-in emails](EMAIL.md).
 
 Court locations and forecast units are coach-managed D1 data, not deployment
 variables. A new club starts with no locations, so its player website simply
@@ -60,7 +59,7 @@ twice or use a password manager. Save the first output as `SETUP_TOKEN`; prefix
 the second output with `dl_` and save it as `WEBSITE_API_KEY`. Put both in the
 corresponding Worker secret fields. The optional `npm run cf:secrets` helper
 generates equivalent strong values. Configure the public origin, then open
-`/install`; email can be added at any time afterwards. Enter the installation
+`/install`. Enter the installation
 secret, save the administrator key shown before creation, and enter the club
 details. Initialization registers the club, admin key and scoped website key
 together.
@@ -78,11 +77,7 @@ club in mid-season:
 The results are made by the same decision code a player's report goes through.
 Sample Alex and Sample Bailey's match against each other is open, so one can
 report and the other agree; sign in as each with a coach-made link. No sample
-player needs an email. Only when email is already configured does the installer
-also offer two optional, different addresses for Alex and Bailey. Setup sends
-nothing: open the home page afterwards and request normal sign-in links. The
-addresses stay in the private member records and never enter audit payloads or
-setup status.
+player needs an email.
 
 The sample commits with initialization, including a completion marker in the
 append-only event log. A failed commit rolls back everything; repeating a
@@ -106,55 +101,20 @@ not create or grant a new key. Keep a working administrator credential.
 
 Missing/invalid website configuration returns a generic 503 to visitors while
 the API, OpenAPI document, health check and protected setup remain available.
-Requests on another website origin get 421; proxy headers never set email-link
+Requests on another website origin get 421; proxy headers never set sign-in-link
 origins. Update `PUBLIC_URL` when moving to a custom domain. Browser cookies do
 not transfer between hostnames; players sign in again on the new hostname.
 
-## Email
+## Sign-in links
 
-Email is optional, and deployment and setup never ask for it. With
-`MAIL_PROVIDER` absent or empty, the sign-in page asks players for
-a link from their coach, and the coach makes one for a member with
+Players sign in with one-time links. The sign-in page asks players for a link
+from their coach, and the coach makes one for a member with
 `POST /v1/members/{id}/login-link` and hands it over, for example on WhatsApp.
-The link opens `/login?token=…`, works once and lasts fifteen minutes, as an
-emailed one does.
+The link opens `/login?token=…`, works once and lasts fifteen minutes. A coach
+can also let players request links by email at any time; see
+[sign-in emails](EMAIL.md).
 
-A coach who later wants to email sign-in links adds one provider to
-`wrangler.jsonc` and redeploys; club data and sessions are unaffected, and
-coach-made links keep working. Give members an email address through the API
-so they can request links. For native delivery, add `MAIL_PROVIDER` set to
-`cloudflare` under `vars`, with `MAIL_FROM`, and a Wrangler binding:
-
-```json
-"send_email": [{ "name": "EMAIL" }]
-```
-
-The adapter uses Cloudflare's structured `send({from,to,subject,text})` method.
-The sender domain requires Email Sending onboarding; having a Cloudflare
-account alone does not complete it. See the official
-[sending setup](https://developers.cloudflare.com/email-service/get-started/send-emails/)
-and [Workers API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/).
-
-For the explicit HTTPS alternative, set `MAIL_PROVIDER` to `resend` with
-`MAIL_FROM`, and add the `RESEND_API_KEY` secret. The adapter calls
-[`POST https://api.resend.com/emails`](https://resend.com/docs/api-reference/emails/send-email)
-with a ten-second timeout and refuses redirects. It sends plain text only.
-
-Both adapters await the provider acknowledgement before reporting success.
-Provider acceptance is not proof of inbox delivery; that remains an account
-trial check. A failure shows an email-delivery error, retains the one-minute
-cooldown, and is not retried automatically. No provider error body, working
-login link, email address or credential is logged by these adapters.
-
-## State and caching
-
-`0007_website_login_cooldown.sql` holds one-minute reservations keyed by an
-HMAC of the normalized email with the website service key. The API key is not
-stored there. Reservations happen before member lookup, including unknown
-addresses, and survive isolate reloads. A guarded D1 batch prunes expired rows
-and inserts the reservation; email delivery is outside mutation retries.
-Rotating the website key changes the hashes and resets effective cooldowns.
-This is a recipient resend control, not a complete abuse-protection system.
+## Caching
 
 Only public Open-Meteo forecast JSON enters the Worker Cache API, keyed by
 coordinates and units for one hour. League pages, sessions, API responses and

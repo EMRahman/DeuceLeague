@@ -21,7 +21,7 @@ You need:
 
 Deployment and setup ask nothing about email. Once the club is running, the
 coach can add sign-in emails if they want them; see
-[Later: sign-in emails](#later-sign-in-emails).
+[sign-in emails](EMAIL.md).
 
 Generate and save these two **different** secrets. On macOS, Linux or WSL,
 run this command twice:
@@ -226,8 +226,7 @@ add email.
 | `/install` returns 403, or the site asks you to use another address | Set `PUBLIC_URL` to the exact assigned HTTPS address. Check for a renamed Worker or incorrect subdomain. |
 | Installer needs configuration, or website says it is not ready | Check `PUBLIC_URL` and the `dl_` website secret. If you added `MAIL_PROVIDER`, check its sender and key too, or remove it to run without email. Then initialize through `/install`. |
 | A sign-in link says it has been used or has expired | Links work once, within fifteen minutes. Make a new one. |
-| Email delivery error | Check the Resend key and sender. With `onboarding@resend.dev`, use your Resend account email. Wait one minute before retrying. |
-| Resend accepted the email but nothing arrived | Check spam and Resend's delivery records. Acceptance does not guarantee inbox delivery. |
+| Email problems | See [sign-in emails](EMAIL.md#troubleshooting). |
 
 When reporting a problem, leave out credentials, working sign-in links and
 provider diagnostics that could contain private details.
@@ -235,38 +234,5 @@ provider diagnostics that could contain private details.
 ## Later: sign-in emails
 
 The club runs without email. If the coach later wants players to request their
-own sign-in link by email, they can add a provider at any time. With Resend:
-
-1. In your repository's `wrangler.jsonc`, add `MAIL_PROVIDER` set to `resend`
-   and `MAIL_FROM` set to your sender under `vars`, and commit:
-
-   ```jsonc
-   "vars": {
-     "PUBLIC_URL": "https://riverside-league-trial.your-subdomain.workers.dev",
-     "MAIL_PROVIDER": "resend",
-     "MAIL_FROM": "League <league@your-club.org>"
-   }
-   ```
-
-2. Add `RESEND_API_KEY` as a **secret** in the Worker's settings.
-3. Give each member who wants email sign-in an email address, using the
-   administrator key. Members without one carry on with links from the coach.
-
-Nothing in the club's data changes: players already signed in stay signed in.
-
-For a first test, use `onboarding@resend.dev` as the sender. This test sender
-only delivers to your Resend account's own email, so only one member can receive
-links; to email others, verify your own domain in Resend and change the sender.
-See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
-Coach-made links keep working alongside email.
-
-### Using native Cloudflare email instead
-
-Native Cloudflare Email Sending requires its
-own sender onboarding and an `EMAIL` binding; a Cloudflare account alone does
-not configure it. Check the current [requirements](https://developers.cloudflare.com/email-service/get-started/send-emails/)
-and [pricing](https://developers.cloudflare.com/email-service/platform/pricing/).
-
-To use it, add `MAIL_PROVIDER` set to `cloudflare` under `vars`, and add
-`"send_email": [{ "name": "EMAIL" }]` to Wrangler configuration. Verify the sender and binding separately in your
-account. See the [email configuration guide](README.md#email).
+own sign-in link by email, follow the [sign-in emails guide](EMAIL.md). It can
+be added at any time, and nothing in the club's data changes.
