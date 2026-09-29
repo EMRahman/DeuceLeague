@@ -271,18 +271,29 @@ export const Notice: FC<{ messages: string[]; ok?: boolean }> = ({ messages, ok 
 
 // ────────────────────────────────────────────────────────────── signing in ──
 
-export const SignIn: FC<{ frame: Frame; messages?: string[] }> = ({ frame, messages = [] }) => (
+/** With no email configured, the coach hands each player their link, on WhatsApp or however they talk. */
+export const SignIn: FC<{ frame: Frame; byEmail: boolean; messages?: string[] }> = ({ frame, byEmail, messages = [] }) => (
   <Layout title="Sign in" frame={frame}>
     <h1>Sign in to the league</h1>
     <Notice messages={messages} />
-    <p>Enter the email address the club has for you, and we will send you a link to sign in. There is no password.</p>
-    <form method="post" action="/login">
-      <div class="field">
-        <label for="email">Email address</label>
-        <input id="email" name="email" type="email" autocomplete="email" required />
-      </div>
-      <button type="submit">Email me a sign-in link</button>
-    </form>
+    {byEmail ? (
+      <>
+        <p>Enter the email address the club has for you, and we will send you a link to sign in. There is no password.</p>
+        <form method="post" action="/login">
+          <div class="field">
+            <label for="email">Email address</label>
+            <input id="email" name="email" type="email" autocomplete="email" required />
+          </div>
+          <button type="submit">Email me a sign-in link</button>
+        </form>
+      </>
+    ) : (
+      <p>
+        Ask your coach for a sign-in link. Open it on your phone and press <strong>Sign in</strong>: there is no
+        password, and you stay signed in. A link works once, within fifteen minutes, so ask for a new one if it has
+        run out.
+      </p>
+    )}
   </Layout>
 );
 

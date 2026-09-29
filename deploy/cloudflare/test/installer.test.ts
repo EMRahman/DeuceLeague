@@ -111,11 +111,11 @@ test("late website-key failure rolls back bootstrap completely and permits a cor
   assert.equal((await f.api("/v1/me", p.admin)).status, 200);
 });
 
-test("readiness detects missing mail and invalid website secrets; using one key for both roles is refused", async (t) => {
+test("readiness detects incomplete mail and invalid website secrets; using one key for both roles is refused", async (t) => {
   const f = await installer(t); const p = await f.prepare();
-  await f.configure({ MAIL_PROVIDER: "" });
+  await f.configure({ RESEND_API_KEY: "" });
   assert.equal((await f.post("/install/check", { secret: f.env.SETUP_TOKEN })).status, 503);
-  await f.configure({ MAIL_PROVIDER: "resend", WEBSITE_API_KEY: "dl_short" });
+  await f.configure({ RESEND_API_KEY: "test-only", WEBSITE_API_KEY: "dl_short" });
   assert.equal((await f.api("/setup", f.env.SETUP_TOKEN, { name: "Test", slug: "test" })).status, 503);
   await f.configure({ WEBSITE_API_KEY: p.admin });
   assert.equal((await f.post("/install/create", p.form)).status, 400);
@@ -292,4 +292,19 @@ test("sample input validates before writes; a blank installation cannot later be
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM member").first("n"), 0);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM season").first("n"), 0);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM event").first("n"), 3);
+});
+
+test("a deployment with no email provider installs, and says players sign in with links from the coach", async (t) => {
+  const f = await installer(t);
+  await f.configure({ MAIL_PROVIDER: "", MAIL_FROM: "", RESEND_API_KEY: "" });
+  const p = await f.prepare();
+  const created = await f.post("/install/create", { ...p.form, sample: "yes" });
+  assert.equal(created.status, 201); assert.doesNotMatch(await created.text(), /Email delivery/);
+  const status = await (await f.post("/install/check", { secret: f.env.SETUP_TOKEN })).text();
+  assert.match(status, /Email: not set up\. Players sign in with links from the coach\./);
+  const home = await f.request("/"); assert.equal(home.status, 200);
+  assert.match(await home.text(), /Ask your coach for a sign-in link/);
+  // A named but incomplete provider still blocks setup rather than silently dropping email.
+  await f.configure({ MAIL_PROVIDER: "resend" });
+  assert.match(await (await f.post("/install/check", { secret: f.env.SETUP_TOKEN })).text(), /Email: needs attention/);
 });

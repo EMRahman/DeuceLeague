@@ -1,9 +1,11 @@
 # Try DeuceLeague on Cloudflare
 
 This guide takes you from deployment to signing in and reporting a sample score.
-It creates one website and a new database for a test club, using **Cloudflare
-Workers Free** and **Resend** for sign-in emails. You can do it in your browser;
-no terminal, Docker or local database is needed.
+It creates one website and a new database for a test club on **Cloudflare
+Workers Free**. No email service is needed: players sign in with one-time links
+that the coach makes and hands over, as a coach would on WhatsApp. Deploying and
+installing happen in your browser; making a sign-in link takes one command in a
+terminal, or ask your coding agent to do it.
 
 Use the sample club for this trial. It does not move an existing club or
 rehearse data backup/restore or administrator recovery for a live club; plan
@@ -15,22 +17,10 @@ You need:
 
 - A Cloudflare account and a GitHub or GitLab account for the repository created
   during deployment.
-- A Resend account and a sending API key.
 - A password manager to save the installation secrets and administrator key.
 
-For a first test, use `onboarding@resend.dev` as the sender and **your Resend
-account email** as the first player's email. This test sender only delivers to
-your own address. The trial has two sample players so one can report a score
-and the other agree it, and the second player needs a second address:
-
-- Try a plus alias of your Resend address, such as `you+bailey@example.com`. Many
-  mail services deliver it to your inbox, but Resend's documentation doesn't say
-  whether its test sender accepts it.
-- If sending to the alias fails with an email delivery error, verify your own
-  domain in Resend, change the sender, and use any second address you can read.
-  You need to do this before emailing real players anyway.
-
-See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+Email is optional and left out of this trial. To add sign-in emails later, see
+[Optional: sign-in emails](#optional-sign-in-emails).
 
 Generate and save these two **different** secrets. On macOS, Linux or WSL,
 run this command twice:
@@ -70,24 +60,23 @@ that name and your Cloudflare account's Workers subdomain.
    and **Account → D1 → Edit** are included for the account hosting this club.
    The deploy command applies database migrations, so it needs D1 write access;
    Cloudflare's documented default build-token permissions do not include D1.
-5. Enter the settings below. Add the three credentials as **secrets**.
+5. Enter the settings below. Add the two credentials as **secrets**.
 6. Keep **`npm run build`** as the build command, **`npm run deploy`** as the
    deploy command, and **Node 22** as the Node version.
 7. Deploy and wait for the build to finish.
 
 The Cloudflare build token authorizes deployment to your Cloudflare account.
-It is separate from `SETUP_TOKEN`, `WEBSITE_API_KEY` and `RESEND_API_KEY`; do not
-put it into those fields. See [Cloudflare's build-token settings](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)
+It is separate from `SETUP_TOKEN` and `WEBSITE_API_KEY`; do not put it into
+those fields. See [Cloudflare's build-token settings](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/#api-token)
 and [D1 permission requirements](https://developers.cloudflare.com/d1/platform/release-notes/).
 
 | Setting | Value |
 | --- | --- |
 | `PUBLIC_URL` | Your full `https://…workers.dev` address, with no path or query. If you do not know it yet, enter `https://setup.invalid` and follow the next section. |
-| `MAIL_PROVIDER` | `resend` |
-| `MAIL_FROM` | `onboarding@resend.dev` for the first test, or your verified sender |
+| `MAIL_PROVIDER` | Leave empty |
+| `MAIL_FROM` | Leave empty |
 | `SETUP_TOKEN` — secret | The first password you saved |
 | `WEBSITE_API_KEY` — secret | The password starting with `dl_` |
-| `RESEND_API_KEY` — secret | Your Resend sending API key |
 
 Weather has no locations initially. Add them after setup through the coach API.
 
@@ -115,8 +104,8 @@ In Workers Builds, disable **builds for non-production branches** for this trial
 2. **Save the administrator key** shown by the installer in your password
    manager. This is a new key, separate from the two passwords above.
 3. Confirm you saved it, then enter the club name, identifier and time zone.
-4. Select the **sample league**. Enter your Resend account email for
-   **Sample Alex** and your second address for **Sample Bailey**. Create the club.
+4. Select the **sample league** and leave the two sample emails empty. Create
+   the club.
 
 The sample is a small club in mid-season:
 
@@ -128,19 +117,38 @@ The sample is a small club in mid-season:
 
 Two entries have opted out of next season, and two members have no entry yet, as
 newcomers would. Alex and Bailey are in the same singles division, and their match
-against each other is left unplayed for you. Creating the club does not send an
-email.
+against each other is left unplayed for you.
 
 ## 4. Report and agree a score
 
-- Open the home page and request a sign-in link with Sample Alex's email.
-- Check your inbox, open the link and press **Sign in**. The link should use
-  your website address; simply opening it does not sign you in.
+You play both sides: Sample Alex in your normal browser window, and Sample
+Bailey in a private window, since a browser holds one sign-in. A sign-in link
+works once, within fifteen minutes; make a new one whenever you need it.
+
+Make the links with your administrator key. In a terminal, with your website
+address and key in place of the examples:
+
+```sh
+SITE=https://riverside-league-trial.your-subdomain.workers.dev
+ADMIN_KEY=dl_your_administrator_key
+
+# The sample players and their ids
+curl -s "$SITE/v1/members?limit=50" -H "Authorization: Bearer $ADMIN_KEY"
+
+# A sign-in link for one of them: the reply's "token"
+curl -s -X POST "$SITE/v1/members/MEMBER_ID/login-link" -H "Authorization: Bearer $ADMIN_KEY"
+```
+
+Or ask your coding agent: "Make a DeuceLeague sign-in link for Sample Bailey at
+this address, using the administrator key in my password manager."
+
+- Open `https://…workers.dev/login?token=THE_TOKEN` and press **Sign in**. Simply
+  opening the link does not sign you in.
 - Check that you can see singles and doubles and the tables. Open the match
   against Sample Bailey and report a score. **The score stays pending until the
   opponent agrees.**
-- Open a private browser window, since a browser holds one sign-in. Request a
-  link with Sample Bailey's email, sign in and agree Alex's score.
+- In a private window, sign in as Sample Bailey with Bailey's own link and
+  agree Alex's score.
 - Check, as either player, that the match shows as played and the singles table
   has changed.
 - Reopen `/install`. It should show setup complete and the sample created,
@@ -148,10 +156,11 @@ email.
 - Redeploy from the same repository. Check that the club, player session,
   administrator key and fixtures still work. Keep the same `database_id`,
   `WEBSITE_API_KEY` and other club secrets.
+- Open the home page signed out. It should ask you to get a sign-in link from
+  your coach, with no email form.
 
 Keep a short record of the source commit, Worker/database names, migration
-count, and whether setup, email delivery, score reporting and redeployment
-worked. Leave credentials, private email addresses and sign-in links out of
+count, and whether setup, sign-in, score reporting and redeployment worked. Leave credentials, private email addresses and sign-in links out of
 anything you share.
 
 ## Optional weather
@@ -216,22 +225,37 @@ Cloudflare provisioning, account limits and delivery to your inbox.
 | `/healthz` fails | Check migrations ran against the same database the Worker's `DB` binding uses. |
 | `/install` returns 404 | Check `SETUP_TOKEN` exists and has at least 32 characters, unless you intentionally removed it after setup. |
 | `/install` returns 403, or the site asks you to use another address | Set `PUBLIC_URL` to the exact assigned HTTPS address. Check for a renamed Worker or incorrect subdomain. |
-| Installer needs configuration, or website says it is not ready | Check `PUBLIC_URL`, the `dl_` website secret, `MAIL_PROVIDER`, sender and Resend key. Then initialize through `/install`. |
+| Installer needs configuration, or website says it is not ready | Check `PUBLIC_URL` and the `dl_` website secret. If `MAIL_PROVIDER` is set, check its sender and key too, or empty it to run without email. Then initialize through `/install`. |
+| A sign-in link says it has been used or has expired | Links work once, within fifteen minutes. Make a new one. |
 | Email delivery error | Check the Resend key and sender. With `onboarding@resend.dev`, use your Resend account email. Wait one minute before retrying. |
 | Resend accepted the email but nothing arrived | Check spam and Resend's delivery records. Acceptance does not guarantee inbox delivery. |
 
 When reporting a problem, leave out credentials, working sign-in links and
 provider diagnostics that could contain private details.
 
-## Using native Cloudflare email instead
+## Optional: sign-in emails
 
-Resend is the route used above. Native Cloudflare Email Sending requires its
+To let players request their own sign-in link by email, set up a provider. With
+Resend:
+
+1. In your repository's `wrangler.jsonc`, set `MAIL_PROVIDER` to `resend` and
+   `MAIL_FROM` to your sender, and commit.
+2. Add `RESEND_API_KEY` as a **secret** in the Worker's settings.
+3. Give each member who wants email sign-in an email address.
+
+For a first test, use `onboarding@resend.dev` as the sender. This test sender
+only delivers to your Resend account's own email, so only one member can receive
+links; to email others, verify your own domain in Resend and change the sender.
+See [Resend's test-sender restrictions](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain).
+Coach-made links keep working alongside email.
+
+### Using native Cloudflare email instead
+
+Native Cloudflare Email Sending requires its
 own sender onboarding and an `EMAIL` binding; a Cloudflare account alone does
 not configure it. Check the current [requirements](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 and [pricing](https://developers.cloudflare.com/email-service/platform/pricing/).
 
-To make a native-only deploy template, edit your own public fork before
-clicking its deploy button: remove `RESEND_API_KEY` from `.dev.vars.example`,
-set `MAIL_PROVIDER` to `cloudflare`, and add `"send_email": [{ "name": "EMAIL" }]`
-to Wrangler configuration. Verify the sender and binding separately in your
+To use it, set `MAIL_PROVIDER` to `cloudflare` and add
+`"send_email": [{ "name": "EMAIL" }]` to Wrangler configuration. Verify the sender and binding separately in your
 account. See the [email configuration guide](README.md#email).

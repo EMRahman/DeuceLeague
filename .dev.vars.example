@@ -4,6 +4,6 @@
 # Use the first output for SETUP_TOKEN and prefix the second with dl_ for WEBSITE_API_KEY.
 SETUP_TOKEN=
 WEBSITE_API_KEY=
-# Resend sending API key for your verified sender. Native Cloudflare email
-# is an alternative configured after deployment; see deploy/cloudflare/TRIAL.md.
-RESEND_API_KEY=
+# Email is optional: players can sign in with links their coach hands them.
+# To send sign-in emails with Resend later, add RESEND_API_KEY as a Worker
+# secret and set MAIL_PROVIDER and MAIL_FROM; see deploy/cloudflare/TRIAL.md.

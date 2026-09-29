@@ -73,4 +73,11 @@ test("website configuration refuses untrusted origins and incomplete email setup
   assert.throws(() => websiteConfig({ ...env, MAIL_PROVIDER: "cloudflare" }));
   assert.throws(() => websiteConfig({ ...env, RESEND_API_KEY: "" }));
   assert.throws(() => websiteConfig({ ...env, MAIL_PROVIDER: "log" }));
+  assert.throws(() => websiteConfig({ ...env, MAIL_FROM: "" }));
+  assert.deepEqual(websiteConfig(env).mail, { from: "club@example.org", provider: "resend" });
+  // No provider means no email: players sign in with links from the coach.
+  for (const without of [{ MAIL_PROVIDER: "" }, { MAIL_PROVIDER: undefined, MAIL_FROM: undefined, RESEND_API_KEY: undefined }]) {
+    assert.equal(websiteConfig({ ...env, ...without }).mail, null);
+  }
+  assert.throws(() => websiteConfig({ ...env, MAIL_PROVIDER: "", WEBSITE_API_KEY: "" }));
 });

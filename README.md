@@ -4,8 +4,9 @@ Open-source tennis league software on Cloudflare Workers and D1. It provides a
 protected API, a player website, and an installation flow for one club per D1
 database.
 
-Players sign in from an emailed link, see their matches and tables, report
-scores, and agree their opponents’ results. Coaches manage the league through
+Players sign in from a one-time link, handed to them by their coach or,
+optionally, emailed. They see their matches and tables, report scores, and agree
+their opponents’ results. Coaches manage the league through
 the API with an administrator key. The API contract is published at
 `/openapi.json`; its generated [readable reference](https://emrahman.github.io/DeuceLeague/api.html)
 lives with this repository's GitHub Pages documentation.
@@ -13,7 +14,7 @@ lives with this repository's GitHub Pages documentation.
 ## Deploy a club
 
 Follow the [Cloudflare deployment guide](deploy/cloudflare/README.md). It
-covers Worker variables and secrets, installation at `/install`, email, sample
+covers Worker variables and secrets, installation at `/install`, optional email, sample
 data, recovery, and local development.
 
 ```sh

@@ -26,8 +26,10 @@ test("template is account-independent, with only Cloudflare secret prompts and r
   assert.equal(pkg.scripts.deploy, "node deploy/cloudflare/scripts/deploy.mjs");
   const example = await readFile(join(root, ".dev.vars.example"), "utf8");
   const secrets = example.split("\n").filter((line) => /^[A-Z_]+=/.test(line));
-  assert.deepEqual(secrets, ["SETUP_TOKEN=", "WEBSITE_API_KEY=", "RESEND_API_KEY="]);
-  for (const name of [...Object.keys(config.vars), ...secrets.map((line) => line.split("=")[0]!), "DB"]) {
+  // Email is optional, so the deploy button asks for no mail secret.
+  assert.deepEqual(secrets, ["SETUP_TOKEN=", "WEBSITE_API_KEY="]);
+  assert.equal(config.vars.MAIL_PROVIDER, "");
+  for (const name of [...Object.keys(config.vars), ...secrets.map((line) => line.split("=")[0]!), "RESEND_API_KEY", "DB"]) {
     assert.ok(pkg.cloudflare.bindings[name].description);
   }
   await assert.rejects(readFile(join(root, ".env.example")), { code: "ENOENT" });
