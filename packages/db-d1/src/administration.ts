@@ -41,7 +41,7 @@ function keyRecord(r: Row): ApiKeyRecord {
 function memberRecord(r: Row): MemberRecord {
   return { id: String(r.id), displayName: String(r.display_name), status: String(r.status), rating: string(r.rating),
     ratingSystem: string(r.rating_system), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
-    createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
+    signedInAt: date(r.signed_in_at), createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
     ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as object) };
 }
 function clubRead(db: D1Database) {
@@ -62,6 +62,9 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
       AND s.value = 'members:pii') AS pii
     ) SELECT m.id, m.display_name, m.status, m.rating, m.rating_system, m.joined_on,
       m.deleted_at, m.created_at, m.updated_at,
+      -- Sessions are deleted when they end, so this is the newest one still signed in.
+      (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
+        AND g.kind = 'session') AS signed_in_at,
       CASE WHEN permission.pii THEN json_object('fullName', m.full_name, 'email', m.email, 'phone', m.phone,
         'dateOfBirth', m.date_of_birth, 'gender', m.gender, 'notes', m.notes) ELSE NULL END AS personal_json
     FROM member m, q, permission WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)

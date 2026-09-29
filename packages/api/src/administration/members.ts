@@ -17,6 +17,7 @@ export function toMember(m: MemberRecord, withPii: boolean): z.infer<typeof Memb
     rating_system: m.ratingSystem,
     joined_on: m.joinedOn,
     deleted_at: iso(m.deletedAt),
+    signed_in_at: iso(m.signedInAt),
     created_at: iso(m.createdAt),
     updated_at: iso(m.updatedAt),
   };

@@ -171,13 +171,25 @@ export function createCloudflareApp(options: Options) {
     },
   })), 200));
 
+  // `curl -X POST -H "Content-Type: application/json"` with no data sends an empty
+  // body. The link's lifetime is optional, so that still asks for the default
+  // link, as it did before the route took a body, rather than failing as bad JSON.
+  app.use("/v1/members/:id/login-link", async (c, next) => {
+    if (c.req.method === "POST" && c.req.header("content-type") && (await c.req.raw.clone().text()).trim() === "") {
+      const headers = new Headers(c.req.raw.headers);
+      headers.delete("content-type");
+      c.req.raw = new Request(c.req.raw.url, { method: "POST", headers });
+    }
+    await next();
+  });
   app.openapi(mint, async (c) => {
     const { id } = c.req.valid("param");
+    const minutes = (c.req.valid("json") ?? {}).expires_in_minutes ?? LOGIN_LINK_MINUTES;
     return c.json(await run(c, (state) => {
       if (!state.member) throw problems.notFound("member");
       if (state.member.deleted_at !== null) throw problems.conflict("member_removed", "A removed member cannot log in");
       const link = generateLoginLink();
-      const expiresAt = state.now + LOGIN_LINK_MINUTES * 60_000;
+      const expiresAt = state.now + minutes * 60_000;
       return {
         change: { type: "mint", id: uuidv7(), memberId: id, hash: link.hash, scopes: PLAYER_SCOPES, expiresAt },
         output: { member_id: id, token: link.token, expires_at: new Date(expiresAt).toISOString() },

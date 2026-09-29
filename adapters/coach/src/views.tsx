@@ -9,7 +9,7 @@ import { STYLE } from "@deuceleague/website";
 
 export type Frame = { club: string | null; signedIn: boolean };
 
-export type CoachMember = { id: string; display_name: string; email?: string | null };
+export type CoachMember = { id: string; display_name: string; email?: string | null; signed_in_at: string | null };
 
 export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({ title, frame, children }) => (
   <html lang="en">
@@ -73,8 +73,14 @@ export const Members: FC<{ frame: Frame; members: CoachMember[] }> = ({ frame, m
     <h1>Members</h1>
     <p>
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
-      once, within fifteen minutes.
+      once, within 72 hours. Once signed in, a player stays signed in on that phone.
     </p>
+    {members.length > 0 && (
+      <p class="muted">
+        {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
+        listed first.
+      </p>
+    )}
     {members.length === 0 ? (
       <p class="muted">The club has no members yet.</p>
     ) : (
@@ -86,6 +92,12 @@ export const Members: FC<{ frame: Frame; members: CoachMember[] }> = ({ frame, m
                 <span>
                   {m.display_name}
                   {m.email && <span class="muted"> · {m.email}</span>}
+                  <br />
+                  {m.signed_in_at ? (
+                    <span class="muted">Signed in</span>
+                  ) : (
+                    <span class="deadline">Not signed in yet</span>
+                  )}
                 </span>
                 <form method="post" action={`/coach/members/${m.id}/sign-in-link`}>
                   <button class="quiet small" type="submit">
@@ -101,17 +113,17 @@ export const Members: FC<{ frame: Frame; members: CoachMember[] }> = ({ frame, m
   </Layout>
 );
 
-export const SignInLink: FC<{ frame: Frame; member: string; url: string; minutes: number }> = ({
+export const SignInLink: FC<{ frame: Frame; member: string; url: string; hours: number }> = ({
   frame,
   member,
   url,
-  minutes,
+  hours,
 }) => (
   <Layout title="Sign-in link" frame={frame}>
     <h1>Sign-in link for {member}</h1>
     <p>
-      Send this to {member}. It works once, within {minutes} minutes, and is not shown again: make a new one if it
-      runs out.
+      Send this to {member}. It works once, within {hours} hours, and is not shown again: make a new one if it runs
+      out.
     </p>
     <div class="field">
       <label for="link">Link</label>

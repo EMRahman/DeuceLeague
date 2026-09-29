@@ -148,6 +148,63 @@ test("credential kind is checked before input validation; missing members do not
   await code(await f.call("/v1/not-implemented"), 401, "missing_credential");
 });
 
+test("a caller may ask a login link to last up to 72 hours, and no longer", async (t) => {
+  const f = await fixture(t);
+  const member = await f.member();
+  const long = await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes: 72 * 60 });
+  assert.equal(long.status, 201);
+  const { token, expires_at } = await long.json() as { token: string; expires_at: string };
+  const expires = Number(await f.db.prepare("SELECT expires_at FROM access_grant WHERE token_hash = ?").bind(hash(token)).first("expires_at"));
+  assert.equal(new Date(expires).toISOString(), expires_at);
+  assert.ok(expires > Date.now() + 71.9 * 3_600_000 && expires <= Date.now() + 72 * 3_600_000);
+  const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'member.login_link.created'").first<string>("payload");
+  assert.equal(JSON.parse(event!).expires_at, expires_at);
+  // An empty body, with or without a JSON content type, asks for the default fifteen minutes.
+  const path = `/v1/members/${member}/login-link`;
+  for (const response of [await f.call(path, f.admin, "POST"),
+    await f.app.request(path, { method: "POST", headers: { Authorization: `Bearer ${f.admin}`, "Content-Type": "application/json" } })]) {
+    assert.equal(response.status, 201);
+    const minutes = (Date.parse((await response.json() as { expires_at: string }).expires_at) - Date.now()) / 60_000;
+    assert.ok(minutes > 14 && minutes <= 15);
+  }
+  for (const expires_in_minutes of [72 * 60 + 1, 0, 1.5]) {
+    await code(await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes }), 400, "validation_failed");
+  }
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM access_grant").first("n"), 3, "refused requests make no link");
+  assert.equal((await f.call("/v1/session", token, "POST")).status, 201, "a long link still works once");
+  await code(await f.call("/v1/session", token, "POST"), 401, "invalid_credential");
+});
+
+test("a member shows when they signed in on a device where they still are, and null once signed in nowhere", async (t) => {
+  const f = await fixture(t);
+  const member = await f.member();
+  const reader = await f.call("/v1/api-keys", f.admin, "POST", { name: "Reader", scopes: ["members:read"] });
+  const readerKey = (await reader.json() as { key: string }).key;
+  const signedIn = async () => {
+    const one = await (await f.call(`/v1/members/${member}`, readerKey)).json() as { signed_in_at: string | null; email?: string };
+    assert.equal(one.email, undefined, "no personal data comes with it");
+    const listed = await (await f.call("/v1/members", f.admin)).json() as { data: { id: string; signed_in_at: string | null }[] };
+    assert.equal(listed.data.find((m) => m.id === member)!.signed_in_at, one.signed_in_at);
+    return one.signed_in_at;
+  };
+  assert.equal(await signedIn(), null);
+  await f.link(member);
+  assert.equal(await signedIn(), null, "an unused link is not a sign-in");
+  const first = await f.session(member);
+  const at = await signedIn();
+  assert.ok(at);
+  const created = Number(await f.db.prepare("SELECT created_at FROM access_grant WHERE token_hash = ?").bind(hash(first)).first("created_at"));
+  assert.equal(at, new Date(created).toISOString());
+  await setTimeout(5);
+  const second = await f.session(member);
+  const later = await signedIn();
+  assert.ok(later! > at!, "the newest device counts");
+  assert.equal((await f.call("/v1/session", second, "DELETE")).status, 204);
+  assert.equal(await signedIn(), at, "signing out one phone leaves the other");
+  assert.equal((await f.call(`/v1/members/${member}/sign-out`, f.admin, "POST")).status, 200);
+  assert.equal(await signedIn(), null);
+});
+
 test("sign-out ends one session; sign-out everywhere also revokes unused links and returns the session count", async (t) => {
   const f = await fixture(t);
   const member = await f.member();
