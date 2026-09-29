@@ -8,7 +8,7 @@
   "preview_urls": false,
   "vars": {
     "PUBLIC_URL": "",
-    "MAIL_PROVIDER": "resend",
+    "MAIL_PROVIDER": "",
     "MAIL_FROM": ""
   },
   "d1_databases": [

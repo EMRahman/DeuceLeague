@@ -62,8 +62,8 @@ export default {
     const website = createWebsite({
       api: client,
       key: config.key, publicUrl: config.origin,
-      mail: config.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.from)
-        : resendMailer(env.RESEND_API_KEY!, config.from),
+      ...(config.mail ? { mail: config.mail.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.mail.from)
+        : resendMailer(env.RESEND_API_KEY!, config.mail.from) } : {}),
       claimLogin: async (email) => claimWebsiteLogin(env.DB, await recipientHash(config.key, email)),
       weather: async () => {
         const weather = await client<WeatherConfiguration>("GET", "/v1/weather", config.key);

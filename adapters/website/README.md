@@ -25,7 +25,9 @@ acknowledgement if its coach chooses, while keeping match actions first.
 
 ## How it works
 
-- **Signing in.** A player types their email address. The website looks them
+- **Signing in.** With no mail provider configured, the coach makes a login
+  link for the player and hands it over, and the sign-in page says to ask
+  for one. With email configured, a player types their email address. The website looks them
   up with its own key (`GET /v1/members?email=`), makes a login link
   (`POST /v1/members/{id}/login-link`) and emails it. The link opens a page
   with a button, and the button exchanges the link for a session
@@ -46,8 +48,8 @@ The Cloudflare Worker composes this website with the API. See the
 | Variable | |
 |---|---|
 | `WEBSITE_API_KEY` | A key holding `members:read`, `members:write` and `members:pii`. Until it is set, every page says how to make one. |
-| `PUBLIC_URL` | The address players use; links in emails point here. |
-| `MAIL_PROVIDER`, `MAIL_FROM` | Select Cloudflare Email Sending or Resend, and configure the sender address. |
+| `PUBLIC_URL` | The address players use; sign-in links point here. |
+| `MAIL_PROVIDER`, `MAIL_FROM` | Optional. Select Cloudflare Email Sending or Resend, and configure the sender address, to email sign-in links. |
 | `RESEND_API_KEY` | Required when `MAIL_PROVIDER=resend`. |
 
 The coach manages forecast locations and units through `GET/PATCH /v1/weather`
