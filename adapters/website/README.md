@@ -35,8 +35,8 @@ acknowledgement if its coach chooses, while keeping match actions first.
   cookie set by the server, set again on each visit. The session itself never
   expires; the cookie lasts 400 days from the last visit.
 - **Everything else** is the player's own session calling the API, which
-  decides what they may see and do. The website's key is used for signing in
-  and nothing else.
+  decides what they may see and do. The website's key is also used internally
+  to read the club's forecast configuration; it never reaches the browser.
 
 ## Running it
 
@@ -49,8 +49,13 @@ The Cloudflare Worker composes this website with the API. See the
 | `PUBLIC_URL` | The address players use; links in emails point here. |
 | `MAIL_PROVIDER`, `MAIL_FROM` | Select Cloudflare Email Sending or Resend, and configure the sender address. |
 | `RESEND_API_KEY` | Required when `MAIL_PROVIDER=resend`. |
-| `WEATHER_VENUES` | Where the club plays, as `Name@latitude,longitude`, several separated by `;`. The home page shows a 14-day outlook for each — temperature, rain chance and wind, a column a day, good days for tennis in green — with a pill per venue to switch between them. From [Open-Meteo](https://open-meteo.com/), free for non-commercial use, asked by the server with the coordinates alone. Unset: no outlook. |
-| `WEATHER_UNITS` | `uk` (°C, mph; the default), `metric` (°C, km/h) or `us` (°F, mph). |
+
+The coach manages forecast locations and units through `GET/PATCH /v1/weather`
+and the `/v1/court-locations` endpoints. The home page shows a 14-day outlook
+for each configured location — temperature, rain chance and wind, a column a
+day, good days for tennis in green — from Open-Meteo. The Worker sends only
+coordinates and units to Open-Meteo, and caches the public forecast response;
+with no configured locations it shows no outlook.
 
 Its Worker integration tests live in `deploy/cloudflare/test/` and run with
 `npm run cf:test`.

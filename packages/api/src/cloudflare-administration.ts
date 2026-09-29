@@ -1,7 +1,8 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import {
-  commitIdentity, createKeyAdmin, DuplicateEmailError, finishKeysRead, LastAdminError, mutateMemberAdmin,
-  readClubAdmin, readIdentity, readKeysAdmin, readMembersAdmin, retryMutation, revokeKeyAdmin, updateClubAdmin, uuidv7,
+  commitIdentity, createCourtLocation, createKeyAdmin, deleteCourtLocation, DuplicateEmailError, finishKeysRead, LastAdminError, mutateMemberAdmin,
+  readClubAdmin, readIdentity, readKeysAdmin, readMembersAdmin, readWeatherAdmin, retryMutation, revokeKeyAdmin,
+  updateClubAdmin, updateCourtLocation, updateWeatherAdmin, uuidv7,
   type IdentitySnapshot,
 } from "@deuceleague/db-d1";
 import type { OpenAPIHono } from "@hono/zod-openapi";
@@ -10,12 +11,14 @@ import { checkAccess } from "./access.js";
 import { toClub } from "./administration/club.js";
 import { toApiKey } from "./administration/keys.js";
 import { checkPersonalWrite, holdsPii, toChanges, toMember } from "./administration/members.js";
+import { toCourtLocation, toWeather } from "./administration/weather.js";
 import { keyGrant, lastAdmin } from "./administration/permissions.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import type { Auth } from "./context.js";
 import * as club from "./contracts/club.js";
 import * as keys from "./contracts/keys.js";
 import * as members from "./contracts/members.js";
+import * as weather from "./contracts/weather.js";
 import { definedOnly, sentFields } from "./contracts/shared.js";
 import { generateApiKey } from "./keys.js";
 import { problems } from "./problems.js";
@@ -50,6 +53,43 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       if (!sentFields(changes).length) { await touch(s); return toClub(s.club); }
       return toClub(await updateClubAdmin(db, s.identity, changes));
     }), 200);
+  });
+  app.openapi(weather.get, async (c) => c.json(await run(c,
+    (i) => readWeatherAdmin(db, i.hash, i.kind), async (s) => { await touch(s); return toWeather(s.weather); }), 200));
+  app.openapi(weather.patch, async (c) => {
+    const changes = definedOnly(c.req.valid("json"));
+    return c.json(await run(c, (i) => readWeatherAdmin(db, i.hash, i.kind), async (s) => {
+      if (changes.units === undefined) { await touch(s); return toWeather(s.weather); }
+      return toWeather(await updateWeatherAdmin(db, s.identity, changes.units));
+    }), 200);
+  });
+  app.openapi(weather.listCourts, async (c) => c.json(await run(c,
+    (i) => readWeatherAdmin(db, i.hash, i.kind), async (s) => { await touch(s); return { data: s.weather.courtLocations.map(toCourtLocation) }; }), 200));
+  app.openapi(weather.createCourt, async (c) => {
+    const body = c.req.valid("json");
+    return c.json(await run(c, (i) => readWeatherAdmin(db, i.hash, i.kind), async (s) => {
+      if (s.weather.courtLocations.length >= 8) {
+        throw problems.conflict("court_location_limit", "The club already has eight court locations");
+      }
+      return toCourtLocation(await createCourtLocation(db, s.identity, { id: uuidv7(), ...body }));
+    }), 201);
+  });
+  app.openapi(weather.patchCourt, async (c) => {
+    const { id } = c.req.valid("param"); const changes = definedOnly(c.req.valid("json"));
+    return c.json(await run(c, (i) => readWeatherAdmin(db, i.hash, i.kind), async (s) => {
+      const court = s.weather.courtLocations.find((location) => location.id === id);
+      if (!court) throw problems.notFound("court location");
+      if (!sentFields(changes).length) { await touch(s); return toCourtLocation(court); }
+      return toCourtLocation(await updateCourtLocation(db, s.identity, id, changes));
+    }), 200);
+  });
+  app.openapi(weather.deleteCourt, async (c) => {
+    const { id } = c.req.valid("param");
+    await run(c, (i) => readWeatherAdmin(db, i.hash, i.kind), async (s) => {
+      if (!s.weather.courtLocations.some((location) => location.id === id)) throw problems.notFound("court location");
+      await deleteCourtLocation(db, s.identity, id);
+    });
+    return c.body(null, 204);
   });
   app.openapi(keys.list, async (c) => {
     const q = c.req.valid("query");

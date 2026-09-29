@@ -73,5 +73,4 @@ test("website configuration refuses untrusted origins and incomplete email setup
   assert.throws(() => websiteConfig({ ...env, MAIL_PROVIDER: "cloudflare" }));
   assert.throws(() => websiteConfig({ ...env, RESEND_API_KEY: "" }));
   assert.throws(() => websiteConfig({ ...env, MAIL_PROVIDER: "log" }));
-  assert.throws(() => websiteConfig({ ...env, WEATHER_UNITS: "invalid" }));
 });

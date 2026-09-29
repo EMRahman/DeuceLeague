@@ -528,7 +528,7 @@ export function createWebsite(options: WebsiteOptions) {
         // Newest first: the last match played is the one a player looks for.
         played={played.sort((x, y) => (x.on < y.on ? 1 : x.on > y.on ? -1 : 0))}
         standings={standings}
-        weather={forecast ? { venues: forecast, lastDay } : null}
+        weather={forecast?.length ? { venues: forecast, lastDay } : null}
       />,
     );
   });

@@ -6,6 +6,11 @@ import { createInstaller } from "./installer.js";
 
 export type Env = WebsiteBindings & { DB: D1Database; SETUP_TOKEN?: string };
 
+type WeatherConfiguration = {
+  units: "uk" | "metric" | "us";
+  court_locations: { name: string; latitude: number; longitude: number }[];
+};
+
 async function recipientHash(secret: string, email: string) {
   const bytes = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", bytes.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
@@ -53,20 +58,22 @@ export default {
     if (url.origin !== config.origin) return new Response("Please use the club's configured website address.", {
       status: 421, headers: { "Cache-Control": "no-store" },
     });
-    const weather = config.venues.length ? openMeteo(config.venues, config.units,
-      cachedWeatherFetch(caches.default, fetch, (work) => ctx.waitUntil(work))) : undefined;
+    const client = apiClient("https://api.internal", (url, init) => Promise.resolve(api.fetch(new Request(url, init))));
     const website = createWebsite({
-      api: apiClient("https://api.internal", (url, init) => Promise.resolve(api.fetch(new Request(url, init)))),
+      api: client,
       key: config.key, publicUrl: config.origin,
       mail: config.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.from)
         : resendMailer(env.RESEND_API_KEY!, config.from),
       claimLogin: async (email) => claimWebsiteLogin(env.DB, await recipientHash(config.key, email)),
-      ...(weather ? { weather: () => {
-        const work = weather();
+      weather: async () => {
+        const weather = await client<WeatherConfiguration>("GET", "/v1/weather", config.key);
+        if (!weather.court_locations.length) return [];
+        const work = openMeteo(weather.court_locations, weather.units,
+          cachedWeatherFetch(caches.default, fetch, (work) => ctx.waitUntil(work)))();
         // A slow forecast may finish after the page's short weather grace period.
         ctx.waitUntil(work.catch(() => {}));
         return work;
-      } } : {}),
+      },
     });
     return website.fetch(request);
   },
