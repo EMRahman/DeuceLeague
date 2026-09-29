@@ -45,8 +45,8 @@ HTTP client dispatches directly to the API handler with normal authentication.
 | --- | --- |
 | `PUBLIC_URL` | Exact canonical origin, e.g. `https://your-club.your-account.workers.dev`. HTTPS required except local loopback development. No path, query, credentials or fragment. |
 | `WEBSITE_API_KEY` | Secret for this installation with only `members:read`, `members:write`, `members:pii`. For a new club, supply a generated secret; setup registers its hash atomically. |
-| `MAIL_PROVIDER` | Optional: empty for no email, or explicitly `cloudflare` or `resend`. No logging mailer or automatic provider fallback; a named provider that is incomplete keeps the website offline rather than silently dropping email. |
-| `MAIL_FROM` | Sender address, optionally with a display name, when `MAIL_PROVIDER` is set. Must be accepted by the selected provider. |
+| `MAIL_PROVIDER` | Optional and not in the template, so deployment never asks for it. Add it under `vars` as `cloudflare` or `resend` to email sign-in links; absent or empty means no email. No logging mailer or automatic provider fallback; a named provider that is incomplete keeps the website offline rather than silently dropping email. |
+| `MAIL_FROM` | Sender address, optionally with a display name, added with `MAIL_PROVIDER`. Must be accepted by the selected provider. |
 | `EMAIL` | Cloudflare send-email binding, required only with `MAIL_PROVIDER=cloudflare`. |
 | `RESEND_API_KEY` | Provider secret, required only with `MAIL_PROVIDER=resend`. |
 | `SETUP_TOKEN` | Existing protected API-bootstrap secret. The website does not use it. |
@@ -59,10 +59,11 @@ For a new installation, run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n
 twice or use a password manager. Save the first output as `SETUP_TOKEN`; prefix
 the second output with `dl_` and save it as `WEBSITE_API_KEY`. Put both in the
 corresponding Worker secret fields. The optional `npm run cf:secrets` helper
-generates equivalent strong values. Configure the public origin, and email if
-you want it, then open `/install`. Enter the installation secret, save the administrator
-key shown before creation, and enter the club details. Initialization registers
-the club, admin key and scoped website key together.
+generates equivalent strong values. Configure the public origin, then open
+`/install`; email can be added at any time afterwards. Enter the installation
+secret, save the administrator key shown before creation, and enter the club
+details. Initialization registers the club, admin key and scoped website key
+together.
 
 For a fresh test installation, select the optional sample league. It adds a
 club in mid-season:
@@ -75,11 +76,13 @@ club in mid-season:
 - two entries opted out of next season, and two members with no entry.
 
 The results are made by the same decision code a player's report goes through.
-Optionally enter two different emails, to sign in as Sample Alex and Sample
-Bailey. Their match against each other is open, so one can report and the other
-agree. Setup sends nothing: open the home page afterwards and request normal
-sign-in links. The addresses stay in the private member records and never enter
-audit payloads or setup status. All other sample players have no email.
+Sample Alex and Sample Bailey's match against each other is open, so one can
+report and the other agree; sign in as each with a coach-made link. No sample
+player needs an email. Only when email is already configured does the installer
+also offer two optional, different addresses for Alex and Bailey. Setup sends
+nothing: open the home page afterwards and request normal sign-in links. The
+addresses stay in the private member records and never enter audit payloads or
+setup status.
 
 The sample commits with initialization, including a completion marker in the
 append-only event log. A failed commit rolls back everything; repeating a
@@ -109,13 +112,18 @@ not transfer between hostnames; players sign in again on the new hostname.
 
 ## Email
 
-Email is optional. With `MAIL_PROVIDER` empty, the sign-in page asks players for
+Email is optional, and deployment and setup never ask for it. With
+`MAIL_PROVIDER` absent or empty, the sign-in page asks players for
 a link from their coach, and the coach makes one for a member with
 `POST /v1/members/{id}/login-link` and hands it over, for example on WhatsApp.
 The link opens `/login?token=…`, works once and lasts fifteen minutes, as an
 emailed one does.
 
-To email sign-in links, configure one provider. For native delivery, select `cloudflare` and add a Wrangler binding:
+A coach who later wants to email sign-in links adds one provider to
+`wrangler.jsonc` and redeploys; club data and sessions are unaffected, and
+coach-made links keep working. Give members an email address through the API
+so they can request links. For native delivery, add `MAIL_PROVIDER` set to
+`cloudflare` under `vars`, with `MAIL_FROM`, and a Wrangler binding:
 
 ```json
 "send_email": [{ "name": "EMAIL" }]
@@ -127,8 +135,8 @@ account alone does not complete it. See the official
 [sending setup](https://developers.cloudflare.com/email-service/get-started/send-emails/)
 and [Workers API](https://developers.cloudflare.com/email-service/api/send-emails/workers-api/).
 
-For the explicit HTTPS alternative, select `resend`, configure its sender and
-set `RESEND_API_KEY`. The adapter calls
+For the explicit HTTPS alternative, set `MAIL_PROVIDER` to `resend` with
+`MAIL_FROM`, and add the `RESEND_API_KEY` secret. The adapter calls
 [`POST https://api.resend.com/emails`](https://resend.com/docs/api-reference/emails/send-email)
 with a ten-second timeout and refuses redirects. It sends plain text only.
 

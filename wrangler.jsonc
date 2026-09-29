@@ -7,9 +7,7 @@
   "workers_dev": true,
   "preview_urls": false,
   "vars": {
-    "PUBLIC_URL": "",
-    "MAIL_PROVIDER": "",
-    "MAIL_FROM": ""
+    "PUBLIC_URL": ""
   },
   "d1_databases": [
     {
