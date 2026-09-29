@@ -23,6 +23,8 @@ export function toMatch(m: MatchRecord): z.infer<typeof Match> {
     id: m.id,
     competition_id: m.competitionId,
     division_id: m.divisionId,
+    competition_name: m.competitionName,
+    division_name: m.divisionName,
     status: m.status as MatchStatus,
     sides: m.sides.map((s) => ({ side: s.sideIndex as SideIndex, entry_id: s.entryId, label: s.label })),
     result: toResult(m),

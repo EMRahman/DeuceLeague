@@ -40,8 +40,8 @@
   </header>
   <main>
     <div class="summary" aria-label="API summary">
-      <div class="stat"><strong>55</strong>operations</div>
-      <div class="stat"><strong>35</strong>paths</div>
+      <div class="stat"><strong>56</strong>operations</div>
+      <div class="stat"><strong>36</strong>paths</div>
       <div class="stat"><strong>14</strong>feature areas</div>
     </div>
     <p class="note">All <code>/v1</code> operations require a bearer credential. <code>/healthz</code> and <code>/openapi.json</code> are public.</p>
@@ -59,7 +59,7 @@
       <a href="#competitions">Competitions (4)</a>
       <a href="#divisions">Divisions (6)</a>
       <a href="#entries">Entries (8)</a>
-      <a href="#standings-and-progress">Standings and progress (4)</a>
+      <a href="#standings-and-progress">Standings and progress (5)</a>
       <a href="#events">Events (1)</a>
     </div>
     <section id="meta">
@@ -152,6 +152,7 @@
       <h2>Standings and progress</h2>
       <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/standings</code><span>A competition&#39;s tables</span></div>
       <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/progress</code><span>How far through a competition is</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/seasons/{id}/progress</code><span>How far through a season each competition is</span></div>
       <div class="operation"><span class="method">GET</span><code>/v1/entries/{id}/progress</code><span>How far through its matches an entry is</span></div>
       <div class="operation"><span class="method">GET</span><code>/v1/chase-list</code><span>Who has matches outstanding</span></div>
     </section>

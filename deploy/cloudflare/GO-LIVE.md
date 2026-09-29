@@ -42,12 +42,14 @@ Add your courts for the forecast as described in
 
 ## 4. Invite your players
 
-Sign in at `/coach` with the administrator key. Press **Sign-in link** for each
-player and send it to them, for example on WhatsApp. A link works once, within
-72 hours; once signed in, a player stays signed in on that phone.
+Sign in at `/coach` with the administrator key. On **Members**, press
+**Sign-in link** for each player and send it to them, for example on WhatsApp.
+A link works once, within 72 hours; once signed in, a player stays signed in on
+that phone.
 
-The list shows who has signed in, with those who haven't at the top, so you
-know who to nudge.
+The list shows when each player signed in, with those who haven't at the top,
+so you know who to nudge. Once the season is running, the dashboard, **Results**,
+**Activity** and the **Chase list** show how it is going.
 
 ## 5. When you want them
 

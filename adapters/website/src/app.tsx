@@ -35,7 +35,21 @@ import {
   type Waiting,
 } from "./views.js";
 
-export { apiClient, ApiProblem, type Api, type Fetch } from "./api.js";
+export {
+  apiClient,
+  ApiProblem,
+  type Api,
+  type Claim,
+  type Competition,
+  type Entry,
+  type Fetch,
+  type Match,
+  type MatchDetail,
+  type Page,
+  type Season,
+  type Side,
+} from "./api.js";
+export { deadlineLine, describe, playedOn } from "./score.js";
 export { STYLE } from "./views.js";
 export type { Mailer } from "./mail.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";

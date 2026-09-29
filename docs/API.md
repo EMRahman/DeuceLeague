@@ -167,6 +167,12 @@ entry routes — moving, removing, adding newcomers — and submits it by
 activating the competition. Nothing is in effect until then: the engine
 suggests, and the coach decides.
 
+**Matches** (`league:read`). `GET /v1/matches` lists matches oldest first, by
+competition, division, entry, member or status. `order=recent` lists the most
+recently changed first, so `status=played&order=recent` is the latest results.
+Each match carries its sides' labels and its competition's and division's
+names, so a list can be shown without reading anything else.
+
 **Fixtures** (`league:write`). Generate a division's round robin. Safe to
 re-run after a late entry: only the missing pairings are added.
 
@@ -199,7 +205,9 @@ competition's rules — points, tiebreaks, unranked below the minimum played,
 and what a walkover is worth — and never stored. Each row says what separated it from the one above. Once the
 results deadline has passed, or the competition is complete, the table is
 final and a match still outstanding counts as unplayed. Progress for a
-competition and its divisions, or for an entry.
+competition and its divisions, or for an entry. `GET /v1/seasons/{id}/progress`
+gives every competition in a season at once, with who has opted out of the
+next one: a season's dashboard in one read.
 
 **Chase list.** Who has matches outstanding and how long is left, filterable by
 days remaining — `within_days=30` a month out, 14 a fortnight later. Needs
@@ -209,7 +217,14 @@ whom, stays the coach's decision.
 **Events** (`league:read`). `GET /v1/events?after=<cursor>` reads the event
 feed in the order it is safe to read, so a consumer never skips an event.
 This is how adapters react to change — a bot announcing results, a club
-website refreshing — without the core sending anything.
+website refreshing — without the core sending anything. `order=newest` reads
+it backwards from the latest event instead, for showing people what happened,
+such as the coach's activity page; it promises nothing about events committed
+while paging. Each event names its actor and subject as they are called now —
+a key's name, a member's display name, a match as its two sides — in
+`actor_name` and `subject_name`. Names are looked up on reading, never stored in
+the log, so an erasure reaches them; a member's name needs `members:read`, as
+the member list does.
 
 **Meta.** `/healthz` and `/openapi.json`.
 

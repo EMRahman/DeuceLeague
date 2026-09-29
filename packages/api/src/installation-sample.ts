@@ -70,7 +70,8 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   const members = NAMES.map((name) => ({ id: uuidv7(opened.getTime()), displayName: `Sample ${name}`, createdAt: opened,
     email: name === "Alex" ? emails.alex : name === "Bailey" ? emails.bailey : null }));
   const byName = new Map(NAMES.map((name, i) => [name, members[i]!]));
-  const courtLocations = COURTS.map((court) => ({ ...court, id: uuidv7(opened.getTime()), createdAt: opened }));
+  // A millisecond apart, so their ids, and the order the venue switcher shows them in, follow the list.
+  const courtLocations = COURTS.map((court, i) => ({ ...court, id: uuidv7(opened.getTime() + i), createdAt: opened }));
   const sample: InstallationSample = { preset: "starter-v2", members, changes: [], entries: [], matches: [], claims: [], outcomes: [],
     courtLocations, events: [] };
   const day = (date: Date) => {
@@ -125,7 +126,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
         const games = WINS[played++ % WINS.length]!;
         const score = (side: SideIndex, sets = games) => ({ sets: sets.map(([w, l]) => ({ games: (side === 0 ? [w, l] : [l, w]) as [number, number] })) });
         const daysAgo = what === "reported" ? 3 + (played % 5) : 2 + (played * 7) % 26;
-        const match = new MatchState(f.id, clubId, competition.id, record.id, [f.side0, f.side1], opened, day(at(daysAgo)));
+        const match = new MatchState(f.id, clubId, competition, record, [f.side0, f.side1], opened, day(at(daysAgo)));
         const player = (side: SideIndex) => entries.find((e) => e.id === (side === 0 ? f.side0 : f.side1))!.members[0]!.id;
         const reporter = (played % 2 === 0 ? stronger : 1 - stronger) as SideIndex;
         match.act(sample, player(reporter), reporter, at(daysAgo, 20), deadline,
@@ -153,9 +154,10 @@ class MatchState {
   record: MatchRecord;
   claims: ClaimRecord[] = [];
   ledger: ResultMutation["ledger"] = null;
-  constructor(id: string, clubId: string, competitionId: string, divisionId: string, sides: [string, string], created: Date,
-    readonly playedOn: string) {
-    this.record = { id, clubId, competitionId, divisionId, status: "open", outcome: null, score: null, winningSide: null,
+  constructor(id: string, clubId: string, competition: { id: string; name: string }, division: { id: string; name: string },
+    sides: [string, string], created: Date, readonly playedOn: string) {
+    this.record = { id, clubId, competitionId: competition.id, divisionId: division.id, competitionName: competition.name,
+      divisionName: division.name, status: "open", outcome: null, score: null, winningSide: null,
       retiredSide: null, playedOn: null, acceptedSubmissionId: null, createdAt: created, updatedAt: created,
       sides: sides.map((entryId, sideIndex) => ({ sideIndex, entryId, label: null })) };
   }

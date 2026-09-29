@@ -58,7 +58,7 @@ packages/engine   Fixtures, standings, result decisions, and placements   AGPL
 packages/db-d1    D1 schema, migrations, and persistence                  AGPL
 packages/api      HTTP API and OpenAPI contract                            AGPL
 adapters/website  Reference player website                                 MIT
-adapters/coach    Coach's website: sign-in links for players              MIT
+adapters/coach    Coach's website: progress, results, chase list, links   MIT
 deploy/cloudflare Worker deployment, installer, and recovery tooling
 docs/API.md       API concepts, permissions, and workflows
 ```

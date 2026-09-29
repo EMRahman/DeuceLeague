@@ -107,12 +107,13 @@ for that browser, named "Coach website" with the date, holding `league:read`,
 `league:write`, `members:read`, `members:write` and `members:pii`, and expiring
 after 90 days. The administrator key is never stored; the browser's key sits in
 an HttpOnly, `SameSite=Strict` cookie sent only to `/coach`, and can be revoked
-like any other key. A key without `admin` that holds `members:read` and
-`members:write` is kept as it is. Signing out forgets the cookie; the key
+like any other key. A key without `admin` that holds `league:read`,
+`members:read` and `members:write` is kept as it is. Signing out forgets the cookie; the key
 itself lasts until it expires or is revoked.
 
-For now the site lists members, saying who is signed in and listing those who
-are not first, and makes their sign-in links. Its pages have
+The site shows the season's progress, results the players have not agreed, the
+latest results and activity, a chase list and the members, with when each signed in, and makes their sign-in
+links; see [its README](../../adapters/coach/README.md). Its pages have
 the players' site's protections: `no-store`, no framing, and no form accepted
 from another origin.
 

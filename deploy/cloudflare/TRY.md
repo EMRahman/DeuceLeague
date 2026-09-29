@@ -73,11 +73,14 @@ the exact address, and commit. Wait for the build to finish again.
 
 ## 4. Be the coach
 
-1. Open `/coach` and sign in with the administrator key.
-2. You see the club's members, with who has signed in. Press **Sign-in link**
-   for **Sample Alex**. With a real player you would send this link on
-   WhatsApp; here, open it in this window and press **Sign in**.
-3. Back on `/coach`, make a link for **Sample Bailey** and open it in a
+1. Open `/coach` and sign in with the administrator key. The dashboard shows
+   how far through the sample season each competition is.
+2. Look at **Results**, with the sample's two disputes and three scores
+   waiting on the other side, at **Activity** and at the **Chase list**.
+3. On **Members**, press **Sign-in link** for **Sample Alex**. With a real
+   player you would send this link on WhatsApp; here, open it in this window
+   and press **Sign in**.
+4. Back on `/coach/members`, make a link for **Sample Bailey** and open it in a
    **private window**, since a browser holds one player's sign-in.
 
 A link works once, within 72 hours.
@@ -114,7 +117,7 @@ hands out links.
 | `/install` or the site asks you to use another address | Set `PUBLIC_URL` to the exact address in `wrangler.jsonc`. |
 | The installer or site says it is not ready | Check `PUBLIC_URL`, and that `WEBSITE_API_KEY` starts `dl_` and is complete. |
 | `/coach` does not accept the key | Paste the whole administrator key from setup, starting `dl_`. |
-| A sign-in link has been used or has expired | Make a new one on `/coach`. |
+| A sign-in link has been used or has expired | Make a new one on `/coach/members`. |
 | No weather on the home page | See [court forecasts](WEATHER.md#when-forecasts-do-not-show). |
 
 When asking for help, leave out passwords, keys and working sign-in links.

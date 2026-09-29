@@ -3,6 +3,7 @@ import type { MatchFormat, Score } from "@deuceleague/schema";
 /** Persistence records used by the shared result decision and response code. */
 export type MatchRecord = {
   id: string; clubId: string; competitionId: string; divisionId: string | null;
+  competitionName: string; divisionName: string | null;
   status: string; outcome: string | null; score: Score | null;
   winningSide: number | null; retiredSide: number | null; playedOn: string | null;
   acceptedSubmissionId: string | null; createdAt: Date; updatedAt: Date;

@@ -23,7 +23,8 @@ test("an administrator key signs the coach in with a scoped 90-day key for this 
   const days = (Date.parse(made.expires_at) - Date.now()) / 86_400_000;
   assert.ok(days > 89.9 && days <= 90, `expires in ${days} days`);
   const page = await coach.get("/coach");
-  assert.equal(page.status, 200); assert.match(page.html, /Members/);
+  assert.equal(page.status, 200); assert.match(page.html, /No season is running/);
+  assert.match(page.html, /<a href="\/coach" aria-current="page">Dashboard<\/a>/);
   assert.ok(!page.html.includes(f.admin) && !page.html.includes(stored));
 });
 
@@ -37,7 +38,7 @@ test("the coach makes a player's sign-in link, which signs the player in once, w
   const gone = await f.create("/v1/members", { display_name: "Gone" });
   assert.equal((await f.api(`/v1/members/${gone.id}`, f.admin, "DELETE")).status, 204);
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
-  const list = await coach.get("/coach");
+  const list = await coach.get("/coach/members");
   assert.match(list.html, /Sam/); assert.doesNotMatch(list.html, /Gone/);
   assert.match(list.html, /1 of 2 signed in/); assert.match(list.html, /Not signed in yet/);
   assert.ok(list.html.indexOf("Sam") < list.html.indexOf("Aaron"), "who still needs a link comes first");
@@ -52,8 +53,11 @@ test("the coach makes a player's sign-in link, which signs the player in once, w
   assert.equal((await player.post("/login/confirm", { token })).status, 303);
   assert.match((await player.get("/")).html, /Hello, Sam/);
   assert.equal((await browser(f).post("/login/confirm", { token })).status, 401, "a link works once");
-  const after = await coach.get("/coach");
+  const after = await coach.get("/coach/members");
   assert.match(after.html, /2 of 2 signed in/); assert.doesNotMatch(after.html, /Not signed in yet/);
+  // When, on the club's clock (the fixture's club is on UTC).
+  const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  assert.match(after.html, new RegExp(`Signed in ${now}, \\d{2}:\\d{2}`));
   assert.equal((await coach.post(`/coach/members/${gone.id}/sign-in-link`)).status, 404);
   assert.equal(f.outbox.length, 0); assert.equal(f.outgoing.length, 0);
 });
@@ -64,9 +68,9 @@ test("coach sign-in refuses other credentials and other sites; a revoked key or 
   assert.equal((await coach.post("/coach/sign-in", { key: "dl_" + "x".repeat(43) })).status, 401);
   const readOnly = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Reader", scopes: ["league:read", "members:read"] })).body.key;
   const refused = await coach.post("/coach/sign-in", { key: readOnly });
-  assert.equal(refused.status, 403); assert.match(refused.html, /cannot list members or make sign-in links/);
+  assert.equal(refused.status, 403); assert.match(refused.html, /cannot read the league, list members or make sign-in links/);
   assert.equal(coach.session(), "", "no cookie for a refused key");
-  const agent = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Agent", scopes: ["members:read", "members:write"] })).body.key;
+  const agent = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Agent", scopes: ["league:read", "members:read", "members:write"] })).body.key;
   assert.equal((await coach.post("/coach/sign-in", { key: agent }, "https://evil.invalid")).status, 403);
   const keys = async () => (await f.api("/v1/api-keys", f.admin)).body.data.length as number;
   const before = await keys();
@@ -80,4 +84,110 @@ test("coach sign-in refuses other credentials and other sites; a revoked key or 
   assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   assert.equal((await coach.post("/coach/sign-out")).status, 303);
   assert.match((await coach.get("/coach")).html, /Coach sign-in/);
+});
+
+test("the coach's pages show the sample league: progress, disputes, waiting results and who to chase", async (t) => {
+  const f = await websiteFixture(t, { sample: true, sample_email: "alex@example.org" });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+
+  const home = await coach.get("/coach");
+  assert.equal(home.status, 200);
+  assert.match(home.html, /<h1>Sample season<\/h1>/); assert.match(home.html, /Results close in \d+ days/);
+  assert.match(home.html, /2 results disputed, 3 results waiting on the other side/);
+  for (const name of ["Sample singles", "Sample doubles", "Division 1", "Division 3"]) assert.match(home.html, new RegExp(name));
+  assert.match(home.html, /played \(\d+%\)/);
+  assert.equal(home.html.match(/Opted out of next season: /g)?.length ?? 0, (await f.db.prepare(
+    "SELECT count(DISTINCT competition_id) AS n FROM entry WHERE opted_out_at IS NOT NULL").first("n")) as number);
+  assert.match(home.html, /Next season is not drafted yet/);
+
+  const results = await coach.get("/coach/results");
+  assert.equal(results.status, 200);
+  assert.match(results.html, /Disputed \(2\)/); assert.match(results.html, /Waiting on the other side \(3\)/);
+  assert.match(results.html, /Sample \w+ says/); assert.doesNotMatch(results.html, /side [01] says/);
+  assert.match(results.html, /has not answered in/);
+  assert.doesNotMatch(results.html, /Not played by the deadline/, "reporting is still open");
+
+  const chase = await coach.get("/coach/chase");
+  assert.equal(chase.status, 200);
+  assert.match(chase.html, /Sample singles · Division 1/); assert.match(chase.html, /to play|to confirm/);
+  assert.match(chase.html, /href="mailto:\?bcc=alex%40example\.org"/);
+  const soon = await coach.get("/coach/chase?within_days=14");
+  assert.match(soon.html, /Nobody has anything outstanding in a competition whose deadline is within 14 days/);
+  assert.match(soon.html, /href="\/coach\/chase\?within_days=14" aria-current="page"/);
+
+  const members = await coach.get("/coach/members");
+  assert.match(members.html, /0 of 22 signed in/);
+
+  // Once the deadline passes, the matches nobody played are the coach's to settle.
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const past = new Date(Date.now() - 60_000).toISOString();
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { results_deadline_at: past })).status, 200);
+  const closed = await coach.get("/coach/results");
+  assert.match(closed.html, /Not played by the deadline \(12\)/);
+  assert.match((await coach.get("/coach")).html, /Results are closed/);
+});
+
+test("the coach's pages send a signed-out browser to sign in", async (t) => {
+  const f = await websiteFixture(t);
+  for (const path of ["/coach/results", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
+    const r = await browser(f).get(path);
+    assert.equal(r.status, 303, path); assert.equal(r.location, "/coach");
+  }
+});
+
+test("the results page reads at most twelve matches in full and lists the rest by name", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const open = (await f.api("/v1/matches?status=open&limit=200", f.admin)).body.data as { id: string }[];
+  assert.equal(open.length, 12);
+  for (const m of open) {
+    const r = await f.api(`/v1/matches/${m.id}/claims`, f.admin, "POST",
+      { side: 0, outcome: "completed", score: { sets: [{ games: [6, 4] }, { games: [6, 3] }] } });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+  }
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const page = await coach.get("/coach/results");
+  assert.equal(page.status, 200);
+  assert.match(page.html, /Disputed \(2\)/); assert.match(page.html, /Waiting on the other side \(15\)/);
+  assert.equal(page.html.match(/has not answered in/g)?.length, 10);
+  assert.match(page.html, /And 5 more/); assert.equal(page.html.match(/Waiting on the other side since/g)?.length, 5);
+});
+
+test("activity shows the latest ten results and ten events, with fifty more a page behind each", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const agent = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Claude agent", scopes: ["league:read", "league:write"] })).body.key;
+  const open = (await f.api("/v1/matches?status=open&limit=1", f.admin)).body.data[0];
+  assert.equal((await f.api(`/v1/matches/${open.id}/settle`, agent, "POST",
+    { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 2] }] } })).status, 201);
+  const [a, b] = open.sides.map((s: { label: string }) => s.label);
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+
+  const page = await coach.get("/coach/activity");
+  assert.equal(page.status, 200);
+  const [results, events] = page.html.split("Everything that happened");
+  assert.equal(results!.match(/<li class="answer">/g)?.length, 10);
+  assert.ok(results!.indexOf(`${a} beat ${b} 6-1, 6-2`) > 0, "the result just settled is first");
+  assert.match(results!, /href="\/coach\/activity\/results"/);
+  assert.equal(events!.match(/<li class="answer">/g)?.length, 10);
+  assert.match(events!, new RegExp(`Claude agent settled ${a} v ${b}`)); assert.match(events!, /Claude agent/);
+  assert.match(events!, /href="\/coach\/activity\/all"/);
+
+  const allResults = await coach.get("/coach/activity/results");
+  assert.equal(allResults.html.match(/<li class="answer">/g)?.length, 34); assert.doesNotMatch(allResults.html, /Show the next 50/);
+  const first = await coach.get("/coach/activity/all");
+  assert.equal(first.html.match(/<li class="answer">/g)?.length, 50);
+  const next = /href="(\/coach\/activity\/all\?after=[^"]+)"/.exec(first.html)?.[1]; assert.ok(next);
+  const second = await coach.get(next);
+  assert.equal(second.status, 200); assert.equal(second.html.match(/<li class="answer">/g)?.length, 50);
+  assert.match(second.html, /Back to the newest/);
+  for (const path of ["/coach/activity/all?after=nonsense", "/coach/activity/results?after=1.2"]) {
+    assert.equal((await coach.get(path)).status, 200, `${path}: a mangled cursor starts from the newest`);
+  }
+});
+
+test("a browser still holding a key without league:read, from before these pages, is sent to sign in again", async (t) => {
+  const f = await websiteFixture(t);
+  const old = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Old coach key", scopes: ["members:read", "members:write"] })).body.key;
+  const r = await f.request("/coach", { headers: { cookie: `deuceleague_coach=${old}` } });
+  assert.equal(r.status, 200); assert.match(await r.text(), /Coach sign-in/);
+  assert.match(r.headers.get("set-cookie") ?? "", /Max-Age=0/, "the cookie is forgotten");
 });

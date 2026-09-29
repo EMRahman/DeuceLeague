@@ -1,7 +1,26 @@
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { ApiProblem, type Api } from "@deuceleague/website";
-import { Members, Problem, SignIn, SignInLink, type CoachMember, type Frame } from "./views.js";
+import { ApiProblem, type Api, type Match, type MatchDetail, type Page, type Season } from "@deuceleague/website";
+import {
+  Activity,
+  Chase,
+  LatestEvents,
+  LatestResults,
+  Dashboard,
+  Members,
+  Problem,
+  Results,
+  SignIn,
+  SignInLink,
+  type ChaseRow,
+  type CoachCompetition,
+  type CoachMember,
+  type FeedEvent,
+  type Frame,
+  type SeasonProgress,
+  type SeasonView,
+  type Tab,
+} from "./views.js";
 
 export type CoachOptions = {
   api: Api;
@@ -28,8 +47,24 @@ const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:
  */
 const LINK_HOURS = 72;
 
-/** What these pages need now: the member list, and making sign-in links. */
-const NEEDED = ["members:read", "members:write"];
+/** What these pages need now: reading the league, the member list, and making sign-in links. */
+const NEEDED = ["league:read", "members:read", "members:write"];
+
+/**
+ * How many unagreed matches the results page reads in full. Each costs D1
+ * queries, and Workers Free allows 50 a request; the rest are listed by name.
+ */
+const DETAILED = 12;
+
+/** A match as a list returns it: when it last changed is when it was reported. */
+type Listed = Match & { updated_at: string };
+
+/** The activity page shows this many of each; the pages behind it show more at a time. */
+const ACTIVITY_FIRST = 10;
+const ACTIVITY_MORE = 50;
+
+/** The chase list's filters: every competition, or those whose deadline is this close. */
+const WITHIN = [30, 14, 7];
 
 type KeyMe = {
   club: { name: string; timezone: string };
@@ -84,7 +119,10 @@ export function createCoachSite(options: CoachOptions) {
     try {
       const me = await api<KeyMe>("GET", "/v1/me", key);
       if (me.credential.type !== "api_key") return forget(c);
-      return { key, club: me.club, scopes: me.credential.scopes };
+      const { scopes } = me.credential;
+      // A key kept from before these pages needed more is signed out, not shown an error.
+      if (!NEEDED.every((s) => scopes.includes(s))) return forget(c);
+      return { key, club: me.club, scopes };
     } catch (error) {
       if (error instanceof ApiProblem && error.problem.status === 401) return forget(c);
       throw error;
@@ -96,29 +134,190 @@ export function createCoachSite(options: CoachOptions) {
     return null;
   }
 
-  const frameOf = (who: Coach | null): Frame => ({ club: who?.club.name ?? null, signedIn: !!who });
+  const frameOf = (who: Coach | null, tab: Tab | null = null): Frame => ({
+    club: who?.club.name ?? null,
+    signedIn: !!who,
+    tab,
+  });
 
   const signIn = (c: Context, message: string, status: 400 | 401 | 403) =>
     c.html(<SignIn frame={frameOf(null)} message={message} />, status);
 
+  /** Every page of a cursor-paged list. */
+  async function all<T>(path: string, key: string): Promise<T[]> {
+    const items: T[] = [];
+    let after: string | null = null;
+    do {
+      const sep = path.includes("?") ? "&" : "?";
+      const page: Page<T> = await api("GET", `${path}${sep}limit=200${after ? `&after=${after}` : ""}`, key);
+      items.push(...page.data);
+      after = page.next_cursor;
+    } while (after);
+    return items;
+  }
+
   app.get("/", async (c) => {
     const who = await coach(c);
     if (!who) return c.html(<SignIn frame={frameOf(null)} />);
-    const members: CoachMember[] = [];
-    let after: string | null = null;
-    do {
-      const page: { data: (CoachMember & { deleted_at: string | null })[]; next_cursor: string | null } = await api(
-        "GET",
-        `/v1/members?limit=200${after ? `&after=${after}` : ""}`,
-        who.key,
-      );
-      members.push(...page.data.filter((m) => !m.deleted_at));
-      after = page.next_cursor;
-    } while (after);
+    const seasons = await all<Season>("/v1/seasons?state=active", who.key);
+    const competitions = await all<CoachCompetition>("/v1/competitions", who.key);
+    const views: SeasonView[] = [];
+    // One read a season, however many competitions it runs: Workers Free allows 50 D1 queries a request.
+    for (const season of seasons) {
+      const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      views.push({
+        season,
+        competitions: progress.competitions
+          .filter((x) => x.state === "active")
+          .map((x) => ({
+            progress: x,
+            optedOut: x.opted_out.map((e) => e.label),
+            next: competitions.find((n) => n.previous_competition_id === x.competition_id) ?? null,
+          })),
+      });
+    }
+    return c.html(<Dashboard frame={frameOf(who, "dashboard")} seasons={views} timezone={who.club.timezone} />);
+  });
+
+  app.get("/members", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const members = (await all<CoachMember & { deleted_at: string | null }>("/v1/members", who.key)).filter(
+      (m) => !m.deleted_at,
+    );
     // Who still needs a link first, then by name.
-    members.sort((a, b) => Number(!!a.signed_in_at) - Number(!!b.signed_in_at)
-      || a.display_name.localeCompare(b.display_name));
-    return c.html(<Members frame={frameOf(who)} members={members} />);
+    members.sort(
+      (a, b) =>
+        Number(!!a.signed_in_at) - Number(!!b.signed_in_at) || a.display_name.localeCompare(b.display_name),
+    );
+    return c.html(<Members frame={frameOf(who, "members")} members={members} timezone={who.club.timezone} />);
+  });
+
+  app.get("/results", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    // Disputes first, then the reports waiting longest, each read in full up to the page's limit.
+    const listed = [
+      ...(await all<Listed>("/v1/matches?status=disputed", who.key)),
+      ...(await all<Listed>("/v1/matches?status=reported", who.key)).sort(
+        (a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at),
+      ),
+    ];
+    const detailed = await Promise.all(
+      listed.slice(0, DETAILED).map((m) => api<MatchDetail>("GET", `/v1/matches/${m.id}`, who.key)),
+    );
+    const more = listed.slice(DETAILED);
+    // Open matches matter here only once reporting has closed: the coach settles what is left.
+    const seasons = await all<Season>("/v1/seasons?state=active", who.key);
+    const closed = new Set(
+      seasons.filter((s) => s.results_deadline_at && Date.parse(s.results_deadline_at) <= Date.now()).map((s) => s.id),
+    );
+    const settling = new Set(
+      (await all<CoachCompetition>("/v1/competitions", who.key))
+        .filter((x) => x.state === "active" && closed.has(x.season_id))
+        .map((x) => x.id),
+    );
+    // One read for the whole club, not one a competition, then kept to those whose reporting has closed.
+    const late = settling.size
+      ? (await all<Match>("/v1/matches?status=open", who.key)).filter((m) => settling.has(m.competition_id))
+      : [];
+    return c.html(
+      <Results
+        frame={frameOf(who, "results")}
+        disputed={detailed.filter((m) => m.status === "disputed")}
+        reported={detailed.filter((m) => m.status === "reported")}
+        counts={{
+          disputed: listed.filter((m) => m.status === "disputed").length,
+          reported: listed.filter((m) => m.status === "reported").length,
+        }}
+        more={more}
+        late={late}
+        timezone={who.club.timezone}
+      />,
+    );
+  });
+
+  /** A page of the latest results, newest first. */
+  const latestResults = (key: string, limit: number, after: string | undefined) =>
+    api<Page<Listed>>(
+      "GET",
+      `/v1/matches?status=played&order=recent&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ""}`,
+      key,
+    );
+
+  const latestEvents = (key: string, limit: number, after: string | undefined) =>
+    api<Page<FeedEvent>>(
+      "GET",
+      `/v1/events?order=newest&limit=${limit}${after ? `&after=${encodeURIComponent(after)}` : ""}`,
+      key,
+    );
+
+  /** A cursor from the address bar, in the shape its list takes; anything else starts from the newest. */
+  const cursor = (c: Context, shape: RegExp) => {
+    const after = c.req.query("after");
+    return after && shape.test(after) ? after : undefined;
+  };
+
+  app.get("/activity", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const page = await latestResults(who.key, ACTIVITY_FIRST, undefined);
+    const events = await latestEvents(who.key, ACTIVITY_FIRST, undefined);
+    return c.html(
+      <Activity
+        frame={frameOf(who, "activity")}
+        results={page.data}
+        moreResults={page.next_cursor !== null}
+        events={events.data}
+        moreEvents={events.data.length === ACTIVITY_FIRST}
+        timezone={who.club.timezone}
+      />,
+    );
+  });
+
+  app.get("/activity/results", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const after = cursor(c, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    const page = await latestResults(who.key, ACTIVITY_MORE, after);
+    return c.html(
+      <LatestResults
+        frame={frameOf(who, "activity")}
+        results={page.data}
+        from={after}
+        next={page.next_cursor}
+        timezone={who.club.timezone}
+      />,
+    );
+  });
+
+  app.get("/activity/all", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const after = cursor(c, /^\d{1,20}\.\d{1,20}$/);
+    const events = await latestEvents(who.key, ACTIVITY_MORE, after);
+    return c.html(
+      <LatestEvents
+        frame={frameOf(who, "activity")}
+        events={events.data}
+        from={after}
+        next={events.data.length === ACTIVITY_MORE ? events.next_cursor : null}
+        timezone={who.club.timezone}
+      />,
+    );
+  });
+
+  app.get("/chase", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const asked = Number(c.req.query("within_days"));
+    const within = WITHIN.includes(asked) ? asked : null;
+    const { data } = await api<{ data: ChaseRow[] }>(
+      "GET",
+      `/v1/chase-list${within === null ? "" : `?within_days=${within}`}`,
+      who.key,
+    );
+    return c.html(<Chase frame={frameOf(who, "chase")} rows={data} within={within} choices={WITHIN} />);
   });
 
   app.post("/sign-in", async (c) => {
@@ -141,7 +340,7 @@ export function createCoachSite(options: CoachOptions) {
       // A key for this browser alone, which can be revoked like any other.
       const scopes = BROWSER_SCOPES.filter((s) => held.includes(s));
       if (!NEEDED.every((s) => scopes.includes(s))) {
-        return signIn(c, "This key cannot list members or make sign-in links.", 403);
+        return signIn(c, "This key cannot read the league, list members or make sign-in links.", 403);
       }
       const made = await api<{ key: string }>("POST", "/v1/api-keys", pasted, {
         name: `Coach website, ${today(me.club.timezone)}`,
@@ -150,7 +349,12 @@ export function createCoachSite(options: CoachOptions) {
       });
       key = made.key;
     } else if (!NEEDED.every((s) => held.includes(s))) {
-      return signIn(c, "This key cannot list members or make sign-in links. It needs members:read and members:write.", 403);
+      return signIn(
+        c,
+        "This key cannot read the league, list members or make sign-in links. It needs league:read, " +
+          "members:read and members:write.",
+        403,
+      );
     }
 
     setCookie(c, COOKIE, key, {
@@ -183,11 +387,17 @@ export function createCoachSite(options: CoachOptions) {
       const url = new URL("/login", publicUrl);
       url.searchParams.set("token", link.token);
       const hours = Math.round((Date.parse(link.expires_at) - Date.now()) / 3_600_000);
-      return c.html(<SignInLink frame={frameOf(who)} member={member.display_name} url={url.href} hours={hours} />);
+      return c.html(
+        <SignInLink frame={frameOf(who, "members")} member={member.display_name} url={url.href} hours={hours} />,
+      );
     } catch (error) {
       if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
       return c.html(
-        <Problem frame={frameOf(who)} title="No link made" detail="That member is not on the club's list any more." />,
+        <Problem
+          frame={frameOf(who, "members")}
+          title="No link made"
+          detail="That member is not on the club's list any more."
+        />,
         404,
       );
     }

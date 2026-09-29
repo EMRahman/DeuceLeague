@@ -73,3 +73,34 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
   }));
   return { identity, rows };
 }
+
+/** Everything a season's progress is counted from, in one snapshot: its competitions, their divisions and
+ * entries, and each match's status. Scores are not read; progress counts matches, not results. */
+export async function readSeasonProgress(db: D1Database, hash: string, kind: CredentialKind, seasonId: string) {
+  const identity = await readIdentity(db, hash, kind, null, [
+    db.prepare(`SELECT id, results_deadline_at FROM season
+      WHERE id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(seasonId),
+    db.prepare(`SELECT id, name, state, visibility FROM competition
+      WHERE season_id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1) ORDER BY id`).bind(seasonId),
+    db.prepare(`SELECT d.id, d.competition_id, d.ordinal, d.name FROM division d
+      JOIN competition c ON c.id = d.competition_id WHERE c.season_id = ? ORDER BY d.ordinal`).bind(seasonId),
+    db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, e.opted_out_at, el.label FROM entry e
+      JOIN entry_label el ON el.entry_id = e.id JOIN competition c ON c.id = e.competition_id
+      WHERE c.season_id = ? ORDER BY el.label, e.id`).bind(seasonId),
+    db.prepare(`SELECT m.competition_id, m.division_id, m.status FROM match m
+      JOIN competition c ON c.id = m.competition_id WHERE c.season_id = ?`).bind(seasonId),
+    db.prepare("SELECT timezone FROM club WHERE singleton = 1"),
+  ]);
+  const [seasons, competitions, divisions, entries, matches, club] = identity.extraResults.map((r) => r.results as Row[]);
+  const season = seasons![0];
+  return {
+    identity,
+    season: season ? { id: String(season.id), deadline: season.results_deadline_at === null ? null : new Date(Number(season.results_deadline_at)) } : null,
+    competitions: competitions!.map((c) => ({ id: String(c.id), name: String(c.name), state: String(c.state), visibility: String(c.visibility) })),
+    divisions: divisions!.map((d) => ({ id: String(d.id), competitionId: String(d.competition_id), ordinal: Number(d.ordinal), name: String(d.name) })),
+    entries: entries!.map((e) => ({ id: String(e.id), competitionId: String(e.competition_id), divisionId: String(e.division_id),
+      state: String(e.state), optedOut: e.opted_out_at !== null, label: String(e.label) })),
+    matches: matches!.map((m) => ({ competitionId: String(m.competition_id), divisionId: string(m.division_id), status: String(m.status) })),
+    timezone: String(club![0]!.timezone),
+  };
+}

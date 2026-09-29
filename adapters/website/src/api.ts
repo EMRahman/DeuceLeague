@@ -125,6 +125,8 @@ export type Match = {
   id: string;
   competition_id: string;
   division_id: string | null;
+  competition_name: string;
+  division_name: string | null;
   status: "open" | "reported" | "played" | "disputed";
   sides: { side: Side; entry_id: string | null; label: string | null }[];
   result: Result | null;
@@ -139,6 +141,7 @@ export type Claim = {
   played_on: string | null;
   state: "pending" | "confirmed" | "superseded";
   accepts_claim_id: string | null;
+  submitted_at: string;
 };
 
 export type MatchDetail = Match & { claims: Claim[]; waiting_on: Side | null; differences: string[] };
