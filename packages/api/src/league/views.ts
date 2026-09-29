@@ -1,6 +1,5 @@
 import type { ChaseRow, ProgressCounts } from "@deuceleague/db-d1";
 import type { z } from "@hono/zod-openapi";
-import { DEFAULT_RULES } from "@deuceleague/schema";
 import type { Standings, ChaseEntry } from "../contracts/standings.js";
 import type { DivisionTable } from "./tables.js";
 
@@ -58,7 +57,7 @@ export function toCounts(p: ProgressCounts) {
   };
 }
 
-export function toChase(r: ChaseRow): z.infer<typeof ChaseEntry> {
+export function toChase(r: ChaseRow, minimum: { played: number; target: number } | undefined): z.infer<typeof ChaseEntry> {
   return {
     competition_id: r.competitionId,
     competition_name: r.competitionName,
@@ -73,12 +72,8 @@ export function toChase(r: ChaseRow): z.infer<typeof ChaseEntry> {
     awaiting_them: r.awaitingThem,
     days_remaining: r.daysRemaining,
     waiting_on: r.waitingOn,
-    ...toMinimum(r),
+    matches_played: minimum?.played ?? 0,
+    minimum_matches: minimum?.target ?? 0,
+    matches_short: Math.max(0, (minimum?.target ?? 0) - (minimum?.played ?? 0)),
   };
-}
-
-/** Where a chase row stands against the competition's minimum; a rule saved before it existed means the default. */
-function toMinimum(r: ChaseRow) {
-  const minimum = Math.min(r.minRule ?? DEFAULT_RULES.minMatchesToPlay, r.fixtures);
-  return { matches_played: r.played, minimum_matches: minimum, matches_short: Math.max(0, minimum - r.played) };
 }

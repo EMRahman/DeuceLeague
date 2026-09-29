@@ -5,5 +5,5 @@ export type ProgressCounts = { matches: number; played: number; outstanding: num
 export type ChaseRow = { competitionId: string; competitionName: string; divisionId: string; divisionName: string;
   divisionOrdinal: number; memberId: string; displayName: string; email?: string | null; outstandingMatches: number;
   needsPlaying: number; awaitingYou: number; awaitingThem: number; daysRemaining: number | null; waitingOn: string[];
-  /** Matches played, fixtures drawn, and the competition's minMatchesToPlay as stored (null: the default). */
-  played: number; fixtures: number; minRule: number | null };
+  /** The member's entry in the competition, for counting toward its minimum. */
+  entryId: string };

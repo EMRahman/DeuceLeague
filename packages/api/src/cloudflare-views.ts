@@ -9,7 +9,7 @@ import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import * as routes from "./contracts/standings.js";
 import { iso } from "./contracts/shared.js";
-import { daysRemaining, progressCounts, shortOfMinimum } from "./league/progress.js";
+import { daysRemaining, progressCounts, shortOfMinimum, towardMinimum } from "./league/progress.js";
 import { playerVisible } from "./league/rules.js";
 import { tablesFromRecords } from "./league/tables.js";
 import { toStandings, toCounts, toChase } from "./league/views.js";
@@ -107,8 +107,14 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
   });
   app.openapi(routes.chase, async (c) => {
     const { competition_id, within_days } = c.req.valid("query");
-    return c.json(await run(c, (i) => readChase(db, i.hash, i.kind, competition_id), (s) => ({ data: s.rows.map((r) => ({ ...r,
-      daysRemaining: daysRemaining(r.deadline, r.timezone, new Date(s.identity.now)),
-    })).filter((r) => within_days === undefined || (r.daysRemaining !== null && r.daysRemaining <= within_days)).map(toChase) })), 200);
+    return c.json(await run(c, (i) => readChase(db, i.hash, i.kind, competition_id), (s) => {
+      // Toward the minimum as the tables count it, the same as progress.
+      const minimum = new Map(s.competitions.flatMap((x) => [...towardMinimum(RulesSpec.parse(x.rules), x.matchFormat,
+        s.entries.filter((e) => e.competitionId === x.id), s.ledger.filter((m) => m.competitionId === x.id))]));
+      return { data: s.rows.map((r) => ({ ...r,
+        daysRemaining: daysRemaining(r.deadline, r.timezone, new Date(s.identity.now)),
+      })).filter((r) => within_days === undefined || (r.daysRemaining !== null && r.daysRemaining <= within_days))
+        .map((r) => toChase(r, minimum.get(r.entryId))) };
+    }), 200);
   });
 }

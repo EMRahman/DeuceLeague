@@ -40,7 +40,7 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     db.prepare(`WITH sides AS (
       SELECT m.competition_id, c.name AS competition_name, m.division_id, d.name AS division_name, d.ordinal,
         season.results_deadline_at, cl.timezone, em.member_id, opponent.label AS opponent_label,
-        own.entry_id, json_extract(c.rules, '$.minMatchesToPlay') AS min_rule,
+        own.entry_id,
         EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = m.id AND r.side_index = own.side_index AND r.state = 'pending') AS claimed,
         EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = m.id AND r.side_index <> own.side_index AND r.state = 'pending') AS opponent_claimed
       FROM match m JOIN competition c ON c.id = m.competition_id JOIN season ON season.id = c.season_id
@@ -60,16 +60,27 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
       sum(opponent_claimed) AS awaiting_you,
       sum(claimed AND NOT opponent_claimed) AS awaiting_them,
       json_group_array(opponent_label ORDER BY opponent_label) AS waiting_on,
-      -- Toward the competition's minimum, counted as the tables count it: a walkover
-      -- or concession only for the side that turned up.
-      sides.min_rule,
-      (SELECT count(*) FROM match_side f WHERE f.entry_id = sides.entry_id) AS fixtures,
-      (SELECT count(*) FROM match pm JOIN match_side ps ON ps.match_id = pm.id
-        WHERE ps.entry_id = sides.entry_id AND pm.status = 'played' AND (pm.outcome IN ('completed', 'retired')
-          OR (pm.outcome IN ('walkover', 'conceded') AND pm.winning_side = ps.side_index))) AS played
+      sides.entry_id
     FROM sides JOIN member mb ON mb.id = sides.member_id AND mb.deleted_at IS NULL CROSS JOIN permission
     GROUP BY sides.competition_id, sides.division_id, mb.id
     ORDER BY outstanding_matches DESC, mb.display_name, sides.ordinal`).bind(competitionId ?? null, competitionId ?? null, hash),
+    // What the tables are counted from, for each competition with a match outstanding:
+    // how many each entry has played toward the minimum is the engine's to say.
+    db.prepare(`SELECT c.id, c.rules, c.match_format FROM competition c
+      WHERE (? IS NULL OR c.id = ?) AND EXISTS (SELECT 1 FROM match m
+        WHERE m.competition_id = c.id AND m.status IN ('open', 'reported', 'disputed'))`).bind(competitionId ?? null, competitionId ?? null),
+    db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, el.label FROM entry e
+      JOIN entry_label el ON el.entry_id = e.id
+      WHERE (? IS NULL OR e.competition_id = ?) AND EXISTS (SELECT 1 FROM match m
+        WHERE m.competition_id = e.competition_id AND m.status IN ('open', 'reported', 'disputed'))`)
+      .bind(competitionId ?? null, competitionId ?? null),
+    db.prepare(`SELECT m.id, m.competition_id, m.division_id, m.status, m.outcome, m.winning_side, m.retired_side, m.score,
+      s0.entry_id AS side0, s1.entry_id AS side1 FROM match m
+      LEFT JOIN match_side s0 ON s0.match_id = m.id AND s0.side_index = 0
+      LEFT JOIN match_side s1 ON s1.match_id = m.id AND s1.side_index = 1
+      WHERE (? IS NULL OR m.competition_id = ?) AND EXISTS (SELECT 1 FROM match o
+        WHERE o.competition_id = m.competition_id AND o.status IN ('open', 'reported', 'disputed')) ORDER BY m.id`)
+      .bind(competitionId ?? null, competitionId ?? null),
   ]);
   const rows = (identity.extraResults[0]!.results as Row[]).map((r) => ({
     competitionId: String(r.competition_id), competitionName: String(r.competition_name),
@@ -79,9 +90,17 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     outstandingMatches: Number(r.outstanding_matches), needsPlaying: Number(r.needs_playing), awaitingYou: Number(r.awaiting_you), awaitingThem: Number(r.awaiting_them),
     deadline: r.results_deadline_at === null ? null : new Date(Number(r.results_deadline_at)), timezone: String(r.timezone),
     waitingOn: JSON.parse(String(r.waiting_on)) as string[],
-    played: Number(r.played), fixtures: Number(r.fixtures), minRule: r.min_rule === null ? null : Number(r.min_rule),
+    entryId: String(r.entry_id),
   }));
-  return { identity, rows };
+  const [, competitions, entries, matches] = identity.extraResults.map((r) => r.results as Row[]);
+  return {
+    identity, rows,
+    competitions: competitions!.map((c) => ({ id: String(c.id), rules: JSON.parse(String(c.rules)) as unknown,
+      matchFormat: JSON.parse(String(c.match_format)) as MatchFormat })),
+    entries: entries!.map((e) => ({ id: String(e.id), competitionId: String(e.competition_id), divisionId: String(e.division_id),
+      state: String(e.state), label: String(e.label) })),
+    ledger: ledgerRecords(identity.extraResults[3]!).map((m, i) => ({ ...m, competitionId: String(matches![i]!.competition_id) })),
+  };
 }
 
 /** Everything a season's progress is counted from, in one snapshot: its competitions, their divisions and

@@ -273,3 +273,47 @@ test("an entry with fewer fixtures than the minimum is expected to play them all
   assert.deepEqual(rows.map((r: { minimum_matches: number; matches_short: number }) => [r.minimum_matches, r.matches_short]), [[2, 2], [2, 2], [2, 2]]);
   assert.equal((await f.api(`/v1/competitions/${comp.id}/progress`, f.admin)).body.below_minimum, 3);
 });
+
+test("the chase list counts toward the minimum as the tables do when a player withdraws", async (t) => {
+  const f = await websiteFixture(t);
+  const season = await f.create("/v1/seasons", { name: "Withdrawals", starts_on: "2026-01-01", ends_on: "2026-12-31",
+    results_deadline_at: new Date(Date.now() + 30 * 86400_000).toISOString() });
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const defaults = (await f.create("/v1/competitions", { season_id: season.id, name: "Probe", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak" })).rules;
+  // Results against a player who withdraws are void, and their remaining fixtures are walkovers to the opponents.
+  const comp = await f.create("/v1/competitions", { season_id: season.id, name: "Four", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak",
+    rules: { ...defaults, withdrawal: { playedMatches: "void", remainingMatches: "walkover_to_opponent" } } });
+  const division = await f.create(`/v1/competitions/${comp.id}/divisions`, {});
+  const entries: Record<string, string> = {};
+  for (const name of ["A", "B", "C", "D"]) {
+    const member = await f.create("/v1/members", { display_name: name });
+    entries[name] = (await f.create(`/v1/competitions/${comp.id}/entries`, { division_id: division.id, member_ids: [member.id] })).id;
+  }
+  assert.equal((await f.api(`/v1/divisions/${division.id}/fixtures`, f.admin, "POST")).status, 200);
+  assert.equal((await f.api(`/v1/competitions/${comp.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const matches = (await f.api(`/v1/matches?competition_id=${comp.id}`, f.admin)).body.data as { id: string; sides: { entry_id: string }[] }[];
+  const between = (x: string, y: string) => matches.find((m) => [x, y].every((e) => m.sides.some((s) => s.entry_id === entries[e])))!;
+  for (const [x, y] of [["A", "B"], ["A", "C"]]) {
+    assert.equal((await f.api(`/v1/matches/${between(x, y).id}/settle`, f.admin, "POST",
+      { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } })).status, 201);
+  }
+  assert.equal((await f.api(`/v1/entries/${entries.B}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
+
+  const table = (await f.api(`/v1/competitions/${comp.id}/standings`, f.admin)).body.divisions[0].rows as
+    { label: string; played: number; standing: string }[];
+  const played = Object.fromEntries(table.map((r) => [r.label, r.played]));
+  // A's win over B is void; C and D each get a walkover from B.
+  assert.deepEqual([played.A, played.C, played.D], [1, 2, 1]);
+  const chase = (await f.api(`/v1/chase-list?competition_id=${comp.id}`, f.admin)).body.data as
+    { display_name: string; matches_played: number; minimum_matches: number; matches_short: number }[];
+  assert.ok(chase.length > 0);
+  for (const r of chase) {
+    const target = r.display_name === "B" ? 0 : 3;
+    assert.deepEqual([r.matches_played, r.minimum_matches, r.matches_short],
+      [played[r.display_name], target, Math.max(0, target - played[r.display_name]!)], r.display_name);
+  }
+  const progress = (await f.api(`/v1/competitions/${comp.id}/progress`, f.admin)).body;
+  assert.equal(progress.below_minimum, ["A", "C", "D"].filter((n) => played[n]! < 3).length);
+});

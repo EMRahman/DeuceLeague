@@ -219,9 +219,9 @@ test("the chase list and dashboard say how many are short of the minimum, and wh
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   const chase = await coach.get("/coach/chase");
   assert.match(chase.html, /Short of the minimum/);
-  assert.match(chase.html, /\d+ of 15 players \(\d+%\)<\/span> ha(s|ve) played fewer than 4 matches/);
-  assert.match(chase.html, /\d+ of 10 pairs \(\d+%\)<\/span> ha(s|ve) played fewer than 4 matches/);
+  assert.match(chase.html, /\d+ of 15 players \(\d+%\)<\/span> (is|are) short of the 4-match minimum/);
+  assert.match(chase.html, /\d+ of 10 pairs \(\d+%\)<\/span> (is|are) short of the 4-match minimum/);
   assert.match(chase.html, /Played \d of 4: \d short/);
   assert.doesNotMatch((await coach.get("/coach/chase?within_days=7")).html, /Short of the minimum/, "not when no deadline is that close");
-  assert.match((await coach.get("/coach")).html, /of 15 players \(\d+%\)<\/span> ha(s|ve) played fewer than 4 matches/);
+  assert.match((await coach.get("/coach")).html, /of 15 players \(\d+%\)<\/span> (is|are) short of the 4-match minimum/);
 });

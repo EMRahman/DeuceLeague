@@ -630,19 +630,22 @@ export const Tables: FC<{
   </Layout>
 );
 
-/** "9 of 15 players (60%) have played fewer than 4 matches", or that everyone has. */
+/**
+ * "9 of 15 players (60%) are short of the 4-match minimum", or that none is. The
+ * minimum is the rule, or all a player's fixtures if fewer, as the API counts it.
+ */
 const ShortOfMinimum: FC<{ progress: SeasonProgress["competitions"][number] }> = ({ progress }) => {
   const { below_minimum: short, active_entries: all, minimum_matches: minimum } = progress;
   if (minimum === 0 || all === 0) return null;
   const who = progress.discipline === "doubles" ? ["pair", "pairs"] : ["player", "players"];
   return short === 0 ? (
-    <p class="muted">Everyone has played at least {plural(minimum, "match", "matches")}.</p>
+    <p class="muted">Nobody is short of the {minimum}-match minimum.</p>
   ) : (
     <p>
       <span class="deadline">
         {short} of {plural(all, who[0]!, who[1])} ({Math.round((100 * short) / all)}%)
       </span>{" "}
-      {short === 1 ? "has" : "have"} played fewer than {plural(minimum, "match", "matches")}
+      {short === 1 ? "is" : "are"} short of the {minimum}-match minimum
       {progress.divisions.length > 1 && (
         <span class="muted">
           {" "}
@@ -692,6 +695,7 @@ export const Chase: FC<{
       {progress.length > 0 && (
         <div class="card">
           <h2>Short of the minimum</h2>
+          <p class="muted">Anyone with fewer fixtures than the minimum is expected to play them all.</p>
           <ul class="list">
             {progress.map((x) => (
               <li class="answer">
