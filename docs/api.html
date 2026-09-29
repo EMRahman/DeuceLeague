@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeuceLeague API reference</title>
+  <style>
+    :root { color: #15221d; background: #f7faf8; font-family: system-ui, sans-serif; }
+    body { margin: 0; line-height: 1.5; }
+    a { color: #056b4d; }
+    header { color: #fff; background: #104837; padding: 3.5rem max(1.5rem, calc((100% - 70rem) / 2)); }
+    header p { max-width: 43rem; color: #d8ebe3; font-size: 1.1rem; }
+    nav { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem; }
+    nav a { color: #fff; font-weight: 650; }
+    main { max-width: 70rem; margin: auto; padding: 2rem 1.5rem 4rem; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 1rem; margin: 1.5rem 0 2.5rem; }
+    .stat { padding: 1rem; background: #e5f2ec; border-radius: .6rem; }
+    .stat strong { display: block; font-size: 1.6rem; }
+    .areas { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0 2rem; }
+    .areas a { padding: .3rem .55rem; border: 1px solid #b8d8c9; border-radius: 999px; text-decoration: none; }
+    section { margin-top: 2.5rem; scroll-margin-top: 1rem; }
+    h1 { margin: 0; font-size: clamp(2rem, 5vw, 3.5rem); }
+    h2 { margin-bottom: .5rem; }
+    .operation { display: grid; grid-template-columns: 4.8rem minmax(12rem, 24rem) 1fr; gap: .75rem; align-items: baseline; padding: .8rem 0; border-top: 1px solid #d9e3dd; }
+    .method { font: 700 .78rem ui-monospace, monospace; color: #005e43; }
+    code { overflow-wrap: anywhere; font-size: .9rem; }
+    .note { max-width: 52rem; padding: 1rem 1.2rem; border-left: 4px solid #178760; background: #edf7f2; }
+    footer { color: #526159; font-size: .9rem; margin-top: 3rem; }
+    @media (max-width: 42rem) { .operation { grid-template-columns: 4.8rem 1fr; } .operation span:last-child { grid-column: 2; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DeuceLeague API (Cloudflare migration preview)</h1>
+    <p>Version 0.1.0 · a concise map of every HTTP operation, generated from the route definitions.</p>
+    <nav aria-label="Documentation">
+      <a href="API.html">Guide</a>
+      <a href="openapi.json">OpenAPI JSON</a>
+    </nav>
+  </header>
+  <main>
+    <div class="summary" aria-label="API summary">
+      <div class="stat"><strong>55</strong>operations</div>
+      <div class="stat"><strong>35</strong>paths</div>
+      <div class="stat"><strong>14</strong>feature areas</div>
+    </div>
+    <p class="note">All <code>/v1</code> operations require a bearer credential. <code>/healthz</code> and <code>/openapi.json</code> are public.</p>
+    <h2>Feature areas</h2>
+    <div class="areas">
+      <a href="#meta">Meta (1)</a>
+      <a href="#me">Me (1)</a>
+      <a href="#player-logins">Player logins (4)</a>
+      <a href="#matches">Matches (5)</a>
+      <a href="#club">Club (2)</a>
+      <a href="#weather">Weather (6)</a>
+      <a href="#api-keys">API keys (3)</a>
+      <a href="#members">Members (6)</a>
+      <a href="#seasons">Seasons (4)</a>
+      <a href="#competitions">Competitions (4)</a>
+      <a href="#divisions">Divisions (6)</a>
+      <a href="#entries">Entries (8)</a>
+      <a href="#standings-and-progress">Standings and progress (4)</a>
+      <a href="#events">Events (1)</a>
+    </div>
+    <section id="meta">
+      <h2>Meta</h2>
+      <div class="operation"><span class="method">GET</span><code>/healthz</code><span>Is the server up, and can it reach its database?</span></div>
+    </section>
+    <section id="me">
+      <h2>Me</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/me</code><span>Who am I?</span></div>
+    </section>
+    <section id="player-logins">
+      <h2>Player logins</h2>
+      <div class="operation"><span class="method">POST</span><code>/v1/members/{id}/login-link</code><span>Make a login link for a member</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/session</code><span>Exchange a login link for a session</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/session</code><span>Sign out</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/members/{id}/sign-out</code><span>Sign a member out everywhere</span></div>
+    </section>
+    <section id="matches">
+      <h2>Matches</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/matches</code><span>List matches</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/matches/{id}</code><span>A match, with every claim made about it</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/matches/{id}/claims</code><span>Report a result for one side, or correct that side&#39;s report</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/matches/{id}/claims/{claim_id}/accept</code><span>Accept the other side&#39;s claim</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/matches/{id}/settle</code><span>Settle a match as the coach</span></div>
+    </section>
+    <section id="club">
+      <h2>Club</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/club</code><span>The club</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/club</code><span>Change the club&#39;s name, time zone or branding</span></div>
+    </section>
+    <section id="weather">
+      <h2>Weather</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/weather</code><span>Forecast configuration</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/weather</code><span>Change forecast units</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/court-locations</code><span>Court locations</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/court-locations</code><span>Add a court location</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/court-locations/{id}</code><span>Change a court location</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/court-locations/{id}</code><span>Remove a court location</span></div>
+    </section>
+    <section id="api-keys">
+      <h2>API keys</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/api-keys</code><span>List the club&#39;s API keys</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/api-keys</code><span>Make an API key</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/api-keys/{id}/revoke</code><span>Revoke an API key</span></div>
+    </section>
+    <section id="members">
+      <h2>Members</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/members</code><span>List members</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/members</code><span>Add a member</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/members/{id}</code><span>A member</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/members/{id}</code><span>Change a member</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/members/{id}</code><span>Remove a member</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/members/{id}/erase</code><span>Erase a member&#39;s personal data</span></div>
+    </section>
+    <section id="seasons">
+      <h2>Seasons</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/seasons</code><span>List seasons</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/seasons</code><span>Start planning a season</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/seasons/{id}</code><span>A season</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/seasons/{id}</code><span>Change a season, or move it to another state</span></div>
+    </section>
+    <section id="competitions">
+      <h2>Competitions</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions</code><span>List competitions</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/competitions</code><span>Create a competition</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}</code><span>A competition</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/competitions/{id}</code><span>Change a competition, or move it to another state</span></div>
+    </section>
+    <section id="divisions">
+      <h2>Divisions</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/divisions</code><span>A competition&#39;s divisions</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/competitions/{id}/divisions</code><span>Add a division to a competition</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/divisions/{id}</code><span>A division</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/divisions/{id}</code><span>Change a division</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/divisions/{id}</code><span>Delete an empty division</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/divisions/{id}/fixtures</code><span>Generate a division&#39;s round robin</span></div>
+    </section>
+    <section id="entries">
+      <h2>Entries</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/entries</code><span>A competition&#39;s entries</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/competitions/{id}/entries</code><span>Enter a player or pair</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/entries/{id}</code><span>An entry</span></div>
+      <div class="operation"><span class="method">PATCH</span><code>/v1/entries/{id}</code><span>Change, move, withdraw or reinstate an entry</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/entries/{id}</code><span>Delete an entry made by mistake</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/entries/{id}/opt-out</code><span>Say this entry is not playing in the next competition</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/entries/{id}/opt-out</code><span>Take back opting out of the next competition</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/competitions/{id}/placements</code><span>Fill a draft competition from the previous one&#39;s tables</span></div>
+    </section>
+    <section id="standings-and-progress">
+      <h2>Standings and progress</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/standings</code><span>A competition&#39;s tables</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/progress</code><span>How far through a competition is</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/entries/{id}/progress</code><span>How far through its matches an entry is</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/chase-list</code><span>Who has matches outstanding</span></div>
+    </section>
+    <section id="events">
+      <h2>Events</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/events</code><span>Read the event feed</span></div>
+    </section>
+    <footer>Generated by <code>npm run docs:openapi</code>. Do not edit this file by hand.</footer>
+  </main>
+</body>
+</html>

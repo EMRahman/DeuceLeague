@@ -4,11 +4,15 @@ The HTTP interface to the core. It speaks JSON and nothing else: it renders no
 pages and sends no messages. Websites, bots and apps are adapters built on top
 of it, by whoever wants them.
 
-This file is the *why*. The *what* — every route, field and error — is
-`/openapi.json`, generated from the same Zod schemas that validate each request,
-so it cannot drift from the code. A coding agent reading that spec can write a
-client in whatever language a club uses, so there is deliberately no SDK to
-maintain; the effort goes into the spec instead.
+This file is the *why*. The *what* — every route, field and error — is the
+[readable API reference](api.html) and its [OpenAPI JSON snapshot](openapi.json).
+The deployed Worker also serves `/openapi.json`, generated from the same Zod
+schemas that validate each request, so it cannot drift from the code. A coding
+agent reading that spec can write a client in whatever language a club uses, so
+there is deliberately no SDK to maintain; the effort goes into the spec instead.
+
+Run `npm run docs:openapi` after changing the API contract. The normal
+`npm test` command reports if either generated file is stale.
 
 > **Status:** the Cloudflare Worker and D1 implementation supports installation,
 > club administration, league setup, results, standings, progress, placements,
