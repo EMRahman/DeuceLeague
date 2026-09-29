@@ -60,8 +60,18 @@ export default {
       status: 421, headers: { "Cache-Control": "no-store" },
     });
     const client = apiClient("https://api.internal", (url, init) => Promise.resolve(api.fetch(new Request(url, init))));
+    // The courts' forecast, for the players' home page and the coach's tables alike.
+    const weather = async () => {
+      const weather = await client<WeatherConfiguration>("GET", "/v1/weather", config.key);
+      if (!weather.court_locations.length) return [];
+      const work = openMeteo(weather.court_locations, weather.units,
+        cachedWeatherFetch(caches.default, fetch, (work) => ctx.waitUntil(work)))();
+      // A slow forecast may finish after the page's short weather grace period.
+      ctx.waitUntil(work.catch(() => {}));
+      return work;
+    };
     if (url.pathname === "/coach" || url.pathname.startsWith("/coach/")) {
-      return createCoachSite({ api: client, publicUrl: config.origin }).fetch(request);
+      return createCoachSite({ api: client, publicUrl: config.origin, weather }).fetch(request);
     }
     const website = createWebsite({
       api: client,
@@ -69,15 +79,7 @@ export default {
       ...(config.mail ? { mail: config.mail.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.mail.from)
         : resendMailer(env.RESEND_API_KEY!, config.mail.from) } : {}),
       claimLogin: async (email) => claimWebsiteLogin(env.DB, await recipientHash(config.key, email)),
-      weather: async () => {
-        const weather = await client<WeatherConfiguration>("GET", "/v1/weather", config.key);
-        if (!weather.court_locations.length) return [];
-        const work = openMeteo(weather.court_locations, weather.units,
-          cachedWeatherFetch(caches.default, fetch, (work) => ctx.waitUntil(work)))();
-        // A slow forecast may finish after the page's short weather grace period.
-        ctx.waitUntil(work.catch(() => {}));
-        return work;
-      },
+      weather,
     });
     return website.fetch(request);
   },

@@ -1,8 +1,9 @@
 # The coach's website
 
 What a club's coach uses, at `/coach`: sign in with an API key, see how far
-the season has got, sort out results the players have not agreed, see what
-happened lately, see who to chase, and make a player's sign-in link to hand over, for example on WhatsApp.
+the season has got, sort out results the players have not agreed, see the
+tables and forecast as players do, see what happened lately, see who to chase,
+and make a player's sign-in link to hand over, for example on WhatsApp.
 Server-rendered HTML with no scripts, in the players' site's style. It reads
 the league and changes nothing in it but sign-in links; the coach's coding
 agent makes other changes through the API.
@@ -38,6 +39,11 @@ MIT-licensed.
   once a season's deadline has passed, its matches nobody played. Up to 12 are
   read in full (`GET /v1/matches/{id}`), since each read costs D1 queries and
   Workers Free allows 50 a request; the rest are listed by name.
+- **Tables** (`/coach/tables`). The tables and the courts' forecast exactly as
+  players see them, for the competitions open to members: the players' site's
+  own view (`CompetitionTables` and `WeatherBox`), with nobody's row marked and
+  no links into players' match pages. Its cost doesn't grow with the number of
+  competitions.
 - **Activity** (`/coach/activity`). The ten latest results
   (`GET /v1/matches?status=played&order=recent`) and the ten latest events of
   any kind (`GET /v1/events?order=newest`), as sentences naming who did it: a
