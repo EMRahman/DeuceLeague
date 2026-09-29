@@ -57,7 +57,8 @@ and the `/v1/court-locations` endpoints. The home page shows a 14-day outlook
 for each configured location — temperature, rain chance and wind, a column a
 day, good days for tennis in green — from Open-Meteo. The Worker sends only
 coordinates and units to Open-Meteo, and caches the public forecast response;
-with no configured locations it shows no outlook.
+with no configured locations it shows no outlook. See
+[court forecasts](../../deploy/cloudflare/WEATHER.md).
 
 Its Worker integration tests live in `deploy/cloudflare/test/` and run with
 `npm run cf:test`.

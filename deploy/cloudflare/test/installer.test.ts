@@ -9,12 +9,19 @@ const SITE = "https://club.test";
 const key = () => "dl_" + randomBytes(32).toString("base64url");
 async function installer(t: TestContext, captureMail = false) {
   const outbox: { to: string[]; text: string }[] = [];
+  const forecasts: string[] = [];
   let env = { SETUP_TOKEN: randomBytes(32).toString("base64url"), WEBSITE_API_KEY: key(), PUBLIC_URL: SITE,
     MAIL_PROVIDER: "resend", MAIL_FROM: "club@example.org", RESEND_API_KEY: "test-only" };
   const options = () => convertV4MiniflareOptions({ modules: true,
     scriptPath: fileURLToPath(new URL("../dist/bundle/worker.js", import.meta.url)), compatibilityDate: "2026-09-25",
     compatibilityFlags: ["nodejs_compat"], d1Databases: ["DB"], bindings: env,
     outboundService: async (request: Request) => {
+      // The sample's courts give a signed-in player's home page a forecast to fetch.
+      if (request.url.startsWith("https://api.open-meteo.com/v1/forecast?")) {
+        forecasts.push(request.url);
+        return Response.json({ daily: { time: ["2026-09-27"], weather_code: [0], temperature_2m_max: [20], temperature_2m_min: [10],
+          precipitation_probability_max: [10], wind_speed_10m_max: [5], wind_gusts_10m_max: [8] } });
+      }
       assert.ok(captureMail, "Installer must not send email");
       assert.equal(request.url, "https://api.resend.com/emails");
       outbox.push(await request.json() as typeof outbox[number]);
@@ -34,7 +41,7 @@ async function installer(t: TestContext, captureMail = false) {
     const html = await r.text(); const admin = /name="admin_key" value="([^"]+)"/.exec(html)?.[1]; assert.ok(admin);
     return { admin, html, form: { secret: env.SETUP_TOKEN, admin_key: admin, saved: "yes", name: "Riverside", slug: "riverside", timezone: "Europe/London" } };
   }
-  return { request, post, api, configure, prepare, outbox, get db() { return db; }, get env() { return env; } };
+  return { request, post, api, configure, prepare, outbox, forecasts, get db() { return db; }, get env() { return env; } };
 }
 
 test("installer authenticates before showing keys or state, checks origin and renders escaped HTML", async (t) => {
@@ -165,6 +172,8 @@ test("optional sample works from installation through two players' sign-in, repo
     ["SELECT count(*) AS n FROM match WHERE status = 'reported'", 3], ["SELECT count(*) AS n FROM match WHERE status = 'disputed'", 2],
     ["SELECT count(*) AS n FROM result_submission", 73], ["SELECT count(*) AS n FROM entry WHERE opted_out_at IS NOT NULL", 2],
     ["SELECT count(*) AS n FROM member WHERE email IS NOT NULL", 2],
+    ["SELECT count(*) AS n FROM court_location", 2],
+    ["SELECT count(*) AS n FROM event WHERE type = 'court_location.created'", 2],
     // Two newcomers: members with no entry anywhere.
     ["SELECT count(*) AS n FROM member m WHERE NOT EXISTS (SELECT 1 FROM entry_member em WHERE em.member_id = m.id)", 2],
     // Every division is a full round robin of five.
@@ -191,6 +200,12 @@ test("optional sample works from installation through two players' sign-in, repo
   for (const secret of [email, second, p.admin, f.env.SETUP_TOKEN, f.env.WEBSITE_API_KEY]) assert.ok(!audits.includes(secret));
   const statusPage = await f.post("/install/check", { secret: f.env.SETUP_TOKEN });
   assert.match(await statusPage.text(), /Sample club: created/);
+  // Two courts, so a trial shows the forecast and its venue switcher with no setup.
+  const weather = await (await f.api("/v1/weather", p.admin)).json() as any;
+  assert.equal(weather.units, "uk");
+  assert.deepEqual(weather.court_locations.map((c: any) => c.name), ["Wimbledon Park (sample)", "Regent's Park (sample)"]);
+  const marker = await f.db.prepare("SELECT payload FROM event WHERE type = 'installation.sample.created'").first<string>("payload");
+  assert.equal(JSON.parse(marker!).court_locations, 2);
   // The played sample results are real ledger entries: the tables count them.
   const competitions = (await (await f.api("/v1/competitions", p.admin)).json() as any).data;
   for (const competition of competitions) {
@@ -216,6 +231,8 @@ test("optional sample works from installation through two players' sign-in, repo
   const home = await f.request("/", { headers: { cookie: alex } });
   assert.equal(home.status, 200); const html = await home.text();
   assert.match(html, /Hello, Sample Alex/); assert.match(html, /Sample singles/); assert.match(html, /Sample doubles/);
+  assert.match(html, /Wimbledon Park \(sample\)/); assert.match(html, /Regent(&#39;|')s Park \(sample\)/);
+  assert.ok(f.forecasts.length > 0, "the home page asked for the sample courts' forecast");
   assert.ok(!html.includes(email));
   const match = await f.db.prepare(`SELECT m.id FROM match m JOIN competition c ON c.id = m.competition_id
     WHERE c.discipline = 'singles' AND (SELECT count(*) FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id
@@ -255,6 +272,7 @@ test("concurrent sample setup and lost responses leave one immutable completion 
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM member").first("n"), 22);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM member WHERE email IS NOT NULL").first("n"), 0);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM match").first("n"), 50);
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM court_location").first("n"), 2);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM event").first("n"), events);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM event WHERE type = 'installation.sample.created'").first("n"), 1);
   await assert.rejects(change(f.db, [f.db.prepare("DELETE FROM event WHERE type = 'installation.sample.created'")]), /event_append_only/);

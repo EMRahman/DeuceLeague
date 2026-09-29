@@ -63,7 +63,8 @@ export function createInstaller(api: Api, env: WebsiteBindings, origin: string) 
       <label>Time zone<input name="timezone" value="Europe/London" required></label>
       <label><input type="checkbox" name="sample" value="yes"> Add a sample league for testing</label>
       <p>The sample adds 22 fictional players: singles in three divisions of five, doubles in two divisions of five
-      pairs, and 50 matches, most already played. Leave it unchecked for a real club. Samples can only be added during
+      pairs, 50 matches, most already played, and two court locations in London for the forecast. Leave it unchecked
+      for a real club. Samples can only be added during
       initial setup.</p>
       <p>Sample Alex and Sample Bailey have an unplayed match against each other, so one can report a score and the
       other agree it. Sign in as them with links made with your administrator key.</p>

@@ -18,6 +18,8 @@ export type InstallationSample = {
   matches: SampleMatch[];
   claims: ClaimRecord[];
   outcomes: SampleOutcome[];
+  /** Named places for the forecast, so a trial shows weather without any setup. */
+  courtLocations: { id: string; name: string; latitude: number; longitude: number; createdAt: Date }[];
   events: LeagueEvent[];
 };
 
@@ -35,6 +37,7 @@ export function sampleStatements(db: D1Database, clubId: string, sample: Install
   const matches = sample.matches.map((m) => ({ ...m, createdAt: ms(m.createdAt),
     side0Id: uuidv7(m.createdAt.getTime()), side1Id: uuidv7(m.createdAt.getTime()) }));
   const claims = sample.claims.map((c) => ({ ...c, submittedAt: ms(c.submittedAt), confirmedAt: ms(c.confirmedAt) }));
+  const courts = sample.courtLocations.map((c) => ({ ...c, createdAt: ms(c.createdAt) }));
   const outcomes = sample.outcomes.map((o) => ({ matchId: o.matchId, status: o.status, updatedAt: ms(o.updatedAt),
     outcome: o.ledger?.outcome ?? null, score: o.ledger?.score ?? null, winningSide: o.ledger?.winningSide ?? null,
     retiredSide: o.ledger?.retiredSide ?? null, playedOn: o.ledger?.playedOn ?? null, claimId: o.ledger?.claimId ?? null }));
@@ -80,6 +83,10 @@ export function sampleStatements(db: D1Database, clubId: string, sample: Install
         accepted_submission_id = json_extract(o.value, '$.claimId'), updated_at = json_extract(o.value, '$.updatedAt')
       FROM json_each(?) o WHERE match.id = json_extract(o.value, '$.matchId') AND match.club_id = ?`)
       .bind(JSON.stringify(outcomes), clubId),
+    db.prepare(`INSERT INTO court_location (id, club_id, name, latitude, longitude, created_at, updated_at)
+      SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.name'), json_extract(value, '$.latitude'),
+        json_extract(value, '$.longitude'), json_extract(value, '$.createdAt'), json_extract(value, '$.createdAt')
+      FROM json_each(?)`).bind(clubId, JSON.stringify(courts)),
     // One bound bulk insert preserves event order without spending a D1 query
     // per sample record. Allocation triggers still run for every event, within
     // the same bootstrap transaction as all records and the completion marker.
@@ -90,6 +97,7 @@ export function sampleStatements(db: D1Database, clubId: string, sample: Install
     eventStatement(db, clubId, "installation.sample.created", "club", clubId, { type: "system", id: null }, {
       preset: sample.preset, members: sample.members.length,
       competitions: sample.changes.filter((c) => c.type === "competition").length, matches: sample.matches.length,
+      court_locations: sample.courtLocations.length,
     }),
   ];
 }
