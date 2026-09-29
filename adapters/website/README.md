@@ -49,7 +49,7 @@ The Cloudflare Worker composes this website with the API. See the
 |---|---|
 | `WEBSITE_API_KEY` | A key holding `members:read`, `members:write` and `members:pii`. Until it is set, every page says how to make one. |
 | `PUBLIC_URL` | The address players use; sign-in links point here. |
-| `MAIL_PROVIDER`, `MAIL_FROM` | Optional. Select Cloudflare Email Sending or Resend, and configure the sender address, to email sign-in links. |
+| `MAIL_PROVIDER`, `MAIL_FROM` | Optional, added when the coach wants to email sign-in links. See [sign-in emails](../../deploy/cloudflare/EMAIL.md). |
 | `RESEND_API_KEY` | Required when `MAIL_PROVIDER=resend`. |
 
 The coach manages forecast locations and units through `GET/PATCH /v1/weather`
