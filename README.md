@@ -1,44 +1,56 @@
 # DeuceLeague
 
-Open-source tennis league software on Cloudflare Workers and D1. It provides a
-protected API, a player website, and an installation flow for one club per D1
-database.
+Open-source tennis league software for a club. Players see their matches and
+tables, report scores and agree their opponents' results from their phones.
+The coach hands out sign-in links and runs the league, with a coding agent for
+the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 
-Players sign in from a one-time link, handed to them by their coach or,
-optionally, emailed. They see their matches and tables, report scores, and agree
-their opponents’ results. Coaches manage the league through
-the API with an administrator key. The API contract is published at
-`/openapi.json`; its generated [readable reference](https://emrahman.github.io/DeuceLeague/api.html)
-lives with this repository's GitHub Pages documentation.
+![The players' website on a phone: the home page with scores to agree, a division table, and reporting a match.](docs/images/product-preview.png)
 
-## Deploy a club
+## Try it
 
-Follow the [Cloudflare deployment guide](deploy/cloudflare/README.md). It
-covers Worker variables and secrets, installation at `/install`, optional email, sample
-data, recovery, and local development.
+Deploy it with a sample club in mid-season, then play it as the coach and as
+two players. It takes about fifteen minutes in your browser, with no email
+service and no server.
 
-```sh
-npm install
-npm run cf:test
-npm run deploy -- --dry-run
-```
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/EMRahman/DeuceLeague/tree/main)
 
-## From VPS to Cloudflare
+**[Try DeuceLeague →](deploy/cloudflare/TRY.md)**
 
-DeuceLeague began as a Docker and PostgreSQL application hosted on a small
-VPS. That was a useful first deployment model, but it left each club with a
-server to operate, secure, back up, and update.
+## Run your club
 
-The migration is now complete. The supported deployment is one Cloudflare
-Worker and one D1 database per club: a simpler path to install and operate,
-designed to make practical use of Cloudflare's free tier for a modest club
-league. Email and any custom domain may still have their own provider costs.
+- [Start your club](deploy/cloudflare/GO-LIVE.md): a fresh deployment for real,
+  your members and courts, and inviting players.
+- [Running the league day to day](docs/COACH-WORKFLOW.md) with a coding agent.
+- [Sign-in emails](deploy/cloudflare/EMAIL.md), [court forecasts](deploy/cloudflare/WEATHER.md)
+  and [recovering administrator access](deploy/cloudflare/RECOVERY.md).
+- [For coaches](https://emrahman.github.io/DeuceLeague/for-coaches.html): what
+  it does and why, in more detail.
 
-The original VPS source is preserved in the immutable
-[`vps-baseline-2026-09-28`](https://github.com/EMRahman/DeuceLeague/tree/vps-baseline-2026-09-28)
-tag for reference, recovery, or anyone maintaining a separate legacy fork.
+## Build on it
 
-## What is here
+The league is an API. The players' website and the coach's site are adapters
+on it, like anything a club builds with a coding agent: a bot, an app, a
+report. The contract is published at `/openapi.json` on every deployment, with
+a [readable reference](https://emrahman.github.io/DeuceLeague/api.html).
+
+- [API concepts, permissions and workflows](docs/API.md)
+- [How the deployment works](deploy/cloudflare/README.md)
+- [Developing DeuceLeague](DEVELOPING.md): checks, running it locally, and API
+  changes
+
+### The model
+
+A season contains competitions; each competition has divisions and entries.
+Entries play matches. Standings are computed from confirmed results whenever
+they are read. The coach reviews and applies promotion and relegation
+placements for the next competition.
+
+League rules are data: scoring, tiebreaks, promotion counts, withdrawals, and
+deadlines belong to each competition. The core serves JSON. Websites, apps,
+and tools build on the API.
+
+### What is here
 
 ```
 packages/schema   Shared Zod schemas for scores, formats, and rules       MIT
@@ -51,18 +63,16 @@ deploy/cloudflare Worker deployment, installer, and recovery tooling
 docs/API.md       API concepts, permissions, and workflows
 ```
 
-## The model
+## From VPS to Cloudflare
 
-A season contains competitions; each competition has divisions and entries.
-Entries play matches. Standings are computed from confirmed results whenever
-they are read. The coach reviews and applies promotion and relegation
-placements for the next competition.
-
-League rules are data: scoring, tiebreaks, promotion counts, withdrawals, and
-deadlines belong to each competition. The core serves JSON. Websites, apps,
-and tools build on the API.
+DeuceLeague began as a Docker and PostgreSQL application on a small VPS, which
+left each club with a server to operate, secure, back up and update. It now
+runs as one Cloudflare Worker and one D1 database per club. The original source
+is preserved in the
+[`vps-baseline-2026-09-28`](https://github.com/EMRahman/DeuceLeague/tree/vps-baseline-2026-09-28)
+tag for reference, recovery, or a separate legacy fork.
 
 ## Licence
 
-`packages/schema`, `adapters/website` and `adapters/coach` are MIT. The server-side packages are
-AGPL-3.0-or-later.
+`packages/schema`, `adapters/website` and `adapters/coach` are MIT. The
+server-side packages are AGPL-3.0-or-later.
