@@ -109,35 +109,47 @@ function copy(text) {
   return false;
 }
 
+/** The keys file: the administrator key and the latest player links. */
+function saveKeys(keys) {
+  mkdirSync(dirname(KEYS), { recursive: true });
+  writeFileSync(KEYS, [
+    "# The local club's keys: for this computer only. Git ignores this file.",
+    "# ADMIN_KEY signs in at /coach. Each link signs a player in once, within 72 hours;",
+    "# open the second in a private window. npm run local makes new links each time.",
+    ...[...keys].map(([key, value]) => `${key}=${value}`),
+    "",
+  ].join("\n"), { mode: 0o600 });
+}
+
 try {
   await ready();
   const token = vars.get("SETUP_TOKEN");
-  let keys = readVars(KEYS);
+  const keys = readVars(KEYS);
   const { initialized } = await api("GET", "/setup/status", token);
   if (!initialized) {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London";
     const made = await api("POST", "/setup", token, { slug: "local-club", name: values.name, timezone, sample: true });
-    keys = new Map([["ADMIN_KEY", made.api_key]]);
+    // Saved at once: setup never runs again, so this is the only chance to keep it.
+    keys.clear();
+    keys.set("ADMIN_KEY", made.api_key);
+    saveKeys(keys);
     console.log(`\nMade "${values.name}" with the sample league: 22 players, singles and doubles, 50 matches.`);
   }
   const admin = keys.get("ADMIN_KEY");
   if (admin) {
-    // Links work once, so every run makes fresh ones.
-    const members = (await api("GET", "/v1/members?limit=200", admin)).data;
-    for (const name of PLAYERS) {
-      const member = members.find((m) => m.display_name === name);
-      if (!member) continue;
-      const link = await api("POST", `/v1/members/${member.id}/login-link`, admin, { expires_in_minutes: 4320 });
-      keys.set(`${name.split(" ")[1].toUpperCase()}_LINK`, `${origin}/login?token=${link.token}`);
+    // Links work once, so every run makes fresh ones. The site runs without them.
+    try {
+      const members = (await api("GET", "/v1/members?limit=200", admin)).data;
+      for (const name of PLAYERS) {
+        const member = members.find((m) => m.display_name === name);
+        if (!member) continue;
+        const link = await api("POST", `/v1/members/${member.id}/login-link`, admin, { expires_in_minutes: 4320 });
+        keys.set(`${name.split(" ")[1].toUpperCase()}_LINK`, `${origin}/login?token=${link.token}`);
+      }
+      saveKeys(keys);
+    } catch (error) {
+      console.warn(`No new player links this time (${error instanceof Error ? error.message : error}). Make them on /coach under Members.`);
     }
-    mkdirSync(dirname(KEYS), { recursive: true });
-    writeFileSync(KEYS, [
-      "# The local club's keys: for this computer only. Git ignores this file.",
-      "# ADMIN_KEY signs in at /coach. Each link signs a player in once, within 72 hours;",
-      "# open the second in a private window. npm run local makes new links each time.",
-      ...[...keys].map(([key, value]) => `${key}=${value}`),
-      "",
-    ].join("\n"), { mode: 0o600 });
   }
   const copied = admin ? copy(admin) : false;
   console.log([
