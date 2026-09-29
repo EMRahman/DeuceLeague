@@ -52,7 +52,7 @@ see [sign-in emails](EMAIL.md).
 
 Court locations and forecast units are coach-managed D1 data, not deployment
 variables. A new club starts with no locations, so its player website simply
-omits weather until the coach adds one through the API; see [optional weather](TRIAL.md#optional-weather).
+omits weather until the coach adds one through the API; see [court forecasts](WEATHER.md).
 
 For a new installation, run `openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'`
 twice or use a password manager. Save the first output as `SETUP_TOKEN`; prefix
@@ -72,7 +72,9 @@ club in mid-season:
 - singles in three divisions of five, and doubles in two divisions of five pairs;
 - 50 matches, most already played, with two disputed, three waiting for
   agreement, and the rest open;
-- two entries opted out of next season, and two members with no entry.
+- two entries opted out of next season, and two members with no entry;
+- two court locations in London, marked "(sample)", so the home page shows
+  forecasts.
 
 The results are made by the same decision code a player's report goes through.
 Sample Alex and Sample Bailey's match against each other is open, so one can

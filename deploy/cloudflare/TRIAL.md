@@ -77,8 +77,6 @@ and [D1 permission requirements](https://developers.cloudflare.com/d1/platform/r
 | `SETUP_TOKEN` — secret | The first password you saved |
 | `WEBSITE_API_KEY` — secret | The password starting with `dl_` |
 
-Weather has no locations initially. Add them after setup through the coach API.
-
 ### Check the website address
 
 Open `/healthz` at the assigned address, for example:
@@ -111,7 +109,9 @@ The sample is a small club in mid-season:
 - singles in three divisions of five;
 - doubles in two divisions of five pairs;
 - 50 matches. Most are already played, two are disputed, three are waiting for the
-  other side to agree, and the rest are still to play.
+  other side to agree, and the rest are still to play;
+- two court locations in London, so the home page shows a 14-day forecast for
+  each.
 
 Two entries have opted out of next season, and two members have no entry yet, as
 newcomers would. Alex and Bailey are in the same singles division, and their match
@@ -139,7 +139,8 @@ Alex and Bailey should now say **Signed in**.
 
 ## 5. Report and agree a score
 
-- As Sample Alex, check that you can see singles and doubles and the tables.
+- As Sample Alex, check that you can see singles and doubles and the tables,
+  and a forecast for each sample court on the home page.
   Open the match against Sample Bailey and report a score. **The score stays
   pending until the opponent agrees.**
 - In the private window, as Sample Bailey, agree Alex's score.
@@ -158,33 +159,11 @@ count, and whether setup, coach sign-in, player sign-in, score reporting and
 redeployment worked. Leave credentials, private email addresses and sign-in
 links out of anything you share.
 
-## Optional weather
-
-To show forecasts, use the administrator key you saved at setup to add one or
-more named court locations and choose the display units:
-
-```sh
-curl -X POST "https://your-club.example/v1/court-locations" \
-  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
-  --data '{"name":"Main Courts","latitude":51.4343,"longitude":-0.2141}'
-
-curl -X PATCH "https://your-club.example/v1/weather" \
-  -H "Authorization: Bearer $ADMIN_KEY" -H "Content-Type: application/json" \
-  --data '{"units":"uk"}'
-```
-
-Replace the example name and coordinates with your courts; repeat the first
-request for each location (up to eight). Units can be `uk` (the default,
-Celsius/mph), `metric`, or `us`. Deleting every location hides forecasts again.
-
-Existing `WEATHER_VENUES` and `WEATHER_UNITS` variables are ignored after this
-release. Re-enter their values through the API after the migration deploys.
-
 ## Settings, usage and recovery
 
 - **Changing settings:** keep Worker configuration in your repository's
   `wrangler.jsonc`; deployments can overwrite dashboard-only changes. Club
-  settings such as forecast locations and units are changed through the API and
+  settings such as [court forecasts](WEATHER.md) are changed through the API and
   stay in D1. Keep credentials in Worker secrets. The generated `DB` binding
   must retain the database's actual `database_id`.
 - **Checking usage:** open your D1 database's **Metrics** tab to view rows read
@@ -214,7 +193,7 @@ add email.
 
 | What you see | What to check |
 | --- | --- |
-| Weather is not visible | Add at least one court location through `POST /v1/court-locations` with an administrator key. |
+| Weather is not visible | See [court forecasts](WEATHER.md#when-forecasts-do-not-show). |
 | Deployment or migrations fail with an authentication/permission error | Check the selected Cloudflare build token is valid, targets the right account, and includes Workers Scripts: Edit and D1: Edit. After correcting its permissions or selecting a replacement in the Worker's Settings → Builds → API token, retry the build. |
 | No provisioned D1 database ID | Find the new database in Cloudflare and check its ID matches the repository's `DB` binding. Do not create a second database just to retry. |
 | Migration failure | The deployment stopped before publishing the Worker. Correct the reported cause before retrying. The failing migration rolls back; earlier successful migrations may already be recorded. |

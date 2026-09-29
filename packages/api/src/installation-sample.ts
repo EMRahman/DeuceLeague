@@ -45,6 +45,16 @@ function plan(discipline: "singles" | "doubles", division: number, i: number, j:
 }
 /** Now and then the weaker side wins, so the tables are not simply the lineups in order. */
 const upset = (i: number, j: number) => (i + 2 * j) % 5 === 0;
+/**
+ * Two public courts in London, so the home page shows a forecast from the
+ * start and the venue switcher has something to switch. Marked as sample, for
+ * the coach to replace with the club's own.
+ */
+const COURTS = [
+  { name: "Wimbledon Park (sample)", latitude: 51.4347, longitude: -0.2019 },
+  { name: "Regent's Park (sample)", latitude: 51.5262, longitude: -0.1535 },
+];
+
 /** Opted out of next season: the bottom of the top division, and the middle of the bottom one. */
 const OPTED_OUT = new Set(["Gray", "Morgan"]);
 
@@ -60,7 +70,9 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   const members = NAMES.map((name) => ({ id: uuidv7(opened.getTime()), displayName: `Sample ${name}`, createdAt: opened,
     email: name === "Alex" ? emails.alex : name === "Bailey" ? emails.bailey : null }));
   const byName = new Map(NAMES.map((name, i) => [name, members[i]!]));
-  const sample: InstallationSample = { preset: "starter-v2", members, changes: [], entries: [], matches: [], claims: [], outcomes: [], events: [] };
+  const courtLocations = COURTS.map((court) => ({ ...court, id: uuidv7(opened.getTime()), createdAt: opened }));
+  const sample: InstallationSample = { preset: "starter-v2", members, changes: [], entries: [], matches: [], claims: [], outcomes: [],
+    courtLocations, events: [] };
   const day = (date: Date) => {
     const parts = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date);
     const part = (type: string) => parts.find((p) => p.type === type)!.value;
@@ -75,6 +87,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   }
   for (const member of members) sample.events.push({ type: "member.created", subjectType: "member", id: member.id,
     payload: { fields: ["display_name", ...(member.email ? ["email"] : [])] } });
+  for (const court of courtLocations) sample.events.push({ type: "court_location.created", subjectType: "court_location", id: court.id, payload: {} });
   add({ type: "season", create: true, record: season }, { name: season.name });
 
   let played = 0;

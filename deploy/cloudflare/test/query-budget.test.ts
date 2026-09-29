@@ -81,7 +81,7 @@ test("sample browser installation stays within its SQL statement budget and reta
   assert.ok(installed.written < 5_000, `installing the sample wrote ${installed.written} rows`);
   const events = (await raw.prepare(`SELECT e.type, p.event_id FROM event e
     JOIN event_position p ON p.local_id = e.id ORDER BY p.tx_id, p.event_id`).all()).results;
-  assert.equal(events.length, 174);
+  assert.equal(events.length, 176);
   assert.deepEqual(events.slice(0, 7).map((e) => e.type), ["club.created", "api_key.created", "api_key.created",
     "member.created", "member.created", "member.created", "member.created"]);
   assert.equal(events.at(-1)!.type, "installation.sample.created");
@@ -94,6 +94,8 @@ test("sample browser installation stays within its SQL statement budget and reta
   const alex = await raw.prepare("SELECT id FROM member WHERE display_name = 'Sample Alex'").first<string>("id");
   const link = await (await api("POST", `/v1/members/${alex}/login-link`, admin)).json() as { token: string };
   const session = await (await api("POST", "/v1/session", link.token)).json() as { token: string };
+  // The sample's courts make the home page ask for a forecast: never from the network in a test.
+  t.mock.method(globalThis, "fetch", async () => { throw new Error("no network in tests"); });
   counted.reset();
   const home = await worker.fetch(new Request(env.PUBLIC_URL + "/", { headers: { cookie: `deuceleague_session=${session.token}` } }), env, ctx);
   assert.equal(home.status, 200); assert.match(await home.text(), /Hello, Sample Alex/);
