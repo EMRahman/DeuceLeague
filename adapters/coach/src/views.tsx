@@ -46,7 +46,14 @@ export type Progress = Counts & {
   /** How many matches each entry is expected to play, and how many entries are short of it. */
   minimum_matches: number;
   below_minimum: number;
-  divisions: (Counts & { division_id: string; ordinal: number; name: string; active_entries: number; below_minimum: number })[];
+  divisions: (Counts & {
+    division_id: string;
+    ordinal: number;
+    name: string;
+    active_entries: number;
+    minimum_matches: number;
+    below_minimum: number;
+  })[];
 };
 
 /** A competition's progress as the season's progress gives it. */
@@ -108,6 +115,8 @@ table.progress th:first-child, table.progress td:first-child { text-align: left;
 table.progress th:nth-child(2), table.progress td:nth-child(2) { text-align: right; width: auto; white-space: nowrap; }
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
+form.minimum { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; margin: 1rem 0 .35rem; }
+form.minimum label { margin: 0; }
 .after { margin-top: .75rem; }
 `;
 
@@ -208,11 +217,13 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
   </Layout>
 );
 
-export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: string }> = ({
-  frame,
-  seasons,
-  timezone,
-}) => (
+export const Dashboard: FC<{
+  frame: Frame;
+  seasons: SeasonView[];
+  timezone: string;
+  /** The competition whose minimum was just saved. */
+  saved: string | null;
+}> = ({ frame, seasons, timezone, saved }) => (
   <Layout title="Dashboard" frame={frame}>
     {seasons.length === 0 && (
       <>
@@ -247,8 +258,14 @@ export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: stri
           )}
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
           {competitions.map(({ progress, optedOut, next }) => (
-            <div class="card">
+            <div class="card" id={`competition-${progress.competition_id}`}>
               <h2>{progress.name}</h2>
+              {saved === progress.competition_id && (
+                <div class="notice ok" role="status">
+                  Saved: each {progress.discipline === "doubles" ? "pair" : "player"} is expected to play{" "}
+                  {plural(progress.minimum_matches, "match", "matches")}.
+                </div>
+              )}
               <progress value={progress.played} max={Math.max(progress.matches, 1)} />
               <p>
                 {progress.played} of {plural(progress.matches, "match", "matches")} played
@@ -283,6 +300,7 @@ export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: stri
                 {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
               </p>
               <ShortOfMinimum progress={progress} />
+              <MinimumSetting progress={progress} />
             </div>
           ))}
         </>
@@ -290,6 +308,38 @@ export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: stri
     })}
   </Layout>
 );
+
+/**
+ * How many matches each player is expected to play in a competition, and what
+ * that asks of each division: the number, or all their matches where a division
+ * is too small to give that many.
+ */
+const MinimumSetting: FC<{ progress: SeasonProgress["competitions"][number] }> = ({ progress }) => {
+  const id = `minimum-${progress.competition_id}`;
+  const who = progress.discipline === "doubles" ? ["pair", "pairs"] : ["player", "players"];
+  return (
+    <>
+      <form class="minimum" method="post" action={`/coach/competitions/${progress.competition_id}/minimum`}>
+        <label for={id}>Minimum matches each</label>
+        <input id={id} name="minimum" type="number" min="0" max="50" value={String(progress.minimum_matches)} required />
+        <button class="quiet small" type="submit">
+          Save
+        </button>
+      </form>
+      {progress.divisions.length > 0 && (
+        <p class="muted">
+          {progress.divisions
+            .map(
+              (d) =>
+                `${d.name}, ${plural(d.active_entries, who[0]!, who[1])}: ${d.minimum_matches}` +
+                (d.minimum_matches < progress.minimum_matches && d.active_entries > 0 ? ", all their matches" : ""),
+            )
+            .join(" · ")}
+        </p>
+      )}
+    </>
+  );
+};
 
 /** The claim each side stands by now: its newest one still pending. */
 function standing(match: MatchDetail, side: Side) {
@@ -842,12 +892,17 @@ export const SignInLink: FC<{ frame: Frame; member: string; url: string; hours: 
   </Layout>
 );
 
-export const Problem: FC<{ frame: Frame; title: string; detail: string }> = ({ frame, title, detail }) => (
+export const Problem: FC<{ frame: Frame; title: string; detail: string; back?: { href: string; label: string } }> = ({
+  frame,
+  title,
+  detail,
+  back = { href: "/coach/members", label: "Back to members" },
+}) => (
   <Layout title={title} frame={frame}>
     <h1>{title}</h1>
     <p>{detail}</p>
     <p>
-      <a href="/coach/members">Back to members</a>
+      <a href={back.href}>{back.label}</a>
     </p>
   </Layout>
 );

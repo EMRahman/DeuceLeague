@@ -9,7 +9,7 @@ import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import * as routes from "./contracts/standings.js";
 import { iso } from "./contracts/shared.js";
-import { daysRemaining, progressCounts, shortOfMinimum, towardMinimum } from "./league/progress.js";
+import { daysRemaining, progressCounts, towardMinimum } from "./league/progress.js";
 import { playerVisible } from "./league/rules.js";
 import { tablesFromRecords } from "./league/tables.js";
 import { toStandings, toCounts, toChase } from "./league/views.js";
@@ -29,14 +29,22 @@ function competitionProgress(competition: { id: string; rules: unknown; matchFor
   const ids = new Set(divisions.map((d) => d.id));
   const active = entries.filter((e) => e.state === "active");
   const rules = RulesSpec.parse(competition.rules);
-  const short = shortOfMinimum(rules, competition.matchFormat, entries.filter((e) => ids.has(e.divisionId)), matches);
-  const shortIn = (divisionId: string) => active.filter((e) => e.divisionId === divisionId && short.has(e.id)).length;
+  const toward = towardMinimum(rules, competition.matchFormat, entries.filter((e) => ids.has(e.divisionId)), matches);
+  const activeIn = (divisionId: string) => active.filter((e) => e.divisionId === divisionId);
+  const shortIn = (divisionId: string) => activeIn(divisionId).filter((e) => {
+    const c = toward.get(e.id);
+    return c !== undefined && c.played < c.target;
+  }).length;
+  // The division's target: the rule, or every fixture where there are fewer. A round robin gives
+  // each entry the same fixtures; where they differ, the most any entry is asked for.
+  const targetIn = (divisionId: string) => Math.max(0, ...activeIn(divisionId).map((e) => toward.get(e.id)?.target ?? 0));
   return { competition_id: competition.id, results_deadline_at: iso(deadline), days_remaining: daysRemaining(deadline, timezone, now),
     active_entries: active.length, ...toCounts(progressCounts(matches.filter((m) => m.divisionId !== null && ids.has(m.divisionId)))),
     minimum_matches: rules.minMatchesToPlay, below_minimum: divisions.reduce((n, d) => n + shortIn(d.id), 0),
     divisions: divisions.map((d) => ({ division_id: d.id, ordinal: d.ordinal, name: d.name,
       active_entries: active.filter((e) => e.divisionId === d.id).length,
-      ...toCounts(progressCounts(matches.filter((m) => m.divisionId === d.id))), below_minimum: shortIn(d.id) })) };
+      ...toCounts(progressCounts(matches.filter((m) => m.divisionId === d.id))),
+      minimum_matches: targetIn(d.id), below_minimum: shortIn(d.id) })) };
 }
 function visible(s: Views, id: string) {
   const found = s.data.competitions.find((c) => c.id === id);

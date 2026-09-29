@@ -317,3 +317,18 @@ test("the chase list counts toward the minimum as the tables do when a player wi
   const progress = (await f.api(`/v1/competitions/${comp.id}/progress`, f.admin)).body;
   assert.equal(progress.below_minimum, ["A", "C", "D"].filter((n) => played[n]! < 3).length);
 });
+
+test("each division says what its entries are expected to play: the minimum, or all their fixtures if fewer", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles");
+  const targets = async () => {
+    const p = (await f.api(`/v1/competitions/${singles.id}/progress`, f.admin)).body;
+    return [p.minimum_matches, ...p.divisions.map((d: { minimum_matches: number }) => d.minimum_matches)];
+  };
+  assert.deepEqual(await targets(), [4, 4, 4, 4], "divisions of five: four fixtures each");
+  for (const [minimum, expected] of [[5, [5, 4, 4, 4]], [2, [2, 2, 2, 2]], [0, [0, 0, 0, 0]]] as const) {
+    const rules = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
+    assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { rules: { ...rules, minMatchesToPlay: minimum } })).status, 200);
+    assert.deepEqual(await targets(), expected, `minimum ${minimum}`);
+  }
+});

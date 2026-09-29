@@ -208,8 +208,8 @@ final and a match still outstanding counts as unplayed. Progress for a
 competition and its divisions, or for an entry. Progress also counts the
 entries short of the competition's minimum: its `minMatchesToPlay` rule,
 default 4, is how many matches each entry is expected to play, or all its
-fixtures if it has fewer. Played counts as the tables count it, and nothing is
-enforced: the minimum is for chasing. `GET /v1/seasons/{id}/progress`
+fixtures if it has fewer. Each division gives its target, and played counts as
+the tables count it. Nothing is enforced: the minimum is for chasing. `GET /v1/seasons/{id}/progress`
 gives every competition in a season at once, with who has opted out of the
 next one: a season's dashboard in one read.
 

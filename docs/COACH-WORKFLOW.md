@@ -41,7 +41,15 @@ the coach normally uses.
 | Adjust placements | “Keep Priya in Division 2 and put the new member Lee in Division 4.” | The affected divisions and their new sizes |
 | Open a competition | “The divisions look right. Generate the missing fixtures and activate Autumn Singles.” | Dates, rules, division lists and fixture counts |
 | Close a season | “Show me everything unresolved before we close Summer.” | Settle or deliberately leave each outstanding match, then close |
+| Set the minimum matches | “This season's singles divisions have eight players. Expect everyone to play at least 5.” | The target each division gets before saving: a division too small for the minimum expects all its matches |
 | Handle a lost phone | “Sign Sam out everywhere.” | The intended member before revoking sessions |
+
+The minimum is `minMatchesToPlay` in each competition's rules, default 4. Set it
+per competition, since each season's competitions are new, and singles and
+doubles can differ with their division sizes. A `PATCH` replaces the rules
+whole, so read them first and change only that number. Each division's
+`minimum_matches` in the competition's progress shows what it will ask. The
+coach can also change it on the dashboard of the coach's site.
 
 For a batch change, the agent should give a short preview and identify anything
 ambiguous. Routine corrections should remain quick: name the person or match,

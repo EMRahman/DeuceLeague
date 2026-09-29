@@ -193,7 +193,48 @@ export function createCoachSite(options: CoachOptions) {
           })),
       });
     }
-    return c.html(<Dashboard frame={frameOf(who, "dashboard")} seasons={views} timezone={who.club.timezone} />);
+    return c.html(
+      <Dashboard
+        frame={frameOf(who, "dashboard")}
+        seasons={views}
+        timezone={who.club.timezone}
+        saved={c.req.query("saved") ?? null}
+      />,
+    );
+  });
+
+  // The one league setting the coach changes here: how many matches each player is expected to
+  // play. The rules are saved whole, so it reads them first and changes only this number.
+  app.post("/competitions/:id/minimum", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const back = { href: "/coach", label: "Back to the dashboard" };
+    const typed = String((await c.req.parseBody()).minimum ?? "").trim();
+    if (!/^\d{1,2}$/.test(typed) || Number(typed) > 50) {
+      return c.html(
+        <Problem frame={frameOf(who, "dashboard")} title="Not saved" detail="The minimum is a whole number from 0 to 50." back={back} />,
+        400,
+      );
+    }
+    const path = `/v1/competitions/${encodeURIComponent(id)}`;
+    try {
+      const { rules } = await api<{ rules: Record<string, unknown> }>("GET", path, who.key);
+      await api("PATCH", path, who.key, { rules: { ...rules, minMatchesToPlay: Number(typed) } });
+    } catch (error) {
+      if (!(error instanceof ApiProblem) || ![403, 404, 409].includes(error.problem.status)) throw error;
+      const detail =
+        error.problem.status === 403
+          ? "This browser's key can't change the league. Sign out, then sign in again with the administrator key."
+          : error.problem.status === 404
+            ? "That competition is no longer there."
+            : (error.problem.detail ?? "The competition can't be changed now.");
+      return c.html(
+        <Problem frame={frameOf(who, "dashboard")} title="Not saved" detail={detail} back={back} />,
+        error.problem.status as 403 | 404 | 409,
+      );
+    }
+    return c.redirect(`/coach?saved=${encodeURIComponent(id)}#competition-${encodeURIComponent(id)}`, 303);
   });
 
   app.get("/members", async (c) => {

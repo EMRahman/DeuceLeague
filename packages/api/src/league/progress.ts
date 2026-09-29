@@ -51,10 +51,3 @@ export function towardMinimum(rules: RulesSpec, format: MatchFormat,
   }
   return counts;
 }
-
-/** The active entries short of the competition's minimum. */
-export function shortOfMinimum(rules: RulesSpec, format: MatchFormat,
-  entries: { id: string; label: string; divisionId: string; state: string }[], matches: LedgerMatch[]): Set<string> {
-  const counts = towardMinimum(rules, format, entries, matches);
-  return new Set([...counts].filter(([, c]) => c.played < c.target).map(([id]) => id));
-}
