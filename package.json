@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc --build",
-    "test": "node scripts/check-sql.mjs && npm test --workspaces --if-present",
+    "test": "node scripts/check-sql.mjs && npm run docs:openapi:check && npm test --workspaces --if-present",
     "cf:test": "npm run cf:build && npm test -w @deuceleague/db-d1 && node --test --experimental-strip-types --no-warnings deploy/cloudflare/test/*.test.ts",
     "cf:build": "tsc --build deploy/cloudflare && wrangler deploy --dry-run --outdir deploy/cloudflare/dist/bundle",
     "cf:secrets": "node deploy/cloudflare/scripts/secrets.mjs",

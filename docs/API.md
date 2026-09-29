@@ -11,8 +11,8 @@ schemas that validate each request, so it cannot drift from the code. A coding
 agent reading that spec can write a client in whatever language a club uses, so
 there is deliberately no SDK to maintain; the effort goes into the spec instead.
 
-Run `npm run docs:openapi` to refresh the committed snapshot locally. On `main`,
-changes to the API contract refresh it automatically.
+Run `npm run docs:openapi` after changing the API contract. The normal
+`npm test` command reports if either generated file is stale.
 
 > **Status:** the Cloudflare Worker and D1 implementation supports installation,
 > club administration, league setup, results, standings, progress, placements,
