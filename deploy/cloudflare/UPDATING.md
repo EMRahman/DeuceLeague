@@ -22,7 +22,8 @@ The agent will:
    database changes.
 2. Ask which you want. Taking everything is the safe choice, because later
    changes often build on earlier ones. If you leave something out, the agent
-   says what else depends on it.
+   says what else depends on it, and asks again at your next update. Database
+   changes are always taken, since later versions rely on them.
 3. Open a pull request that keeps your own settings and changes, and describe
    what it takes and what it leaves out.
 
@@ -64,15 +65,23 @@ The base is the DeuceLeague commit the club's code last matched:
   bring in a change the club already has, which merges cleanly or shows as a
   conflict, while a newer one would silently skip a change.
 
-Tell the coach which commit you found and why.
+The same commit's `DeuceLeague-Declined:` trailers, if any, list changes the
+coach left out before. Tell the coach which commit you found and why.
 
 ### 2. Tell the coach what's new, and agree what to take
 
-Read `git log --no-merges base..upstream/main` and the diff. Describe it in
+First, offer again each change a `DeuceLeague-Declined:` trailer names: "Last
+time you left out X. Take it now?"
+
+Then read `git log --no-merges base..upstream/main` and the diff. Describe it in
 plain words: what players and the coach will notice, fixes, and any new files
 under `packages/db-d1/migrations`, which change the database on deploy. Say
-when a change depends on an earlier one; migrations always do. Recommend taking
-everything unless the coach has a reason not to.
+when a change depends on an earlier one. Recommend taking everything unless the
+coach has a reason not to.
+
+Migrations are always taken: they are additive, and later versions rely on
+them. If the coach doesn't want the feature that came with one, take the
+migration and leave out the code or page that uses it.
 
 ### 3. Merge on a branch
 
@@ -88,7 +97,10 @@ DeuceLeague, the file is left with conflict markers: resolve those with the
 coach, then `git add` them. The commit that follows has the club's branch as its
 only parent, so DeuceLeague's own history isn't pushed.
 
-If the coach left changes out, revert just those files or hunks on the branch.
+If the coach leaves changes out, revert just those files or hunks on the
+branch. If they take one they left out before, apply that upstream commit too,
+with `git show --binary <sha> | git apply --3way`, or take the current
+DeuceLeague version of the parts it changed.
 
 Always keep:
 
@@ -116,12 +128,19 @@ These run locally and touch no Cloudflare account.
 ### 5. Open the pull request
 
 Title the commit and pull request "Update DeuceLeague to `<short sha>`", and end
-the commit message with a trailer naming the full upstream commit, which the
-next update starts from:
+the commit message with trailers: the full upstream commit, which the next
+update starts from, and one line for every change still left out, including
+earlier ones the coach declined again. The next update reads them from this
+commit alone.
 
 ```
 DeuceLeague-Upstream: <full sha>
+DeuceLeague-Declined: <upstream sha> <what it is, and the files or parts left out>
 ```
+
+Recording what was left out keeps it from being forgotten: the next update
+starts after this commit, so without the trailer a skipped change would look
+like one of the club's own and never be offered again.
 
 In the pull request, say what it takes, what it leaves out, which migrations
 will run on deploy, and that merging deploys. Leave merging to the coach.
