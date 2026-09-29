@@ -70,7 +70,8 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   const members = NAMES.map((name) => ({ id: uuidv7(opened.getTime()), displayName: `Sample ${name}`, createdAt: opened,
     email: name === "Alex" ? emails.alex : name === "Bailey" ? emails.bailey : null }));
   const byName = new Map(NAMES.map((name, i) => [name, members[i]!]));
-  const courtLocations = COURTS.map((court) => ({ ...court, id: uuidv7(opened.getTime()), createdAt: opened }));
+  // A millisecond apart, so their ids, and the order the venue switcher shows them in, follow the list.
+  const courtLocations = COURTS.map((court, i) => ({ ...court, id: uuidv7(opened.getTime() + i), createdAt: opened }));
   const sample: InstallationSample = { preset: "starter-v2", members, changes: [], entries: [], matches: [], claims: [], outcomes: [],
     courtLocations, events: [] };
   const day = (date: Date) => {
