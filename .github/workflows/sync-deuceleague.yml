@@ -1,0 +1,108 @@
+# Brings the latest DeuceLeague into a club's own repository: Actions → "Sync
+# with DeuceLeague" → Run workflow. The push that follows deploys it, as any
+# push does.
+#
+# A club's repository starts as a copy, not a fork, so it shares no history
+# with DeuceLeague. The sync merges three ways from the DeuceLeague commit the
+# club last took: the one its copy was made from the first time, and after that
+# the one named in the last sync's "DeuceLeague-Upstream:" line. The club's own
+# changes, such as its settings in wrangler.jsonc, are kept. If they clash with
+# DeuceLeague's, nothing is changed and the files are listed.
+name: Sync with DeuceLeague
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-deuceleague
+
+jobs:
+  sync:
+    # Only in a club's copy: DeuceLeague itself has nothing to sync with.
+    if: github.repository != 'EMRahman/DeuceLeague'
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: ${{ vars.DEUCELEAGUE_UPSTREAM || 'https://github.com/EMRahman/DeuceLeague.git' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge the latest DeuceLeague
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch --quiet --no-tags "$UPSTREAM" main
+          theirs=$(git rev-parse FETCH_HEAD)
+
+          # The DeuceLeague commit this repository last took.
+          base=$(git log -1 --format='%(trailers:key=DeuceLeague-Upstream,valueonly)' \
+            --grep='^DeuceLeague-Upstream: ' HEAD | tr -d '[:space:]')
+          if [ -z "$base" ]; then
+            # Never synced: the commit the copy was made from, found as the one
+            # whose files differ least from this repository's first commit.
+            root=$(git rev-list --max-parents=0 HEAD | tail -1)
+            fewest=
+            for commit in $(git rev-list --first-parent "$theirs"); do
+              differ=$(git diff --name-only "$commit" "$root" | wc -l)
+              if [ -z "$fewest" ] || [ "$differ" -lt "$fewest" ]; then fewest=$differ; base=$commit; fi
+              [ "$differ" -eq 0 ] && break
+            done
+            echo "First sync: this copy was made from DeuceLeague $(git log -1 --format='%h, %cs: %s' "$base")."
+          fi
+          if [ "$base" = "$theirs" ]; then
+            echo "Already up to date with DeuceLeague ${theirs:0:7}."
+            exit 0
+          fi
+
+          if ! merged=$(git merge-tree --write-tree --name-only --merge-base="$base" HEAD "$theirs"); then
+            {
+              echo "### Not synced: these files changed both here and in DeuceLeague"
+              echo
+              echo "$merged" | sed -n '2,/^$/p' | sed '/^$/d; s/^/- /'
+              echo
+              echo "Nothing was changed. Ask your coding agent to bring in DeuceLeague ${theirs:0:7} by hand, keeping your changes."
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          tree=$(echo "$merged" | head -1)
+
+          # GitHub doesn't let a workflow change workflows, so this repository's own stay as they are.
+          workflows=$(git diff --name-only HEAD "$tree" -- .github/workflows)
+          if [ -n "$workflows" ]; then
+            export GIT_INDEX_FILE="$RUNNER_TEMP/index"
+            git read-tree "$tree"
+            for file in $workflows; do
+              if git cat-file -e "HEAD:$file" 2>/dev/null; then
+                git update-index --cacheinfo "$(git ls-tree HEAD -- "$file" | awk '{print $1 "," $3}'),$file"
+              else
+                git update-index --force-remove "$file"
+              fi
+            done
+            tree=$(git write-tree)
+            unset GIT_INDEX_FILE
+          fi
+
+          changes=$(git log --no-merges --format='- %s' "$base..$theirs" | head -50)
+          commit=$(printf 'Update DeuceLeague to %s\n\n%s\n\nDeuceLeague-Upstream: %s\n' "${theirs:0:7}" "$changes" "$theirs" \
+            | git commit-tree "$tree" -p HEAD)
+          git merge --quiet --ff-only "$commit"
+          git push origin "HEAD:refs/heads/$GITHUB_REF_NAME"
+          {
+            echo "### Synced with DeuceLeague ${theirs:0:7}"
+            echo
+            echo "$changes"
+            echo
+            echo "The push deploys it. Check the site once the Cloudflare build has finished."
+            if [ -n "$workflows" ]; then
+              echo
+              echo "DeuceLeague also changed these workflows, which a workflow can't update:"
+              echo "$workflows" | sed 's/^/- /'
+              echo
+              echo "To take them, open each in GitHub's editor and paste the new version from DeuceLeague."
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"

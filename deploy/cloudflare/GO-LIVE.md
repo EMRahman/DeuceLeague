@@ -69,9 +69,15 @@ can also delete the trial's repository.
 - **Settings** live in your repository's `wrangler.jsonc`, since a deployment
   overwrites changes made only in the dashboard. Passwords and keys stay in the
   Worker's secrets. Keep the `DB` binding's `database_id` as it is.
-- **Updates:** bring new DeuceLeague versions into your repository, or ask your
-  coding agent to. Each push deploys, and database changes apply before the new
-  Worker is published. Check the site afterwards.
+- **Updates:** in your repository on GitHub, open **Actions → Sync with
+  DeuceLeague → Run workflow**. It brings in the latest DeuceLeague and keeps
+  your own changes, such as your settings in `wrangler.jsonc`; if one clashes
+  with DeuceLeague's, it lists the files and changes nothing. The push deploys
+  it, and database changes apply before the new Worker is published. Check the
+  site afterwards. A repository made before the button existed needs it added
+  once: **Add file → Create new file**, named
+  `.github/workflows/sync-deuceleague.yml`, with the contents of
+  [DeuceLeague's](../../.github/workflows/sync-deuceleague.yml).
 - **Your data:** D1's [Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/)
   can restore the database to an earlier point; check how far back your plan
   allows.

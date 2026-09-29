@@ -43,6 +43,19 @@ the ones after it. It refuses to run without a provisioned `database_id`, and
 does not support named Wrangler environments: one repository serves one club.
 `npm run deploy -- --dry-run` compiles and bundles without touching an account.
 
+### Updating a club
+
+A club's repository is a copy, not a fork, so it shares no history with
+DeuceLeague and GitHub offers no "Sync fork". The **Sync with DeuceLeague**
+workflow (`.github/workflows/sync-deuceleague.yml`, run by hand from the
+Actions tab) merges three ways from the DeuceLeague commit the club last took:
+the first time, the commit whose files differ least from the copy's first
+commit; after that, the one named in the last sync's `DeuceLeague-Upstream:`
+line. It pushes one squashed commit, never DeuceLeague's history, and keeps the
+club's own workflow files, since GitHub doesn't let a workflow change them. A
+clash with the club's own changes stops it before anything is written. Set the
+repository variable `DEUCELEAGUE_UPSTREAM` to sync from another repository.
+
 Because it applies migrations, the build token needs **Account → D1 → Edit** as
 well as **Workers Scripts → Edit**; Cloudflare's default build-token
 permissions do not include D1. See
