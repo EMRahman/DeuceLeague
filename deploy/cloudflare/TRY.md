@@ -17,6 +17,10 @@ Cloudflare's free plan.
 When you are happy, [start your club for real](GO-LIVE.md). The sample can't be
 removed, so your real club is a fresh deployment.
 
+**Have a coding agent?** It can run the same sample club on your own computer in
+a few minutes, with no Cloudflare account: see
+[make the site your own](CUSTOMISE.md).
+
 ## 1. Make two passwords
 
 The deployment needs two secrets. Make them with your password manager's
@@ -103,6 +107,8 @@ hands out links.
   sample, your members and courts, and inviting players.
 - [Running the league day to day](../../docs/COACH-WORKFLOW.md) with a coding
   agent.
+- [Make the site your own](CUSTOMISE.md): change its pages with your coding
+  agent, on your own computer first.
 - [How the deployment works](README.md), for the technical detail.
 
 ## Troubleshooting

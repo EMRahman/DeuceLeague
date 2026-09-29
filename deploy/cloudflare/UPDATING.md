@@ -123,7 +123,9 @@ npm run cf:test
 npm run deploy -- --dry-run
 ```
 
-These run locally and touch no Cloudflare account.
+These run locally and touch no Cloudflare account. To let the coach see the
+update before merging, run it with `npm run local` (see
+[make the site your own](CUSTOMISE.md)).
 
 ### 5. Open the pull request
 

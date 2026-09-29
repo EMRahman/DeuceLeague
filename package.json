@@ -19,6 +19,7 @@
     "docs:openapi": "npm run build -w @deuceleague/api --silent && node scripts/generate-openapi.mjs",
     "docs:openapi:check": "npm run build -w @deuceleague/api --silent && node scripts/generate-openapi.mjs --check",
     "cf:dev": "CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false wrangler dev",
+    "local": "node deploy/cloudflare/scripts/local.mjs",
     "cf:db:migrate": "wrangler d1 migrations apply DB --local",
     "build": "tsc --build deploy/cloudflare",
     "deploy": "node deploy/cloudflare/scripts/deploy.mjs"
