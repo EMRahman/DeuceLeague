@@ -29,16 +29,15 @@ MIT-licensed.
   `POST /v1/members/{id}/login-link` with `expires_in_minutes` set to 72
   hours, since a chat message is often read hours later, and shows the link
   once. It works once.
-- **Dashboard** (`/coach`). For each active season: the time left to report
-  results, and for each active competition how many matches are played,
-  waiting on the other side or disputed, overall and by division
-  (`GET /v1/seasons/{id}/progress`, one read a season however many
-  competitions it runs), and how many players are short of the minimum
-  number of matches. It names who has opted out of next
-  season and says whether next season's competition is drafted yet.
+- **Dashboard** (`/coach`). For each active season, the time left to report
+  results, and for each active competition a table by division, with a total:
+  players (or pairs), matches played, waiting on the other side, disputed,
+  and how many are short of the minimum number of matches, as a count and a
+  percentage (`GET /v1/seasons/{id}/progress`, one read a season however many
+  competitions it runs). It names who has opted out of next season and says
+  whether next season's competition is drafted yet.
 - **The minimum number of matches.** Each competition's card on the
-  dashboard has "Minimum matches each", with what it asks of each division.
-  Saving it reads the competition's rules and sends them back with only
+  dashboard has "Minimum matches each". Saving it reads the competition's rules and sends them back with only
   `minMatchesToPlay` changed, since a `PATCH` replaces the rules whole. It
   needs `league:write`, which a browser key made from the administrator key
   holds.
