@@ -110,8 +110,11 @@ not transfer between hostnames; players sign in again on the new hostname.
 Players sign in with one-time links. The sign-in page asks players for a link
 from their coach. The coach makes one on the coach's site at `/coach`, or with
 `POST /v1/members/{id}/login-link`, and hands it over, for example on WhatsApp.
-The link opens `/login?token=…`, works once and lasts fifteen minutes. A coach
-can also let players request links by email at any time; see
+The link opens `/login?token=…` and works once. The coach's site makes links
+that last 72 hours, since a chat message is often read hours later; a link from
+the API lasts fifteen minutes unless the caller asks for up to 72 hours with
+`expires_in_minutes`. A coach can also let players request links by email at
+any time; see
 [sign-in emails](EMAIL.md).
 
 ## Coach's site
@@ -126,7 +129,8 @@ like any other key. A key without `admin` that holds `members:read` and
 `members:write` is kept as it is. Signing out forgets the cookie; the key
 itself lasts until it expires or is revoked.
 
-For now the site lists members and makes their sign-in links. Its pages have
+For now the site lists members, saying who is signed in and listing those who
+are not first, and makes their sign-in links. Its pages have
 the players' site's protections: `no-store`, no framing, and no form accepted
 from another origin.
 

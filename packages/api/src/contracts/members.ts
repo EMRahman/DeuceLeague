@@ -21,6 +21,11 @@ export const Member = z
     deleted_at: Timestamp.nullable().openapi({
       description: "When they were removed from the club's list. Their results remain.",
     }),
+    signed_in_at: Timestamp.nullable().openapi({
+      description:
+        "When they signed in on the newest device where they are still signed in. Null when they are signed " +
+        "in nowhere, so they need a login link.",
+    }),
     created_at: Timestamp,
     updated_at: Timestamp,
     full_name: z.string().nullable().optional().openapi({ description: pii("Their full name.") }),

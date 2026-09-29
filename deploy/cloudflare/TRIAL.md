@@ -133,8 +133,9 @@ a browser holds one player's sign-in.
 3. Go back to `/coach`, press **Sign-in link** for **Sample Bailey**, copy the
    link, and open it in a private window. Press **Sign in** there.
 
-A sign-in link works once, within fifteen minutes, and is shown once. If one
-runs out, make a new one the same way.
+A sign-in link works once, within 72 hours, and is shown once. If one runs
+out, make a new one the same way. The members list shows who has signed in:
+Alex and Bailey should now say **Signed in**.
 
 ## 5. Report and agree a score
 
@@ -223,7 +224,7 @@ add email.
 | Installer needs configuration, or website says it is not ready | Check `PUBLIC_URL` and the `dl_` website secret. If you added `MAIL_PROVIDER`, check its sender and key too, or remove it to run without email. Then initialize through `/install`. |
 | `/coach` does not accept the key | Paste the whole administrator key from setup, starting `dl_`. A revoked key, or one from another club, does not work. |
 | `/coach` asks you to sign in again | Its key for this browser lasts 90 days, or it was revoked. Sign in again with the administrator key. |
-| A sign-in link says it has been used or has expired | Links work once, within fifteen minutes. Make a new one. |
+| A sign-in link says it has been used or has expired | Links from `/coach` work once, within 72 hours; emailed ones within fifteen minutes. Make a new one. |
 | Email problems | See [sign-in emails](EMAIL.md#troubleshooting). |
 
 When reporting a problem, leave out credentials, working sign-in links and

@@ -87,7 +87,9 @@ with `members:pii`. Create, edit and remove (a soft delete) with
 `members:pii` too, since whether an address belongs to a member is itself
 personal: it is how a website sends a player their login link. The personal fields are behind `members:pii` both ways: a
 credential that cannot read an email address cannot set or overwrite one
-either. Erase (`admin`) clears a member's personal data and keeps their
+either. Each member carries `signed_in_at`, with `members:read`: when they
+signed in on the newest device where they are still signed in, or null when they
+are signed in nowhere, so a coach can see who still needs a login link. Erase (`admin`) clears a member's personal data and keeps their
 results, which is what an erasure request under GDPR needs. That includes their
 display name, which becomes "Erased member", an entry name that might spell
 theirs out, and anything they typed when reporting a score. Events record
@@ -96,7 +98,9 @@ which fields changed, never the values, because the log cannot be erased.
 **Player logins.** A key holding `members:write` makes a login link for a
 member, `POST /v1/members/{id}/login-link`, and gets back its token. The
 caller's own tooling puts it in a link and delivers it — the core does not send
-email. The link works once, for fifteen minutes. The player's website
+email. The link works once, for fifteen minutes, which suits an email. A link
+handed over in a chat is often read hours later, so the caller may ask for up to
+72 hours with `{"expires_in_minutes": 4320}`; it still works once. The player's website
 exchanges it for a session, `POST /v1/session` with the link's token as the
 credential, from a page the player submits rather than on opening the link,
 because mail scanners open links before people do.

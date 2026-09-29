@@ -21,6 +21,13 @@ const KEY_DAYS = 90;
  */
 const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:write", "members:pii"];
 
+/**
+ * How long a link the coach hands over lasts. A chat message is often read
+ * hours later, so a link has the API's longest life rather than an email's
+ * fifteen minutes. It still works once.
+ */
+const LINK_HOURS = 72;
+
 /** What these pages need now: the member list, and making sign-in links. */
 const NEEDED = ["members:read", "members:write"];
 
@@ -108,7 +115,9 @@ export function createCoachSite(options: CoachOptions) {
       members.push(...page.data.filter((m) => !m.deleted_at));
       after = page.next_cursor;
     } while (after);
-    members.sort((a, b) => a.display_name.localeCompare(b.display_name));
+    // Who still needs a link first, then by name.
+    members.sort((a, b) => Number(!!a.signed_in_at) - Number(!!b.signed_in_at)
+      || a.display_name.localeCompare(b.display_name));
     return c.html(<Members frame={frameOf(who)} members={members} />);
   });
 
@@ -169,11 +178,12 @@ export function createCoachSite(options: CoachOptions) {
         "POST",
         `/v1/members/${encodeURIComponent(id)}/login-link`,
         who.key,
+        { expires_in_minutes: LINK_HOURS * 60 },
       );
       const url = new URL("/login", publicUrl);
       url.searchParams.set("token", link.token);
-      const minutes = Math.round((Date.parse(link.expires_at) - Date.now()) / 60_000);
-      return c.html(<SignInLink frame={frameOf(who)} member={member.display_name} url={url.href} minutes={minutes} />);
+      const hours = Math.round((Date.parse(link.expires_at) - Date.now()) / 3_600_000);
+      return c.html(<SignInLink frame={frameOf(who)} member={member.display_name} url={url.href} hours={hours} />);
     } catch (error) {
       if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
       return c.html(

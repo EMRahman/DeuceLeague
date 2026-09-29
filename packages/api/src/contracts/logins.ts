@@ -1,11 +1,35 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { authProblems, conflictProblem, IdParam, notFoundProblem, requires, Timestamp } from "./shared.js";
+import { authProblems, conflictProblem, IdParam, notFoundProblem, requires, Timestamp, validationProblem } from "./shared.js";
 
 /**
  * How long a login link works. Long enough to open an email and tap it, short
  * enough that one lying in an inbox is of no use to anyone who finds it later.
  */
 export const LOGIN_LINK_MINUTES = 15;
+
+/**
+ * The longest a caller may ask a link to work: a link handed over in a chat is
+ * often read hours later, but one should not sit usable in a chat for long.
+ */
+export const MAX_LOGIN_LINK_MINUTES = 72 * 60;
+
+const LoginLinkOptions = z
+  .object({
+    expires_in_minutes: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_LOGIN_LINK_MINUTES)
+      .optional()
+      .openapi({
+        example: MAX_LOGIN_LINK_MINUTES,
+        description:
+          `How long the link works, up to ${MAX_LOGIN_LINK_MINUTES} minutes (72 hours). Defaults to ` +
+          `${LOGIN_LINK_MINUTES}, enough to open an email. A link the coach hands over in a chat may be ` +
+          "read hours later, so ask for longer there.",
+      }),
+  })
+  .openapi("LoginLinkOptions");
 
 const LoginLink = z
   .object({
@@ -16,7 +40,9 @@ const LoginLink = z
         "Put it in a link to your website, which exchanges it with `POST /v1/session`. Shown this once: " +
         "only its SHA-256 is stored.",
     }),
-    expires_at: Timestamp.openapi({ description: `${LOGIN_LINK_MINUTES} minutes from now.` }),
+    expires_at: Timestamp.openapi({
+      description: `When it stops working: ${LOGIN_LINK_MINUTES} minutes from now unless you asked for longer.`,
+    }),
   })
   .openapi("LoginLink");
 
@@ -46,14 +72,19 @@ export const mint = createRoute({
   tags: ["Player logins"],
   summary: "Make a login link for a member",
   description:
-    `A one-time token for a login link, which works for ${LOGIN_LINK_MINUTES} minutes. It is returned to ` +
+    `A one-time token for a login link, which works for ${LOGIN_LINK_MINUTES} minutes, or up to 72 hours ` +
+    "if you ask. It is returned to " +
     "you, and your own tooling delivers it — the core sends nothing. The player's website exchanges it for " +
     "a session with `POST /v1/session`: do that from a page the player submits, not on opening the link, " +
     "since mail scanners open links before people do.",
   ...requires("members:write"),
-  request: { params: IdParam },
+  request: {
+    params: IdParam,
+    body: { content: { "application/json": { schema: LoginLinkOptions } }, required: false },
+  },
   responses: {
     201: { description: "The link's token.", content: { "application/json": { schema: LoginLink } } },
+    ...validationProblem,
     ...authProblems,
     ...notFoundProblem,
     ...conflictProblem("`member_removed`: a removed member cannot log in."),

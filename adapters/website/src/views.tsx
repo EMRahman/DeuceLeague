@@ -291,8 +291,8 @@ export const SignIn: FC<{ frame: Frame; byEmail: boolean; messages?: string[] }>
     ) : (
       <p>
         Ask your coach for a sign-in link. Open it on your phone and press <strong>Sign in</strong>: there is no
-        password, and you stay signed in. A link works once, within fifteen minutes, so ask for a new one if it has
-        run out.
+        password, and you stay signed in. A link works once, and not for long, so ask for a new one if it has run
+        out.
       </p>
     )}
   </Layout>

@@ -3,7 +3,8 @@
 A club runs without email. Deployment and setup never ask for it: players sign
 in with one-time links that the coach makes on `/coach` (or with
 `POST /v1/members/{id}/login-link`) and hands over, for example on WhatsApp. A
-link opens `/login?token=…`, works once and lasts fifteen minutes.
+link opens `/login?token=…`, works once and lasts 72 hours. An emailed link
+lasts fifteen minutes.
 
 If the coach later wants players to request their own sign-in link by email,
 they can add a provider at any time. Nothing in the club's data changes:

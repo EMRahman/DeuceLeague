@@ -21,8 +21,11 @@ MIT-licensed.
   cookie sent only to `/coach`. A key the API no longer accepts, because it
   expired or was revoked, is forgotten, and the coach signs in again.
 - **Sign-in links.** "Sign-in link" on a member calls
-  `POST /v1/members/{id}/login-link` and shows the link once. It works once,
-  within fifteen minutes.
+  `POST /v1/members/{id}/login-link` with `expires_in_minutes` set to 72
+  hours, since a chat message is often read hours later, and shows the link
+  once. It works once.
+- **Who is signed in.** The member list shows each member's `signed_in_at`,
+  lists those not signed in yet first, and counts how many are signed in.
 
 ## Running it
 
