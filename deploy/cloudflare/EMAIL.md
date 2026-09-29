@@ -1,8 +1,8 @@
 # Sign-in emails
 
 A club runs without email. Deployment and setup never ask for it: players sign
-in with one-time links that the coach makes with
-`POST /v1/members/{id}/login-link` and hands over, for example on WhatsApp. A
+in with one-time links that the coach makes on `/coach` (or with
+`POST /v1/members/{id}/login-link`) and hands over, for example on WhatsApp. A
 link opens `/login?token=…`, works once and lasts fifteen minutes.
 
 If the coach later wants players to request their own sign-in link by email,

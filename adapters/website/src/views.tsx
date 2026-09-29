@@ -23,7 +23,8 @@ const VENUE_SWITCH = Array.from(
   (_, i) => `.weather:has(input[name=venue][value="${i}"]:checked) .forecast[data-venue="${i}"] { display: block; }`,
 ).join("\n");
 
-const STYLE = `
+/** Shared with the coach's site, so both look like one club's. */
+export const STYLE = `
 :root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
   --warn: #8a4b08; --warn-bg: #fdf1e2; --ok: #1f5b2c; --ok-bg: #e6f3e8; --card: #fff;
   --up: #2f6b3a; --up-bg: #e9f4ea; --down: #a3341f; --down-bg: #fbece8; --past: #555c66; --past-bg: #eceef1;

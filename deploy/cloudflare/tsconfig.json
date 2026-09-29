@@ -17,6 +17,7 @@
     {
       "path": "../../packages/db-d1"
     },
-    { "path": "../../adapters/website" }
+    { "path": "../../adapters/website" },
+    { "path": "../../adapters/coach" }
   ]
 }

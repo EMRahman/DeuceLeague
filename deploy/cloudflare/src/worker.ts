@@ -1,5 +1,6 @@
 import { createCloudflareApp } from "@deuceleague/api/cloudflare";
 import { claimInstallerAttempt, claimWebsiteLogin } from "@deuceleague/db-d1";
+import { createCoachSite } from "@deuceleague/coach";
 import { apiClient, createWebsite, cloudflareMailer, resendMailer, openMeteo, cachedWeatherFetch } from "@deuceleague/website/cloudflare";
 import { configuredOrigin, websiteConfig, type WebsiteBindings } from "./website-config.js";
 import { createInstaller } from "./installer.js";
@@ -59,6 +60,9 @@ export default {
       status: 421, headers: { "Cache-Control": "no-store" },
     });
     const client = apiClient("https://api.internal", (url, init) => Promise.resolve(api.fetch(new Request(url, init))));
+    if (url.pathname === "/coach" || url.pathname.startsWith("/coach/")) {
+      return createCoachSite({ api: client, publicUrl: config.origin }).fetch(request);
+    }
     const website = createWebsite({
       api: client,
       key: config.key, publicUrl: config.origin,

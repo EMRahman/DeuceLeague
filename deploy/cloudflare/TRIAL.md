@@ -3,9 +3,9 @@
 This guide takes you from deployment to signing in and reporting a sample score.
 It creates one website and a new database for a test club on **Cloudflare
 Workers Free**. No email service is needed: players sign in with one-time links
-that the coach makes and hands over, as a coach would on WhatsApp. Deploying and
-installing happen in your browser; making a sign-in link takes one command in a
-terminal, or ask your coding agent to do it.
+that the coach makes on the coach's site and hands over, for example on
+WhatsApp. Everything happens in your browser: you are the coach, and you send
+the sample players' links to yourself.
 
 Use the sample club for this trial. It does not move an existing club or
 rehearse data backup/restore or administrator recovery for a live club; plan
@@ -117,49 +117,45 @@ Two entries have opted out of next season, and two members have no entry yet, as
 newcomers would. Alex and Bailey are in the same singles division, and their match
 against each other is left unplayed for you.
 
-## 4. Report and agree a score
+## 4. Send yourself the players' sign-in links
 
-You play both sides: Sample Alex in your normal browser window, and Sample
-Bailey in a private window, since a browser holds one sign-in. A sign-in link
-works once, within fifteen minutes; make a new one whenever you need it.
+As the coach, you make each player's sign-in link and send it to them. In this
+trial you play both sample players, so you send the links to yourself: Sample
+Alex in your normal browser window, and Sample Bailey in a private window, since
+a browser holds one player's sign-in.
 
-Make the links with your administrator key. In a terminal, with your website
-address and key in place of the examples:
+1. Open `/coach` on your website, paste the administrator key you saved at
+   setup, and press **Sign in**. The coach's site makes its own key for this
+   browser, lasting 90 days; it does not keep the administrator key.
+2. Find **Sample Alex** and press **Sign-in link**. With a real player you would
+   copy the link and send it on WhatsApp; here, open it in this window and press
+   **Sign in**. Simply opening the link does not sign you in.
+3. Go back to `/coach`, press **Sign-in link** for **Sample Bailey**, copy the
+   link, and open it in a private window. Press **Sign in** there.
 
-```sh
-SITE=https://riverside-league-trial.your-subdomain.workers.dev
-ADMIN_KEY=dl_your_administrator_key
+A sign-in link works once, within fifteen minutes, and is shown once. If one
+runs out, make a new one the same way.
 
-# The sample players and their ids
-curl -s "$SITE/v1/members?limit=50" -H "Authorization: Bearer $ADMIN_KEY"
+## 5. Report and agree a score
 
-# A sign-in link for one of them: the reply's "token"
-curl -s -X POST "$SITE/v1/members/MEMBER_ID/login-link" -H "Authorization: Bearer $ADMIN_KEY"
-```
-
-Or ask your coding agent: "Make a DeuceLeague sign-in link for Sample Bailey at
-this address, using the administrator key in my password manager."
-
-- Open `https://…workers.dev/login?token=THE_TOKEN` and press **Sign in**. Simply
-  opening the link does not sign you in.
-- Check that you can see singles and doubles and the tables. Open the match
-  against Sample Bailey and report a score. **The score stays pending until the
-  opponent agrees.**
-- In a private window, sign in as Sample Bailey with Bailey's own link and
-  agree Alex's score.
+- As Sample Alex, check that you can see singles and doubles and the tables.
+  Open the match against Sample Bailey and report a score. **The score stays
+  pending until the opponent agrees.**
+- In the private window, as Sample Bailey, agree Alex's score.
 - Check, as either player, that the match shows as played and the singles table
   has changed.
 - Reopen `/install`. It should show setup complete and the sample created,
   without adding duplicate players or matches.
-- Redeploy from the same repository. Check that the club, player session,
-  administrator key and fixtures still work. Keep the same `database_id`,
+- Redeploy from the same repository. Check that the club, player sessions,
+  coach sign-in, administrator key and fixtures still work. Keep the same `database_id`,
   `WEBSITE_API_KEY` and other club secrets.
 - Open the home page signed out. It should ask you to get a sign-in link from
   your coach, with no email form.
 
 Keep a short record of the source commit, Worker/database names, migration
-count, and whether setup, sign-in, score reporting and redeployment worked. Leave credentials, private email addresses and sign-in links out of
-anything you share.
+count, and whether setup, coach sign-in, player sign-in, score reporting and
+redeployment worked. Leave credentials, private email addresses and sign-in
+links out of anything you share.
 
 ## Optional weather
 
@@ -225,6 +221,8 @@ add email.
 | `/install` returns 404 | Check `SETUP_TOKEN` exists and has at least 32 characters, unless you intentionally removed it after setup. |
 | `/install` returns 403, or the site asks you to use another address | Set `PUBLIC_URL` to the exact assigned HTTPS address. Check for a renamed Worker or incorrect subdomain. |
 | Installer needs configuration, or website says it is not ready | Check `PUBLIC_URL` and the `dl_` website secret. If you added `MAIL_PROVIDER`, check its sender and key too, or remove it to run without email. Then initialize through `/install`. |
+| `/coach` does not accept the key | Paste the whole administrator key from setup, starting `dl_`. A revoked key, or one from another club, does not work. |
+| `/coach` asks you to sign in again | Its key for this browser lasts 90 days, or it was revoked. Sign in again with the administrator key. |
 | A sign-in link says it has been used or has expired | Links work once, within fifteen minutes. Make a new one. |
 | Email problems | See [sign-in emails](EMAIL.md#troubleshooting). |
 
