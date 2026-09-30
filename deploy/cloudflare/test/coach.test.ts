@@ -13,8 +13,8 @@ function dashboardTables(html: string): Record<string, string[][]> {
 async function expectedRows(f: WebsiteFixture, competitionId: string): Promise<string[][]> {
   const p = (await f.api(`/v1/competitions/${competitionId}/progress`, f.admin)).body;
   const row = (name: string, c: { active_entries: number; played: number; matches: number; reported: number; disputed: number; below_minimum: number }) =>
-    [name, String(c.active_entries), `${c.played} of ${c.matches}`, String(c.reported || "–"), String(c.disputed || "–"),
-      String(c.below_minimum || "–"), `${Math.round((100 * c.below_minimum) / c.active_entries)}%`];
+    [name, String(c.played), String(c.matches), String(c.reported || "–"), String(c.disputed || "–"),
+      String(c.active_entries), String(c.below_minimum || "–"), `${Math.round((100 * c.below_minimum) / c.active_entries)}%`];
   return [...p.divisions.map((d: { name: string } & Parameters<typeof row>[1]) => row(d.name, d)), row("All divisions", p)];
 }
 
@@ -113,8 +113,10 @@ test("the coach's pages show the sample league: progress, disputes, waiting resu
   assert.match(home.html, /2 results disputed, 3 results waiting on the other side/);
   for (const name of ["Sample singles", "Sample doubles", "Division 1", "Division 3"]) assert.match(home.html, new RegExp(name));
   assert.match(home.html, /played \(\d+%\)/);
-  assert.equal(home.html.match(/Opted out of next season: /g)?.length ?? 0, (await f.db.prepare(
-    "SELECT count(DISTINCT competition_id) AS n FROM entry WHERE opted_out_at IS NOT NULL").first("n")) as number);
+  const optedOut = (await f.db.prepare(
+    "SELECT competition_id, count(*) AS n FROM entry WHERE opted_out_at IS NOT NULL GROUP BY competition_id").all<{ n: number }>()).results;
+  assert.deepEqual([...home.html.matchAll(/<strong>(\d+)<\/strong> opted out of next season: /g)].map((m) => Number(m[1])).sort(),
+    optedOut.map((x) => x.n).sort(), "how many opted out of each competition");
   assert.match(home.html, /Next season is not drafted yet/);
 
   const results = await coach.get("/coach/results");
@@ -242,10 +244,16 @@ test("the chase list and dashboard say how many are short of the minimum, and wh
   assert.doesNotMatch((await coach.get("/coach/chase?within_days=7")).html, /Short of the minimum/, "not when no deadline is that close");
   const home = (await coach.get("/coach")).html;
   const singles = dashboardTables(home)["Sample singles"];
-  assert.deepEqual(singles![0], ["Division", "Players", "Played", "Waiting", "Disputed", "Short", "% short"]);
-  assert.equal(dashboardTables(home)["Sample doubles"]![0]![1], "Pairs");
+  assert.deepEqual(singles!.slice(0, 2), [["Division", "Matches", "Players"], ["Played", "Total", "Waiting", "Disputed", "Total", "Short", "% short"]]);
+  assert.equal(dashboardTables(home)["Sample doubles"]![0]![2], "Pairs");
+  assert.match(home, /<span class="tag minimum"[^>]*>Minimum 4 matches each<\/span>/, "the minimum beside the competition's name");
+  const legend = home.match(/<h2>Sample singles<\/h2>[\s\S]*?<details class="legend[^"]*">([\s\S]*?)<\/details>/)![1]!;
+  const terms = [...legend.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map(([, term, tip]) => [term, tip]);
+  assert.deepEqual(terms.map(([term]) => term),
+    ["Minimum", "Played", "Total matches", "Waiting", "Disputed", "Total players", "Short", "% short"], "a phone lists what the columns mean");
+  for (const [, tip] of terms.slice(1)) assert.ok(home.includes(`data-tip="${tip}"`), `the same words as the tooltip: ${tip}`);
   const id = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles").id;
-  assert.deepEqual(singles!.slice(1), await expectedRows(f, id), "players, short and % short per division, and in all");
+  assert.deepEqual(singles!.slice(2), await expectedRows(f, id), "players, short and % short per division, and in all");
   assert.doesNotMatch(home, /short of the \d+-match minimum/, "the table replaces the sentence");
 });
 
@@ -253,13 +261,14 @@ test("the dashboard's table follows a minimum the coach's agent sets", async (t)
   const f = await websiteFixture(t, { sample: true });
   const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles");
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
-  assert.deepEqual(dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(1), await expectedRows(f, singles.id));
+  assert.deepEqual(dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(2), await expectedRows(f, singles.id));
   assert.doesNotMatch((await coach.get("/coach")).html, /name="minimum"/, "the minimum is the agent's to set");
   for (const minimum of [2, 0]) {
     const rules = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
     assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { rules: { ...rules, minMatchesToPlay: minimum } })).status, 200);
-    const rows = dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(1);
-    assert.deepEqual(rows, await expectedRows(f, singles.id), `minimum ${minimum}`);
+    const home = (await coach.get("/coach")).html;
+    assert.deepEqual(dashboardTables(home)["Sample singles"]!.slice(2), await expectedRows(f, singles.id), `minimum ${minimum}`);
+    assert.match(home, minimum ? /Minimum 2 matches each/ : /No minimum/);
   }
   assert.equal((await coach.post(`/coach/competitions/${singles.id}/minimum`, { minimum: "5" })).status, 404, "no setting on the coach's site");
 });

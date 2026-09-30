@@ -29,12 +29,15 @@ MIT-licensed.
   hours, since a chat message is often read hours later, and shows the link
   once. It works once.
 - **Dashboard** (`/coach`). For each active season, the time left to report
-  results, and for each active competition a table by division, with a total:
-  players (or pairs), matches played, waiting on the other side, disputed,
-  and how many are short of the minimum number of matches, as a count and a
-  percentage (`GET /v1/seasons/{id}/progress`, one read a season however many
-  competitions it runs). It names who has opted out of next season and says
-  whether next season's competition is drafted yet.
+  results, and for each active competition its minimum number of matches,
+  highlighted beside its name, and a table by division, with a total. The
+  table groups its columns: matches played, in all, waiting on the other side
+  and disputed; then players (or pairs) in all, and how many are short of the
+  minimum as a count and a percentage. Each column heading explains itself on
+  hover or focus; on a phone, where the table scrolls sideways, a list under it
+  says what the columns mean instead (`GET /v1/seasons/{id}/progress`, one read a season however many
+  competitions it runs). It counts and names who has opted out of next season
+  and says whether next season's competition is drafted yet.
 - **Results** (`/coach/results`). Disputes, with what each side says and what
   differs; reports waiting on the other side, the longest waiting first; and,
   once a season's deadline has passed, its matches nobody played. Up to 12 are

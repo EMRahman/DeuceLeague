@@ -2,6 +2,7 @@ import { raw } from "hono/html";
 import type { FC, PropsWithChildren } from "hono/jsx";
 import {
   CompetitionTables,
+  Credit,
   deadlineLine,
   describe,
   playedOn,
@@ -110,11 +111,36 @@ export type ChaseRow = {
 
 /** What the coach's pages add to the players' style. */
 const COACH_STYLE = `
-table.progress th:first-child, table.progress td:first-child { text-align: left; width: 100%; white-space: normal; }
-table.progress th:nth-child(2), table.progress td:nth-child(2) { text-align: right; width: auto; white-space: nowrap; }
+table.progress th, table.progress td { text-align: right; width: auto; white-space: nowrap; }
+table.progress .name { text-align: left; width: 100%; white-space: normal; vertical-align: bottom; }
+table.progress th.group { text-align: center; color: var(--fg); font-weight: 600; padding-bottom: .2rem; }
+table.progress .start { border-left: 1px solid var(--line); padding-left: .6rem; }
+/* Explanations on hover or focus: the pages run no scripts, and a title's tooltip is slow or never shows. */
+[data-tip] { position: relative; cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+[data-tip]:is(:hover, :focus)::after { content: attr(data-tip); position: absolute; top: calc(100% + 4px); left: 0;
+  z-index: 1; width: max-content; max-width: 15rem; white-space: normal; text-align: left; font-size: .8rem;
+  font-weight: 400; line-height: 1.35; color: var(--fg); background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: .4rem .6rem; box-shadow: 0 4px 12px rgb(0 0 0 / .15); }
+[data-tip]:focus { outline: none; }
+[data-tip]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+table.progress [data-tip]::after { left: auto; right: 0; }
+.narrow { display: none; }
+details.legend { font-size: .85rem; }
+details.legend dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .75rem; margin: .5rem 0 0; }
+details.legend dt { font-weight: 600; }
+details.legend dd { margin: 0; color: var(--muted); }
 table.progress tfoot td { font-weight: 600; border-bottom: 0; }
-/* Seven columns: on a phone the table scrolls rather than the page. */
-.scroll-x { overflow-x: auto; }
+.card .titleline { margin-bottom: .6rem; }
+.card .titleline h2 { margin: 0; }
+.tag.minimum { margin-left: 0; font-size: .85rem; background: var(--warn-bg); color: var(--warn); }
+/* Eight columns: on a phone the table scrolls rather than the page. The scroll would clip a tooltip, and a tap
+   is no hover, so the explanations are a list under the table instead. */
+@media (max-width: 559px) {
+  .scroll-x { overflow-x: auto; }
+  .narrow { display: block; }
+  [data-tip] { text-decoration: none; cursor: auto; }
+  [data-tip]:is(:hover, :focus)::after { display: none; }
+}
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
 .after { margin-top: .75rem; }
@@ -186,7 +212,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
             </button>
           </form>
         )}
-        <span>Runs on DeuceLeague, open-source league software.</span>
+        <Credit />
       </footer>
     </body>
   </html>
@@ -255,54 +281,125 @@ export const Dashboard: FC<{
             </div>
           )}
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
-          {competitions.map(({ progress, optedOut, next }) => (
-            <div class="card" id={`competition-${progress.competition_id}`}>
-              <h2>{progress.name}</h2>
-              <progress value={progress.played} max={Math.max(progress.matches, 1)} />
-              <p>
-                {progress.played} of {plural(progress.matches, "match", "matches")} played
-                {progress.percent_played !== null && ` (${Math.round(progress.percent_played)}%)`}
-              </p>
-              <div class="scroll-x">
-                <table class="progress">
-                  <thead>
-                    <tr>
-                      <th scope="col">Division</th>
-                      <th scope="col">{progress.discipline === "doubles" ? "Pairs" : "Players"}</th>
-                      <th scope="col">Played</th>
-                      <th scope="col">Waiting</th>
-                      <th scope="col">Disputed</th>
-                      <th scope="col" title={`Played fewer than the ${progress.minimum_matches}-match minimum`}>
-                        Short
-                      </th>
-                      <th scope="col">% short</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {progress.divisions.map((d) => (
-                      <ProgressRow name={d.name} counts={d} />
+          {competitions.map(({ progress, optedOut, next }) => {
+            const entries = progress.discipline === "doubles" ? "Pairs" : "Players";
+            const columns = columnsOf(progress, entries);
+            return (
+              <div class="card" id={`competition-${progress.competition_id}`}>
+                <div class="titleline">
+                  <h2>{progress.name}</h2>
+                  <Minimum progress={progress} />
+                </div>
+                <progress value={progress.played} max={Math.max(progress.matches, 1)} />
+                <p>
+                  {progress.played} of {plural(progress.matches, "match", "matches")} played
+                  {progress.percent_played !== null && ` (${Math.round(progress.percent_played)}%)`}
+                </p>
+                <div class="scroll-x">
+                  <table class="progress">
+                    <thead>
+                      <tr>
+                        <th scope="col" rowspan={2} class="name">
+                          Division
+                        </th>
+                        <th scope="colgroup" colspan={4} class="group start">
+                          Matches
+                        </th>
+                        <th scope="colgroup" colspan={3} class="group start">
+                          {entries}
+                        </th>
+                      </tr>
+                      <tr>
+                        {columns.map((c) => (
+                          <th scope="col" class={c.start ? "start" : undefined} tabindex={0} data-tip={c.tip}>
+                            {c.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {progress.divisions.map((d) => (
+                        <ProgressRow name={d.name} counts={d} />
+                      ))}
+                    </tbody>
+                    {progress.divisions.length > 1 && (
+                      <tfoot>
+                        <ProgressRow name="All divisions" counts={progress} />
+                      </tfoot>
+                    )}
+                  </table>
+                </div>
+                <details class="legend narrow after">
+                  <summary>What the columns mean</summary>
+                  <dl>
+                    {progress.minimum_matches > 0 && (
+                      <>
+                        <dt>Minimum</dt>
+                        <dd>{MINIMUM_TIP}</dd>
+                      </>
+                    )}
+                    {columns.map((c) => (
+                      <>
+                        <dt>{c.term}</dt>
+                        <dd>{c.tip}</dd>
+                      </>
                     ))}
-                  </tbody>
-                  {progress.divisions.length > 1 && (
-                    <tfoot>
-                      <ProgressRow name="All divisions" counts={progress} />
-                    </tfoot>
-                  )}
-                </table>
+                  </dl>
+                </details>
+                <p class="muted after">
+                  {optedOut.length === 0 ? (
+                    "Nobody has opted out of next season yet."
+                  ) : (
+                    <>
+                      <strong>{optedOut.length}</strong> opted out of next season: {optedOut.join(", ")}.
+                    </>
+                  )}{" "}
+                  {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
+                </p>
               </div>
-              <p class="muted after">
-                {optedOut.length === 0
-                  ? "Nobody has opted out of next season yet."
-                  : `Opted out of next season: ${optedOut.join(", ")}.`}{" "}
-                {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </>
       );
     })}
   </Layout>
 );
+
+/** The dashboard table's second header row: each column, its name out of the table, and what it counts. */
+function columnsOf(progress: Progress, entries: "Players" | "Pairs") {
+  const those = entries.toLowerCase();
+  return [
+    { label: "Played", term: "Played", tip: "Matches with a confirmed result", start: true },
+    { label: "Total", term: "Total matches", tip: "Every fixture in the division" },
+    { label: "Waiting", term: "Waiting", tip: "Reported by one side, waiting on the other to confirm" },
+    { label: "Disputed", term: "Disputed", tip: "The two sides reported different results" },
+    { label: "Total", term: `Total ${those}`, tip: `${entries} still in the competition`, start: true },
+    {
+      label: "Short",
+      term: "Short",
+      tip:
+        progress.minimum_matches === 0
+          ? "No minimum is set"
+          : `Played fewer than the ${progress.minimum_matches}-match minimum, or than all their fixtures if they have fewer`,
+    },
+    { label: "% short", term: "% short", tip: `The share of ${those} short of the minimum` },
+  ];
+}
+
+const MINIMUM_TIP = "Anyone short of it once the tables are final is left out of next season's draft";
+
+/**
+ * The competition's minimum, beside its name: each entry is expected to play it,
+ * or all their fixtures if a division gives them fewer.
+ */
+const Minimum: FC<{ progress: Progress }> = ({ progress }) =>
+  progress.minimum_matches === 0 ? (
+    <span class="muted">No minimum</span>
+  ) : (
+    <span class="tag minimum" tabindex={0} data-tip={MINIMUM_TIP}>
+      Minimum {plural(progress.minimum_matches, "match", "matches")} each
+    </span>
+  );
 
 /** A division's row in the dashboard's table, or the competition's total under it. */
 const ProgressRow: FC<{
@@ -310,13 +407,12 @@ const ProgressRow: FC<{
   counts: Counts & { active_entries: number; below_minimum: number };
 }> = ({ name, counts }) => (
   <tr>
-    <td>{name}</td>
-    <td>{counts.active_entries}</td>
-    <td>
-      {counts.played} of {counts.matches}
-    </td>
+    <td class="name">{name}</td>
+    <td class="start">{counts.played}</td>
+    <td>{counts.matches}</td>
     <td>{counts.reported || "–"}</td>
     <td>{counts.disputed || "–"}</td>
+    <td class="start">{counts.active_entries}</td>
     <td>{counts.below_minimum || "–"}</td>
     <td>{counts.active_entries ? `${Math.round((100 * counts.below_minimum) / counts.active_entries)}%` : "–"}</td>
   </tr>

@@ -257,10 +257,17 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
             </button>
           </form>
         )}
-        <span>Runs on DeuceLeague, open-source league software.</span>
+        <Credit />
       </footer>
     </body>
   </html>
+);
+
+/** The footer's credit, on the players' pages and the coach's. */
+export const Credit: FC = () => (
+  <span>
+    Runs on <a href="https://github.com/EMRahman/DeuceLeague">DeuceLeague</a>, open-source tennis league software.
+  </span>
 );
 
 export const Notice: FC<{ messages: string[]; ok?: boolean }> = ({ messages, ok }) =>
