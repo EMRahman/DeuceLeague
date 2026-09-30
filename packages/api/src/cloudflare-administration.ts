@@ -1,7 +1,8 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import {
-  commitIdentity, createCourtLocation, createKeyAdmin, deleteCourtLocation, DuplicateEmailError, finishKeysRead, LastAdminError, mutateMemberAdmin,
-  readClubAdmin, readIdentity, readKeysAdmin, readMembersAdmin, readWeatherAdmin, retryMutation, revokeKeyAdmin,
+  commitIdentity, createCourtLocation, createJoinRequest, createKeyAdmin, declineJoinRequest, deleteCourtLocation, DuplicateEmailError,
+  finishKeysRead, JoinRequestExistsError, LastAdminError, mutateMemberAdmin, readClubAdmin, readIdentity, readJoinRequests, readKeysAdmin,
+  readMembersAdmin, readWeatherAdmin, retryMutation, revokeKeyAdmin,
   updateClubAdmin, updateCourtLocation, updateWeatherAdmin, uuidv7,
   type IdentitySnapshot,
 } from "@deuceleague/db-d1";
@@ -12,10 +13,12 @@ import { toClub } from "./administration/club.js";
 import { toApiKey } from "./administration/keys.js";
 import { checkPersonalWrite, holdsPii, toChanges, toMember } from "./administration/members.js";
 import { toCourtLocation, toWeather } from "./administration/weather.js";
+import { displayNameOf, toJoinRequest } from "./administration/join-requests.js";
 import { keyGrant, lastAdmin } from "./administration/permissions.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import type { Auth } from "./context.js";
 import * as club from "./contracts/club.js";
+import * as joinRequests from "./contracts/join-requests.js";
 import * as keys from "./contracts/keys.js";
 import * as members from "./contracts/members.js";
 import * as weather from "./contracts/weather.js";
@@ -38,6 +41,9 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       catch (error) {
         if (error instanceof LastAdminError) lastAdmin();
         if (error instanceof DuplicateEmailError) throw problems.conflict("email_taken", "Another member already has that email address");
+        if (error instanceof JoinRequestExistsError) {
+          throw problems.conflict("already_requested", "Someone with that email address is already waiting to join");
+        }
         throw error;
       }
     });
@@ -174,4 +180,61 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "erase" }), holdsPii(auth));
     }), 200);
   });
+
+  app.openapi(joinRequests.list, async (c) => {
+    const q = c.req.valid("query");
+    return c.json(await run(c, (i) => readJoinRequests(db, i.hash, i.kind, { limit: q.limit, after: q.after }), async (s) => {
+      await touch(s);
+      return { data: s.rows.map(toJoinRequest), next_cursor: s.next };
+    }), 200);
+  });
+  app.openapi(joinRequests.get, async (c) => {
+    const { id } = c.req.valid("param");
+    return c.json(await run(c, (i) => readJoinRequests(db, i.hash, i.kind, { id }), async (s) => {
+      if (!s.rows[0]) throw problems.notFound("join request");
+      await touch(s); return toJoinRequest(s.rows[0]);
+    }), 200);
+  });
+  app.openapi(joinRequests.create, async (c) => {
+    const body = c.req.valid("json");
+    const email = body.email ?? null;
+    // Someone already waiting with this email is found in the snapshot; one with only a phone cannot be told apart.
+    const read = async (i: IdentitySnapshot): Promise<{ identity: IdentitySnapshot; rows: unknown[] }> =>
+      email ? readJoinRequests(db, i.hash, i.kind, { email }) : { ...(await freshIdentity(i)), rows: [] };
+    return c.json(await run(c, read, async (s) => {
+      if (s.rows.length) throw new JoinRequestExistsError();
+      return toJoinRequest(await createJoinRequest(db, s.identity, { id: uuidv7(), firstName: body.first_name,
+        surname: body.surname, email, phone: body.phone ?? null, privacyNotice: body.privacy_notice }));
+    }), 201);
+  });
+  app.openapi(joinRequests.approve, async (c) => {
+    const { id } = c.req.valid("param"); const body = c.req.valid("json") ?? {};
+    return c.json(await run(c, (i) => readJoinRequests(db, i.hash, i.kind, { id }), async (s, auth) => {
+      const request = s.rows[0];
+      if (!request) throw problems.notFound("join request");
+      const changes = {
+        displayName: body.display_name ?? displayNameOf(request), fullName: `${request.firstName} ${request.surname}`,
+        email: request.email, phone: request.phone, level: body.level ?? null, joinedOn: today(s.identity.club!.timezone),
+      };
+      const record = await mutateMemberAdmin(db, s.identity, uuidv7(), {
+        type: "create", changes, joinRequest: { id: request.id, privacyNotice: request.privacyNotice },
+        fields: ["display_name", "full_name", "joined_on", ...(request.email ? ["email"] : []),
+          ...(request.phone ? ["phone"] : []), ...(changes.level === null ? [] : ["level"])],
+      });
+      return toMember(record, holdsPii(auth));
+    }), 201);
+  });
+  app.openapi(joinRequests.decline, async (c) => {
+    const { id } = c.req.valid("param");
+    await run(c, (i) => readJoinRequests(db, i.hash, i.kind, { id }), async (s) => {
+      if (!s.rows[0]) throw problems.notFound("join request");
+      await declineJoinRequest(db, s.identity, id);
+    });
+    return c.body(null, 204);
+  });
+}
+
+/** Today on the club's calendar, as YYYY-MM-DD. */
+function today(timezone: string): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
 }

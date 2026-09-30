@@ -35,6 +35,7 @@ the coach normally uses.
 | Job | What the coach can say | What to check |
 |---|---|---|
 | Add or update members | “Bring in the members from this spreadsheet. Match existing people by email and show me any ambiguous rows first.” | New people, changed details and rows skipped |
+| Place new joiners | “Put the people I approved this week into divisions by their level.” | Each newcomer's division against their level and the division sizes |
 | See what needs attention | “How is the current season going? Show disputed scores, scores waiting for agreement and players with matches left.” | The few exceptions first, then division progress |
 | Settle a result | “Sam and Alex agreed it was 6-4, 3-6, 10-7 to Sam. Settle that match.” | Players, competition, score and winner before submitting |
 | Prepare the next season | “Draft Autumn from the Summer tables. Use the normal movement rules and leave out anyone who opted out.” | Every promotion, relegation, hold and omission, with its reason; anyone short of the minimum is left out, and can be added back |

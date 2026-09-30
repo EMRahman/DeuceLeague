@@ -15,16 +15,20 @@ import {
   type Standings,
 } from "./api.js";
 import { MailDeliveryError, type Mailer } from "./mail.js";
+import { MAX_FILL_MS, MIN_FILL_MS, PRIVACY_NOTICE, readJoinForm, stamp, stampAge } from "./join.js";
 import type { Weather } from "./weather.js";
 import { deadlineLine, deadlinePassed, describe, readReportForm, shortDate } from "./score.js";
 import {
   CompetitionPage,
   ConfirmSignIn,
   Home,
+  Join,
+  JoinSent,
   LinkSent,
   MatchPage,
   NotConfigured,
   ICON_SVG,
+  Privacy,
   Problem,
   SignIn,
   type Breakdown,
@@ -53,6 +57,7 @@ export {
 export { deadlineLine, describe, playedOn } from "./score.js";
 export { CompetitionTables, Credit, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
+export { PRIVACY_NOTICE } from "./join.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
 export type WebsiteOptions = {
@@ -67,8 +72,23 @@ export type WebsiteOptions = {
   weather?: Weather;
   /** Reserve an email cooldown before lookup. Workers inject shared persistent storage. */
   claimLogin?: (normalizedEmail: string) => Promise<boolean>;
+  /** Lets people ask to join the club at /join. Left out, the site has no join form. */
+  join?: JoinOptions;
   log?: (line: string) => void;
 };
+
+export type JoinOptions = {
+  /**
+   * Reserve one of today's join requests for this connection (its address, or
+   * null if unknown); false once the club's or the connection's limit is reached.
+   */
+  claim: (connection: string | null) => Promise<boolean>;
+  /** Cloudflare Turnstile, when the club has set it up: the widget's site key, and a check of its answer. */
+  turnstile?: { siteKey: string; verify: (token: string, connection: string | null) => Promise<boolean> };
+};
+
+/** The Turnstile widget's own origin: its script and frame come from here. */
+const TURNSTILE = "https://challenges.cloudflare.com";
 
 /** Where a player's session lives: in a cookie only the server can read or write. */
 const COOKIE = "deuceleague_session";
@@ -196,12 +216,16 @@ export function createWebsite(options: WebsiteOptions) {
     // in the address bar is never sent on to another site as a Referer. Not
     // no-referrer: under that, browsers post the site's own forms with
     // `Origin: null`, which the check below must refuse.
+    // The join form is the one page that may run a script: Turnstile's, when the club uses it.
+    // Turnstile checks the page's origin, so that page names it to Cloudflare; its address holds no secret.
+    const turnstile = options.join?.turnstile && c.req.path === "/join";
     c.header("Cache-Control", "no-store");
-    c.header("Referrer-Policy", "same-origin");
+    c.header("Referrer-Policy", turnstile ? "strict-origin" : "same-origin");
     c.header("X-Content-Type-Options", "nosniff");
     c.header(
       "Content-Security-Policy",
       "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; " +
+        (turnstile ? `script-src ${TURNSTILE}; frame-src ${TURNSTILE}; ` : "") +
         "form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
     );
   });
@@ -324,11 +348,11 @@ export function createWebsite(options: WebsiteOptions) {
 
   app.post("/login", async (c) => {
     const frame = await anonymousFrame();
-    if (!mail) return c.html(<SignIn frame={frame} byEmail={false} />, 404);
+    if (!mail) return c.html(<SignIn frame={frame} byEmail={false} joining={!!options.join} />, 404);
     const form = await c.req.parseBody();
     const email = String(form.email ?? "").trim();
     if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 254) {
-      return c.html(<SignIn frame={frame} byEmail messages={["That does not look like an email address."]} />, 400);
+      return c.html(<SignIn frame={frame} byEmail joining={!!options.join} messages={["That does not look like an email address."]} />, 400);
     }
 
     // The same answer whether or not the address is a member's, so the form
@@ -385,7 +409,7 @@ export function createWebsite(options: WebsiteOptions) {
       if (!(error instanceof ApiProblem) || error.problem.status !== 401) throw error;
       const messages = [mail ? "That link has already been used, or has expired. Ask for a new one below."
         : "That link has already been used, or has expired. Ask your coach for a new one."];
-      return c.html(<SignIn frame={await anonymousFrame()} byEmail={!!mail} messages={messages} />, 401);
+      return c.html(<SignIn frame={await anonymousFrame()} byEmail={!!mail} joining={!!options.join} messages={messages} />, 401);
     }
   });
 
@@ -400,11 +424,77 @@ export function createWebsite(options: WebsiteOptions) {
     return c.redirect("/", 303);
   });
 
+  // ───────────────────────────────────────────────────────────── joining ──
+
+  app.get("/privacy", async (c) => {
+    const p = await player(c);
+    return c.html(<Privacy frame={p ? frameOf(p) : await anonymousFrame()} />);
+  });
+
+  app.get("/join", async (c) => {
+    const { join } = options;
+    if (!join) return c.notFound();
+    return c.html(<Join frame={await anonymousFrame()} stamp={await stamp(key!)} turnstileSiteKey={join.turnstile?.siteKey} />);
+  });
+
+  app.post("/join", async (c) => {
+    const { join } = options;
+    if (!join) return c.notFound();
+    const form = await c.req.parseBody();
+    const frame = await anonymousFrame();
+    const connection = c.req.header("cf-connecting-ip") ?? null;
+    const { values, problems } = readJoinForm(form);
+    const again = async (messages: string[], status: 400 | 429) =>
+      c.html(
+        <Join frame={frame} stamp={await stamp(key!)} values={values} messages={messages}
+          turnstileSiteKey={join.turnstile?.siteKey} />,
+        status,
+      );
+    // A bot is thanked as a person would be, so it learns nothing from trying.
+    const thanks = () => c.html(<JoinSent frame={frame} firstName={values.first_name || "you"} />);
+    const age = await stampAge(key!, String(form.started ?? ""));
+    if (String(form.website ?? "") !== "" || age === null || age < MIN_FILL_MS) {
+      log("join request ignored: sent by a program");
+      return thanks();
+    }
+    if (age > MAX_FILL_MS) return again(["This page was open a long time. Check your details and send them again."], 400);
+    if (problems.length) return again(problems, 400);
+    if (join.turnstile) {
+      const token = String(form["cf-turnstile-response"] ?? "");
+      if (!token || !(await join.turnstile.verify(token, connection))) {
+        return again(["The check that you are a person did not finish. Wait for it to tick, then send again."], 400);
+      }
+    }
+    if (!(await join.claim(connection))) {
+      return again(["The club cannot take more requests today. Please try again tomorrow."], 429);
+    }
+    try {
+      await api("POST", "/v1/join-requests", key!, {
+        first_name: values.first_name,
+        surname: values.surname,
+        email: values.email || null,
+        phone: values.phone || null,
+        privacy_notice: PRIVACY_NOTICE,
+      });
+      log("join request received");
+    } catch (error) {
+      if (!(error instanceof ApiProblem)) throw error;
+      // Someone with that email is already waiting: the same answer, so the form tells nobody who has asked.
+      if (error.problem.code === "already_requested") return thanks();
+      if (error.problem.status === 400) {
+        const messages = (error.problem.errors ?? []).map((e) => e.message);
+        return again(messages.length ? messages : ["Check your details and send them again."], 400);
+      }
+      throw error;
+    }
+    return thanks();
+  });
+
   // ──────────────────────────────────────────────────────────────── pages ──
 
   app.get("/", async (c) => {
     const p = await player(c);
-    if (!p) return c.html(<SignIn frame={await anonymousFrame()} byEmail={!!mail} />);
+    if (!p) return c.html(<SignIn frame={await anonymousFrame()} byEmail={!!mail} joining={!!options.join} />);
     const memberId = p.me.credential.member.id;
 
     // The weather is a help, never a reason the page fails: without it the page shows without the box.

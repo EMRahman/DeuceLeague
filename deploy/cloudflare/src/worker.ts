@@ -1,7 +1,8 @@
 import { createCloudflareApp } from "@deuceleague/api/cloudflare";
-import { claimInstallerAttempt, claimWebsiteLogin } from "@deuceleague/db-d1";
+import { claimInstallerAttempt, claimWebsiteJoin, claimWebsiteLogin } from "@deuceleague/db-d1";
 import { createCoachSite } from "@deuceleague/coach";
-import { apiClient, createWebsite, cloudflareMailer, resendMailer, openMeteo, cachedWeatherFetch } from "@deuceleague/website/cloudflare";
+import { apiClient, createWebsite, cloudflareMailer, resendMailer, openMeteo, cachedWeatherFetch, turnstileVerifier,
+} from "@deuceleague/website/cloudflare";
 import { configuredOrigin, websiteConfig, type WebsiteBindings } from "./website-config.js";
 import { createInstaller } from "./installer.js";
 
@@ -12,12 +13,19 @@ type WeatherConfiguration = {
   court_locations: { name: string; latitude: number; longitude: number }[];
 };
 
-async function recipientHash(secret: string, email: string) {
+/** How many join requests one connection may send a day. */
+const JOINS_PER_CONNECTION = 3;
+
+async function keyedHash(secret: string, value: string) {
   const bytes = new TextEncoder();
   const key = await crypto.subtle.importKey("raw", bytes.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const hash = await crypto.subtle.sign("HMAC", key, bytes.encode(`website-login:${email}`));
+  const hash = await crypto.subtle.sign("HMAC", key, bytes.encode(value));
   return Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+const recipientHash = (secret: string, email: string) => keyedHash(secret, `website-login:${email}`);
+/** A connection's address, scrambled with the day, so a stored count cannot be tied to one address or across days. */
+const connectionHash = (secret: string, address: string) =>
+  keyedHash(secret, `website-join:${Math.floor(Date.now() / 86_400_000)}:${address}`);
 
 /** Composition owns both factories. The website still crosses the complete
  * Request/Response API boundary with its service key or a player's session. */
@@ -73,12 +81,18 @@ export default {
     if (url.pathname === "/coach" || url.pathname.startsWith("/coach/")) {
       return createCoachSite({ api: client, publicUrl: config.origin, weather }).fetch(request);
     }
+    const { join } = config;
     const website = createWebsite({
       api: client,
       key: config.key, publicUrl: config.origin,
       ...(config.mail ? { mail: config.mail.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.mail.from)
         : resendMailer(env.RESEND_API_KEY!, config.mail.from) } : {}),
       claimLogin: async (email) => claimWebsiteLogin(env.DB, await recipientHash(config.key, email)),
+      ...(join ? { join: {
+        claim: async (address: string | null) => claimWebsiteJoin(env.DB, address ? await connectionHash(config.key, address) : null,
+          { perDay: join.perDay, perConnection: JOINS_PER_CONNECTION }),
+        ...(join.turnstile ? { turnstile: { siteKey: join.turnstile.siteKey, verify: turnstileVerifier(join.turnstile.secret) } } : {}),
+      } } : {}),
       weather,
     });
     return website.fetch(request);

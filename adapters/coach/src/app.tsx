@@ -31,6 +31,7 @@ import {
   type CoachCompetition,
   type CoachMember,
   type FeedEvent,
+  type JoinRequest,
   type Frame,
   type SeasonProgress,
   type SeasonView,
@@ -89,6 +90,12 @@ type KeyMe = {
 };
 
 type Coach = { key: string; club: { name: string; timezone: string }; scopes: string[] };
+
+/** A level from a form's select: 1 to 10, or null for none. */
+function levelOf(value: unknown): number | null {
+  const level = Number(value);
+  return Number.isInteger(level) && level >= 1 && level <= 10 ? level : null;
+}
 
 /** Today on the club's calendar, as YYYY-MM-DD. */
 function today(timezone: string): string {
@@ -176,8 +183,11 @@ export function createCoachSite(options: CoachOptions) {
   app.get("/", async (c) => {
     const who = await coach(c);
     if (!who) return c.html(<SignIn frame={frameOf(null)} />);
-    const seasons = await all<Season>("/v1/seasons?state=active", who.key);
-    const competitions = await all<CoachCompetition>("/v1/competitions", who.key);
+    const [seasons, competitions, requests] = await Promise.all([
+      all<Season>("/v1/seasons?state=active", who.key),
+      all<CoachCompetition>("/v1/competitions", who.key),
+      joinRequests(who),
+    ]);
     const views: SeasonView[] = [];
     // One read a season, however many competitions it runs: Workers Free allows 50 D1 queries a request.
     for (const season of seasons) {
@@ -193,21 +203,87 @@ export function createCoachSite(options: CoachOptions) {
           })),
       });
     }
-    return c.html(<Dashboard frame={frameOf(who, "dashboard")} seasons={views} timezone={who.club.timezone} />);
+    return c.html(
+      <Dashboard frame={frameOf(who, "dashboard")} seasons={views} asking={requests?.length ?? 0} timezone={who.club.timezone} />,
+    );
   });
+
+  /** Who is asking to join, oldest first; null for a key that may not read their details. */
+  async function joinRequests(who: Coach): Promise<JoinRequest[] | null> {
+    if (!who.scopes.includes("members:pii")) return null;
+    return all<JoinRequest>("/v1/join-requests", who.key);
+  }
 
   app.get("/members", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
-    const members = (await all<CoachMember & { deleted_at: string | null }>("/v1/members", who.key)).filter(
-      (m) => !m.deleted_at,
-    );
+    const [listed, requests] = await Promise.all([
+      all<CoachMember & { deleted_at: string | null }>("/v1/members", who.key),
+      joinRequests(who),
+    ]);
+    const members = listed.filter((m) => !m.deleted_at);
     // Who still needs a link first, then by name.
     members.sort(
       (a, b) =>
         Number(!!a.signed_in_at) - Number(!!b.signed_in_at) || a.display_name.localeCompare(b.display_name),
     );
-    return c.html(<Members frame={frameOf(who, "members")} members={members} timezone={who.club.timezone} />);
+    // Ids only in the address: a name there would reach the browser's history.
+    const added = members.find((m) => m.id === c.req.query("added"));
+    const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted." : null;
+    return c.html(
+      <Members frame={frameOf(who, "members")} members={members} requests={requests} done={done} addedId={added?.id ?? null}
+        timezone={who.club.timezone} />,
+    );
+  });
+
+  app.post("/join-requests/:id/approve", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const form = await c.req.parseBody();
+    const name = String(form.display_name ?? "").trim();
+    try {
+      const member = await api<CoachMember>("POST", `/v1/join-requests/${encodeURIComponent(c.req.param("id"))}/approve`, who.key, {
+        ...(name ? { display_name: name } : {}),
+        level: levelOf(form.level),
+      });
+      return c.redirect(`/coach/members?added=${member.id}`, 303);
+    } catch (error) {
+      if (!(error instanceof ApiProblem)) throw error;
+      const { status, code } = error.problem;
+      if (code === "email_taken") {
+        return c.html(<Problem frame={frameOf(who, "members")} title="Not added"
+          detail="A member already has that email address. Decline this request, or change or remove that member's email first." />, 409);
+      }
+      if (status === 404) return c.html(<Problem frame={frameOf(who, "members")} title="Request gone"
+        detail="That request has already been decided, or was deleted after 30 days." />, 404);
+      if (status === 400) return c.html(<Problem frame={frameOf(who, "members")} title="Not added"
+        detail="The name they play under can be up to 60 letters long." />, 400);
+      throw error;
+    }
+  });
+
+  app.post("/join-requests/:id/decline", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    await api("DELETE", `/v1/join-requests/${encodeURIComponent(c.req.param("id"))}`, who.key).catch((error: unknown) => {
+      // Already gone is what declining wanted.
+      if (!(error instanceof ApiProblem) || error.problem.status !== 404) throw error;
+    });
+    return c.redirect("/coach/members?declined=1", 303);
+  });
+
+  app.post("/members/:id/level", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    try {
+      await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { level: levelOf((await c.req.parseBody()).level) });
+    } catch (error) {
+      if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
+      return c.html(<Problem frame={frameOf(who, "members")} title="Level not changed"
+        detail="That member is not on the club's list any more." />, 404);
+    }
+    return c.redirect(`/coach/members#member-${id}`, 303);
   });
 
   app.get("/results", async (c) => {

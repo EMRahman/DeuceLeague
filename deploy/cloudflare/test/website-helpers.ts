@@ -9,8 +9,9 @@ export const SITE = "https://league.test";
 export async function websiteFixture(t: TestContext, setupOptions: { sample?: boolean; sample_email?: string } = {}) {
   const outbox: { from: string; to: string[]; subject: string; text: string }[] = [];
   const outgoing: string[] = [];
+  const turnstile: { secret: string; response: string; remoteip: string | null }[] = [];
   let failMail = false;
-  let bindings = { SETUP_TOKEN: randomBytes(32).toString("hex"), PUBLIC_URL: SITE,
+  let bindings: Record<string, string> = { SETUP_TOKEN: randomBytes(32).toString("hex"), PUBLIC_URL: SITE,
     WEBSITE_API_KEY: "dl_" + randomBytes(32).toString("base64url"), MAIL_PROVIDER: "resend", MAIL_FROM: "Club <league@test.invalid>", RESEND_API_KEY: "re_test_only" };
   const options = () => convertV4MiniflareOptions({
     modules: true, scriptPath: fileURLToPath(new URL("../dist/bundle/worker.js", import.meta.url)),
@@ -20,6 +21,12 @@ export async function websiteFixture(t: TestContext, setupOptions: { sample?: bo
       if (request.url.startsWith("https://api.open-meteo.com/v1/forecast?")) {
         return Response.json({ daily: { time: ["2026-09-27"], weather_code: [0], temperature_2m_max: [20], temperature_2m_min: [10],
           precipitation_probability_max: [10], wind_speed_10m_max: [5], wind_gusts_10m_max: [8] } });
+      }
+      if (request.url === "https://challenges.cloudflare.com/turnstile/v0/siteverify") {
+        // Cloudflare's answer to a Turnstile token: this test's "pass" passes, anything else fails.
+        const form = await request.formData();
+        turnstile.push({ secret: String(form.get("secret")), response: String(form.get("response")), remoteip: form.get("remoteip") as string | null });
+        return Response.json({ success: form.get("response") === "pass" });
       }
       assert.equal(request.url, "https://api.resend.com/emails", "no self-fetch or unexpected outbound request");
       assert.equal(request.headers.get("authorization"), "Bearer re_test_only");
@@ -48,7 +55,7 @@ export async function websiteFixture(t: TestContext, setupOptions: { sample?: bo
   async function create(path: string, body: object) {
     const r = await api(path, admin, "POST", body); assert.equal(r.status, 201, JSON.stringify(r.body)); return r.body;
   }
-  return { mf, get db() { return db; }, api, request, admin, outbox, outgoing, configure, create,
+  return { mf, get db() { return db; }, api, request, admin, outbox, outgoing, turnstile, configure, create,
     websiteKey: key.body.key as string, failMail: (value: boolean) => { failMail = value; } };
 }
 export type WebsiteFixture = Awaited<ReturnType<typeof websiteFixture>>;

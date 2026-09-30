@@ -1,5 +1,5 @@
 import { MailDeliveryError, type Mailer } from "./mail.js";
-export { createWebsite, apiClient, openMeteo, parseVenues } from "./app.js";
+export { createWebsite, apiClient, openMeteo, parseVenues, type JoinOptions } from "./app.js";
 export type { Mailer } from "./mail.js";
 
 /** Structural interface keeps Cloudflare platform imports out of the adapter. */
@@ -35,6 +35,26 @@ export function resendMailer(apiKey: string, from: string, fetcher: typeof fetch
       const result = await response.json() as { id?: string };
       if (!result.id) throw new MailDeliveryError();
     } catch { throw new MailDeliveryError(); }
+  };
+}
+
+/**
+ * Asks Cloudflare whether a Turnstile answer is good. Any failure to ask is a
+ * no: the person is shown the form again and can retry.
+ */
+export function turnstileVerifier(secret: string, fetcher: typeof fetch = fetch) {
+  return async (token: string, connection: string | null): Promise<boolean> => {
+    try {
+      const body = new FormData();
+      body.set("secret", secret);
+      body.set("response", token);
+      if (connection) body.set("remoteip", connection);
+      const response = await fetcher("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
+        method: "POST", body, redirect: "manual", signal: AbortSignal.timeout(10_000),
+      });
+      if (!response.ok) return false;
+      return (await response.json() as { success?: unknown }).success === true;
+    } catch { return false; }
   };
 }
 

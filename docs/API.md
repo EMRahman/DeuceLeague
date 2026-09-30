@@ -51,7 +51,7 @@ usually held by their coding agent. There is no separate user-account system.
 | `league:write` | create and edit competitions, entries, placements and fixtures; settle results |
 | `members:read` | the member list, with display names and status; forecast configuration |
 | `members:write` | create and edit members, and mint their login links |
-| `members:pii` | full name, email, phone, date of birth, gender, notes |
+| `members:pii` | full name, email, phone, date of birth, gender, notes; join requests |
 | `admin` | API keys and club settings |
 
 A new key defaults to `league:read` + `results:write`. Granting `members:pii`
@@ -89,11 +89,28 @@ personal: it is how a website sends a player their login link. The personal fiel
 credential that cannot read an email address cannot set or overwrite one
 either. Each member carries `signed_in_at`, with `members:read`: when they
 signed in on the newest device where they are still signed in, or null when they
-are signed in nowhere, so a coach can see who still needs a login link. Erase (`admin`) clears a member's personal data and keeps their
+are signed in nowhere, so a coach can see who still needs a login link. Each
+also carries the coach's `level` for them, from 10 (a beginner) to 1 (a
+national player), which the core stores and never computes. Erase (`admin`) clears a member's personal data and keeps their
 results, which is what an erasure request under GDPR needs. That includes their
 display name, which becomes "Erased member", an entry name that might spell
 theirs out, and anything they typed when reporting a score. Events record
 which fields changed, never the values, because the log cannot be erased.
+
+**Join requests.** Someone asking to join from a club's public form,
+`POST /v1/join-requests` (`members:write` and `members:pii`): first name,
+surname, an email address or phone number or both, and the name of the privacy
+notice they agreed to. A request is not a member. It waits in its own table
+until the coach approves it, `POST /v1/join-requests/{id}/approve`, which adds
+the member with a display name and level and deletes the request, or declines
+it, `DELETE /v1/join-requests/{id}`, which deletes it. One nobody decides is
+gone after 30 days. Reading them needs `members:pii`, since everything in one
+is personal, and a request shows any member who already has its email address.
+Its events record which fields were given, never their values, and the new
+member's `member.created` names the request and the notice. The API sets no
+limit on how many arrive: the form's website does, since only it sees who is
+asking. The reference website's form, and how it keeps out spam, is described
+in [new players joining](../deploy/cloudflare/JOINING.md).
 
 **Player logins.** A key holding `members:write` makes a login link for a
 member, `POST /v1/members/{id}/login-link`, and gets back its token. The

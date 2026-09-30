@@ -25,6 +25,12 @@ HTTP client dispatches directly to the API handler with normal authentication.
 Email needs no deployment configuration. Its optional settings are added later;
 see [sign-in emails](EMAIL.md).
 
+The join form at `/join` is on by default, taking 100 requests a day.
+`SIGNUPS_PER_DAY` changes that (`"0"` turns it off), and `TURNSTILE_SITE_KEY`
+with the secret `TURNSTILE_SECRET_KEY` adds Cloudflare Turnstile; see
+[new players joining](JOINING.md). An invalid value, or one Turnstile key
+without the other, stops the website rather than leaving the form half-guarded.
+
 Court locations and forecast units are coach-managed D1 data, not deployment
 variables. A new club starts with no locations, so its player website simply
 omits weather until the coach adds one through the API; see [court forecasts](WEATHER.md).
@@ -114,9 +120,22 @@ itself lasts until it expires or is revoked.
 The site shows the season's progress, results the players have not agreed, the
 tables and forecast as players see them, the latest results and activity, a
 chase list and the members, with when each signed in, and makes their sign-in
-links; see [its README](../../adapters/coach/README.md). Its pages have the
+links. It approves or declines people asking to join, and sets members' levels; see [its README](../../adapters/coach/README.md). Its pages have the
 players' site's protections: `no-store`, no framing, and no form accepted from
 another origin.
+
+## Join requests
+
+`/join` on the players' site takes requests to join from anyone and sends them
+to `POST /v1/join-requests` with the website's key. Before that, the Worker
+ignores a form with its hidden field filled in, or sent within three seconds of
+its signed time. It then checks Turnstile, if set up, and reserves one of the
+day's requests in D1: 3 per connection, counted against an HMAC of the address
+and the UTC day, and `SIGNUPS_PER_DAY` for the club. The table holds no address,
+and its rows from earlier days are deleted as it is used. Requests wait in their
+own table, apart from members, until the coach decides them, and are deleted
+after 30 days. Only the join page may load a script, Turnstile's, and only from
+`challenges.cloudflare.com`.
 
 ## Caching
 

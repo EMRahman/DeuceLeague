@@ -172,16 +172,18 @@ export function createCloudflareApp(options: Options) {
   })), 200));
 
   // `curl -X POST -H "Content-Type: application/json"` with no data sends an empty
-  // body. The link's lifetime is optional, so that still asks for the default
-  // link, as it did before the route took a body, rather than failing as bad JSON.
-  app.use("/v1/members/:id/login-link", async (c, next) => {
+  // body. These bodies are optional, so that still asks for the defaults — for a
+  // login link, as it did before the route took a body — rather than failing as bad JSON.
+  const optionalBody = async (c: Context<Env>, next: () => Promise<void>) => {
     if (c.req.method === "POST" && c.req.header("content-type") && (await c.req.raw.clone().text()).trim() === "") {
       const headers = new Headers(c.req.raw.headers);
       headers.delete("content-type");
       c.req.raw = new Request(c.req.raw.url, { method: "POST", headers });
     }
     await next();
-  });
+  };
+  app.use("/v1/members/:id/login-link", optionalBody);
+  app.use("/v1/join-requests/:id/approve", optionalBody);
   app.openapi(mint, async (c) => {
     const { id } = c.req.valid("param");
     const minutes = (c.req.valid("json") ?? {}).expires_in_minutes ?? LOGIN_LINK_MINUTES;

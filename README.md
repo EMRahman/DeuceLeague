@@ -25,7 +25,8 @@ service and no server.
 - [Make the site your own](deploy/cloudflare/CUSTOMISE.md), on your own computer
   first, with a coding agent.
 - [Update your club](deploy/cloudflare/UPDATING.md) to a new DeuceLeague version.
-- [Sign-in emails](deploy/cloudflare/EMAIL.md), [court forecasts](deploy/cloudflare/WEATHER.md)
+- [New players joining](deploy/cloudflare/JOINING.md), [sign-in emails](deploy/cloudflare/EMAIL.md),
+  [court forecasts](deploy/cloudflare/WEATHER.md)
   and [recovering administrator access](deploy/cloudflare/RECOVERY.md).
 - [For coaches](https://emrahman.github.io/DeuceLeague/for-coaches.html): what
   it does and why, in more detail.

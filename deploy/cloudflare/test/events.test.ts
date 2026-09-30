@@ -111,7 +111,10 @@ test("history and public cursor mappings are append-only; source cursors cannot 
 
 test("upgrade backfills existing D1 audits without changing or dropping them", async (t) => {
   const f = await fixture(t, true, false, "0005_placement_deadline_guard.sql");
-  await f.member();
+  // In SQL, as that release wrote it: today's API writes columns this schema does not have yet.
+  const member = randomUUID();
+  await change(f.db, [f.db.prepare("INSERT INTO member (id, club_id, display_name) VALUES (?, ?, 'Sam K.')").bind(member, f.clubId),
+    eventStatement(f.db, f.clubId, "member.created", "member", member, { type: "system", id: null }, { fields: ["display_name"] })]);
   const old = await f.db.prepare("SELECT id, type, payload, occurred_at FROM event ORDER BY id").all();
   // The upgrade itself, then the migrations since, so the database is what the Worker's code reads.
   const directory = new URL("../../../packages/db-d1/migrations/", import.meta.url);

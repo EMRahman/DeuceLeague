@@ -3,10 +3,12 @@ import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
+import { PRIVACY_NOTICE, type JoinForm } from "./join.js";
 
 /**
  * Every page, as plain server-rendered HTML: no scripts, so it works on any
- * phone, and forms that post back. Hono escapes everything interpolated here.
+ * phone, and forms that post back. The one exception is Cloudflare's
+ * Turnstile check on the join form, when a club turns it on. Hono escapes everything interpolated here.
  * A club restyling the site starts with STYLE and Layout.
  *
  * Written for a phone first. A player comes here a few times a month to do
@@ -178,6 +180,8 @@ legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 .choices label:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .choices input { width: auto; margin: 0; accent-color: var(--accent); }
 .field { margin-bottom: 1rem; }
+/* A field only bots fill in: off the screen, out of the tab order, hidden from screen readers. */
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .hint { font-size: .85rem; color: var(--muted); margin: -.25rem 0 .6rem; }
 .sets { display: grid; grid-template-columns: auto 4.5rem 4.5rem; gap: .4rem .75rem; align-items: center; margin-bottom: 1rem; }
 .sets .head { font-size: .8rem; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -280,7 +284,12 @@ export const Notice: FC<{ messages: string[]; ok?: boolean }> = ({ messages, ok 
 // ────────────────────────────────────────────────────────────── signing in ──
 
 /** With no email configured, the coach hands each player their link, on WhatsApp or however they talk. */
-export const SignIn: FC<{ frame: Frame; byEmail: boolean; messages?: string[] }> = ({ frame, byEmail, messages = [] }) => (
+export const SignIn: FC<{ frame: Frame; byEmail: boolean; joining?: boolean; messages?: string[] }> = ({
+  frame,
+  byEmail,
+  joining = false,
+  messages = [],
+}) => (
   <Layout title="Sign in" frame={frame}>
     <h1>Sign in to the league</h1>
     <Notice messages={messages} />
@@ -302,6 +311,127 @@ export const SignIn: FC<{ frame: Frame; byEmail: boolean; messages?: string[] }>
         out.
       </p>
     )}
+    {joining && (
+      <p class="after">
+        New to the club? <a href="/join">Ask to join the league</a>.
+      </p>
+    )}
+  </Layout>
+);
+
+// ────────────────────────────────────────────────────────────────── joining ──
+
+export const Join: FC<{
+  frame: Frame;
+  stamp: string;
+  values?: Partial<JoinForm>;
+  messages?: string[];
+  turnstileSiteKey?: string | undefined;
+}> = ({ frame, stamp, values = {}, messages = [], turnstileSiteKey }) => (
+  <Layout title="Ask to join" frame={frame}>
+    <h1>Ask to join the league</h1>
+    <p>
+      Tell us who you are and how to reach you. The coach looks at each request, places you in the league at the
+      right level, and gets in touch.
+    </p>
+    <Notice messages={messages} />
+    <form method="post" action="/join">
+      <input type="hidden" name="started" value={stamp} />
+      <div class="hp" aria-hidden="true">
+        <label for="website">Leave this empty</label>
+        <input id="website" name="website" type="text" tabindex={-1} autocomplete="off" />
+      </div>
+      <div class="field">
+        <label for="first_name">First name</label>
+        <input id="first_name" name="first_name" autocomplete="given-name" maxlength={60} required value={values.first_name} />
+      </div>
+      <div class="field">
+        <label for="surname">Surname</label>
+        <input id="surname" name="surname" autocomplete="family-name" maxlength={60} required value={values.surname} />
+      </div>
+      <p class="muted">An email address, a phone number, or both.</p>
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" name="email" type="email" autocomplete="email" maxlength={254} value={values.email} />
+      </div>
+      <div class="field">
+        <label for="phone">Phone number</label>
+        <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength={24} value={values.phone} />
+      </div>
+      <div class="field choices">
+        <label>
+          <input type="checkbox" name="privacy" value="yes" required checked={values.privacy} />
+          <span>
+            I have read the <a href="/privacy">privacy notice</a>, and agree to the club keeping these details to run
+            the league.
+          </span>
+        </label>
+      </div>
+      {turnstileSiteKey && (
+        <>
+          <div class="field cf-turnstile" data-sitekey={turnstileSiteKey}></div>
+          <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+        </>
+      )}
+      <button type="submit">Ask to join</button>
+    </form>
+  </Layout>
+);
+
+export const JoinSent: FC<{ frame: Frame; firstName: string }> = ({ frame, firstName }) => (
+  <Layout title="Request sent" frame={frame}>
+    <h1>Thank you, {firstName}</h1>
+    <p>Your request is with the coach. Once they have added you to the league, they will be in touch.</p>
+    <p class="muted">
+      Nothing heard in a couple of weeks? Ask at the club. A request nobody has answered is deleted after 30 days.
+    </p>
+  </Layout>
+);
+
+/**
+ * What the club does with a member's details, written for the UK (UK GDPR and
+ * the Data Protection Act 2018). A club elsewhere rewrites it for its own law,
+ * and names the new version in PRIVACY_NOTICE.
+ */
+export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
+  <Layout title="Privacy notice" frame={frame}>
+    <h1>Privacy notice</h1>
+    <p class="muted">Version {PRIVACY_NOTICE}</p>
+    <h2>Who we are</h2>
+    <p>
+      {frame.club ?? "The club"} runs this league and is responsible for your details. Ask your coach about
+      anything on this page.
+    </p>
+    <h2>What we keep</h2>
+    <p>
+      Your name, the email address or phone number you give us, the playing level the coach gives you, which
+      competitions you play in, and your results.
+    </p>
+    <h2>Why</h2>
+    <p>
+      To run the league you asked to join: to place you in a division, arrange your matches, let you sign in and
+      report scores, and contact you about the league. We send no marketing, and never sell or share your details
+      for anyone else's use.
+    </p>
+    <h2>Who sees them</h2>
+    <p>
+      The coach sees everything. Other players see only the name you play under, such as "Sam K.", and your
+      results. The site runs on Cloudflare, which stores the league's records for us. When you ask to join,
+      Cloudflare's Turnstile may check that a person, not a program, is sending the form, and we keep a scrambled
+      form of your internet address for a day to limit how many requests one connection can send.
+    </p>
+    <h2>How long</h2>
+    <p>
+      A request to join that the coach turns down is deleted straight away, and one nobody answers after 30 days.
+      As a member, we keep your details while you play. When you leave, ask the coach to erase them: your results
+      stay in past tables, under "Erased member".
+    </p>
+    <h2>Your rights</h2>
+    <p>
+      You can ask to see the details we hold, to have them corrected or erased, or object to how we use them. Ask
+      your coach. If you are unhappy with our answer, you can complain to the Information Commissioner's Office, at{" "}
+      <a href="https://ico.org.uk/make-a-complaint/">ico.org.uk</a>.
+    </p>
   </Layout>
 );
 
