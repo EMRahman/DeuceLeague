@@ -2,12 +2,14 @@
 
 What a club's coach uses, at `/coach`: sign in with an API key, see how far
 the season has got, sort out results the players have not agreed, see the
-tables and forecast as players do, see what happened lately, see who to chase,
+tables as players do, see what happened lately, see who to chase,
 make a player's sign-in link to hand over, for example on WhatsApp, approve or
-decline people asking to join, and set each member's level.
+decline people asking to join, set each member's level, and keep the courts the
+forecast is for.
 Server-rendered HTML with no scripts, in the players' site's style. It reads
-the league and changes nothing in it but sign-in links, join requests and
-levels; the coach's coding agent makes other changes through the API.
+the league and changes nothing in it but sign-in links, join requests, levels
+and the forecast's courts; the coach's coding agent makes other changes through
+the API.
 
 Like the [players' website](../website/README.md), it is an adapter. It
 reaches the league only through the HTTP API and holds nothing of its own.
@@ -44,9 +46,9 @@ MIT-licensed.
   once a season's deadline has passed, its matches nobody played. Up to 12 are
   read in full (`GET /v1/matches/{id}`), since each read costs D1 queries and
   Workers Free allows 50 a request; the rest are listed by name.
-- **Tables** (`/coach/tables`). The tables and the courts' forecast exactly as
-  players see them, for the competitions open to members: the players' site's
-  own view (`CompetitionTables` and `WeatherBox`), with nobody's row marked and
+- **Tables** (`/coach/tables`). The tables exactly as players see them, for the
+  competitions open to members: the players' site's own view
+  (`CompetitionTables`), with nobody's row marked and
   no links into players' match pages. Its cost doesn't grow with the number of
   competitions.
 - **Activity** (`/coach/activity`). The ten latest results
@@ -70,6 +72,14 @@ MIT-licensed.
   which takes the name they play under and a level, and **Decline**. The
   dashboard says when anyone is waiting. See
   [new players joining](../../deploy/cloudflare/JOINING.md).
+- **Weather** (`/coach/weather`). The forecast as the players' home page shows
+  it (`WeatherBox`), then the courts it is for, up to eight, each with its name and where it is, to rename,
+  move or remove, a form to add another, and the units (`GET /v1/weather`,
+  `/v1/court-locations`). Where a court is goes in one field, as latitude and
+  longitude the way a map copies them ("51.4343, -0.2141"), with a link to
+  check it on OpenStreetMap. These writes take `league:write`, which the
+  browser's key holds, not `admin`. See
+  [court forecasts](../../deploy/cloudflare/WEATHER.md).
 
 ## Running it
 
