@@ -46,7 +46,13 @@ export type Progress = Counts & {
   /** How many matches each entry is expected to play, and how many entries are short of it. */
   minimum_matches: number;
   below_minimum: number;
-  divisions: (Counts & { division_id: string; ordinal: number; name: string; active_entries: number; below_minimum: number })[];
+  divisions: (Counts & {
+    division_id: string;
+    ordinal: number;
+    name: string;
+    active_entries: number;
+    below_minimum: number;
+  })[];
 };
 
 /** A competition's progress as the season's progress gives it. */
@@ -106,6 +112,9 @@ export type ChaseRow = {
 const COACH_STYLE = `
 table.progress th:first-child, table.progress td:first-child { text-align: left; width: 100%; white-space: normal; }
 table.progress th:nth-child(2), table.progress td:nth-child(2) { text-align: right; width: auto; white-space: nowrap; }
+table.progress tfoot td { font-weight: 600; border-bottom: 0; }
+/* Seven columns: on a phone the table scrolls rather than the page. */
+.scroll-x { overflow-x: auto; }
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
 .after { margin-top: .75rem; }
@@ -208,11 +217,11 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
   </Layout>
 );
 
-export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: string }> = ({
-  frame,
-  seasons,
-  timezone,
-}) => (
+export const Dashboard: FC<{
+  frame: Frame;
+  seasons: SeasonView[];
+  timezone: string;
+}> = ({ frame, seasons, timezone }) => (
   <Layout title="Dashboard" frame={frame}>
     {seasons.length === 0 && (
       <>
@@ -247,48 +256,70 @@ export const Dashboard: FC<{ frame: Frame; seasons: SeasonView[]; timezone: stri
           )}
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
           {competitions.map(({ progress, optedOut, next }) => (
-            <div class="card">
+            <div class="card" id={`competition-${progress.competition_id}`}>
               <h2>{progress.name}</h2>
               <progress value={progress.played} max={Math.max(progress.matches, 1)} />
               <p>
                 {progress.played} of {plural(progress.matches, "match", "matches")} played
                 {progress.percent_played !== null && ` (${Math.round(progress.percent_played)}%)`}
               </p>
-              <table class="progress">
-                <thead>
-                  <tr>
-                    <th scope="col">Division</th>
-                    <th scope="col">Played</th>
-                    <th scope="col">Waiting</th>
-                    <th scope="col">Disputed</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {progress.divisions.map((d) => (
+              <div class="scroll-x">
+                <table class="progress">
+                  <thead>
                     <tr>
-                      <td>{d.name}</td>
-                      <td>
-                        {d.played} of {d.matches}
-                      </td>
-                      <td>{d.reported || "–"}</td>
-                      <td>{d.disputed || "–"}</td>
+                      <th scope="col">Division</th>
+                      <th scope="col">{progress.discipline === "doubles" ? "Pairs" : "Players"}</th>
+                      <th scope="col">Played</th>
+                      <th scope="col">Waiting</th>
+                      <th scope="col">Disputed</th>
+                      <th scope="col" title={`Played fewer than the ${progress.minimum_matches}-match minimum`}>
+                        Short
+                      </th>
+                      <th scope="col">% short</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {progress.divisions.map((d) => (
+                      <ProgressRow name={d.name} counts={d} />
+                    ))}
+                  </tbody>
+                  {progress.divisions.length > 1 && (
+                    <tfoot>
+                      <ProgressRow name="All divisions" counts={progress} />
+                    </tfoot>
+                  )}
+                </table>
+              </div>
               <p class="muted after">
                 {optedOut.length === 0
                   ? "Nobody has opted out of next season yet."
                   : `Opted out of next season: ${optedOut.join(", ")}.`}{" "}
                 {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
               </p>
-              <ShortOfMinimum progress={progress} />
             </div>
           ))}
         </>
       );
     })}
   </Layout>
+);
+
+/** A division's row in the dashboard's table, or the competition's total under it. */
+const ProgressRow: FC<{
+  name: string;
+  counts: Counts & { active_entries: number; below_minimum: number };
+}> = ({ name, counts }) => (
+  <tr>
+    <td>{name}</td>
+    <td>{counts.active_entries}</td>
+    <td>
+      {counts.played} of {counts.matches}
+    </td>
+    <td>{counts.reported || "–"}</td>
+    <td>{counts.disputed || "–"}</td>
+    <td>{counts.below_minimum || "–"}</td>
+    <td>{counts.active_entries ? `${Math.round((100 * counts.below_minimum) / counts.active_entries)}%` : "–"}</td>
+  </tr>
 );
 
 /** The claim each side stands by now: its newest one still pending. */

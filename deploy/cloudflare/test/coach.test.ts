@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { browser, websiteFixture } from "./website-helpers.ts";
+import { browser, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
+
+/** Each competition's table on the dashboard, by its heading, as text: [name, players, played, waiting, disputed, short, %]. */
+function dashboardTables(html: string): Record<string, string[][]> {
+  return Object.fromEntries([...html.matchAll(/<h2>([^<]+)<\/h2>[\s\S]*?<table class="progress">([\s\S]*?)<\/table>/g)].map(([, name, table]) =>
+    [name!, [...table!.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(([, row]) =>
+      [...row!.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)].map(([, cell]) => cell!.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()))]));
+}
+
+/** What the dashboard's rows should say, from the API's own progress. */
+async function expectedRows(f: WebsiteFixture, competitionId: string): Promise<string[][]> {
+  const p = (await f.api(`/v1/competitions/${competitionId}/progress`, f.admin)).body;
+  const row = (name: string, c: { active_entries: number; played: number; matches: number; reported: number; disputed: number; below_minimum: number }) =>
+    [name, String(c.active_entries), `${c.played} of ${c.matches}`, String(c.reported || "–"), String(c.disputed || "–"),
+      String(c.below_minimum || "–"), `${Math.round((100 * c.below_minimum) / c.active_entries)}%`];
+  return [...p.divisions.map((d: { name: string } & Parameters<typeof row>[1]) => row(d.name, d)), row("All divisions", p)];
+}
 
 const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:write", "members:pii"];
 
@@ -223,5 +239,26 @@ test("the chase list and dashboard say how many are short of the minimum, and wh
   assert.match(chase.html, /\d+ of 10 pairs \(\d+%\)<\/span> (is|are) short of the 4-match minimum/);
   assert.match(chase.html, /Played \d of 4: \d short/);
   assert.doesNotMatch((await coach.get("/coach/chase?within_days=7")).html, /Short of the minimum/, "not when no deadline is that close");
-  assert.match((await coach.get("/coach")).html, /of 15 players \(\d+%\)<\/span> (is|are) short of the 4-match minimum/);
+  const home = (await coach.get("/coach")).html;
+  const singles = dashboardTables(home)["Sample singles"];
+  assert.deepEqual(singles![0], ["Division", "Players", "Played", "Waiting", "Disputed", "Short", "% short"]);
+  assert.equal(dashboardTables(home)["Sample doubles"]![0]![1], "Pairs");
+  const id = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles").id;
+  assert.deepEqual(singles!.slice(1), await expectedRows(f, id), "players, short and % short per division, and in all");
+  assert.doesNotMatch(home, /short of the \d+-match minimum/, "the table replaces the sentence");
+});
+
+test("the dashboard's table follows a minimum the coach's agent sets", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles");
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  assert.deepEqual(dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(1), await expectedRows(f, singles.id));
+  assert.doesNotMatch((await coach.get("/coach")).html, /name="minimum"/, "the minimum is the agent's to set");
+  for (const minimum of [2, 0]) {
+    const rules = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
+    assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { rules: { ...rules, minMatchesToPlay: minimum } })).status, 200);
+    const rows = dashboardTables((await coach.get("/coach")).html)["Sample singles"]!.slice(1);
+    assert.deepEqual(rows, await expectedRows(f, singles.id), `minimum ${minimum}`);
+  }
+  assert.equal((await coach.post(`/coach/competitions/${singles.id}/minimum`, { minimum: "5" })).status, 404, "no setting on the coach's site");
 });
