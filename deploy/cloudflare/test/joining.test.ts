@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createHmac } from "node:crypto";
+import { purgeExpired } from "@deuceleague/db-d1";
 import { fixture } from "./helpers.ts";
 import { browser, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
 
@@ -98,6 +99,23 @@ test("a request nobody decides is gone after 30 days, and deleted by the next on
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM join_request").first("n"), 1);
 });
 
+test("the hourly purge deletes expired requests and old join counts without waiting for another request", async (t) => {
+  const f = await fixture(t);
+  const old = await send(f, "/v1/join-requests", "POST", sam);
+  const fresh = await send(f, "/v1/join-requests", "POST", { ...sam, email: "fresh@example.org" });
+  await f.db.prepare("UPDATE join_request SET created_at = created_at - ? WHERE id = ?").bind(30 * DAY, old.body.id).run();
+  const today = Math.floor(Date.now() / DAY);
+  await f.db.prepare("INSERT INTO website_join_limit (bucket, day, count) VALUES ('club', ?, 3), (?, ?, 1)")
+    .bind(today - 1, "a".repeat(64), today).run();
+  assert.deepEqual(await purgeExpired(f.db), { joinRequests: 1, joinCounts: 1 });
+  assert.deepEqual((await f.db.prepare("SELECT id FROM join_request").all()).results, [{ id: fresh.body.id }]);
+  assert.deepEqual((await f.db.prepare("SELECT day FROM website_join_limit").all()).results, [{ day: today }]);
+  // Nothing left to delete: nothing is written.
+  const revision = await f.db.prepare("SELECT revision FROM mutation_clock").first("revision");
+  assert.deepEqual(await purgeExpired(f.db), { joinRequests: 0, joinCounts: 0 });
+  assert.equal(await f.db.prepare("SELECT revision FROM mutation_clock").first("revision"), revision);
+});
+
 test("the coach sets, changes and clears a member's level, and erasing clears it", async (t) => {
   const f = await fixture(t);
   const id = await f.member();
@@ -186,6 +204,25 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal(await waiting(f), 0);
   assert.equal((await coach.post(`/coach/join-requests/${alex}/approve`, { display_name: "Alex M." })).status, 404);
   assert.match((await coach.get("/coach/activity/all")).html, /approved Robin H\.&#39;s request to join|approved Robin H\.'s request to join/);
+});
+
+test("the coach's pages read one page of requests however many wait, and a long name still fits", async (t) => {
+  const f = await websiteFixture(t);
+  const long = "L".repeat(59);
+  await f.create("/v1/join-requests", { first_name: long, surname: "Hale", email: "long@example.org", privacy_notice: "uk-2026-09-30" });
+  for (let i = 0; i < 25; i++) {
+    await f.create("/v1/join-requests", { first_name: `P${i}`, surname: "Q", email: `p${i}@example.org`, privacy_notice: "uk-2026-09-30" });
+  }
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  assert.match((await coach.get("/coach")).html, /More than 25 people are asking to join/);
+  const members = await coach.get("/coach/members");
+  assert.equal([...members.html.matchAll(/\/coach\/join-requests\/[0-9a-f-]{36}\/approve/g)].length, 25);
+  assert.match(members.html, /More are waiting\. These are the oldest 25/);
+  const name = /name="display_name"[^>]*value="(L+[^"]*)"/.exec(members.html)?.[1];
+  assert.equal(name, `${long} H`.slice(0, 60));
+  const id = /\/coach\/join-requests\/([0-9a-f-]{36})\/approve/.exec(members.html)![1]!;
+  assert.equal((await coach.post(`/coach/join-requests/${id}/approve`, { display_name: name!, level: "" })).status, 303);
+  assert.doesNotMatch((await coach.get("/coach/members")).html, /More are waiting/);
 });
 
 test("the join form keeps to its daily limits, stores no address, and can be turned off", async (t) => {

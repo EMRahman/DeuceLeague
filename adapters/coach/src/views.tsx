@@ -78,7 +78,8 @@ const LevelSelect: FC<{ id: string; value: number | null }> = ({ id, value }) =>
 /** "Sam K.": the name the API gives a new member unless the coach chooses another. */
 const playingName = (r: JoinRequest) => {
   const initial = [...r.surname.trim()][0];
-  return initial ? `${r.first_name.trim()} ${initial.toUpperCase()}.` : r.first_name.trim();
+  // The API's own limit, as its default keeps to: the field would refuse anything longer.
+  return (initial ? `${r.first_name.trim()} ${initial.toUpperCase()}.` : r.first_name.trim()).slice(0, 60);
 };
 
 export type CoachCompetition = Competition & { previous_competition_id: string | null; visibility: "members" | "private" };
@@ -307,15 +308,17 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
 export const Dashboard: FC<{
   frame: Frame;
   seasons: SeasonView[];
-  /** How many people are asking to join. */
+  /** How many people are asking to join, and whether that is only the first page of them. */
   asking: number;
+  askingMore: boolean;
   timezone: string;
-}> = ({ frame, seasons, asking, timezone }) => (
+}> = ({ frame, seasons, asking, askingMore, timezone }) => (
   <Layout title="Dashboard" frame={frame}>
     {asking > 0 && (
       <div class="notice">
         <a href="/coach/members">
-          {asking === 1 ? "1 person is" : `${asking} people are`} asking to join the league
+          {askingMore ? `More than ${asking} people are` : asking === 1 ? "1 person is" : `${asking} people are`} asking to join
+          the league
         </a>
       </div>
     )}
@@ -976,11 +979,13 @@ export const Members: FC<{
   members: CoachMember[];
   /** Null when this browser's key may not read their details. */
   requests: JoinRequest[] | null;
+  /** More are waiting behind these. */
+  moreRequests: boolean;
   /** What the last approval or decline did. */
   done: string | null;
   addedId: string | null;
   timezone: string;
-}> = ({ frame, members, requests, done, addedId, timezone }) => (
+}> = ({ frame, members, requests, moreRequests, done, addedId, timezone }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
     {done && (
@@ -1039,6 +1044,9 @@ export const Members: FC<{
             ))}
           </ul>
         </div>
+        {moreRequests && (
+          <p class="muted">More are waiting. These are the oldest {requests.length}: decide them to see the next.</p>
+        )}
         <h2>On the club's list</h2>
       </>
     )}

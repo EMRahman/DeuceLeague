@@ -24,7 +24,9 @@ they gave. It also warns you if a member already has the same email address.
   sign in with that.
 - **Decline** deletes the request and everything they sent. They are not told.
 
-A request nobody decides is deleted after 30 days.
+A request nobody decides is deleted after 30 days, by a job the Worker runs
+every hour. Keep the `triggers` entry in `wrangler.jsonc` that runs it. The
+page shows the oldest 25 requests at a time; deciding them brings on the next.
 
 ## Levels
 

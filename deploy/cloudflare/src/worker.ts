@@ -1,5 +1,5 @@
 import { createCloudflareApp } from "@deuceleague/api/cloudflare";
-import { claimInstallerAttempt, claimWebsiteJoin, claimWebsiteLogin } from "@deuceleague/db-d1";
+import { claimInstallerAttempt, claimWebsiteJoin, claimWebsiteLogin, purgeExpired } from "@deuceleague/db-d1";
 import { createCoachSite } from "@deuceleague/coach";
 import { apiClient, createWebsite, cloudflareMailer, resendMailer, openMeteo, cachedWeatherFetch, turnstileVerifier,
 } from "@deuceleague/website/cloudflare";
@@ -96,5 +96,13 @@ export default {
       weather,
     });
     return website.fetch(request);
+  },
+  /** Hourly (wrangler.jsonc's cron): deletes join requests past 30 days and yesterday's join counts. */
+  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const purged = await purgeExpired(env.DB);
+    // Counts only: never who.
+    if (purged.joinRequests || purged.joinCounts) {
+      console.log(`purged ${purged.joinRequests} expired join requests and ${purged.joinCounts} old join counts`);
+    }
   },
 } satisfies ExportedHandler<Env>;

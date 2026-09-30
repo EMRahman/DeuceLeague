@@ -1,4 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
+import { commitMutation, readSnapshot, retryMutation } from "./atomic.js";
 import { commitAuthorized, eventStatement, readIdentity, type CredentialKind, type IdentitySnapshot } from "./identity.js";
 
 /** How long a join request waits for the coach before it is deleted, unread. */
@@ -92,4 +93,27 @@ export async function declineJoinRequest(db: D1Database, state: IdentitySnapshot
     db.prepare("DELETE FROM join_request WHERE id = ? AND club_id = ?").bind(id, clubId),
     eventStatement(db, clubId, "join_request.declined", "join_request", id, actor(state), {}),
   ]);
+}
+
+/**
+ * Deletes what the club promised not to keep: join requests nobody decided
+ * within 30 days, and the website's join counts from before today, which hold
+ * scrambled connection addresses. Run on a schedule, so nothing waits for the
+ * next request to be cleared. Writes nothing when there is nothing to delete.
+ */
+export async function purgeExpired(db: D1Database): Promise<{ joinRequests: number; joinCounts: number }> {
+  return retryMutation(async () => {
+    const snapshot = await readSnapshot(db, [
+      db.prepare("SELECT CAST(unixepoch('subsec') * 1000 AS INTEGER) AS now, CAST(unixepoch() / 86400 AS INTEGER) AS day"),
+      db.prepare(`SELECT EXISTS (SELECT 1 FROM join_request WHERE created_at <= CAST(unixepoch('subsec') * 1000 AS INTEGER) - ?)
+        OR EXISTS (SELECT 1 FROM website_join_limit WHERE day < CAST(unixepoch() / 86400 AS INTEGER)) AS due`).bind(WAIT_MS),
+    ]);
+    const { now, day } = snapshot.results[0]!.results[0] as { now: number; day: number };
+    if (!(snapshot.results[1]!.results[0] as { due: number }).due) return { joinRequests: 0, joinCounts: 0 };
+    const [requests, counts] = await commitMutation(db, snapshot, [
+      db.prepare("DELETE FROM join_request WHERE created_at <= ?").bind(now - WAIT_MS),
+      db.prepare("DELETE FROM website_join_limit WHERE day < ?").bind(day),
+    ]);
+    return { joinRequests: requests!.meta.changes, joinCounts: counts!.meta.changes };
+  });
 }

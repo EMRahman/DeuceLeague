@@ -81,6 +81,11 @@ type Listed = Match & { updated_at: string };
 const ACTIVITY_FIRST = 10;
 const ACTIVITY_MORE = 50;
 
+/** How many join requests the members page shows at once, oldest first; deciding them brings on the next. */
+const JOIN_PAGE = 25;
+
+type Waiting = { requests: JoinRequest[]; more: boolean };
+
 /** The chase list's filters: every competition, or those whose deadline is this close. */
 const WITHIN = [30, 14, 7];
 
@@ -204,14 +209,19 @@ export function createCoachSite(options: CoachOptions) {
       });
     }
     return c.html(
-      <Dashboard frame={frameOf(who, "dashboard")} seasons={views} asking={requests?.length ?? 0} timezone={who.club.timezone} />,
+      <Dashboard frame={frameOf(who, "dashboard")} seasons={views} asking={requests?.requests.length ?? 0}
+        askingMore={requests?.more ?? false} timezone={who.club.timezone} />,
     );
   });
 
-  /** Who is asking to join, oldest first; null for a key that may not read their details. */
-  async function joinRequests(who: Coach): Promise<JoinRequest[] | null> {
+  /**
+   * The oldest people asking to join, one page of them, and whether more wait behind: however many
+   * arrive, a page costs one read. Null for a key that may not read their details.
+   */
+  async function joinRequests(who: Coach): Promise<Waiting | null> {
     if (!who.scopes.includes("members:pii")) return null;
-    return all<JoinRequest>("/v1/join-requests", who.key);
+    const page = await api<Page<JoinRequest>>("GET", `/v1/join-requests?limit=${JOIN_PAGE}`, who.key);
+    return { requests: page.data, more: page.next_cursor !== null };
   }
 
   app.get("/members", async (c) => {
@@ -231,7 +241,8 @@ export function createCoachSite(options: CoachOptions) {
     const added = members.find((m) => m.id === c.req.query("added"));
     const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted." : null;
     return c.html(
-      <Members frame={frameOf(who, "members")} members={members} requests={requests} done={done} addedId={added?.id ?? null}
+      <Members frame={frameOf(who, "members")} members={members} requests={requests?.requests ?? null}
+        moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
         timezone={who.club.timezone} />,
     );
   });

@@ -131,10 +131,12 @@ to `POST /v1/join-requests` with the website's key. Before that, the Worker
 ignores a form with its hidden field filled in, or sent within three seconds of
 its signed time. It then checks Turnstile, if set up, and reserves one of the
 day's requests in D1: 3 per connection, counted against an HMAC of the address
-and the UTC day, and `SIGNUPS_PER_DAY` for the club. The table holds no address,
-and its rows from earlier days are deleted as it is used. Requests wait in their
-own table, apart from members, until the coach decides them, and are deleted
-after 30 days. Only the join page may load a script, Turnstile's, and only from
+and the UTC day, and `SIGNUPS_PER_DAY` for the club. The table holds no address.
+Requests wait in their own table, apart from members, until the coach decides
+them. The Worker's hourly cron trigger (`triggers` in `wrangler.jsonc`) deletes
+requests older than 30 days and join counts from earlier days, writing nothing
+when there is nothing to delete. The coach's pages read the oldest 25 waiting
+requests at a time, however many there are. Only the join page may load a script, Turnstile's, and only from
 `challenges.cloudflare.com`.
 
 ## Caching
