@@ -34,7 +34,8 @@ MIT-licensed.
   table groups its columns: matches played, in all, waiting on the other side
   and disputed; then players (or pairs) in all, and how many are short of the
   minimum as a count and a percentage. Each column heading explains itself on
-  hover (`GET /v1/seasons/{id}/progress`, one read a season however many
+  hover or focus; on a phone, where the table scrolls sideways, a list under it
+  says what the columns mean instead (`GET /v1/seasons/{id}/progress`, one read a season however many
   competitions it runs). It counts and names who has opted out of next season
   and says whether next season's competition is drafted yet.
 - **Results** (`/coach/results`). Disputes, with what each side says and what

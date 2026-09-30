@@ -115,21 +115,32 @@ table.progress th, table.progress td { text-align: right; width: auto; white-spa
 table.progress .name { text-align: left; width: 100%; white-space: normal; vertical-align: bottom; }
 table.progress th.group { text-align: center; color: var(--fg); font-weight: 600; padding-bottom: .2rem; }
 table.progress .start { border-left: 1px solid var(--line); padding-left: .6rem; }
-/* Explanations on hover, tap or focus: the pages run no scripts, and a title's tooltip is slow or never shows. */
+/* Explanations on hover or focus: the pages run no scripts, and a title's tooltip is slow or never shows. */
 [data-tip] { position: relative; cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
 [data-tip]:is(:hover, :focus)::after { content: attr(data-tip); position: absolute; top: calc(100% + 4px); left: 0;
   z-index: 1; width: max-content; max-width: 15rem; white-space: normal; text-align: left; font-size: .8rem;
-  font-weight: 400; line-height: 1.35; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-  padding: .4rem .6rem; box-shadow: 0 4px 12px rgb(0 0 0 / .15); }
+  font-weight: 400; line-height: 1.35; color: var(--fg); background: var(--card); border: 1px solid var(--line);
+  border-radius: 8px; padding: .4rem .6rem; box-shadow: 0 4px 12px rgb(0 0 0 / .15); }
 [data-tip]:focus { outline: none; }
 [data-tip]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 table.progress [data-tip]::after { left: auto; right: 0; }
+.narrow { display: none; }
+details.legend { font-size: .85rem; }
+details.legend dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .75rem; margin: .5rem 0 0; }
+details.legend dt { font-weight: 600; }
+details.legend dd { margin: 0; color: var(--muted); }
 table.progress tfoot td { font-weight: 600; border-bottom: 0; }
 .card .titleline { margin-bottom: .6rem; }
 .card .titleline h2 { margin: 0; }
 .tag.minimum { margin-left: 0; font-size: .85rem; background: var(--warn-bg); color: var(--warn); }
-/* Eight columns: on a phone the table scrolls rather than the page. */
-@media (max-width: 559px) { .scroll-x { overflow-x: auto; } }
+/* Eight columns: on a phone the table scrolls rather than the page. The scroll would clip a tooltip, and a tap
+   is no hover, so the explanations are a list under the table instead. */
+@media (max-width: 559px) {
+  .scroll-x { overflow-x: auto; }
+  .narrow { display: block; }
+  [data-tip] { text-decoration: none; cursor: auto; }
+  [data-tip]:is(:hover, :focus)::after { display: none; }
+}
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
 .after { margin-top: .75rem; }
@@ -272,10 +283,7 @@ export const Dashboard: FC<{
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
           {competitions.map(({ progress, optedOut, next }) => {
             const entries = progress.discipline === "doubles" ? "Pairs" : "Players";
-            const shortOf =
-              progress.minimum_matches === 0
-                ? "No minimum is set"
-                : `Played fewer than the ${progress.minimum_matches}-match minimum, or than all their fixtures if they have fewer`;
+            const columns = columnsOf(progress, entries);
             return (
               <div class="card" id={`competition-${progress.competition_id}`}>
                 <div class="titleline">
@@ -302,31 +310,11 @@ export const Dashboard: FC<{
                         </th>
                       </tr>
                       <tr>
-                        <th scope="col" class="start" tabindex={0} data-tip="Matches with a confirmed result">
-                          Played
-                        </th>
-                        <th scope="col" tabindex={0} data-tip="Every fixture in the division">
-                          Total
-                        </th>
-                        <th scope="col" tabindex={0} data-tip="Reported by one side, waiting on the other to confirm">
-                          Waiting
-                        </th>
-                        <th scope="col" tabindex={0} data-tip="The two sides reported different results">
-                          Disputed
-                        </th>
-                        <th scope="col" class="start" tabindex={0} data-tip={`${entries} still in the competition`}>
-                          Total
-                        </th>
-                        <th scope="col" tabindex={0} data-tip={shortOf}>
-                          Short
-                        </th>
-                        <th
-                          scope="col"
-                          tabindex={0}
-                          data-tip={`The share of ${entries.toLowerCase()} short of the minimum`}
-                        >
-                          % short
-                        </th>
+                        {columns.map((c) => (
+                          <th scope="col" class={c.start ? "start" : undefined} tabindex={0} data-tip={c.tip}>
+                            {c.label}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -341,6 +329,23 @@ export const Dashboard: FC<{
                     )}
                   </table>
                 </div>
+                <details class="legend narrow after">
+                  <summary>What the columns mean</summary>
+                  <dl>
+                    {progress.minimum_matches > 0 && (
+                      <>
+                        <dt>Minimum</dt>
+                        <dd>{MINIMUM_TIP}</dd>
+                      </>
+                    )}
+                    {columns.map((c) => (
+                      <>
+                        <dt>{c.term}</dt>
+                        <dd>{c.tip}</dd>
+                      </>
+                    ))}
+                  </dl>
+                </details>
                 <p class="muted after">
                   {optedOut.length === 0 ? (
                     "Nobody has opted out of next season yet."
@@ -360,6 +365,29 @@ export const Dashboard: FC<{
   </Layout>
 );
 
+/** The dashboard table's second header row: each column, its name out of the table, and what it counts. */
+function columnsOf(progress: Progress, entries: "Players" | "Pairs") {
+  const those = entries.toLowerCase();
+  return [
+    { label: "Played", term: "Played", tip: "Matches with a confirmed result", start: true },
+    { label: "Total", term: "Total matches", tip: "Every fixture in the division" },
+    { label: "Waiting", term: "Waiting", tip: "Reported by one side, waiting on the other to confirm" },
+    { label: "Disputed", term: "Disputed", tip: "The two sides reported different results" },
+    { label: "Total", term: `Total ${those}`, tip: `${entries} still in the competition`, start: true },
+    {
+      label: "Short",
+      term: "Short",
+      tip:
+        progress.minimum_matches === 0
+          ? "No minimum is set"
+          : `Played fewer than the ${progress.minimum_matches}-match minimum, or than all their fixtures if they have fewer`,
+    },
+    { label: "% short", term: "% short", tip: `The share of ${those} short of the minimum` },
+  ];
+}
+
+const MINIMUM_TIP = "Anyone short of it once the tables are final is left out of next season's draft";
+
 /**
  * The competition's minimum, beside its name: each entry is expected to play it,
  * or all their fixtures if a division gives them fewer.
@@ -368,11 +396,7 @@ const Minimum: FC<{ progress: Progress }> = ({ progress }) =>
   progress.minimum_matches === 0 ? (
     <span class="muted">No minimum</span>
   ) : (
-    <span
-      class="tag minimum"
-      tabindex={0}
-      data-tip="Anyone short of it once the tables are final is left out of next season's draft"
-    >
+    <span class="tag minimum" tabindex={0} data-tip={MINIMUM_TIP}>
       Minimum {plural(progress.minimum_matches, "match", "matches")} each
     </span>
   );

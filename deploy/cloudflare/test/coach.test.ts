@@ -247,6 +247,11 @@ test("the chase list and dashboard say how many are short of the minimum, and wh
   assert.deepEqual(singles!.slice(0, 2), [["Division", "Matches", "Players"], ["Played", "Total", "Waiting", "Disputed", "Total", "Short", "% short"]]);
   assert.equal(dashboardTables(home)["Sample doubles"]![0]![2], "Pairs");
   assert.match(home, /<span class="tag minimum"[^>]*>Minimum 4 matches each<\/span>/, "the minimum beside the competition's name");
+  const legend = home.match(/<h2>Sample singles<\/h2>[\s\S]*?<details class="legend[^"]*">([\s\S]*?)<\/details>/)![1]!;
+  const terms = [...legend.matchAll(/<dt>([^<]+)<\/dt><dd>([^<]+)<\/dd>/g)].map(([, term, tip]) => [term, tip]);
+  assert.deepEqual(terms.map(([term]) => term),
+    ["Minimum", "Played", "Total matches", "Waiting", "Disputed", "Total players", "Short", "% short"], "a phone lists what the columns mean");
+  for (const [, tip] of terms.slice(1)) assert.ok(home.includes(`data-tip="${tip}"`), `the same words as the tooltip: ${tip}`);
   const id = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles").id;
   assert.deepEqual(singles!.slice(2), await expectedRows(f, id), "players, short and % short per division, and in all");
   assert.doesNotMatch(home, /short of the \d+-match minimum/, "the table replaces the sentence");
