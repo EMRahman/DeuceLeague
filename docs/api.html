@@ -40,9 +40,9 @@
   </header>
   <main>
     <div class="summary" aria-label="API summary">
-      <div class="stat"><strong>56</strong>operations</div>
-      <div class="stat"><strong>36</strong>paths</div>
-      <div class="stat"><strong>14</strong>feature areas</div>
+      <div class="stat"><strong>61</strong>operations</div>
+      <div class="stat"><strong>39</strong>paths</div>
+      <div class="stat"><strong>15</strong>feature areas</div>
     </div>
     <p class="note">All <code>/v1</code> operations require a bearer credential. <code>/healthz</code> and <code>/openapi.json</code> are public.</p>
     <h2>Feature areas</h2>
@@ -55,6 +55,7 @@
       <a href="#weather">Weather (6)</a>
       <a href="#api-keys">API keys (3)</a>
       <a href="#members">Members (6)</a>
+      <a href="#join-requests">Join requests (5)</a>
       <a href="#seasons">Seasons (4)</a>
       <a href="#competitions">Competitions (4)</a>
       <a href="#divisions">Divisions (6)</a>
@@ -113,6 +114,14 @@
       <div class="operation"><span class="method">PATCH</span><code>/v1/members/{id}</code><span>Change a member</span></div>
       <div class="operation"><span class="method">DELETE</span><code>/v1/members/{id}</code><span>Remove a member</span></div>
       <div class="operation"><span class="method">POST</span><code>/v1/members/{id}/erase</code><span>Erase a member&#39;s personal data</span></div>
+    </section>
+    <section id="join-requests">
+      <h2>Join requests</h2>
+      <div class="operation"><span class="method">GET</span><code>/v1/join-requests</code><span>List join requests</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/join-requests</code><span>Ask to join</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/join-requests/{id}</code><span>A join request</span></div>
+      <div class="operation"><span class="method">DELETE</span><code>/v1/join-requests/{id}</code><span>Decline a join request</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/join-requests/{id}/approve</code><span>Approve a join request</span></div>
     </section>
     <section id="seasons">
       <h2>Seasons</h2>

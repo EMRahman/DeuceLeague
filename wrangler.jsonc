@@ -6,6 +6,8 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  // Hourly: deletes join requests nobody decided within 30 days, as the privacy notice promises.
+  "triggers": { "crons": ["17 * * * *"] },
   "vars": {
     "PUBLIC_URL": ""
   },

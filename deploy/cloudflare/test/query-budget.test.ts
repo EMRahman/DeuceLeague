@@ -117,6 +117,10 @@ test("sample browser installation stays within its SQL statement budget and reta
     assert.ok(page.status < 400, path); await page.text();
   }
 
+  // Someone asking to join with a member's email, as the coach's pages show them.
+  assert.equal((await api("POST", "/v1/join-requests", env.WEBSITE_API_KEY, { first_name: "Owner", surname: "Again",
+    email: "OWNER@example.org", privacy_notice: "uk-2026-09-30" })).status, 201);
+
   // The coach's pages, each read in full on every visit.
   async function coachPage(path: string, label = "Sample") {
     counted.reset();
@@ -164,6 +168,7 @@ test("sample browser installation stays within its SQL statement budget and reta
   const wholeReads: Record<string, string> = {
     "SCAN match USING COVERING INDEX sqlite_autoindex_match_1": "matches with no filter at all: every match, a page at a time",
     "SCAN m USING INDEX sqlite_autoindex_member_2": "the members list: every member",
+    "SCAN r USING INDEX sqlite_autoindex_join_request_1": "the join requests waiting: at most 30 days' worth, then deleted",
   };
   const found: string[] = [];
   for (const [sql, args] of counted.executed) {

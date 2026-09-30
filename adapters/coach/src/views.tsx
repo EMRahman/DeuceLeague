@@ -26,7 +26,61 @@ export type Tab = "dashboard" | "results" | "tables" | "activity" | "chase" | "m
 
 export type Frame = { club: string | null; signedIn: boolean; tab: Tab | null };
 
-export type CoachMember = { id: string; display_name: string; email?: string | null; signed_in_at: string | null };
+export type CoachMember = {
+  id: string;
+  display_name: string;
+  email?: string | null;
+  phone?: string | null;
+  level: number | null;
+  signed_in_at: string | null;
+};
+
+/** Someone who asked to join on the club's form, waiting for the coach. */
+export type JoinRequest = {
+  id: string;
+  first_name: string;
+  surname: string;
+  email: string | null;
+  phone: string | null;
+  created_at: string;
+  expires_at: string;
+  /** A member already on the list with the same email address. */
+  member: { id: string; display_name: string } | null;
+};
+
+/** The coach's levels, as the select lists them: the scale runs from 10, a beginner, up to 1. */
+const LEVELS: { level: number; label: string }[] = [
+  { level: 10, label: "10 · Beginner" },
+  { level: 9, label: "9" },
+  { level: 8, label: "8" },
+  { level: 7, label: "7" },
+  { level: 6, label: "6" },
+  { level: 5, label: "5 · Intermediate" },
+  { level: 4, label: "4 · Strong club player" },
+  { level: 3, label: "3" },
+  { level: 2, label: "2" },
+  { level: 1, label: "1 · National player" },
+];
+
+const LevelSelect: FC<{ id: string; value: number | null }> = ({ id, value }) => (
+  <select id={id} name="level">
+    <option value="" selected={value === null}>
+      Not set
+    </option>
+    {LEVELS.map((l) => (
+      <option value={String(l.level)} selected={value === l.level}>
+        {l.label}
+      </option>
+    ))}
+  </select>
+);
+
+/** "Sam K.": the name the API gives a new member unless the coach chooses another. */
+const playingName = (r: JoinRequest) => {
+  const initial = [...r.surname.trim()][0];
+  // The API's own limit, as its default keeps to: the field would refuse anything longer.
+  return (initial ? `${r.first_name.trim()} ${initial.toUpperCase()}.` : r.first_name.trim()).slice(0, 60);
+};
 
 export type CoachCompetition = Competition & { previous_competition_id: string | null; visibility: "members" | "private" };
 
@@ -143,6 +197,14 @@ table.progress tfoot td { font-weight: 600; border-bottom: 0; }
 }
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
+form.level { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; }
+form.level label { margin: 0; font-weight: 400; font-size: .9rem; }
+form.level select { width: auto; padding: .3rem .5rem; font-size: .9rem; }
+form.approve { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 .75rem; margin-top: .6rem; }
+form.approve .field { flex: 1 1 11rem; margin-bottom: .5rem; }
+form.approve button { margin-bottom: .5rem; }
+.answer p.deadline { margin: .4rem 0 0; }
+.tag.level { background: var(--past-bg); color: var(--past); }
 .after { margin-top: .75rem; }
 `;
 
@@ -246,9 +308,20 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
 export const Dashboard: FC<{
   frame: Frame;
   seasons: SeasonView[];
+  /** How many people are asking to join, and whether that is only the first page of them. */
+  asking: number;
+  askingMore: boolean;
   timezone: string;
-}> = ({ frame, seasons, timezone }) => (
+}> = ({ frame, seasons, asking, askingMore, timezone }) => (
   <Layout title="Dashboard" frame={frame}>
+    {asking > 0 && (
+      <div class="notice">
+        <a href="/coach/members">
+          {askingMore ? `More than ${asking} people are` : asking === 1 ? "1 person is" : `${asking} people are`} asking to join
+          the league
+        </a>
+      </div>
+    )}
     {seasons.length === 0 && (
       <>
         <h1>No season is running</h1>
@@ -605,7 +678,11 @@ function sentence(e: FeedEvent): string {
     case "member.signed_out_everywhere":
       return `${actor} signed ${subject} out everywhere`;
     case "member.created":
-      return `${actor} added ${subject}`;
+      return e.payload.join_request_id ? `${actor} approved ${subject}'s request to join` : `${actor} added ${subject}`;
+    case "join_request.received":
+      return "Someone asked to join the league";
+    case "join_request.declined":
+      return `${actor} declined a request to join`;
     case "member.updated":
       return `${actor} changed ${subject}'s details`;
     case "member.removed":
@@ -897,13 +974,82 @@ export const Chase: FC<{
   );
 };
 
-export const Members: FC<{ frame: Frame; members: CoachMember[]; timezone: string }> = ({
-  frame,
-  members,
-  timezone,
-}) => (
+export const Members: FC<{
+  frame: Frame;
+  members: CoachMember[];
+  /** Null when this browser's key may not read their details. */
+  requests: JoinRequest[] | null;
+  /** More are waiting behind these. */
+  moreRequests: boolean;
+  /** What the last approval or decline did. */
+  done: string | null;
+  addedId: string | null;
+  timezone: string;
+}> = ({ frame, members, requests, moreRequests, done, addedId, timezone }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
+    {done && (
+      <div class="notice ok" role="status">
+        {done}
+        {addedId && (
+          <>
+            {" "}
+            Make them a sign-in link below, or they can sign in with their email if they gave one.
+          </>
+        )}
+      </div>
+    )}
+    {requests && requests.length > 0 && (
+      <>
+        <h2>Asking to join</h2>
+        <p class="muted">
+          From the form at <a href="/join">/join</a>. Approve someone to add them to the club's list, or decline to
+          delete what they sent. A request nobody decides is deleted after 30 days.
+        </p>
+        <div class="card">
+          <ul class="list">
+            {requests.map((r) => (
+              <li class="answer">
+                <strong>
+                  {r.first_name} {r.surname}
+                </strong>
+                <br />
+                <span class="muted">{[r.email, r.phone].filter(Boolean).join(" · ")}</span>
+                <br />
+                <span class="muted">
+                  Asked {at(r.created_at, timezone)} · deleted {at(r.expires_at, timezone)} if not decided
+                </span>
+                {r.member && (
+                  <p class="deadline">Already a member as {r.member.display_name}, with the same email address.</p>
+                )}
+                <form class="approve" method="post" action={`/coach/join-requests/${r.id}/approve`}>
+                  <div class="field">
+                    <label for={`name-${r.id}`}>Name they play under</label>
+                    <input id={`name-${r.id}`} name="display_name" maxlength={60} value={playingName(r)} required />
+                  </div>
+                  <div class="field">
+                    <label for={`level-${r.id}`}>Level</label>
+                    <LevelSelect id={`level-${r.id}`} value={null} />
+                  </div>
+                  <button class="small" type="submit">
+                    Approve
+                  </button>
+                </form>
+                <form method="post" action={`/coach/join-requests/${r.id}/decline`}>
+                  <button class="quiet small" type="submit">
+                    Decline
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {moreRequests && (
+          <p class="muted">More are waiting. These are the oldest {requests.length}: decide them to see the next.</p>
+        )}
+        <h2>On the club's list</h2>
+      </>
+    )}
     <p>
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
       once, within 72 hours. Once signed in, a player stays signed in on that phone.
@@ -911,7 +1057,7 @@ export const Members: FC<{ frame: Frame; members: CoachMember[]; timezone: strin
     {members.length > 0 && (
       <p class="muted">
         {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
-        listed first.
+        listed first. Levels run from 10, a beginner, to 1, a national player.
       </p>
     )}
     {members.length === 0 ? (
@@ -920,11 +1066,13 @@ export const Members: FC<{ frame: Frame; members: CoachMember[]; timezone: strin
       <div class="card">
         <ul class="list">
           {members.map((m) => (
-            <li class="answer">
+            <li class="answer" id={`member-${m.id}`}>
               <div class="answer-row">
                 <span>
                   {m.display_name}
+                  {m.level !== null && <span class="tag level">Level {m.level}</span>}
                   {m.email && <span class="muted"> · {m.email}</span>}
+                  {m.phone && <span class="muted"> · {m.phone}</span>}
                   <br />
                   {m.signed_in_at ? (
                     <span class="muted">Signed in {at(m.signed_in_at, timezone)}</span>
@@ -938,6 +1086,15 @@ export const Members: FC<{ frame: Frame; members: CoachMember[]; timezone: strin
                   </button>
                 </form>
               </div>
+              <form class="level" method="post" action={`/coach/members/${m.id}/level`}>
+                <label class="muted" for={`level-${m.id}`}>
+                  Level
+                </label>
+                <LevelSelect id={`level-${m.id}`} value={m.level} />
+                <button class="quiet small" type="submit">
+                  Save
+                </button>
+              </form>
             </li>
           ))}
         </ul>

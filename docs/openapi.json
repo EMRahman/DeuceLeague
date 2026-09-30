@@ -1446,6 +1446,16 @@
             ],
             "example": "UTR"
           },
+          "level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+          },
           "joined_on": {
             "type": [
               "string",
@@ -1534,6 +1544,7 @@
           "status",
           "rating",
           "rating_system",
+          "level",
           "joined_on",
           "deleted_at",
           "signed_in_at",
@@ -1573,6 +1584,16 @@
             ],
             "minLength": 1,
             "maxLength": 40
+          },
+          "level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
           },
           "joined_on": {
             "type": [
@@ -1676,6 +1697,16 @@
             "minLength": 1,
             "maxLength": 40
           },
+          "level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+          },
           "joined_on": {
             "type": [
               "string",
@@ -1739,6 +1770,169 @@
             ],
             "maxLength": 5000,
             "description": "PII. Setting it needs `members:pii`."
+          }
+        }
+      },
+      "JoinRequestPage": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JoinRequest"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Pass as `after` for the next page. Null on the last one."
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ]
+      },
+      "JoinRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "first_name": {
+            "type": "string",
+            "description": "PII. As they typed it. Present only for a credential holding `members:pii`."
+          },
+          "surname": {
+            "type": "string",
+            "description": "PII. As they typed it. Present only for a credential holding `members:pii`."
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PII. An email address, a phone number, or both. Present only for a credential holding `members:pii`."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PII. As they typed it. Present only for a credential holding `members:pii`."
+          },
+          "privacy_notice": {
+            "type": "string",
+            "example": "uk-2026-09-30",
+            "description": "Which privacy notice they read and agreed to, when they asked."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When they asked, and agreed to the privacy notice."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the request is deleted if nobody has decided it."
+          },
+          "member": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "display_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "display_name"
+            ],
+            "description": "A member already on the club's list with the same email address."
+          }
+        },
+        "required": [
+          "id",
+          "first_name",
+          "surname",
+          "email",
+          "phone",
+          "privacy_notice",
+          "created_at",
+          "expires_at",
+          "member"
+        ]
+      },
+      "NewJoinRequest": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "surname": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 254,
+            "format": "email"
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^\\+?[0-9][0-9 ()-]{5,23}$"
+          },
+          "privacy_notice": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "example": "uk-2026-09-30",
+            "description": "Which privacy notice the person read and agreed to. The form that showed it names it."
+          }
+        },
+        "required": [
+          "first_name",
+          "surname",
+          "privacy_notice"
+        ]
+      },
+      "JoinRequestApproval": {
+        "type": "object",
+        "properties": {
+          "display_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "The name they play under. Defaults to their first name and initial, such as \"Sam K.\""
+          },
+          "level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
           }
         }
       },
@@ -6581,6 +6775,403 @@
           },
           "404": {
             "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/join-requests": {
+      "get": {
+        "tags": [
+          "Join requests"
+        ],
+        "summary": "List join requests",
+        "description": "People who asked to join on the club's form and are waiting for the coach, oldest first. Each is deleted after 30 days if nobody decides it. Everything in one is personal, so this needs `members:pii`.",
+        "security": [
+          {
+            "apiKey": [
+              "members:read",
+              "members:pii"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50,
+              "description": "At most this many."
+            },
+            "required": false,
+            "description": "At most this many.",
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The `next_cursor` of the page before; omit for the first page."
+            },
+            "required": false,
+            "description": "The `next_cursor` of the page before; omit for the first page.",
+            "name": "after",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of join requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRequestPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Join requests"
+        ],
+        "summary": "Ask to join",
+        "description": "What a club's public sign-up form sends, with its own key. The person is not a member until the coach approves them. Nothing here limits how many arrive: the form's website does that, since only it sees who is asking.",
+        "security": [
+          {
+            "apiKey": [
+              "members:write",
+              "members:pii"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewJoinRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The request, waiting for the coach.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`already_requested`: someone with that email address is already waiting.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/join-requests/{id}": {
+      "get": {
+        "tags": [
+          "Join requests"
+        ],
+        "summary": "A join request",
+        "security": [
+          {
+            "apiKey": [
+              "members:read",
+              "members:pii"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The join request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinRequest"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Join requests"
+        ],
+        "summary": "Decline a join request",
+        "description": "Deletes the request and everything they sent. They are not told.",
+        "security": [
+          {
+            "apiKey": [
+              "members:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Declined."
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/join-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "Join requests"
+        ],
+        "summary": "Approve a join request",
+        "description": "Adds them to the club's list as an active member, with their full name, contact details and the level given, and deletes the request. The member's `member.created` event records the request and the privacy notice they agreed to.",
+        "security": [
+          {
+            "apiKey": [
+              "members:write",
+              "members:pii"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinRequestApproval"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The new member.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`email_taken`: a member already has that email address.",
             "content": {
               "application/problem+json": {
                 "schema": {

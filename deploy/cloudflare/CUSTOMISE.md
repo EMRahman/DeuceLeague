@@ -65,12 +65,18 @@ site at `localhost`, not `127.0.0.1`: it answers only on the address in
 ### Change it
 
 The two sites are server-rendered HTML with no scripts, in the players' site's
-style:
+style. The one exception is Cloudflare Turnstile on the join form, when the club
+turns it on:
 
 - `adapters/website/src`: the players' site. `views.tsx` holds the pages and
   `STYLE`, whose colour tokens (`--accent`, `--bg` and the rest) set the look,
   with dark-mode values alongside.
 - `adapters/coach/src`: the coach's site, which adds its own `COACH_STYLE`.
+
+The privacy notice (`Privacy` in `views.tsx`) is written for the UK. A club
+elsewhere rewrites it for its own law, and any change to its wording gets a new
+name in `PRIVACY_NOTICE`, in `adapters/website/src/join.ts`; see
+[new players joining](JOINING.md#the-privacy-notice-is-written-for-the-uk).
 
 Both are MIT-licensed adapters that reach the league only through the API.
 Keep changes there. Changing `packages/`, the API or the migrations makes a

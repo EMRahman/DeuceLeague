@@ -40,7 +40,7 @@ function keyRecord(r: Row): ApiKeyRecord {
 }
 function memberRecord(r: Row): MemberRecord {
   return { id: String(r.id), displayName: String(r.display_name), status: String(r.status), rating: string(r.rating),
-    ratingSystem: string(r.rating_system), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
+    ratingSystem: string(r.rating_system), level: r.level === null ? null : Number(r.level), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
     signedInAt: date(r.signed_in_at), createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
     ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as object) };
 }
@@ -60,7 +60,7 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
     SELECT EXISTS (SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ?
       AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000)
       AND s.value = 'members:pii') AS pii
-    ) SELECT m.id, m.display_name, m.status, m.rating, m.rating_system, m.joined_on,
+    ) SELECT m.id, m.display_name, m.status, m.rating, m.rating_system, m.level, m.joined_on,
       m.deleted_at, m.created_at, m.updated_at,
       -- Sessions are deleted when they end, so this is the newest one still signed in.
       (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
@@ -158,7 +158,9 @@ export async function revokeKeyAdmin(db: D1Database, state: IdentitySnapshot, ke
 }
 
 export type MemberMutation =
-  | { type: "create"; changes: MemberChanges & { displayName: string }; fields: string[] }
+  | { type: "create"; changes: MemberChanges & { displayName: string }; fields: string[];
+      /** The join request this member came from, deleted as they are added. */
+      joinRequest?: { id: string; privacyNotice: string } }
   | { type: "patch"; changes: MemberChanges; fields: string[] }
   | { type: "remove" }
   | { type: "erase" };
@@ -167,18 +169,24 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
   const writes: D1PreparedStatement[] = [];
   if (mutation.type === "create") {
     const c = mutation.changes;
-    writes.push(db.prepare(`INSERT INTO member (id, club_id, display_name, status, rating, rating_system, joined_on,
+    writes.push(db.prepare(`INSERT INTO member (id, club_id, display_name, status, rating, rating_system, level, joined_on,
       full_name, email, phone, date_of_birth, gender, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, clubId, c.displayName, c.status ?? "active", rating(c.rating), c.ratingSystem ?? null, c.joinedOn ?? null,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, clubId, c.displayName, c.status ?? "active", rating(c.rating), c.ratingSystem ?? null, c.level ?? null, c.joinedOn ?? null,
         c.fullName ?? null, c.email ?? null, c.phone ?? null, c.dateOfBirth ?? null, c.gender ?? null, c.notes ?? null),
-      audit(db, state, "member.created", "member", id, { fields: mutation.fields }));
+      audit(db, state, "member.created", "member", id, { fields: mutation.fields,
+        ...(mutation.joinRequest ? { join_request_id: mutation.joinRequest.id, privacy_notice: mutation.joinRequest.privacyNotice } : {}) }));
+    // Its member.created event, naming the request, is the record that it was approved.
+    if (mutation.joinRequest) {
+      writes.push(db.prepare("DELETE FROM join_request WHERE id = ? AND club_id = ?").bind(mutation.joinRequest.id, clubId));
+    }
   } else if (mutation.type === "patch") {
     writes.push(db.prepare(`UPDATE member SET
       display_name = CASE WHEN json_type(input.changes, '$.displayName') IS NULL THEN display_name ELSE json_extract(input.changes, '$.displayName') END,
       status = CASE WHEN json_type(input.changes, '$.status') IS NULL THEN status ELSE json_extract(input.changes, '$.status') END,
       rating = CASE WHEN json_type(input.changes, '$.rating') IS NULL THEN rating ELSE json_extract(input.changes, '$.rating') END,
       rating_system = CASE WHEN json_type(input.changes, '$.ratingSystem') IS NULL THEN rating_system ELSE json_extract(input.changes, '$.ratingSystem') END,
+      level = CASE WHEN json_type(input.changes, '$.level') IS NULL THEN level ELSE json_extract(input.changes, '$.level') END,
       joined_on = CASE WHEN json_type(input.changes, '$.joinedOn') IS NULL THEN joined_on ELSE json_extract(input.changes, '$.joinedOn') END,
       full_name = CASE WHEN json_type(input.changes, '$.fullName') IS NULL THEN full_name ELSE json_extract(input.changes, '$.fullName') END,
       email = CASE WHEN json_type(input.changes, '$.email') IS NULL THEN email ELSE json_extract(input.changes, '$.email') END,
@@ -195,7 +203,7 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       WHERE id = ? AND club_id = ?`).bind(state.now, state.now, id, clubId));
     else writes.push(
       db.prepare(`UPDATE member SET display_name = 'Erased member', full_name = NULL, email = NULL, phone = NULL,
-        date_of_birth = NULL, gender = NULL, notes = NULL, rating = NULL, rating_system = NULL, joined_on = NULL,
+        date_of_birth = NULL, gender = NULL, notes = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
         status = 'left', deleted_at = coalesce(deleted_at, ?), updated_at = ? WHERE id = ? AND club_id = ?`)
         .bind(state.now, state.now, id, clubId),
       db.prepare(`UPDATE entry SET display_name = NULL, updated_at = ? WHERE club_id = ? AND display_name IS NOT NULL

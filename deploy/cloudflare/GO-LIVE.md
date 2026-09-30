@@ -48,7 +48,11 @@ A link works once, within 72 hours; once signed in, a player stays signed in on
 that phone.
 
 The list shows when each player signed in, with those who haven't at the top,
-so you know who to nudge. Once the season is running, the dashboard, **Results**,
+so you know who to nudge.
+
+New players can ask to join at `/join`, and you approve them on **Members**.
+Before you share that link, turn on Turnstile and read the privacy notice,
+which is written for the UK: see [new players joining](JOINING.md). Once the season is running, the dashboard, **Results**,
 **Tables**, **Activity** and the **Chase list** show how it is going.
 
 ## 5. When you want them
@@ -58,6 +62,8 @@ so you know who to nudge. Once the season is running, the dashboard, **Results**
   `wrangler.jsonc`. Players sign in again on the new address.
 - **Sign-in emails**, so players can request their own links: see
   [sign-in emails](EMAIL.md).
+- **Fewer join requests a day**, or none: set `SIGNUPS_PER_DAY`; see
+  [new players joining](JOINING.md#settings).
 
 ## 6. Delete the trial
 

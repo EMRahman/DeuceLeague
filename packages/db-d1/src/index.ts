@@ -5,6 +5,7 @@ export type * from "./result-types.js";
 export * from "./results.js";
 export type * from "./admin-types.js";
 export * from "./administration.js";
+export * from "./join-requests.js";
 export * from "./weather.js";
 export type * from "./league-types.js";
 export * from "./league.js";

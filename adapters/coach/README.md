@@ -3,10 +3,11 @@
 What a club's coach uses, at `/coach`: sign in with an API key, see how far
 the season has got, sort out results the players have not agreed, see the
 tables and forecast as players do, see what happened lately, see who to chase,
-and make a player's sign-in link to hand over, for example on WhatsApp.
+make a player's sign-in link to hand over, for example on WhatsApp, approve or
+decline people asking to join, and set each member's level.
 Server-rendered HTML with no scripts, in the players' site's style. It reads
-the league and changes nothing in it but sign-in links; the coach's coding
-agent makes other changes through the API.
+the league and changes nothing in it but sign-in links, join requests and
+levels; the coach's coding agent makes other changes through the API.
 
 Like the [players' website](../website/README.md), it is an adapter. It
 reaches the league only through the HTTP API and holds nothing of its own.
@@ -62,7 +63,13 @@ MIT-licensed.
   addresses those with an email; the site itself sends nothing.
 - **Members** (`/coach/members`). Each member with the date and time they
   signed in, on the club's clock (`signed_in_at`: their newest device still
-  signed in), those not signed in yet first, and how many are signed in.
+  signed in), those not signed in yet first, and how many are signed in. Each
+  has a level from 10 (a beginner) to 1 (a national player) that the coach can
+  change. Above them, with `members:pii`, **Asking to join** lists the requests
+  from the players' `/join` form (`GET /v1/join-requests`), each with **Approve**,
+  which takes the name they play under and a level, and **Decline**. The
+  dashboard says when anyone is waiting. See
+  [new players joining](../../deploy/cloudflare/JOINING.md).
 
 ## Running it
 

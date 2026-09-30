@@ -261,7 +261,7 @@ test("erasure clears personal data, entry overrides and authored raw reports whi
   assert.equal(erased.status, 200, JSON.stringify(erased.body));
   assert.equal(erased.body.display_name, "Erased member"); assert.ok(!("email" in erased.body));
   const remaining = (await send(f, `/v1/members/${member}`)).body;
-  for (const name of ["full_name", "email", "phone", "date_of_birth", "gender", "notes", "rating", "rating_system", "joined_on"]) assert.equal(remaining[name], null, name);
+  for (const name of ["full_name", "email", "phone", "date_of_birth", "gender", "notes", "rating", "rating_system", "level", "joined_on"]) assert.equal(remaining[name], null, name);
   assert.equal(remaining.status, "left");
   const match = (await f.send(`/v1/matches/${m}`)).body;
   assert.deepEqual(match.result, before);

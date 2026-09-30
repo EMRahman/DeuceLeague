@@ -18,11 +18,12 @@ export type PersonalFields = {
 };
 export type MemberRecord = {
   id: string; displayName: string; status: string; rating: string | null;
-  ratingSystem: string | null; joinedOn: string | null; deletedAt: Date | null;
+  ratingSystem: string | null; level: number | null; joinedOn: string | null; deletedAt: Date | null;
   /** The newest session still signed in; null when signed in nowhere. */
   signedInAt: Date | null;
   createdAt: Date; updatedAt: Date;
 } & Partial<PersonalFields>;
 export type MemberChanges = Partial<{
-  displayName: string; status: string; rating: string | null; ratingSystem: string | null; joinedOn: string | null;
+  displayName: string; status: string; rating: string | null; ratingSystem: string | null; level: number | null;
+  joinedOn: string | null;
 } & PersonalFields>;

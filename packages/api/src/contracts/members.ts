@@ -2,6 +2,14 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { Gender, MemberStatus } from "@deuceleague/schema";
 import { authProblems, conflictProblem, Flag, IdParam, notFoundProblem, PageQuery, pageOf, requires, Timestamp, validationProblem } from "./shared.js";
 
+/** The coach's playing level, on the scale British clubs know from the LTA's ratings. */
+export const Level = z.number().int().min(1).max(10).openapi({
+  example: 5,
+  description:
+    "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, " +
+    "1 a national player. Set by the coach; the core computes nothing from it.",
+});
+
 /** Marks a field as personal data in the spec, as docs/SCHEMA.md marks its column. */
 export const pii = (description: string) =>
   `PII. ${description} Present only for a credential holding \`members:pii\`.`;
@@ -17,6 +25,7 @@ export const Member = z
     status: MemberStatus,
     rating: z.number().nullable().openapi({ description: "Stored as given; the core computes no ratings." }),
     rating_system: z.string().nullable().openapi({ example: "UTR" }),
+    level: Level.nullable(),
     joined_on: z.iso.date().nullable(),
     deleted_at: Timestamp.nullable().openapi({
       description: "When they were removed from the club's list. Their results remain.",
@@ -47,6 +56,7 @@ export const MemberFields = z.object({
   status: MemberStatus.optional().openapi({ description: "Defaults to `active` for a new member." }),
   rating: z.number().min(-999.999).max(999.999).nullable().optional(),
   rating_system: z.string().trim().min(1).max(40).nullable().optional(),
+  level: Level.nullable().optional(),
   joined_on: z.iso.date().nullable().optional(),
   full_name: z.string().trim().min(1).max(200).nullable().optional().openapi({ description: PII_INPUT }),
   email: z.email().max(254).nullable().optional().openapi({ description: PII_INPUT }),
