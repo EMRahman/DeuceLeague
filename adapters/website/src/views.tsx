@@ -742,7 +742,7 @@ export const RulesExplained: FC<{ rules: Rules; tiebreakFormat: string }> = ({ r
         {rules.minMatchesToPlay > 0 && (
           <li>
             Play at least {rules.minMatchesToPlay} {rules.minMatchesToPlay === 1 ? "match" : "matches"} this season, or
-            all of yours if you have fewer.
+            all of yours if you have fewer, to keep your place next season.
           </li>
         )}
         <li>

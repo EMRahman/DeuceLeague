@@ -1,7 +1,7 @@
 import type { PlacementSnapshot, PlacementWrites, EntryRecord, DivisionRecord } from "@deuceleague/db-d1";
 import type { z } from "@hono/zod-openapi";
 import type { Placements } from "../contracts/placements.js";
-import { checkPlacementSource, checkPlacementTarget, placementSelections } from "./placements.js";
+import { checkPlacementSource, checkPlacementTarget, placementSelections, tooFewToStay } from "./placements.js";
 import { tablesFromRecords } from "./tables.js";
 
 /** No writes until the complete plan exists; retries generate a new plan from fresh state. */
@@ -20,7 +20,10 @@ export function decidePlacements(snapshot: PlacementSnapshot, targetId: string, 
   const divisions = copied ? newDivisions : targetDivisions;
   const deadline = data.seasons.find((s) => s.id === previous.seasonId)!.resultsDeadlineAt;
   const tables = tablesFromRecords(previous, previousDivisions, previousEntries, snapshot.ledger, deadline, now);
-  const { selected, notCarried } = placementSelections(target, tables, divisions, previousEntries, snapshot.removed);
+  // Who played too few matches is judged by the competition they played in, not the draft, and
+  // only on final tables: before the deadline they can still play enough.
+  const short = tables.final ? tooFewToStay(previous, previousEntries, snapshot.ledger) : new Map();
+  const { selected, notCarried } = placementSelections(target, tables, divisions, previousEntries, snapshot.removed, short);
   const writes: PlacementWrites = { previousId: previous.id, final: tables.final, divisions: newDivisions, entries: [], events: [] };
   for (const d of newDivisions) writes.events.push({ type: "division.created", subjectType: "division", id: d.id,
     payload: { competition_id: target.id, ordinal: d.ordinal, name: d.name } });

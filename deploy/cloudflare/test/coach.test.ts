@@ -71,8 +71,9 @@ test("the coach makes a player's sign-in link, which signs the player in once, w
   assert.equal((await browser(f).post("/login/confirm", { token })).status, 401, "a link works once");
   const after = await coach.get("/coach/members");
   assert.match(after.html, /2 of 2 signed in/); assert.doesNotMatch(after.html, /Not signed in yet/);
-  // When, on the club's clock (the fixture's club is on UTC).
-  const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  // When, on the club's clock.
+  const timezone = (await f.api("/v1/me", f.admin)).body.club.timezone;
+  const now = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: timezone });
   assert.match(after.html, new RegExp(`Signed in ${now}, \\d{2}:\\d{2}`));
   assert.equal((await coach.post(`/coach/members/${gone.id}/sign-in-link`)).status, 404);
   assert.equal(f.outbox.length, 0); assert.equal(f.outgoing.length, 0);
