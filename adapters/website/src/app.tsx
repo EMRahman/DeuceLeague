@@ -51,7 +51,7 @@ export {
   type Standings,
 } from "./api.js";
 export { deadlineLine, describe, playedOn } from "./score.js";
-export { CompetitionTables, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
+export { CompetitionTables, Credit, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
