@@ -1,7 +1,8 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { commitLeague, LeagueConstraintError, readLeague, retryMutation, uuidv7,
+import { commitLeague, LeagueConstraintError, partnerChoiceRecords, partnerChoicesRead, readLeague, retryMutation, uuidv7,
   type LeagueSnapshot, type LeagueQuery, type LeagueWrite, type LeagueEvent,
-  type SeasonRecord, type LeagueCompetitionRecord, type DivisionRecord, type EntryRecord } from "@deuceleague/db-d1";
+  type SeasonRecord, type LeagueCompetitionRecord, type DivisionRecord, type EntryRecord, type PartnerChoiceRecord } from "@deuceleague/db-d1";
+import type { D1PreparedStatement } from "@cloudflare/workers-types";
 import { roundRobin } from "@deuceleague/engine";
 import { DEFAULT_RULES } from "@deuceleague/schema";
 import type { OpenAPIHono } from "@hono/zod-openapi";
@@ -13,11 +14,13 @@ import * as seasons from "./contracts/seasons.js";
 import * as competitions from "./contracts/competitions.js";
 import * as divisions from "./contracts/divisions.js";
 import * as entries from "./contracts/entries.js";
+import * as partnerChoices from "./contracts/partner-choices.js";
 import { definedOnly, sentFields } from "./contracts/shared.js";
 import { toSeason, toChanges as seasonChanges, checkDates } from "./league/seasons.js";
 import { toCompetition, resolveFormat } from "./league/competitions.js";
 import { toDivision } from "./league/divisions.js";
 import { toEntry } from "./league/entries.js";
+import { checkChoosing, declinePartner, decidePartnerChoice, toPartnerChoice, visibleTo } from "./league/partner-choices.js";
 import { CLOSED, checkOpen, checkSeasonChange, checkCompetitionChange, checkLineup, hasMatches, overriddenPlacement, playerVisible } from "./league/rules.js";
 import { problems } from "./problems.js";
 
@@ -66,10 +69,11 @@ function stateEvent(before: { state: string }, after: { state: string }) {
 }
 
 export function registerCloudflareLeague(app: OpenAPIHono<CloudflareEnv>, db: D1Database) {
-  async function run<T>(c: Context<CloudflareEnv>, query: LeagueQuery, decide: (s: RequestState) => T): Promise<T> {
+  async function run<T>(c: Context<CloudflareEnv>, query: LeagueQuery, decide: (s: RequestState) => T,
+    extraReads: () => D1PreparedStatement[] = () => []): Promise<T> {
     return retryMutation(async () => {
       const initial = c.get("identity");
-      const snapshot = await readLeague(db, initial.hash, initial.kind, query);
+      const snapshot = await readLeague(db, initial.hash, initial.kind, query, extraReads());
       const auth = authFor(snapshot.identity);
       const access = c.get("requiredAccess");
       if (!access) throw problems.credentialNotAccepted(["api_key"]);
@@ -329,4 +333,64 @@ export function registerCloudflareLeague(app: OpenAPIHono<CloudflareEnv>, db: D1
       }), 200);
     });
   }
+
+  // ─────────────────────────────── doubles partners for next season ──
+
+  /** A competition's partner choices come with its snapshot, read through the table's key. */
+  const withChoices = (id: string) => () => [partnerChoicesRead(db, id)];
+  const choicesOf = (s: RequestState) => partnerChoiceRecords(s.extraResults[0]!);
+  function choosing(s: RequestState, id: string) {
+    const competition = findCompetition(s, id, true);
+    if (!competition) throw problems.notFound("competition");
+    return { competition, lineup: s.data.entries.filter((e) => e.competitionId === id) };
+  }
+  /** Writes the changes, and answers with each changed player's choice as it now is, the player first. */
+  function apply(s: RequestState, id: string, first: string, changes: ReturnType<typeof decidePartnerChoice>, lineup: EntryRecord[]) {
+    if (changes.records.length) s.writes.push({ type: "partnerChoices", records: changes.records });
+    for (const memberId of changes.deleted) s.writes.push({ type: "deletePartnerChoice", competitionId: id, memberId });
+    s.events.push(...changes.events);
+    const before = new Map(choicesOf(s).map((c) => [c.memberId, c]));
+    const touched = [...new Set([first, ...changes.records.map((r) => r.memberId), ...changes.deleted])];
+    return { data: touched.map((memberId) => {
+      const now: PartnerChoiceRecord | undefined = changes.records.find((r) => r.memberId === memberId)
+        ?? (changes.deleted.includes(memberId) ? undefined : before.get(memberId));
+      if (now) return toPartnerChoice(now, lineup);
+      const name = lineup.flatMap((e) => e.members).find((m) => m.id === memberId)?.displayName ?? null;
+      return { member_id: memberId, member_name: name, choice: "keep" as const, partner_id: null, partner_name: null, agreed: false, updated_at: null };
+    }) };
+  }
+
+  app.openapi(partnerChoices.list, async (c) => {
+    const { id } = c.req.valid("param");
+    return c.json(await run(c, { competitionId: id }, (s) => {
+      const { lineup } = choosing(s, id);
+      const credential = s.auth.credential;
+      const rows = credential.type === "session" ? visibleTo(credential.memberId, choicesOf(s), lineup) : choicesOf(s);
+      return { data: rows.map((r) => toPartnerChoice(r, lineup)) };
+    }, withChoices(id)), 200);
+  });
+  app.openapi(partnerChoices.set, async (c) => {
+    const { id, member_id } = c.req.valid("param");
+    const body = c.req.valid("json");
+    return c.json(await run(c, { competitionId: id }, (s) => {
+      const { competition, lineup } = choosing(s, id);
+      const credential = s.auth.credential;
+      if (credential.type === "session" && credential.memberId !== member_id) throw problems.notYourEntry();
+      checkChoosing(competition);
+      const changes = decidePartnerChoice({ competition, entries: lineup, choices: choicesOf(s), memberId: member_id,
+        wanted: { choice: body.choice, partnerId: body.partner_id ?? null }, now: s.now });
+      return apply(s, id, member_id, changes, lineup);
+    }, withChoices(id)), 200);
+  });
+  app.openapi(partnerChoices.decline, async (c) => {
+    const { id, member_id } = c.req.valid("param");
+    return c.json(await run(c, { competitionId: id }, (s) => {
+      const { competition, lineup } = choosing(s, id);
+      checkChoosing(competition);
+      const credential = s.auth.credential;
+      const changes = declinePartner({ competition, choices: choicesOf(s), askerId: member_id,
+        by: credential.type === "session" ? credential.memberId : null, now: s.now });
+      return apply(s, id, member_id, changes, lineup);
+    }, withChoices(id)), 200);
+  });
 }

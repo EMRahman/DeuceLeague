@@ -60,10 +60,12 @@ permissions do not include D1. See
 before anything is created, and then takes the club details. Initialization
 registers the club, the administrator key and the scoped website key together.
 
-The optional sample league adds a club in mid-season: 22 fictional players, an
-active season with 30 days to its deadline, singles and doubles in five
-divisions, 50 matches in every state, two opt-outs, two newcomers, and two
-court locations marked "(sample)". Its results are made by the same decision
+The optional sample league adds a club near the end of its season: 22 fictional
+players, an active season with 30 days to its deadline, singles and doubles in
+five divisions, 50 matches (all but five played, each of the rest in a
+different division), two opt-outs, two newcomers, doubles players' choices for
+next season (an agreed new pair, one not playing, one waiting for an answer),
+and two court locations marked "(sample)". Its results are made by the same decision
 code a player's report goes through. Sample Alex and Sample Bailey's match
 against each other is open, for a trial to report and agree.
 

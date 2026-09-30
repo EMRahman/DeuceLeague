@@ -16,7 +16,8 @@ import {
   type Entry,
   type Weather,
 } from "@deuceleague/website";
-import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry } from "./season.js";
+import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry,
+  type PartnerChoice } from "./season.js";
 import { Draft, EndSeason, SeasonPage, type NextForm } from "./season-views.js";
 import {
   Activity,
@@ -777,8 +778,10 @@ export function createCoachSite(options: CoachOptions) {
       api<Standings>("GET", `/v1/competitions/${previousId}/standings`, who.key),
       all<ActiveMember>("/v1/members?status=active", who.key),
     ]);
+    const choices = draft.discipline === "doubles"
+      ? (await api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${previousId}/partner-choices`, who.key)).data : [];
     const view = draftView({ divisions: divisions.data, entries: entries.data },
-      { competition: previous, entries: lastEntries.data, standings }, members);
+      { competition: previous, entries: lastEntries.data, standings }, members, choices);
     return c.html(<Draft frame={seasonFrame(who)} season={season} draft={draft} previous={previous} view={view}
       empty={divisions.data.length === 0 && entries.data.length === 0} />);
   });

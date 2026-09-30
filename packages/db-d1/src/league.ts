@@ -152,6 +152,20 @@ export function leagueStatements(db: D1Database, clubId: string, changes: League
       case "deleteEntry": writes.push(db.prepare("DELETE FROM entry WHERE id = ? AND club_id = ?").bind(change.id, clubId)); break;
       case "deleteFixtures": writes.push(db.prepare(`DELETE FROM match WHERE id IN (SELECT value FROM json_each(?)) AND status = 'open'
         AND NOT EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = match.id)`).bind(JSON.stringify(change.ids))); break;
+      case "partnerChoices": {
+        // One statement however many change together: agreeing to a pair changes two.
+        const records = change.records.map((r) => ({ ...r, confirmedAt: r.confirmedAt?.getTime() ?? null,
+          createdAt: r.createdAt.getTime(), updatedAt: r.updatedAt.getTime() }));
+        writes.push(db.prepare(`INSERT INTO partner_choice (club_id, competition_id, member_id, choice, partner_id, confirmed_at, created_at, updated_at)
+          SELECT ?, json_extract(value, '$.competitionId'), json_extract(value, '$.memberId'), json_extract(value, '$.choice'),
+            json_extract(value, '$.partnerId'), json_extract(value, '$.confirmedAt'), json_extract(value, '$.createdAt'), json_extract(value, '$.updatedAt')
+          FROM json_each(?) WHERE true
+          ON CONFLICT (competition_id, member_id) DO UPDATE SET choice = excluded.choice, partner_id = excluded.partner_id,
+            confirmed_at = excluded.confirmed_at, updated_at = excluded.updated_at`).bind(clubId, JSON.stringify(records)));
+        break;
+      }
+      case "deletePartnerChoice": writes.push(db.prepare("DELETE FROM partner_choice WHERE competition_id = ? AND member_id = ? AND club_id = ?")
+        .bind(change.competitionId, change.memberId, clubId)); break;
       case "fixtures": {
         // Two bulk statements regardless of division size: no per-fixture query or placeholder growth.
         const fixtures = change.fixtures.map((f) => ({ ...f, side0Id: uuidv7(), side1Id: uuidv7() }));

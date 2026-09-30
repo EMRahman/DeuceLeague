@@ -1072,13 +1072,34 @@ export const CompetitionTables: FC<TablesProps> = ({
   </>
 );
 
-export const CompetitionPage: FC<{ frame: Frame } & TablesProps> = ({ frame, ...tables }) => {
+/** A doubles player's say about next season, as the partner-choices route gives it. */
+export type PartnerChoice = {
+  member_id: string;
+  member_name: string | null;
+  choice: "keep" | "leaving" | "new_partner";
+  partner_id: string | null;
+  partner_name: string | null;
+  agreed: boolean;
+};
+
+/** What a doubles player sees of next season: their choice, their partner's, who is asking them, and whom they could ask. */
+export type NextSeason = {
+  partner: { id: string; name: string } | null;
+  mine: PartnerChoice | null;
+  partners: PartnerChoice | null;
+  asking: PartnerChoice[];
+  players: { id: string; name: string }[];
+};
+
+export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & TablesProps> = ({ frame, next, ...tables }) => {
   const { competition, past, mine } = tables;
   return (
     <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
       <CompetitionTables {...tables} />
 
-      {mine && competition.state === "active" && (
+      {mine && next && !mine.optedOut && competition.state === "active" && <Partners competitionId={competition.id} next={next} />}
+
+      {mine && !(next && !mine.optedOut) && competition.state === "active" && (
         <section>
           <h2>Next season</h2>
           {mine.optedOut ? (
@@ -1102,6 +1123,98 @@ export const CompetitionPage: FC<{ frame: Frame } & TablesProps> = ({ frame, ...
         </section>
       )}
     </Layout>
+  );
+};
+
+/** Where a doubles player stands for next season, in a sentence. */
+function standing(next: NextSeason): string {
+  const { mine, partner } = next;
+  const with_ = partner?.name ?? "your partner";
+  if (!mine) return `You are down to play with ${with_} again.`;
+  if (mine.choice === "leaving") return "You have told the coach you are not playing next season.";
+  if (!mine.partner_id) return "You want a new partner. The coach will find you one, or ask someone below.";
+  return mine.agreed
+    ? `${mine.partner_name} has agreed: you will be a pair next season, once the coach places you.`
+    : `You have asked ${mine.partner_name}. Waiting for them to agree.`;
+}
+
+/** What the partner has said, if it changes things for the player. */
+function partnersSay(next: NextSeason): string | null {
+  const theirs = next.partners;
+  const name = next.partner?.name;
+  if (!theirs || !name || next.mine) return null;
+  if (theirs.choice === "leaving") return `${name} is not playing next season. Ask someone else, or leave it to the coach.`;
+  return theirs.agreed
+    ? `${name} is pairing with ${theirs.partner_name} next season. Ask someone else, or leave it to the coach.`
+    : `${name} has asked for a new partner. Ask someone else, or leave it to the coach.`;
+}
+
+const Partners: FC<{ competitionId: string; next: NextSeason }> = ({ competitionId, next }) => {
+  const choice = next.mine?.choice ?? "keep";
+  const heads = partnersSay(next);
+  return (
+    <section>
+      <h2>Next season</h2>
+      <p>{standing(next)}</p>
+      {heads && <p class="deadline">{heads}</p>}
+      {next.asking.map((a) => (
+        <div class="card">
+          <p>
+            <strong>{a.member_name}</strong> has asked you to be their partner next season.
+            {next.partner && ` Agreeing ends your pair with ${next.partner.name}.`}
+          </p>
+          <div class="answer-row">
+            <form method="post" action={`/competitions/${competitionId}/partner`}>
+              <input type="hidden" name="choice" value="new_partner" />
+              <input type="hidden" name="partner_id" value={a.member_id} />
+              <button class="small" type="submit">
+                Agree
+              </button>
+            </form>
+            <form method="post" action={`/competitions/${competitionId}/partner/${a.member_id}/decline`}>
+              <button class="quiet small" type="submit">
+                No thanks
+              </button>
+            </form>
+          </div>
+        </div>
+      ))}
+      <form method="post" action={`/competitions/${competitionId}/partner`} class="card">
+        <fieldset>
+          <legend>Next season I want to</legend>
+          <div class="choices">
+            <label>
+              <input type="radio" name="choice" value="keep" checked={choice === "keep"} />
+              Play with {next.partner?.name ?? "my partner"} again
+            </label>
+            <label>
+              <input type="radio" name="choice" value="new_partner" checked={choice === "new_partner"} />
+              Play with a new partner
+            </label>
+            <label>
+              <input type="radio" name="choice" value="leaving" checked={choice === "leaving"} />
+              Not play next season
+            </label>
+          </div>
+        </fieldset>
+        <div class="field">
+          <label for="partner_id">New partner</label>
+          <select id="partner_id" name="partner_id">
+            <option value="">Let the coach find me someone</option>
+            {next.players.map((p) => (
+              <option value={p.id} selected={next.mine?.partner_id === p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <p class="hint">
+            Players in this league. They have to agree; anyone else, the coach can pair you with.
+          </p>
+        </div>
+        <button type="submit">Save</button>
+      </form>
+      <p class="muted">Your matches this season count either way.</p>
+    </section>
   );
 };
 

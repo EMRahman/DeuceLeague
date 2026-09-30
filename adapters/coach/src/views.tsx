@@ -703,6 +703,16 @@ function sentence(e: FeedEvent): string {
       return `${subject} opted out of next season`;
     case "entry.opt_out.cleared":
       return `${subject} opted back in to next season`;
+    case "partner_choice.recorded":
+      if (e.payload.choice === "leaving") return `${subject} is not playing doubles next season`;
+      if (e.payload.agreed) return `${subject} agreed a new doubles partner for next season`;
+      return e.payload.partner_id
+        ? `${subject} asked someone to be their doubles partner next season`
+        : `${subject} is looking for a new doubles partner for next season`;
+    case "partner_choice.cleared":
+      return `${subject} is keeping their doubles partner next season`;
+    case "partner_choice.declined":
+      return `${actor} said no to partnering ${subject} next season`;
     case "division.fixtures_generated":
       return `${actor} drew up the fixtures for ${subject}`;
     case "competition.placements_filled":

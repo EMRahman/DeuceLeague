@@ -370,11 +370,20 @@ test("the coach ends the sample season early and starts the next from its final 
     { member: id("Gray"), previous_entry_id: gray.id, division_id: divisions[0]!.id })).status, 303);
   assert.equal((await entries(singles.id)).find((e) => e.label === "Sample Gray")!.placement_reason, "returning");
 
-  // The doubles draft: anyone without a pair can be paired.
+  // The doubles draft, with what players said about next season's partners: a pair breaking up is
+  // left out saying why, an agreed pair waits to be placed, and anyone without a pair can be paired.
   const pairs = await coach.get(`/coach/season/drafts/${doubles.id}`);
-  assert.match(pairs.html, /Players without a pair/); assert.match(pairs.html, /Sample Val<\/span>|Sample Val\s*<br/);
-  assert.match(pairs.html, /Not in doubles last season/);
+  const said = pairs.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  assert.match(said, /Sample Gray \/ Sample Harper Sample Harper is playing with Sample Parker/);
+  assert.match(said, /Sample Sage \/ Sample Taylor Sample Taylor is not playing next season/);
+  assert.match(said, /New pairs waiting .* Sample Harper \/ Sample Parker Add to/);
+  assert.match(said, /Players without a pair .* Sample Indy Asked Sample Bailey, who has not agreed yet/);
+  assert.match(said, /Sample Val Not in doubles last season/);
+  assert.match(said, /Not playing next season Sample Taylor/);
   const doublesDivisions = (await f.api(`/v1/competitions/${doubles.id}/divisions`, f.admin)).body.data as { id: string }[];
+  assert.equal((await coach.post(`/coach/season/drafts/${doubles.id}/entries`,
+    { member: id("Harper"), partner: id("Parker"), division_id: doublesDivisions[0]!.id })).status, 303);
+  assert.doesNotMatch((await coach.get(`/coach/season/drafts/${doubles.id}`)).html, /New pairs waiting/);
   assert.equal((await coach.post(`/coach/season/drafts/${doubles.id}/entries`,
     { member: id("Umi"), partner: id("Val"), division_id: doublesDivisions[1]!.id })).status, 303);
   assert.ok((await entries(doubles.id)).some((e) => e.label === "Sample Umi / Sample Val"));

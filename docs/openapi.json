@@ -3779,6 +3779,103 @@
           }
         }
       },
+      "PartnerChoiceList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartnerChoice"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
+      "PartnerChoice": {
+        "type": "object",
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "member_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Their display name."
+          },
+          "choice": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "leaving",
+              "new_partner"
+            ],
+            "description": "`keep`: the same partner next season, which is what nobody saying anything means. `leaving`: not playing next season. `new_partner`: a new partner, the one named, or one the coach finds."
+          },
+          "partner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Who they asked, if anyone."
+          },
+          "partner_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "agreed": {
+            "type": "boolean",
+            "description": "The partner named them back: a new pair, waiting for the coach to place it next season."
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "member_id",
+          "member_name",
+          "choice",
+          "partner_id",
+          "partner_name",
+          "agreed",
+          "updated_at"
+        ]
+      },
+      "PartnerChoiceChanges": {
+        "type": "object",
+        "properties": {
+          "choice": {
+            "type": "string",
+            "enum": [
+              "keep",
+              "leaving",
+              "new_partner"
+            ]
+          },
+          "partner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "With `new_partner`: a player in this competition to ask. Leave it out for the coach to find one. Naming someone who has already named you agrees to it."
+          }
+        },
+        "required": [
+          "choice"
+        ]
+      },
       "Standings": {
         "type": "object",
         "properties": {
@@ -4500,7 +4597,7 @@
                 "explanation"
               ]
             },
-            "description": "Entries left out: opted out of this competition, withdrawn last time, short of the previous competition's minimum number of matches, or with a member since removed from the club."
+            "description": "Entries left out: opted out of this competition, a doubles pair breaking up (a player not playing, or wanting a new partner: see partner choices), withdrawn last time, short of the previous competition's minimum number of matches, or with a member since removed from the club."
           }
         },
         "required": [
@@ -8997,6 +9094,291 @@
         }
       }
     },
+    "/v1/competitions/{id}/partner-choices": {
+      "get": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "What a doubles competition's players want next season",
+        "description": "Every player who is not keeping their partner: not playing, or wanting a new partner, named or not, and whether the one named has agreed. Filling next season's draft leaves out every pair with a player here, saying why; an agreed pair waits for the coach to place it. A player's session sees their own choice, anyone asking them, and their partner's.",
+        "security": [
+          {
+            "apiKey": [
+              "league:read"
+            ]
+          },
+          {
+            "session": [
+              "league:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The choices, by player.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerChoiceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/competitions/{id}/partner-choices/{member_id}": {
+      "put": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Say what a doubles player wants next season",
+        "description": "While the competition is under way. A player's session speaks only for its own player; a key needs `league:write`, for a player who told the coach in person. The partner named must be playing in the same competition. Naming someone who has named you back agrees: both are marked agreed. Changing an agreed choice leaves the other player looking for a partner, since they have still left theirs. Not playing says no to anyone waiting for an answer. Returns every choice the change touched.",
+        "security": [
+          {
+            "apiKey": [
+              "league:write"
+            ]
+          },
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The player whose choice it is."
+            },
+            "required": true,
+            "description": "The player whose choice it is.",
+            "name": "member_id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerChoiceChanges"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The choices as they are now, for the players it changed, the player first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerChoiceList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`not_doubles`, or `choices_closed` once the competition is no longer under way.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/competitions/{id}/partner-choices/{member_id}/decline": {
+      "post": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "Say no to partnering a player next season",
+        "description": "By the player they asked, or a key with `league:write`. The asker is left looking for a partner, for the coach to find or for them to ask someone else. Saying no to an agreed pair leaves both looking.",
+        "security": [
+          {
+            "apiKey": [
+              "league:write"
+            ]
+          },
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The player whose choice it is."
+            },
+            "required": true,
+            "description": "The player whose choice it is.",
+            "name": "member_id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The choices as they are now, for the players it changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerChoiceList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`not_doubles`, or `choices_closed` once the competition is no longer under way.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/competitions/{id}/standings": {
       "get": {
         "tags": [
@@ -9409,7 +9791,7 @@
           "Entries"
         ],
         "summary": "Fill a draft competition from the previous one's tables",
-        "description": "For a draft competition that names its previous competition and has no entries yet. Every entry that finished last time is entered again, each with its reason and a sentence saying why: by default the top three of each division promoted, the bottom three relegated and the rest held — this draft's own rules set the counts, so changing them changes the suggestion. Anyone who opted out of the next competition is left out, and takes nobody's place with them; so, once the previous competition's tables are final, is anyone who played fewer matches than its `minMatchesToPlay`, or all their fixtures if fewer. A draft with no divisions gets a copy of the previous ones. The coach then adjusts the draft with the entry routes and submits it by activating the competition. Nothing is in effect until then: the engine suggests, and the coach decides.",
+        "description": "For a draft competition that names its previous competition and has no entries yet. Every entry that finished last time is entered again, each with its reason and a sentence saying why: by default the top three of each division promoted, the bottom three relegated and the rest held — this draft's own rules set the counts, so changing them changes the suggestion. Anyone who opted out of the next competition is left out, and takes nobody's place with them, as is a doubles pair with a player not playing next season or wanting a new partner; so, once the previous competition's tables are final, is anyone who played fewer matches than its `minMatchesToPlay`, or all their fixtures if fewer. A draft with no divisions gets a copy of the previous ones. The coach then adjusts the draft with the entry routes and submits it by activating the competition. Nothing is in effect until then: the engine suggests, and the coach decides.",
         "security": [
           {
             "apiKey": [

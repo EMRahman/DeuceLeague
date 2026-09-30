@@ -18,6 +18,10 @@ export type DraftEntry = Entry & {
 
 export type ActiveMember = { id: string; display_name: string; level: number | null };
 
+/** A doubles player's say about next season, as the partner-choices route gives it. */
+export type PartnerChoice = { member_id: string; choice: "leaving" | "new_partner"; partner_id: string | null;
+  partner_name: string | null; agreed: boolean };
+
 /** Where the club is in the turn of a season. */
 export type Turnover = {
   /** Seasons under way, each of which can be ended, with any competition of theirs not yet started. */
@@ -101,6 +105,10 @@ export type LeftOut = {
 export type Unplaced = ActiveMember & {
   /** Their entry last time, if any, and why it did not carry over. */
   last: LeftOut | null;
+  /** What they said about next season's partner, in a few words, if anything. */
+  said: string | null;
+  /** They said they are not playing next season. */
+  out: boolean;
 };
 
 export type DraftView = {
@@ -108,6 +116,8 @@ export type DraftView = {
   leftOut: LeftOut[];
   /** Everyone in the club not in the draft: those left out, then those new to the competition, strongest first. */
   unplaced: Unplaced[];
+  /** Doubles: two players who agreed to pair up, neither in the draft yet. */
+  pairs: [Unplaced, Unplaced][];
 };
 
 /**
@@ -118,12 +128,21 @@ export function draftView(
   draft: { divisions: Division[]; entries: DraftEntry[] },
   previous: { competition: CoachCompetition; entries: Entry[]; standings: Standings },
   members: ActiveMember[],
+  /** Doubles: what last season's players said about their partners. */
+  choices: PartnerChoice[] = [],
 ): DraftView {
   const rows = new Map(previous.standings.divisions.flatMap((d) => d.rows.map((r) => [r.entry_id, { division: d, row: r }])));
   const drafted = new Set(draft.entries.flatMap((e) => e.members.map((m) => m.id)));
   const followed = new Set(draft.entries.map((e) => e.previous_entry_id));
   const inClub = new Map(members.map((m) => [m.id, m]));
   const minimum = previous.competition.rules.minMatchesToPlay;
+  const saidBy = new Map(choices.map((c) => [c.member_id, c]));
+  /** Why a pair is breaking up, as the API's fill says it. */
+  const breaking = (entry: Entry) => entry.members.flatMap((m) => {
+    const c = saidBy.get(m.id);
+    return !c ? [] : c.choice === "leaving" ? [`${m.display_name} is not playing next season`]
+      : c.agreed ? [`${m.display_name} is playing with ${c.partner_name}`] : [`${m.display_name} asked for a new partner`];
+  }).join(" and ");
 
   const fromOf = (entryId: string | null): From | null => {
     const place = entryId ? rows.get(entryId) : undefined;
@@ -137,8 +156,10 @@ export function draftView(
     const row = place?.row;
     const fixtures = row ? row.matches.length + row.outstanding : 0;
     const needed = Math.min(minimum, fixtures);
+    const broke = breaking(entry);
     const why = gone.length > 0 ? `${gone.map((m) => m.display_name).join(" and ")} ${gone.length === 1 ? "is" : "are"} no longer on the club's list`
       : entry.opted_out_at ? "Opted out of next season"
+      : broke ? broke
       : entry.state === "withdrawn" ? "Withdrew last season"
       : row && row.played < needed ? `Played ${row.played} of the ${needed} ${needed === 1 ? "match" : "matches"} needed to keep a place`
       : "Taken out of the draft";
@@ -148,9 +169,25 @@ export function draftView(
   leftOut.sort((a, b) => tableOrder(a.from, b.from));
 
   const lastOf = new Map(leftOut.flatMap((l) => l.entry.members.map((m) => [m.id, l])));
-  const unplaced = members.filter((m) => !drafted.has(m.id)).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null }))
+  const said = (m: ActiveMember): Pick<Unplaced, "said" | "out"> => {
+    const c = saidBy.get(m.id);
+    const optedOut = lastOf.get(m.id)?.entry.opted_out_at;
+    if (c?.choice === "leaving" || (!c && optedOut)) return { said: "Not playing next season", out: true };
+    if (!c) return { said: null, out: false };
+    if (!c.partner_id) return { said: "Wants a new partner", out: false };
+    return { said: c.agreed ? `Agreed to play with ${c.partner_name}` : `Asked ${c.partner_name}, who has not agreed yet`, out: false };
+  };
+  const unplaced = members.filter((m) => !drafted.has(m.id)).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
     .sort((a, b) => Number(!!b.last) - Number(!!a.last) || (a.level ?? 11) - (b.level ?? 11)
       || a.display_name.localeCompare(b.display_name));
+  const free = new Map(unplaced.map((u) => [u.id, u]));
+  const pairs: [Unplaced, Unplaced][] = [];
+  for (const c of choices) {
+    const [a, b] = [free.get(c.member_id), c.partner_id ? free.get(c.partner_id) : undefined];
+    // Each agreed pair once, named in alphabetical order.
+    const first = a && b && (a.display_name.localeCompare(b.display_name) || (a.id < b.id ? -1 : 1)) < 0;
+    if (c.agreed && first) pairs.push([a!, b!]);
+  }
 
   return {
     divisions: [...draft.divisions].sort((a, b) => a.ordinal - b.ordinal).map((division) => ({
@@ -161,5 +198,6 @@ export function draftView(
     })),
     leftOut,
     unplaced,
+    pairs,
   };
 }

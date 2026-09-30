@@ -210,6 +210,11 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
         AND id IN (SELECT entry_id FROM entry_member WHERE member_id = ? AND club_id = ?)`)
         .bind(state.now, clubId, id, clubId),
       db.prepare("UPDATE result_submission SET raw_input = NULL WHERE submitted_by_member_id = ? AND club_id = ?").bind(id, clubId),
+      // Who they would partner, and who asked them: a choice is only ever made in a competition they play in.
+      db.prepare(`DELETE FROM partner_choice WHERE member_id = ? AND club_id = ?
+        AND competition_id IN (SELECT competition_id FROM entry_member WHERE member_id = ?)`).bind(id, clubId, id),
+      db.prepare(`UPDATE partner_choice SET partner_id = NULL, confirmed_at = NULL, updated_at = ? WHERE partner_id = ? AND club_id = ?`)
+        .bind(state.now, id, clubId),
     );
     writes.push(db.prepare("DELETE FROM access_grant WHERE member_id = ? AND club_id = ?").bind(id, clubId),
       audit(db, state, mutation.type === "erase" ? "member.erased" : "member.removed", "member", id));

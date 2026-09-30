@@ -36,10 +36,10 @@ export function tooFewToStay(competition: LeagueCompetitionRecord, entries: Entr
 /** Shared placement/exclusion decision; persistence happens only after the complete plan exists. */
 export function placementSelections(target: LeagueCompetitionRecord, tables: { divisions: DivisionTable[] },
   divisions: DivisionRecord[], previousEntries: EntryRecord[], removed: ReadonlySet<string>,
-  short: ReadonlyMap<string, { played: number; target: number }>) {
+  short: ReadonlyMap<string, { played: number; target: number }>, breakingUp: ReadonlyMap<string, string> = new Map()) {
   const suggestions = suggestPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
     RulesSpec.parse(target.rules).movement, divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
-    new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)), short);
+    new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)), short, breakingUp);
   const before = new Map(previousEntries.map((e) => [e.id, e]));
   const selected: { source: EntryRecord; division: DivisionRecord; reason: "promoted" | "relegated" | "held";
     label: string; from: { division: number; position: number | null }; explanation: string }[] = [];

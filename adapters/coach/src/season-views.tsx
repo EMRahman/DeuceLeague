@@ -368,31 +368,60 @@ export const Draft: FC<{
         </>
       )}
 
-      {!empty && doubles && <Pairing draft={draft.id} unplaced={view.unplaced} divisions={divisions} bottom={bottom} />}
+      {!empty && doubles && <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} />}
     </Layout>
   );
 };
 
-/** Why someone has no pair in the draft, in a few words. */
-const note = (u: Unplaced) => (u.last ? `${u.last.entry.label}: ${u.last.why.toLowerCase()}` : "Not in doubles last season");
+/** Why someone has no pair in the draft, in a few words: what they said, else what became of their pair. */
+const note = (u: Unplaced) =>
+  u.said ?? (u.last ? `Was in ${u.last.entry.label} · ${u.last.why}` : "Not in doubles last season");
 
-const Pairing: FC<{ draft: string; unplaced: Unplaced[]; divisions: Division[]; bottom: number }> = ({
+const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number }> = ({
   draft,
-  unplaced,
+  view,
   divisions,
   bottom,
-}) => (
-  <>
-    <h2>Players without a pair</h2>
-    {unplaced.length < 2 ? (
-      <p class="muted">
-        {unplaced.length === 0 ? "Everyone in the club is in a pair." : `Only ${unplaced[0]!.display_name} is left.`}
-      </p>
-    ) : (
-      <>
+}) => {
+  const paired = new Set(view.pairs.flat().map((u) => u.id));
+  const free = view.unplaced.filter((u) => !u.out && !paired.has(u.id));
+  const out = view.unplaced.filter((u) => u.out);
+  const choosable = view.unplaced.filter((u) => !u.out);
+  return (
+    <>
+      {view.pairs.length > 0 && (
+        <>
+          <h2>New pairs waiting</h2>
+          <p class="muted">Players who asked each other to be partners next season, and both agreed.</p>
+          <div class="card">
+            <ul class="list">
+              {view.pairs.map(([a, b]) => (
+                <li class="answer">
+                  {a.display_name} / {b.display_name}
+                  <form class="level" method="post" action={`/coach/season/drafts/${draft}/entries`}>
+                    <input type="hidden" name="member" value={a.id} />
+                    <input type="hidden" name="partner" value={b.id} />
+                    <label class="muted" for={`pair-${a.id}`}>
+                      Add to
+                    </label>
+                    <DivisionSelect id={`pair-${a.id}`} divisions={divisions} selected={bottom} />
+                    <button class="quiet small" type="submit">
+                      Add
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      )}
+      <h2>Players without a pair</h2>
+      {free.length === 0 ? (
+        <p class="muted">Nobody is waiting for a partner.</p>
+      ) : (
         <div class="card">
           <ul class="list">
-            {unplaced.map((u) => (
+            {free.map((u) => (
               <li class="answer">
                 {u.display_name}
                 <Level level={u.level} />
@@ -402,16 +431,18 @@ const Pairing: FC<{ draft: string; unplaced: Unplaced[]; divisions: Division[]; 
             ))}
           </ul>
         </div>
+      )}
+      {choosable.length >= 2 && (
         <div class="card">
           <h2>Make a pair</h2>
           <form method="post" action={`/coach/season/drafts/${draft}/entries`}>
             <div class="field">
               <label for="member">Player</label>
-              <PlayerSelect id="member" name="member" players={unplaced} />
+              <PlayerSelect id="member" name="member" players={choosable} />
             </div>
             <div class="field">
               <label for="partner">Partner</label>
-              <PlayerSelect id="partner" name="partner" players={unplaced} />
+              <PlayerSelect id="partner" name="partner" players={choosable} />
             </div>
             <div class="field">
               <label for="pair-division">Division</label>
@@ -420,10 +451,16 @@ const Pairing: FC<{ draft: string; unplaced: Unplaced[]; divisions: Division[]; 
             <button type="submit">Add the pair</button>
           </form>
         </div>
-      </>
-    )}
-  </>
-);
+      )}
+      {out.length > 0 && (
+        <>
+          <h2>Not playing next season</h2>
+          <p class="muted">{out.map((u) => u.display_name).join(", ")}</p>
+        </>
+      )}
+    </>
+  );
+};
 
 const PlayerSelect: FC<{ id: string; name: string; players: Unplaced[] }> = ({ id, name, players }) => (
   <select id={id} name={name} required>
