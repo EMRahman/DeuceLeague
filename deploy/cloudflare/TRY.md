@@ -1,14 +1,16 @@
 # Try DeuceLeague
 
 See a real league working in about fifteen minutes, all in your browser. You
-deploy DeuceLeague to your own Cloudflare account with a sample club in
-mid-season, then play it as the coach and as two of its players.
+deploy DeuceLeague to your own Cloudflare account with a sample club near the
+end of its season, play it as the coach and as two of its players, then end
+the season and start the next.
 
 ![The players' website on a phone: the home page with scores to agree, a division table, and reporting a match.](../../docs/images/product-preview.png)
 
 **What you get:** a club with 22 fictional players, singles and doubles in five
-divisions, 50 matches (most played, a few disputed or waiting for agreement),
-tables with promotion and relegation, and a 14-day forecast for two courts.
+divisions, 50 matches (all but five played; the rest open, disputed or waiting
+for agreement), tables with promotion and relegation, and a 14-day forecast for
+two courts.
 
 **What you need:** a free Cloudflare account, a GitHub or GitLab account, and a
 password manager. No email service, no server, and no cost on
@@ -79,8 +81,8 @@ the exact address, and commit. Wait for the build to finish again.
 
 1. Open `/coach` and sign in with the administrator key. The dashboard shows
    how far through the sample season each competition is.
-2. Look at **Results**, with the sample's two disputes and three scores
-   waiting on the other side, at **Tables**, which shows the tables and the
+2. Look at **Results**, with the sample's two disputes and a score waiting on
+   the other side, at **Tables**, which shows the tables and the
    forecast as players see them, and at **Activity** and the **Chase list**.
 3. On **Members**, press **Sign-in link** for **Sample Alex**. With a real
    player you would send this link on WhatsApp; here, open it in this window
@@ -101,6 +103,22 @@ A link works once, within 72 hours.
 
 That's the league: players report and agree, the tables follow, and the coach
 hands out links.
+
+## 6. End the season and start the next
+
+1. **As the coach,** open **Season** and press **End season now**. It says
+   what ending early does: the matches without an agreed result count as
+   unplayed, and the tables become final. End it.
+2. Press **Start next season**. Its competitions are made again as drafts,
+   filled from the final tables: the top two of each division promoted, the
+   bottom two relegated, the rest held. Sample Gray and Sample Morgan opted
+   out, so they are left out; so is anyone who played fewer than the 4 matches
+   expected, such as Sample Casey, with a line saying so.
+3. Open the singles draft. Move anyone, take them out, add back anyone left
+   out, and add **Sample Umi** and **Sample Val**, who played no singles last
+   season. In the doubles draft, make them a pair.
+4. Press **Start Sample season 2**. Every division gets its matches, and the
+   players see the new tables.
 
 ## Next
 

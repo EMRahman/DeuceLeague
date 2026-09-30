@@ -13,8 +13,11 @@ import {
   type Page,
   type Season,
   type Standings,
+  type Entry,
   type Weather,
 } from "@deuceleague/website";
+import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry } from "./season.js";
+import { Draft, EndSeason, SeasonPage, type NextForm } from "./season-views.js";
 import {
   Activity,
   Chase,
@@ -85,6 +88,12 @@ const ACTIVITY_MORE = 50;
 const JOIN_PAGE = 25;
 
 type Waiting = { requests: JoinRequest[]; more: boolean };
+
+/**
+ * How many API calls one of the Season tab's forms makes in one request. Each
+ * costs about three D1 queries, and Workers Free allows 50 a request.
+ */
+const CALLS_PER_REQUEST = 8;
 
 /** The chase list's filters: every competition, or those whose deadline is this close. */
 const WITHIN = [30, 14, 7];
@@ -606,6 +615,253 @@ export function createCoachSite(options: CoachOptions) {
         404,
       );
     }
+  });
+
+  // ─────────────────────────────────────────── the turn of a season ──
+  // Each action is a few API calls, each checked and whole on its own. Every
+  // step looks at where things are first, so sending a form again after a
+  // failure part-way finishes the job rather than doing any of it twice.
+  //
+  // A club with many competitions needs more calls than one request may
+  // make, so a form does a few and then sends the browser back to send it
+  // again (a 307 keeps the form), carrying on from where it got to.
+
+  /**
+   * Starts a request's allowance: take(n) is false once n more calls would go over it. The
+   * first calls are always allowed, however many, so every request gets something done.
+   */
+  function allowance() {
+    let left = CALLS_PER_REQUEST;
+    return (n = 1) => {
+      if (n > left && left < CALLS_PER_REQUEST) return false;
+      left -= n;
+      return true;
+    };
+  }
+  const again = (c: Context) => c.redirect(new URL(c.req.url).pathname, 307);
+
+  const seasonFrame = (who: Coach) => frameOf(who, "season");
+  const backToSeason = { href: "/coach/season", label: "Back to Season" };
+
+  async function seasonPage(c: Context, who: Coach, sent: NextForm | null = null, message: string | null = null) {
+    const [seasons, competitions] = await Promise.all([
+      all<Season>("/v1/seasons", who.key),
+      all<CoachCompetition>("/v1/competitions", who.key),
+    ]);
+    const now = turnover(seasons, competitions);
+    const progress = new Map<string, SeasonProgress>();
+    for (const { season } of now.running) {
+      progress.set(season.id, await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key));
+    }
+    const next = sent ?? (now.ended ? { from: now.ended.season.id, name: nextName(now.ended.season.name),
+      ...nextDates(now.ended.season, today(who.club.timezone)) } : null);
+    return c.html(<SeasonPage frame={seasonFrame(who)} turnover={now} progress={progress} next={next} message={message}
+      timezone={who.club.timezone} />, message ? 400 : 200);
+  }
+
+  app.get("/season", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    return seasonPage(c, who);
+  });
+
+  /** A season by the id in the address, or null if there is none. */
+  async function seasonOf(key: string, id: string): Promise<Season | null> {
+    return api<Season>("GET", `/v1/seasons/${encodeURIComponent(id)}`, key).catch((error: unknown) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+      throw error;
+    });
+  }
+
+  app.get("/season/:id/end", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const season = await seasonOf(who.key, c.req.param("id"));
+    if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
+    const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} />);
+  });
+
+  app.post("/season/:id/end", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const season = await seasonOf(who.key, c.req.param("id"));
+    if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
+    const take = allowance();
+    // Reporting closes first, so no score arrives while the competitions close.
+    if (season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now()) {
+      take();
+      await api("PATCH", `/v1/seasons/${season.id}`, who.key, { results_deadline_at: new Date().toISOString() });
+    }
+    for (const x of await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=active`, who.key)) {
+      if (!take()) return again(c);
+      await api("PATCH", `/v1/competitions/${x.id}`, who.key, { state: "complete" });
+    }
+    if (!take()) return again(c);
+    await api("PATCH", `/v1/seasons/${season.id}`, who.key, { state: "complete" });
+    return c.redirect("/coach/season", 303);
+  });
+
+  const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+  app.post("/season/next", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const form = await c.req.parseBody();
+    const sent: NextForm = { from: String(form.from ?? ""), name: String(form.name ?? "").trim(),
+      starts_on: String(form.starts_on ?? ""), ends_on: String(form.ends_on ?? "") };
+    if (!sent.name || sent.name.length > 100) return seasonPage(c, who, sent, "Give next season a name, up to 100 letters.");
+    if (!DATE.test(sent.starts_on) || !DATE.test(sent.ends_on) || sent.ends_on < sent.starts_on) {
+      return seasonPage(c, who, sent, "Give the season's first and last days, the last on or after the first.");
+    }
+    const [seasons, competitions] = await Promise.all([
+      all<Season>("/v1/seasons", who.key),
+      all<CoachCompetition>("/v1/competitions", who.key),
+    ]);
+    const { ended } = turnover(seasons, competitions);
+    // Already started from it, by this form sent twice or by the API.
+    if (!ended || ended.season.id !== sent.from) return c.redirect("/coach/season", 303);
+    const take = allowance();
+    // A season this form made before failing part-way is carried on with, not made again.
+    let season = seasons.find((s) => s.state === "planning" && s.name === sent.name);
+    if (!season) {
+      take();
+      try {
+        season = await api<Season>("POST", "/v1/seasons", who.key, { name: sent.name, starts_on: sent.starts_on,
+          ends_on: sent.ends_on, results_deadline_at: endOfDay(sent.ends_on, who.club.timezone) });
+      } catch (error) {
+        if (error instanceof ApiProblem && error.problem.status === 409) {
+          return seasonPage(c, who, sent, `There is already a season called ${sent.name}. Choose another name.`);
+        }
+        throw error;
+      }
+    }
+    for (const last of ended.competitions) {
+      // Made and filled in the same request, so a draft is never left waiting to be filled.
+      if (!take(2)) return again(c);
+      const draft = await api<CoachCompetition>("POST", "/v1/competitions", who.key, {
+        season_id: season.id, name: last.name, discipline: last.discipline, category: last.category,
+        match_format: last.match_format, rules: last.rules, sequence_in_season: last.sequence_in_season,
+        previous_competition_id: last.id, visibility: last.visibility,
+      });
+      await api("POST", `/v1/competitions/${draft.id}/placements`, who.key);
+    }
+    return c.redirect("/coach/season", 303);
+  });
+
+  /** A draft of next season's, with the competition it follows; null if it is not a draft any more. */
+  async function draftOf(key: string, id: string) {
+    const draft = await api<CoachCompetition>("GET", `/v1/competitions/${encodeURIComponent(id)}`, key).catch((error: unknown) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+      throw error;
+    });
+    return draft?.state === "draft" && draft.previous_competition_id ? draft : null;
+  }
+
+  const notADraft = (c: Context, who: Coach) => c.html(<Problem frame={seasonFrame(who)} title="Not a draft"
+    detail="That competition has started, or is not next season's. Players' places change only before they have played."
+    back={backToSeason} />, 404);
+
+  app.get("/season/drafts/:id", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const draft = await draftOf(who.key, c.req.param("id"));
+    if (!draft) return notADraft(c, who);
+    const previousId = draft.previous_competition_id!;
+    const [season, previous, divisions, entries, lastEntries, standings, members] = await Promise.all([
+      api<Season>("GET", `/v1/seasons/${draft.season_id}`, who.key),
+      api<CoachCompetition>("GET", `/v1/competitions/${previousId}`, who.key),
+      api<{ data: Division[] }>("GET", `/v1/competitions/${draft.id}/divisions`, who.key),
+      api<{ data: DraftEntry[] }>("GET", `/v1/competitions/${draft.id}/entries`, who.key),
+      api<{ data: Entry[] }>("GET", `/v1/competitions/${previousId}/entries`, who.key),
+      api<Standings>("GET", `/v1/competitions/${previousId}/standings`, who.key),
+      all<ActiveMember>("/v1/members?status=active", who.key),
+    ]);
+    const view = draftView({ divisions: divisions.data, entries: entries.data },
+      { competition: previous, entries: lastEntries.data, standings }, members);
+    return c.html(<Draft frame={seasonFrame(who)} season={season} draft={draft} previous={previous} view={view}
+      empty={divisions.data.length === 0 && entries.data.length === 0} />);
+  });
+
+  app.post("/season/drafts/:id/fill", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const draft = await draftOf(who.key, c.req.param("id"));
+    if (!draft) return notADraft(c, who);
+    await api("POST", `/v1/competitions/${draft.id}/placements`, who.key).catch((error: unknown) => {
+      // Filled already, by this form sent twice: what it wanted.
+      if (!(error instanceof ApiProblem) || error.problem.code !== "entries_exist") throw error;
+    });
+    return c.redirect(`/coach/season/drafts/${draft.id}`, 303);
+  });
+
+  /** A change to a draft the API refused, said so the coach can act on it. */
+  function refused(c: Context, who: Coach, draftId: string, error: unknown) {
+    if (!(error instanceof ApiProblem) || ![400, 404, 409].includes(error.problem.status)) throw error;
+    const back = { href: `/coach/season/drafts/${draftId}`, label: "Back to the draft" };
+    const detail = error.problem.code === "already_entered"
+      ? "One of them is already in this competition. Take them out of their place first."
+      : error.problem.status === 404 ? "That is not in the draft any more."
+      : error.problem.detail ?? error.problem.title;
+    return c.html(<Problem frame={seasonFrame(who)} title="Not changed" detail={detail} back={back} />, error.problem.status as 400);
+  }
+
+  app.post("/season/drafts/:id/entries", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const form = await c.req.parseBody();
+    const members = [form.member, form.partner].filter((m) => typeof m === "string" && m !== "") as string[];
+    const previous = typeof form.previous_entry_id === "string" && form.previous_entry_id ? form.previous_entry_id : null;
+    try {
+      await api("POST", `/v1/competitions/${encodeURIComponent(id)}/entries`, who.key, {
+        division_id: String(form.division_id ?? ""), member_ids: members,
+        placement_reason: previous ? "returning" : "new", previous_entry_id: previous,
+      });
+    } catch (error) {
+      return refused(c, who, id, error);
+    }
+    return c.redirect(`/coach/season/drafts/${id}`, 303);
+  });
+
+  for (const action of ["move", "remove"] as const) {
+    app.post(`/season/entries/:id/${action}`, async (c) => {
+      const who = await coach(c);
+      if (!who) return c.redirect("/coach", 303);
+      const id = encodeURIComponent(c.req.param("id"));
+      const form = await c.req.parseBody();
+      const draftId = String(form.draft ?? "");
+      if (!(await draftOf(who.key, draftId))) return notADraft(c, who);
+      try {
+        if (action === "move") await api("PATCH", `/v1/entries/${id}`, who.key, { division_id: String(form.division_id ?? "") });
+        else await api("DELETE", `/v1/entries/${id}`, who.key);
+      } catch (error) {
+        return refused(c, who, draftId, error);
+      }
+      return c.redirect(`/coach/season/drafts/${draftId}${action === "move" ? `#entry-${id}` : ""}`, 303);
+    });
+  }
+
+  app.post("/season/:id/start", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const season = await seasonOf(who.key, c.req.param("id"));
+    if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    const take = allowance();
+    // The season opens first, since only then can its competitions. Each draft then gets its
+    // matches and opens: once open it is done, so a form sent again carries on with the next.
+    if (season.state === "planning") {
+      take();
+      await api("PATCH", `/v1/seasons/${season.id}`, who.key, { state: "active" });
+    }
+    for (const draft of await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=draft`, who.key)) {
+      if (!take()) return again(c);
+      const { data } = await api<{ data: Division[] }>("GET", `/v1/competitions/${draft.id}/divisions`, who.key);
+      if (!take(data.length + 1)) return again(c);
+      for (const division of data) await api("POST", `/v1/divisions/${division.id}/fixtures`, who.key);
+      await api("PATCH", `/v1/competitions/${draft.id}`, who.key, { state: "active" });
+    }
+    return c.redirect("/coach", 303);
   });
 
   return app;

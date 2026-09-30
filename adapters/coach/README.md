@@ -4,10 +4,12 @@ What a club's coach uses, at `/coach`: sign in with an API key, see how far
 the season has got, sort out results the players have not agreed, see the
 tables and forecast as players do, see what happened lately, see who to chase,
 make a player's sign-in link to hand over, for example on WhatsApp, approve or
-decline people asking to join, and set each member's level.
+decline people asking to join, set each member's level, and end a season and
+start the next from its tables.
 Server-rendered HTML with no scripts, in the players' site's style. It reads
-the league and changes nothing in it but sign-in links, join requests and
-levels; the coach's coding agent makes other changes through the API.
+the league and changes nothing in it but sign-in links, join requests, levels
+and the turn of a season; the coach's coding agent makes other changes through
+the API.
 
 Like the [players' website](../website/README.md), it is an adapter. It
 reaches the league only through the HTTP API and holds nothing of its own.
@@ -70,6 +72,26 @@ MIT-licensed.
   which takes the name they play under and a level, and **Decline**. The
   dashboard says when anyone is waiting. See
   [new players joining](../../deploy/cloudflare/JOINING.md).
+- **Season** (`/coach/season`). The turn of a season, in four steps, each an
+  existing API route:
+  - **End season now**, after a page saying what ending early does: moves the
+    results deadline to now if it is later, completes each active
+    competition, then completes the season.
+  - **Start next season**, once one has ended: a planning season with the
+    coach's name and dates (results close at the end of the last day), each
+    ended competition made again as a draft naming it as previous, and each
+    draft filled from the final tables (`POST /v1/competitions/{id}/placements`).
+  - **A draft's page** (`/coach/season/drafts/{id}`): each division's entries
+    with why they are there and where they finished, to move or take out; last
+    season's entries not carried over, with why, to add back; and the members
+    not in the draft, to add, or in doubles to pair.
+  - **Start** the season: activates it, then draws each division's matches
+    (`POST /v1/divisions/{id}/fixtures`) and activates each draft.
+
+  Each step checks where things are first, so a form sent again finishes the
+  job rather than repeating it. A form makes at most eight API calls a request,
+  since Workers Free allows 50 D1 queries; with more to do, it answers 307 and
+  the browser sends it again.
 
 ## Running it
 

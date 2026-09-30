@@ -249,7 +249,7 @@ test("matches most recently changed first give the latest results, a page at a t
     if (!r.body.next_cursor) break; after = r.body.next_cursor;
   }
   assert.equal(all[0]!.id, open.id, "the result just settled comes first");
-  assert.equal(new Set(all.map((m) => m.id)).size, 34); assert.equal(all.length, 34);
+  assert.equal(new Set(all.map((m) => m.id)).size, 46); assert.equal(all.length, 46);
   const times = all.map((m) => Date.parse(m.updated_at));
   assert.deepEqual(times, [...times].sort((a, b) => b - a));
 });

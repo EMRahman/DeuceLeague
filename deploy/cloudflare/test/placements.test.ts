@@ -218,9 +218,8 @@ test("filling next season leaves out anyone short of the minimum, judged by the 
   const f = await websiteFixture(t, { sample: true });
   const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
   const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles");
-  // A minimum of 3 leaves the sample with players on both sides of it.
-  const own = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
-  assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { rules: { ...own, minMatchesToPlay: 3 } })).status, 200);
+  // The default minimum of 4 leaves the nearly finished sample with players on both sides of it.
+  assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules.minMatchesToPlay, 4);
   // Before the deadline, the arrows ignore the minimum: nearly everyone can still play enough.
   const arrows = async () => (await f.api(`/v1/competitions/${singles.id}/standings`, f.admin)).body.divisions
     .flatMap((d: { rows: { label: string; movement: string | null; played: number }[] }) => d.rows);
@@ -235,13 +234,16 @@ test("filling next season leaves out anyone short of the minimum, judged by the 
 
   assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { results_deadline_at: new Date(Date.now() - 60_000).toISOString() })).status, 200);
   const final = await arrows();
-  const short = final.filter((r: { played: number }) => r.played < 3).map((r: { label: string }) => r.label);
+  // Short and not opted out: opting out is the reason given for anyone who did both.
+  const optedOut = new Set((await f.api(`/v1/competitions/${singles.id}/entries`, f.admin)).body.data
+    .filter((e: { opted_out_at: string | null }) => e.opted_out_at).map((e: { label: string }) => e.label));
+  const short = final.filter((r: { played: number; label: string }) => r.played < 4 && !optedOut.has(r.label)).map((r: { label: string }) => r.label);
   assert.ok(short.length > 0 && short.length < final.length, "some short, some not, in the sample");
   assert.ok(final.every((r: { label: string; movement: string | null }) => !short.includes(r.label) || r.movement === null),
     "once final, nobody short is shown going up or down");
 
   const next = await f.create("/v1/seasons", { name: "Next" });
-  // The draft's own minimum is 1, but the season they played asked 3: that is the one that counts.
+  // The draft's own minimum is 1, but the season they played asked 4: that is the one that counts.
   const rules = (await f.api(`/v1/competitions/${singles.id}`, f.admin)).body.rules;
   const draft = await f.create("/v1/competitions", { season_id: next.id, name: "Next singles", discipline: "singles",
     match_format: "best_of_3_champions_tiebreak", previous_competition_id: singles.id, rules: { ...rules, minMatchesToPlay: 1 } });
@@ -251,7 +253,7 @@ test("filling next season leaves out anyone short of the minimum, judged by the 
   for (const label of short) {
     const out = left.find((n) => n.label === label);
     assert.ok(out, `${label} is left out`);
-    assert.match(out!.explanation, /but played \d of the 3 matches needed to keep a place, so not carried over/);
+    assert.match(out!.explanation, /but played \d of the 4 matches needed to keep a place, so not carried over/);
   }
   assert.ok(filled.body.placed.every((p: { label: string }) => !short.includes(p.label)), "nobody short is placed");
   assert.equal(filled.body.placed.length + left.length, final.length);
