@@ -27,6 +27,7 @@ import {
   SignIn,
   SignInLink,
   Tables,
+  Weather as WeatherPage,
   type ChaseRow,
   type CoachCompetition,
   type CoachMember,
@@ -35,7 +36,10 @@ import {
   type Frame,
   type SeasonProgress,
   type SeasonView,
+  type Refused,
   type Tab,
+  type WeatherSettings,
+  type WeatherUnits,
 } from "./views.js";
 
 export type CoachOptions = {
@@ -95,6 +99,37 @@ type KeyMe = {
 };
 
 type Coach = { key: string; club: { name: string; timezone: string }; scopes: string[] };
+
+/** What the weather page says after a change: the address carries only which. */
+const WEATHER_DONE: Record<string, string> = {
+  added: "Court added. Players see its forecast on their home page now.",
+  saved: "Court saved.",
+  removed: "Court removed.",
+  gone: "That court had already been removed.",
+  units: "Units saved.",
+};
+
+const UNITS: WeatherUnits[] = ["uk", "metric", "us"];
+
+/**
+ * A court from the weather page's form, or why not. Coordinates come as a map
+ * copies them, "51.4343, -0.2141", so the coach can paste them in one go.
+ */
+function courtOf(form: Record<string, unknown>): { name: string; latitude: number; longitude: number } | string {
+  const name = String(form.name ?? "").trim();
+  if (!name) return "Give the court a name.";
+  if (name.length > 100) return "A court's name can be up to 100 letters long.";
+  const where = /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(
+    String(form.coordinates ?? "").replace(/\u2212/g, "-"),
+  );
+  if (!where) return "Paste the latitude and longitude as a map gives them, for example 51.4343, -0.2141.";
+  const latitude = Number(where[1]);
+  const longitude = Number(where[2]);
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+    return "Latitude runs from -90 to 90 and longitude from -180 to 180. Check they are the right way round.";
+  }
+  return { name, latitude, longitude };
+}
 
 /** A level from a form's select: 1 to 10, or null for none. */
 function levelOf(value: unknown): number | null {
@@ -411,7 +446,7 @@ export function createCoachSite(options: CoachOptions) {
     );
   });
 
-  // The tables as players see them, with the forecast: what the players' site shows,
+  // The tables as players see them: what the players' site shows,
   // for competitions open to members, without anyone's own row marked.
   const playersSee = (x: CoachCompetition) => x.visibility === "members" && x.state !== "draft";
 
@@ -447,8 +482,6 @@ export function createCoachSite(options: CoachOptions) {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const id = c.req.param("id");
-    // Started first and awaited last, as on the players' home page: it is the one call that leaves the server.
-    const forecasting = options.weather ? options.weather().catch(() => null) : Promise.resolve(null);
     const seasons = await seasonsWithTables(who.key);
     const here = seasons.find((s) => s.competitions.some((x) => x.id === id));
     const competition = here?.competitions.find((x) => x.id === id);
@@ -462,23 +495,10 @@ export function createCoachSite(options: CoachOptions) {
       api<Standings>("GET", `/v1/competitions/${id}/standings`, who.key),
       all<Match>(`/v1/matches?competition_id=${id}`, who.key),
     ]);
-    const live = seasons.filter((s) => s.season.state === "active");
-    const onlyDeadline = live.length === 1 ? live[0]!.season.results_deadline_at : null;
     const deadline = here.season.state === "active" ? deadlineLine(here.season.results_deadline_at, who.club.timezone) : null;
-    const forecast = await within(forecasting, WEATHER_GRACE_MS);
     return c.html(
       <Tables
         frame={frameOf(who, "tables")}
-        weather={
-          forecast?.length
-            ? {
-                venues: forecast,
-                lastDay: onlyDeadline
-                  ? new Intl.DateTimeFormat("en-CA", { timeZone: who.club.timezone }).format(new Date(onlyDeadline))
-                  : null,
-              }
-            : null
-        }
         tables={{
           competition,
           tabs: here.competitions.map((x) => ({ id: x.id, name: x.name, mine: false })),
@@ -575,6 +595,106 @@ export function createCoachSite(options: CoachOptions) {
   app.post("/sign-out", (c) => {
     forget(c);
     return c.redirect("/coach", 303);
+  });
+
+  /** The weather page, with the forecast as the players' home page shows it, by the courts it is for. */
+  async function weatherPage(c: Context, who: Coach, done: string | null, refused: Refused | null = null) {
+    // Started first and awaited last, as on the players' home page: it is the one call that leaves the server.
+    const forecasting = options.weather ? options.weather().catch(() => null) : Promise.resolve(null);
+    const [settings, live] = await Promise.all([
+      api<WeatherSettings>("GET", "/v1/weather", who.key),
+      all<Season>("/v1/seasons?state=active", who.key),
+    ]);
+    // The last day to play is marked only when one season is under way, as players see it.
+    const onlyDeadline = live.length === 1 ? live[0]!.results_deadline_at : null;
+    const venues = await within(forecasting, WEATHER_GRACE_MS);
+    const forecast = venues?.length
+      ? {
+          venues,
+          lastDay: onlyDeadline
+            ? new Intl.DateTimeFormat("en-CA", { timeZone: who.club.timezone }).format(new Date(onlyDeadline))
+            : null,
+        }
+      : null;
+    return c.html(
+      <WeatherPage frame={frameOf(who, "weather")} settings={settings} forecast={forecast} done={done} refused={refused} />,
+      refused ? 400 : 200,
+    );
+  }
+
+  /** Why the API refused a change the page could not have foreseen, or the error again. */
+  function refusal(error: unknown): string {
+    if (!(error instanceof ApiProblem)) throw error;
+    const { status, code } = error.problem;
+    if (code === "court_location_limit") return "The club already has eight courts. Remove one to add another.";
+    if (status === 403) return "This browser's key cannot change the forecast. Sign out, then sign in again with the administrator key.";
+    if (status === 400) return "That court was not accepted. Check its name and where it is.";
+    throw error;
+  }
+
+  app.get("/weather", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    return weatherPage(c, who, WEATHER_DONE[c.req.query("done") ?? ""] ?? null);
+  });
+
+  app.post("/weather/courts", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const form = await c.req.parseBody();
+    const typed = { court: null, name: String(form.name ?? ""), coordinates: String(form.coordinates ?? "") };
+    const court = courtOf(form);
+    if (typeof court === "string") return weatherPage(c, who, null, { ...typed, message: court });
+    try {
+      const made = await api<{ id: string }>("POST", "/v1/court-locations", who.key, court);
+      return c.redirect(`/coach/weather?done=added#court-${made.id}`, 303);
+    } catch (error) {
+      return weatherPage(c, who, null, { ...typed, message: refusal(error) });
+    }
+  });
+
+  app.post("/weather/courts/:id", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const form = await c.req.parseBody();
+    const typed = { court: id, name: String(form.name ?? ""), coordinates: String(form.coordinates ?? "") };
+    const court = courtOf(form);
+    if (typeof court === "string") return weatherPage(c, who, null, { ...typed, message: court });
+    try {
+      await api("PATCH", `/v1/court-locations/${encodeURIComponent(id)}`, who.key, court);
+    } catch (error) {
+      if (error instanceof ApiProblem && error.problem.status === 404) return c.redirect("/coach/weather?done=gone", 303);
+      return weatherPage(c, who, null, { ...typed, message: refusal(error) });
+    }
+    return c.redirect(`/coach/weather?done=saved#court-${id}`, 303);
+  });
+
+  app.post("/weather/courts/:id/delete", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    try {
+      await api("DELETE", `/v1/court-locations/${encodeURIComponent(c.req.param("id"))}`, who.key);
+    } catch (error) {
+      // Already gone is what removing wanted.
+      if (!(error instanceof ApiProblem) || error.problem.status !== 404) {
+        return weatherPage(c, who, null, { court: null, name: "", coordinates: "", message: refusal(error) });
+      }
+    }
+    return c.redirect("/coach/weather?done=removed", 303);
+  });
+
+  app.post("/weather/units", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const units = String((await c.req.parseBody()).units ?? "") as WeatherUnits;
+    if (!UNITS.includes(units)) return c.redirect("/coach/weather", 303);
+    try {
+      await api("PATCH", "/v1/weather", who.key, { units });
+    } catch (error) {
+      return weatherPage(c, who, null, { court: null, name: "", coordinates: "", message: refusal(error) });
+    }
+    return c.redirect("/coach/weather?done=units#units", 303);
   });
 
   app.post("/members/:id/sign-in-link", async (c) => {

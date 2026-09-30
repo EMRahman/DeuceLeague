@@ -22,7 +22,7 @@ import {
  * players' site's style. Hono escapes everything interpolated here.
  */
 
-export type Tab = "dashboard" | "results" | "tables" | "activity" | "chase" | "members";
+export type Tab = "dashboard" | "results" | "tables" | "activity" | "chase" | "members" | "weather";
 
 export type Frame = { club: string | null; signedIn: boolean; tab: Tab | null };
 
@@ -206,6 +206,10 @@ form.approve button { margin-bottom: .5rem; }
 .answer p.deadline { margin: .4rem 0 0; }
 .tag.level { background: var(--past-bg); color: var(--past); }
 .after { margin-top: .75rem; }
+form.court { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 .75rem; }
+form.court .field { flex: 1 1 12rem; margin-bottom: .5rem; }
+form.court button { margin-bottom: .5rem; }
+.court-foot { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 `;
 
 const TABS: { tab: Tab; href: string; label: string }[] = [
@@ -215,6 +219,7 @@ const TABS: { tab: Tab; href: string; label: string }[] = [
   { tab: "activity", href: "/coach/activity", label: "Activity" },
   { tab: "chase", href: "/coach/chase", label: "Chase list" },
   { tab: "members", href: "/coach/members", label: "Members" },
+  { tab: "weather", href: "/coach/weather", label: "Weather" },
 ];
 
 /** A moment on the club's clock: "14 Sept 2026, 18:05". */
@@ -822,15 +827,10 @@ export const LatestEvents: FC<{
 );
 
 /** The tables and the forecast as players see them, for the coach to know what they're looking at. */
-export const Tables: FC<{
-  frame: Frame;
-  tables: TablesProps;
-  weather: { venues: VenueForecast[]; lastDay: string | null } | null;
-}> = ({ frame, tables, weather }) => (
+export const Tables: FC<{ frame: Frame; tables: TablesProps }> = ({ frame, tables }) => (
   <Layout title={tables.past ? `${tables.competition.name}, ${tables.past}` : tables.competition.name} frame={frame}>
-    <p class="muted">What players see: the tables of the competitions open to members, and the courts' forecast.</p>
+    <p class="muted">What players see: the tables of the competitions open to members.</p>
     <CompetitionTables {...tables} />
-    {weather && <WeatherBox venues={weather.venues} lastDay={weather.lastDay} />}
   </Layout>
 );
 
@@ -1128,6 +1128,147 @@ export const SignInLink: FC<{ frame: Frame; member: string; url: string; hours: 
     </p>
   </Layout>
 );
+
+/** A court the forecast is for, as the API gives it. */
+export type CourtLocation = { id: string; name: string; latitude: number; longitude: number };
+
+export type WeatherUnits = "uk" | "metric" | "us";
+
+export type WeatherSettings = { units: WeatherUnits; court_locations: CourtLocation[] };
+
+/** The most courts the players' home page shows, and so the most the API keeps. */
+export const MAX_COURTS = 8;
+
+const UNIT_CHOICES: { units: WeatherUnits; label: string }[] = [
+  { units: "uk", label: "°C, wind in mph" },
+  { units: "metric", label: "°C, wind in km/h" },
+  { units: "us", label: "°F, wind in mph" },
+];
+
+/** "51.4343, -0.2141": how a map copies a place, and how the coach pastes one. */
+export const coordinatesOf = (c: { latitude: number; longitude: number }) => `${c.latitude}, ${c.longitude}`;
+
+const mapHref = (c: CourtLocation) =>
+  `https://www.openstreetmap.org/?mlat=${c.latitude}&mlon=${c.longitude}#map=17/${c.latitude}/${c.longitude}`;
+
+/** A form the coach sent that was not accepted: what they typed, to try again, and why. */
+export type Refused = { court: string | null; name: string; coordinates: string; message: string };
+
+const CourtFields: FC<{ id: string; name: string; coordinates: string }> = ({ id, name, coordinates }) => (
+  <>
+    <div class="field">
+      <label for={`name-${id}`}>Name</label>
+      <input id={`name-${id}`} name="name" maxlength={100} value={name} required />
+    </div>
+    <div class="field">
+      <label for={`where-${id}`}>Latitude, longitude</label>
+      <input id={`where-${id}`} name="coordinates" inputmode="decimal" autocomplete="off" placeholder="51.4343, -0.2141"
+        value={coordinates} required />
+    </div>
+  </>
+);
+
+export const Weather: FC<{
+  frame: Frame;
+  settings: WeatherSettings;
+  /** The forecast as players see it on their home page; null when it could not be had in time. */
+  forecast: { venues: VenueForecast[]; lastDay: string | null } | null;
+  /** What the last change did. */
+  done: string | null;
+  refused: Refused | null;
+}> = ({ frame, settings, forecast, done, refused }) => {
+  const courts = settings.court_locations;
+  const typed = (court: string | null) => (refused && refused.court === court ? refused : null);
+  return (
+    <Layout title="Weather" frame={frame}>
+      <h1>Weather</h1>
+      {done && (
+        <div class="notice ok" role="status">
+          {done}
+        </div>
+      )}
+      {refused && (
+        <div class="notice" role="alert">
+          {refused.message}
+        </div>
+      )}
+      <p>
+        The players' home page shows a 14-day forecast for each court here, from Open-Meteo. With no courts, it shows
+        none.
+      </p>
+      {forecast?.venues.length ? (
+        <WeatherBox venues={forecast.venues} lastDay={forecast.lastDay} />
+      ) : (
+        courts.length > 0 && <p class="muted">The forecast could not be fetched just now. Players see the page without it.</p>
+      )}
+
+      <h2>
+        Courts ({courts.length} of {MAX_COURTS})
+      </h2>
+      <p class="muted">
+        To find a court's latitude and longitude, right-click it in Google Maps and click the numbers at the top of the
+        menu to copy them, then paste them here.
+      </p>
+      {courts.length === 0 && <p class="muted">No courts yet, so players see no forecast.</p>}
+      {courts.map((c) => {
+        const retry = typed(c.id);
+        return (
+          <div class="card" id={`court-${c.id}`}>
+            <form class="court" method="post" action={`/coach/weather/courts/${c.id}`}>
+              <CourtFields id={c.id} name={retry?.name ?? c.name} coordinates={retry?.coordinates ?? coordinatesOf(c)} />
+              <button class="quiet small" type="submit">
+                Save
+              </button>
+            </form>
+            <div class="court-foot">
+              <a href={mapHref(c)} rel="noreferrer">
+                Check on the map
+              </a>
+              <form method="post" action={`/coach/weather/courts/${c.id}/delete`}>
+                <button class="quiet small" type="submit">
+                  Remove
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      })}
+
+      {courts.length < MAX_COURTS ? (
+        <>
+          <h2>Add a court</h2>
+          <div class="card" id="add">
+            <form class="court" method="post" action="/coach/weather/courts">
+              <CourtFields id="new" name={typed(null)?.name ?? ""} coordinates={typed(null)?.coordinates ?? ""} />
+              <button class="small" type="submit">
+                Add
+              </button>
+            </form>
+          </div>
+        </>
+      ) : (
+        <p class="muted">That is the most the home page shows. Remove one to add another.</p>
+      )}
+
+      <h2>Units</h2>
+      <form class="level" method="post" action="/coach/weather/units" id="units">
+        <label class="muted" for="units-select">
+          Show
+        </label>
+        <select id="units-select" name="units">
+          {UNIT_CHOICES.map((u) => (
+            <option value={u.units} selected={settings.units === u.units}>
+              {u.label}
+            </option>
+          ))}
+        </select>
+        <button class="quiet small" type="submit">
+          Save
+        </button>
+      </form>
+    </Layout>
+  );
+};
 
 export const Problem: FC<{ frame: Frame; title: string; detail: string }> = ({ frame, title, detail }) => (
   <Layout title={title} frame={frame}>

@@ -51,6 +51,15 @@ test("coaches manage forecast court locations and units through the API", async 
   const adminOnly = await key(f, ["admin"]);
   assert.equal((await send(f, "/v1/weather", "GET", undefined, adminOnly.key)).status, 200);
   assert.equal((await send(f, "/v1/weather", "PATCH", { units: "metric" }, reader.key)).status, 403);
+  assert.equal((await send(f, "/v1/court-locations", "POST", { name: "Reader", latitude: 1, longitude: 1 }, reader.key)).status, 403);
+  // The coach's website holds league:write, never admin: where the club plays is league setup.
+  const league = await key(f, ["league:write"]);
+  const byLeague = await send(f, "/v1/court-locations", "POST", { name: "League", latitude: 1, longitude: 1 }, league.key);
+  assert.equal(byLeague.status, 201);
+  assert.equal((await send(f, `/v1/court-locations/${byLeague.body.id}`, "PATCH", { name: "Renamed" }, league.key)).status, 200);
+  assert.equal((await send(f, "/v1/weather", "PATCH", { units: "us" }, league.key)).status, 200);
+  assert.equal((await send(f, `/v1/court-locations/${byLeague.body.id}`, "DELETE", undefined, league.key)).status, 204);
+  assert.equal((await send(f, "/v1/weather", "PATCH", { units: "uk" })).status, 200);
   assert.equal((await send(f, "/v1/court-locations", "POST", { name: "Bad", latitude: 91, longitude: 0 })).status, 400);
 
   const first = await send(f, "/v1/court-locations", "POST", { name: "Main Courts", latitude: 51.4343, longitude: -0.2141 });
@@ -71,10 +80,10 @@ test("coaches manage forecast court locations and units through the API", async 
   assert.equal((await send(f, `/v1/court-locations/${randomUUID()}`, "PATCH", { name: "Missing" })).status, 404);
   assert.equal((await send(f, `/v1/court-locations/${first.body.id}`, "DELETE")).status, 204);
   assert.equal((await send(f, `/v1/court-locations/${first.body.id}`, "DELETE")).status, 404);
-  assert.equal(await eventCount(f, "court_location.created"), 8);
-  assert.equal(await eventCount(f, "court_location.updated"), 1);
-  assert.equal(await eventCount(f, "court_location.deleted"), 1);
-  const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'weather.updated'").first<string>("payload");
+  assert.equal(await eventCount(f, "court_location.created"), 9);
+  assert.equal(await eventCount(f, "court_location.updated"), 2);
+  assert.equal(await eventCount(f, "court_location.deleted"), 2);
+  const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'weather.updated' LIMIT 1").first<string>("payload");
   assert.deepEqual(JSON.parse(event!), { changed: ["units"] });
 });
 
