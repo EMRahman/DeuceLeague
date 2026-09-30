@@ -39,7 +39,8 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
   const identity = await readIdentity(db, hash, kind, null, [
     db.prepare(`WITH sides AS (
       SELECT m.competition_id, c.name AS competition_name, m.division_id, d.name AS division_name, d.ordinal,
-        season.results_deadline_at, cl.timezone, em.member_id, opponent.label AS opponent_label,
+        season.results_deadline_at, cl.timezone, em.member_id,
+        (SELECT label FROM entry_label WHERE entry_id = other.entry_id) AS opponent_label,
         own.entry_id,
         EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = m.id AND r.side_index = own.side_index AND r.state = 'pending') AS claimed,
         EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = m.id AND r.side_index <> own.side_index AND r.state = 'pending') AS opponent_claimed
@@ -47,7 +48,6 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
       JOIN club cl ON cl.id = m.club_id LEFT JOIN division d ON d.id = m.division_id
       JOIN match_side own ON own.match_id = m.id JOIN entry_member em ON em.entry_id = own.entry_id
       LEFT JOIN match_side other ON other.match_id = m.id AND other.side_index <> own.side_index
-      LEFT JOIN entry_label opponent ON opponent.entry_id = other.entry_id
       WHERE m.status IN ('open', 'reported', 'disputed') AND (? IS NULL OR m.competition_id = ?)
     ), permission AS (
       SELECT EXISTS (SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ? AND k.revoked_at IS NULL
@@ -67,19 +67,19 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     // What the tables are counted from, for each competition with a match outstanding:
     // how many each entry has played toward the minimum is the engine's to say.
     db.prepare(`SELECT c.id, c.rules, c.match_format FROM competition c
-      WHERE (? IS NULL OR c.id = ?) AND EXISTS (SELECT 1 FROM match m
-        WHERE m.competition_id = c.id AND m.status IN ('open', 'reported', 'disputed'))`).bind(competitionId ?? null, competitionId ?? null),
-    db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, el.label FROM entry e
-      JOIN entry_label el ON el.entry_id = e.id
-      WHERE (? IS NULL OR e.competition_id = ?) AND EXISTS (SELECT 1 FROM match m
-        WHERE m.competition_id = e.competition_id AND m.status IN ('open', 'reported', 'disputed'))`)
+      WHERE c.id IN (SELECT competition_id FROM match WHERE status IN ('open', 'reported', 'disputed'))
+        AND (? IS NULL OR c.id = ?)`).bind(competitionId ?? null, competitionId ?? null),
+    db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state,
+      (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e
+      WHERE e.competition_id IN (SELECT competition_id FROM match WHERE status IN ('open', 'reported', 'disputed'))
+        AND (? IS NULL OR e.competition_id = ?) AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id)`)
       .bind(competitionId ?? null, competitionId ?? null),
     db.prepare(`SELECT m.id, m.competition_id, m.division_id, m.status, m.outcome, m.winning_side, m.retired_side, m.score,
       s0.entry_id AS side0, s1.entry_id AS side1 FROM match m
       LEFT JOIN match_side s0 ON s0.match_id = m.id AND s0.side_index = 0
       LEFT JOIN match_side s1 ON s1.match_id = m.id AND s1.side_index = 1
-      WHERE (? IS NULL OR m.competition_id = ?) AND EXISTS (SELECT 1 FROM match o
-        WHERE o.competition_id = m.competition_id AND o.status IN ('open', 'reported', 'disputed')) ORDER BY m.id`)
+      WHERE m.competition_id IN (SELECT competition_id FROM match WHERE status IN ('open', 'reported', 'disputed'))
+        AND (? IS NULL OR m.competition_id = ?) ORDER BY m.id`)
       .bind(competitionId ?? null, competitionId ?? null),
   ]);
   const rows = (identity.extraResults[0]!.results as Row[]).map((r) => ({
@@ -113,9 +113,11 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
       WHERE season_id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1) ORDER BY id`).bind(seasonId),
     db.prepare(`SELECT d.id, d.competition_id, d.ordinal, d.name FROM division d
       JOIN competition c ON c.id = d.competition_id WHERE c.season_id = ? ORDER BY d.ordinal`).bind(seasonId),
-    db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, e.opted_out_at, el.label FROM entry e
-      JOIN entry_label el ON el.entry_id = e.id JOIN competition c ON c.id = e.competition_id
-      WHERE c.season_id = ? ORDER BY el.label, e.id`).bind(seasonId),
+    db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, e.opted_out_at,
+      (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e
+      JOIN competition c ON c.id = e.competition_id
+      WHERE c.season_id = ? AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id)
+      ORDER BY label, e.id`).bind(seasonId),
     db.prepare(`SELECT m.id, m.competition_id, m.division_id, m.status, m.outcome, m.winning_side, m.retired_side, m.score,
       s0.entry_id AS side0, s1.entry_id AS side1 FROM match m
       JOIN competition c ON c.id = m.competition_id

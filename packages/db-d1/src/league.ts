@@ -60,12 +60,13 @@ export async function readLeague(db: D1Database, hash: string, kind: CredentialK
       SELECT coalesce(json_extract(j, '$.competitionId'),
         (SELECT competition_id FROM division WHERE id = json_extract(j, '$.divisionId')),
         (SELECT competition_id FROM entry WHERE id = json_extract(j, '$.entryId'))) AS competition_id FROM q
-    ) SELECT e.*, el.label,
+    ) SELECT e.*, (SELECT label FROM entry_label WHERE entry_id = e.id) AS label,
       (SELECT json_group_array(json_object('id', m.id, 'displayName', m.display_name, 'role', em.role) ORDER BY em.role DESC, m.display_name)
        FROM entry_member em JOIN member m ON m.id = em.member_id WHERE em.entry_id = e.id) AS members
-      FROM entry e JOIN entry_label el ON el.entry_id = e.id, scope, q
-      WHERE e.competition_id = scope.competition_id OR e.id = json_extract(j, '$.previousEntryId')
-      OR (json_extract(j, '$.includePrevious') = 1 AND e.competition_id = (SELECT previous_competition_id FROM competition WHERE id = scope.competition_id)) ORDER BY e.id`).bind(q),
+      FROM entry e, scope, q
+      WHERE (e.competition_id = scope.competition_id OR e.id = json_extract(j, '$.previousEntryId')
+      OR (json_extract(j, '$.includePrevious') = 1 AND e.competition_id = (SELECT previous_competition_id FROM competition WHERE id = scope.competition_id)))
+      AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id) ORDER BY e.id`).bind(q),
     db.prepare(`SELECT m.id, m.display_name, m.deleted_at, CASE WHEN EXISTS (
       SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ? AND k.revoked_at IS NULL
       AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000) AND s.value = 'members:pii'

@@ -20,6 +20,18 @@ run inside the atomic commit. Successful batches do not imply that every
 conditional statement affected a row: a failed precondition must abort the
 batch, not quietly allow subsequent writes.
 
+Reads look rows up through an index, because D1 bills every row read and a
+club's history grows each season. `deploy/cloudflare/test/query-budget.test.ts`
+checks the query plan of every statement the player and coach pages run, and
+fails on a read of a whole table. Two patterns keep SQLite on its indexes:
+
+- Take an entry's name from `entry_label` with a subquery for that entry,
+  `(SELECT label FROM entry_label WHERE entry_id = e.id)`, rather than a join.
+  Joined, SQLite can read every entry to find the few it needs.
+- An optional filter written `(? IS NULL OR x = ?)` can't use an index on `x`.
+  Start from the rows an index finds, as `readMatchPage` and `readChase` do,
+  and keep the optional filters on top.
+
 The test-only `proof.sql` and operations in `test/helpers.ts` are a reduced
 domain model using the real league claims/fixtures engine. They test database
 semantics against Miniflare's D1 emulator. They do not implement the complete
