@@ -82,8 +82,8 @@ can also delete the trial's repository.
 - **A lost administrator key:** follow the [recovery guide](RECOVERY.md). It
   needs access to your Cloudflare account.
 - **Usage:** your D1 database's **Metrics** tab shows rows read and written. In
-  local tests a player's home page reads about 2,700 rows, and Cloudflare's free
-  plan allows 5 million a day. The free plan's 10 ms CPU limit per request has
+  local tests a player's home page reads about 1,400 rows, about the same with
+  years of past seasons, and Cloudflare's free plan allows 5 million a day. The free plan's 10 ms CPU limit per request has
   not been measured on Cloudflare yet: after a few days of use, check the
   Worker's **Observability** tab before deciding whether to upgrade.
 

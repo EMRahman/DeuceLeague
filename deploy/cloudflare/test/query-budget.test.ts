@@ -19,31 +19,35 @@ function countedDatabase(raw: D1Database) {
     return result;
   };
   const originals = new WeakMap<D1PreparedStatement, D1PreparedStatement>();
-  function statement(value: D1PreparedStatement): D1PreparedStatement {
+  // Every statement run, with the values it last ran with, for its query plan.
+  const executed = new Map<string, unknown[]>();
+  const sources = new WeakMap<D1PreparedStatement, { sql: string; args: unknown[] }>();
+  function statement(value: D1PreparedStatement, sql: string, bound: unknown[] = []): D1PreparedStatement {
     const wrapped = new Proxy(value, { get(target, key) {
-      if (key === "bind") return (...args: unknown[]) => statement(target.bind(...args));
+      if (key === "bind") return (...args: unknown[]) => statement(target.bind(...args), sql, args);
       const method = Reflect.get(target, key);
       if (typeof method !== "function") return method;
       return (...args: unknown[]) => {
-        if (["all", "first", "run", "raw"].includes(String(key))) { count++; calls++; }
+        if (["all", "first", "run", "raw"].includes(String(key))) { count++; calls++; executed.set(sql, bound); }
         const result = method.apply(target, args);
         return ["all", "run"].includes(String(key)) ? Promise.resolve(result).then(measure) : result;
       };
     } });
-    originals.set(wrapped, value);
+    originals.set(wrapped, value); sources.set(wrapped, { sql, args: bound });
     return wrapped;
   }
   const db = new Proxy(raw, { get(target, key) {
-    if (key === "prepare") return (sql: string) => statement(target.prepare(sql));
+    if (key === "prepare") return (sql: string) => statement(target.prepare(sql), sql);
     if (key === "batch") return (queries: D1PreparedStatement[]) => {
       count += queries.length; calls++;
+      for (const query of queries) { const source = sources.get(query); if (source) executed.set(source.sql, source.args); }
       return target.batch(queries.map((query) => originals.get(query) ?? query)).then(measure);
     };
     const value = Reflect.get(target, key);
     return typeof value === "function" ? value.bind(target) : value;
   } });
   return { db, reset: () => { count = 0; calls = 0; rowsRead = 0; rowsWritten = 0; }, count: () => count, calls: () => calls,
-    rows: () => ({ read: rowsRead, written: rowsWritten }) };
+    rows: () => ({ read: rowsRead, written: rowsWritten }), executed };
 }
 
 test("sample browser installation stays within its SQL statement budget and retains ordered audit positions", async (t) => {
@@ -104,6 +108,14 @@ test("sample browser installation stays within its SQL statement budget and reta
   // Free allows 5 million rows read a day: this keeps a busy trial day of
   // player visits comfortably inside it. A regression target, not a platform limit.
   assert.ok(rows.read < 10_000, `the sample home page read ${rows.read} rows`);
+  // The player's other pages, for their query plans below.
+  const singlesId = await raw.prepare("SELECT id FROM competition WHERE name = 'Sample singles'").first<string>("id");
+  const alexMatch = await raw.prepare(`SELECT s.match_id FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id
+    WHERE em.member_id = ? LIMIT 1`).bind(alex).first<string>("match_id");
+  for (const path of ["/tables", `/competitions/${singlesId}`, `/matches/${alexMatch}`]) {
+    const page = await worker.fetch(new Request(env.PUBLIC_URL + path, { headers: { cookie: `deuceleague_session=${session.token}` } }), env, ctx);
+    assert.ok(page.status < 400, path); await page.text();
+  }
 
   // The coach's pages, each read in full on every visit.
   async function coachPage(path: string, label = "Sample") {
@@ -144,4 +156,26 @@ test("sample browser installation stays within its SQL statement budget and reta
   // Once reporting closes, the matches nobody played across all twelve are one read too.
   await json("PATCH", `/v1/seasons/${season.id}`, { results_deadline_at: new Date(Date.now() - 60_000).toISOString() });
   assert.ok(await coachPage("/coach/results", "Closed twelve-competition") <= before.get("/coach/results")! + 4);
+
+  // A club's history grows every season, and D1 bills each row read. So no read the
+  // pages above made may read a whole table, or build a temporary index by reading one,
+  // except these, each on purpose. SQLite has no table statistics here, so the plan
+  // this small sample gets is the plan a club with years of history gets.
+  const wholeReads: Record<string, string> = {
+    "SCAN match USING COVERING INDEX sqlite_autoindex_match_1": "matches with no filter at all: every match, a page at a time",
+    "SCAN m USING INDEX sqlite_autoindex_member_2": "the members list: every member",
+  };
+  const found: string[] = [];
+  for (const [sql, args] of counted.executed) {
+    if (!/^\s*(SELECT|WITH)\b/i.test(sql)) continue;
+    const ctes = new Set([...sql.matchAll(/\b(\w+)(?:\([^)]*\))? AS \(/g)].map((m) => m[1]));
+    const plan = (await raw.prepare(`EXPLAIN QUERY PLAN ${sql}`).bind(...args).all<{ detail: string }>()).results;
+    for (const { detail } of plan) {
+      const scanned = /^SCAN (\S+)/.exec(detail)?.[1];
+      const whole = detail.includes("AUTOMATIC") || (scanned !== undefined && scanned !== "CONSTANT"
+        && !scanned.startsWith("(subquery") && !detail.includes("VIRTUAL TABLE") && !ctes.has(scanned));
+      if (whole && !(detail in wholeReads)) found.push(`${detail}\n    in ${sql.replace(/\s+/g, " ").slice(0, 160)}`);
+    }
+  }
+  assert.deepEqual(found, [], "reads of a whole table");
 });

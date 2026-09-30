@@ -42,6 +42,9 @@ deploy/cloudflare Worker entry point, installer, deployment and recovery tools
 - Standings are always computed from the match ledger. Never persist them.
 - Keep D1 SQL in `packages/db-d1`; routes and adapters call its typed
   operations.
+- Reads find their rows through an index, never by reading a whole table: D1
+  bills each row read, and a club's history grows every season. The query
+  budget test fails on any whole-table read it does not list as intended.
 - API changes need an OpenAPI contract in `packages/api/src/contracts` and a
   matching Cloudflare route.
 - `docs/openapi.json` and `docs/api.html` are generated API documentation. Do
