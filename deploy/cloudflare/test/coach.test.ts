@@ -268,6 +268,13 @@ test("the coach adds, renames, moves and removes the forecast's courts, and sets
     assert.match(refused.html, new RegExp(`value="${coordinates}"`), "what the coach typed stays to correct");
   }
   assert.equal((await coach.post("/coach/weather/courts", { name: " ", coordinates: "1, 1" })).status, 400);
+  // A court made through the API so close to the meridian that it shows as "1e-7" still saves as shown.
+  const tiny = await f.create("/v1/court-locations", { name: "Meridian", latitude: 51.4779, longitude: 0.0000001 });
+  const shown = /name="coordinates"[^>]*value="([^"]+)"/.exec((await coach.get("/coach/weather")).html.split(`court-${tiny.id}`)[1]!)?.[1];
+  assert.equal(shown, "51.4779, 1e-7");
+  assert.equal((await coach.post(`/coach/weather/courts/${tiny.id}`, { name: "Greenwich", coordinates: shown })).status, 303);
+  assert.equal((await courts()).court_locations.find((c: { id: string }) => c.id === tiny.id).longitude, 0.0000001);
+  assert.equal((await f.api(`/v1/court-locations/${tiny.id}`, f.admin, "DELETE")).status, 204);
   assert.equal((await courts()).court_locations.length, 3, "nothing refused was kept");
 
   for (let i = 4; i <= 8; i++) {

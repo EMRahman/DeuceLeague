@@ -119,7 +119,9 @@ function courtOf(form: Record<string, unknown>): { name: string; latitude: numbe
   const name = String(form.name ?? "").trim();
   if (!name) return "Give the court a name.";
   if (name.length > 100) return "A court's name can be up to 100 letters long.";
-  const where = /^\s*(-?\d+(?:\.\d+)?)\s*[,\s]\s*(-?\d+(?:\.\d+)?)\s*$/.exec(
+  // A number as a map writes it, or as JavaScript writes a very small one, "1e-7", so a saved court saves again.
+  const number = String.raw`(-?\d+(?:\.\d+)?(?:e[-+]?\d+)?)`;
+  const where = new RegExp(String.raw`^\s*${number}\s*[,\s]\s*${number}\s*$`, "i").exec(
     String(form.coordinates ?? "").replace(/\u2212/g, "-"),
   );
   if (!where) return "Paste the latitude and longitude as a map gives them, for example 51.4343, -0.2141.";
