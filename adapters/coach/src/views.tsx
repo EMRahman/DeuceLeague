@@ -22,7 +22,7 @@ import {
  * players' site's style. Hono escapes everything interpolated here.
  */
 
-export type Tab = "dashboard" | "results" | "tables" | "activity" | "chase" | "members" | "weather";
+export type Tab = "dashboard" | "results" | "tables" | "activity" | "chase" | "members" | "season" | "weather";
 
 export type Frame = { club: string | null; signedIn: boolean; tab: Tab | null };
 
@@ -82,7 +82,12 @@ const playingName = (r: JoinRequest) => {
   return (initial ? `${r.first_name.trim()} ${initial.toUpperCase()}.` : r.first_name.trim()).slice(0, 60);
 };
 
-export type CoachCompetition = Competition & { previous_competition_id: string | null; visibility: "members" | "private" };
+export type CoachCompetition = Competition & {
+  previous_competition_id: string | null;
+  visibility: "members" | "private";
+  category: "open" | "mens" | "womens" | "mixed";
+  sequence_in_season: number;
+};
 
 type Counts = {
   matches: number;
@@ -219,6 +224,7 @@ const TABS: { tab: Tab; href: string; label: string }[] = [
   { tab: "activity", href: "/coach/activity", label: "Activity" },
   { tab: "chase", href: "/coach/chase", label: "Chase list" },
   { tab: "members", href: "/coach/members", label: "Members" },
+  { tab: "season", href: "/coach/season", label: "Season" },
   { tab: "weather", href: "/coach/weather", label: "Weather" },
 ];
 
@@ -331,8 +337,8 @@ export const Dashboard: FC<{
       <>
         <h1>No season is running</h1>
         <p>
-          Once a season and its competitions are active, this page shows how far through they are. Seasons are set up
-          through the API, usually by your coding agent.
+          Once a season and its competitions are active, this page shows how far through they are. Start the next
+          season from the last one on the <a href="/coach/season">Season</a> tab.
         </p>
       </>
     )}
@@ -1270,12 +1276,17 @@ export const Weather: FC<{
   );
 };
 
-export const Problem: FC<{ frame: Frame; title: string; detail: string }> = ({ frame, title, detail }) => (
+export const Problem: FC<{ frame: Frame; title: string; detail: string; back?: { href: string; label: string } }> = ({
+  frame,
+  title,
+  detail,
+  back = { href: "/coach/members", label: "Back to members" },
+}) => (
   <Layout title={title} frame={frame}>
     <h1>{title}</h1>
     <p>{detail}</p>
     <p>
-      <a href="/coach/members">Back to members</a>
+      <a href={back.href}>{back.label}</a>
     </p>
   </Layout>
 );

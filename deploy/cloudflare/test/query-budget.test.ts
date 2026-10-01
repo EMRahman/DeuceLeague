@@ -85,7 +85,7 @@ test("sample browser installation stays within its SQL statement budget and reta
   assert.ok(installed.written < 5_000, `installing the sample wrote ${installed.written} rows`);
   const events = (await raw.prepare(`SELECT e.type, p.event_id FROM event e
     JOIN event_position p ON p.local_id = e.id ORDER BY p.tx_id, p.event_id`).all()).results;
-  assert.equal(events.length, 176);
+  assert.equal(events.length, 210);
   assert.deepEqual(events.slice(0, 7).map((e) => e.type), ["club.created", "api_key.created", "api_key.created",
     "member.created", "member.created", "member.created", "member.created"]);
   assert.equal(events.at(-1)!.type, "installation.sample.created");
@@ -160,6 +160,30 @@ test("sample browser installation stays within its SQL statement budget and reta
   // Once reporting closes, the matches nobody played across all twelve are one read too.
   await json("PATCH", `/v1/seasons/${season.id}`, { results_deadline_at: new Date(Date.now() - 60_000).toISOString() });
   assert.ok(await coachPage("/coach/results", "Closed twelve-competition") <= before.get("/coach/results")! + 4);
+
+  // Turning the twelve-competition season into the next, through the coach's Season tab. A form
+  // with more to do than one request may is sent again (a 307), each time within the budget.
+  for (const path of ["/coach/season", `/coach/season/${season.id}/end`]) await coachPage(path, "Twelve-competition");
+  async function coachForm(path: string, form: Record<string, string> = {}) {
+    for (let hop = 1; hop <= 20; hop++) {
+      counted.reset();
+      const r = await worker.fetch(new Request(env.PUBLIC_URL + path, { method: "POST", redirect: "manual",
+        headers: { cookie: `deuceleague_coach=${admin}`, "content-type": "application/x-www-form-urlencoded", origin: env.PUBLIC_URL },
+        body: new URLSearchParams(form) }), env, ctx);
+      await r.text();
+      t.diagnostic(`Twelve-competition coach POST ${path}, request ${hop}: ${counted.calls()} D1 calls`);
+      assert.ok(counted.calls() <= 50, `${path} made ${counted.calls()} D1 calls in one request; Workers Free allows 50`);
+      if (r.status !== 307) { assert.equal(r.status, 303, path); return hop; }
+    }
+    throw new Error(`${path} never finished`);
+  }
+  assert.ok(await coachForm(`/coach/season/${season.id}/end`) > 1, "twelve competitions take more than one request to end");
+  await coachForm("/coach/season/next", { from: season.id, name: "Next season", starts_on: "2026-10-01", ends_on: "2026-11-30" });
+  const drafts = (await json("GET", "/v1/competitions?state=draft")).data as { id: string; season_id: string }[];
+  assert.equal(drafts.length, 12);
+  await coachPage(`/coach/season/drafts/${drafts.find((d) => true)!.id}`, "Twelve-competition");
+  await coachForm(`/coach/season/${drafts[0]!.season_id}/start`);
+  assert.equal((await json("GET", "/v1/competitions?state=draft")).data.length, 0, "every draft started");
 
   // A club's history grows every season, and D1 bills each row read. So no read the
   // pages above made may read a whole table, or build a temporary index by reading one,

@@ -45,6 +45,10 @@ the coach normally uses.
 | Set the minimum matches | “This season's singles divisions have eight players. Expect everyone to play at least 5.” | Division sizes, and that a division too small for the minimum expects all its matches |
 | Handle a lost phone | “Sign Sam out everywhere.” | The intended member before revoking sessions |
 
+The coach's own site does the turn of a season without an agent, on its
+**Season** tab: end the season, start the next from its tables, adjust the
+drafts, and start it. Asking the agent does the same through the API.
+
 The minimum is `minMatchesToPlay` in each competition's rules, default 4. Set it
 per competition, since each season's competitions are new, and singles and
 doubles can differ with their division sizes. A `PATCH` replaces the rules

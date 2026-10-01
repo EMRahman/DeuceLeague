@@ -33,15 +33,19 @@ type Plan = "open" | "played" | "reported" | "disputed";
 /**
  * What happens to the match between the i-th and j-th strongest (i < j) of a
  * division. Decided by position, never by generated ids, so every install
- * gets the same league. Alex and Bailey's matches with each other stay open
- * for the two people trying the site, and neither is caught in a dispute.
+ * gets the same league. The season is nearly over: each division has one
+ * match without an agreed result, so ending it early leaves one or two
+ * entries a division short of the minimum and carries the rest over. Alex and Bailey's
+ * matches with each other stay open for the two people trying the site, and
+ * neither is caught in a dispute.
  */
 function plan(discipline: "singles" | "doubles", division: number, i: number, j: number): Plan {
   const at = `${discipline} ${division} ${i}-${j}`;
   if (["singles 1 0-1", "doubles 0 3-4"].includes(at)) return "open";
-  if (["singles 0 0-1", "doubles 1 0-2"].includes(at)) return "disputed";
-  if (["singles 0 0-3", "singles 2 0-1", "doubles 1 1-3"].includes(at)) return "reported";
-  return (i + j) % 5 === 0 ? "open" : "played";
+  // Casey v Gray, and Morgan v Noel: Gray and Morgan have opted out, so only one player of each is short.
+  if (["singles 0 0-4", "doubles 1 0-2"].includes(at)) return "disputed";
+  if (at === "singles 2 2-3") return "reported";
+  return "played";
 }
 /** Now and then the weaker side wins, so the tables are not simply the lineups in order. */
 const upset = (i: number, j: number) => (i + 2 * j) % 5 === 0;
