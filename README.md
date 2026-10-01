@@ -7,6 +7,22 @@ the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 
 ![The players' website on a phone: the home page with scores to agree, a division table, and reporting a match.](docs/images/product-preview.png)
 
+> **Not simulation-certified yet.** DeuceLeague is still under testing. The
+> automated tests pass, but a club's seasons have edge cases they do not reach,
+> so we run whole-club simulations to find them, and no simulation has passed
+> clean yet. Expect rough edges, and try it with the sample club first.
+>
+> **Latest simulation, 30 September 2026:** two seasons of a 52-member club
+> (254 matches) played by scripted players, four player agents and a coach
+> agent. Standings matched an independent calculation with no mismatches, and
+> there were no server errors. It also found 4 bugs and 7 high-severity pain
+> points for a real club; they are written up as issue drafts, and the
+> simulation has not been re-run since.
+> [Report](sims/2026-09-30-two-season-club/report.md) ·
+> [Issue drafts and decisions](sims/2026-09-30-two-season-club/issues.md) ·
+> [Request log](sims/2026-09-30-two-season-club/request-log.jsonl) ·
+> [All simulations](sims/README.md)
+
 ## Try it
 
 Deploy it with a sample club in mid-season, then play it as the coach and as

@@ -139,6 +139,9 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
     <a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a>
     <a class="cta quiet" href="#setting-it-up">How setup works</a>
   </div>
+  <div class="callout warn">
+    <p><strong>Not simulation-certified yet.</strong> DeuceLeague is still under testing. We run whole-club simulations to catch the edge cases the automated tests miss, and none has passed clean yet. <a href="#where-it-stands">See where it stands</a>.</p>
+  </div>
 </header>
 
 <h2>Why it exists</h2>
@@ -830,7 +833,17 @@ details { margin-top: .75rem; }
   <li><strong>Automated tests</strong> cover the rules above, including D1 and Worker workflows. Maintainers run them on their own computers before merging a change and record the results with it; nothing runs them automatically on GitHub yet.</li>
 </ul>
 
-<h2>Where it stands</h2>
+<h2 id="where-it-stands">Where it stands</h2>
+<div class="callout warn">
+  <p><strong>Not simulation-certified yet; still under testing.</strong> The automated tests pass, but a club’s seasons have edge cases they do not reach. So we play whole seasons of a pretend club with scripted players, player agents and a coach agent, and fix what turns up. Nothing is certified until a simulation runs clean.</p>
+  <p><strong>Latest simulation, 30 September 2026:</strong> two seasons of a 52-member club, 254 matches. Standings matched an independent calculation with no mismatches, and there were no server errors. It also found 4 bugs and 7 high-severity problems for a real club, such as the coach needing a coding agent for weekly jobs like settling a disputed result. They are written up as issue drafts, and the simulation has not been re-run since.</p>
+  <ul>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/report.md">The report</a>: what happened, problems ranked, bugs with request ids and the limits of the run</li>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/issues.md">Issue drafts and decisions</a></li>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/request-log.jsonl">The request log</a></li>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/README.md">All simulations</a></li>
+  </ul>
+</div>
 <div class="arch">
   <div>
     <h3>Working today</h3>
