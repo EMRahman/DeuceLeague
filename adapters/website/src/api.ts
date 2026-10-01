@@ -54,7 +54,7 @@ export type Outcome = "completed" | "retired" | "walkover" | "conceded" | "unpla
 
 export type Me = {
   club: { id: string; slug: string; name: string; timezone: string };
-  credential: { type: "session"; id: string; member: { id: string; display_name: string; leaving_at: string | null } } | { type: "api_key" };
+  credential: { type: "session"; id: string; member: { id: string; display_name: string; status: "active" | "paused" | "left"; leaving_at: string | null } } | { type: "api_key" };
 };
 
 export type Season = {

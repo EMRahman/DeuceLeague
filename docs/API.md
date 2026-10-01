@@ -209,6 +209,19 @@ who changes their mind and is entered again is not caught by it. It is not
 leaving the club: that is `status: left` on the member. A member shows it as
 `leaving_at`, and a player's `/v1/me` does too.
 
+A player taking a season off, or longer, takes a break:
+`POST /v1/members/{id}/pause` (a player for themselves, or a key with
+`league:write`), which sets the member's status to `paused`, and `DELETE` ends
+it. Unlike leaving, which covers the next draft only, a break lasts until it is
+ended. While it lasts the member is left out of every draft (with a sentence
+saying a member is taking a break, so a doubles partner is left needing a
+partner), cannot be entered in a competition, and a match against an entry
+whose members are all away is not chased. It changes nothing about this season,
+and an opponent who should be credited for a player who has stepped away is
+credited by withdrawing the entry. Coming back does not place anyone in a draft
+already filled: the coach adds them from its newcomers. A member who has left the
+club (`status: left`) is not on a break.
+
 Placements fill next season's competition from this one's final tables. The
 coach creates the new competition as a draft, naming the previous one, and one
 call fills it: every entry that finished is placed with its reason and a

@@ -41,6 +41,8 @@ export function checkLineup(competition: LeagueCompetitionRecord, memberIds: str
   if (removed.length) throw problems.validation([{ path: "member_ids", message: `removed from the club: ${removed.join(", ")}` }]);
   const left = found.filter((m) => m.status === "left").map((m) => m.id);
   if (left.length) throw problems.validation([{ path: "member_ids", message: `left the club: ${left.join(", ")}` }]);
+  const paused = found.filter((m) => m.status === "paused").map((m) => m.id);
+  if (paused.length) throw problems.validation([{ path: "member_ids", message: `on a break from the league: ${paused.join(", ")}. Resume them first.` }]);
   if (entered.length) throw problems.conflict("already_entered", "A member is already entered in this competition",
     `Already in another entry of this competition: ${entered.join(", ")}. A member plays in one division per competition.`);
   const genders = found.map((m) => m.gender);

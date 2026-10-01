@@ -62,7 +62,8 @@ export async function readLeague(db: D1Database, hash: string, kind: CredentialK
         (SELECT competition_id FROM entry WHERE id = json_extract(j, '$.entryId'))) AS competition_id FROM q
     ) SELECT e.*, (SELECT label FROM entry_label WHERE entry_id = e.id) AS label,
       (SELECT json_group_array(json_object('id', m.id, 'displayName', m.display_name, 'role', em.role,
-         'leaving', json(CASE WHEN m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at THEN 'true' ELSE 'false' END)) ORDER BY em.role DESC, m.display_name)
+         'leaving', json(CASE WHEN m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at THEN 'true' ELSE 'false' END),
+         'paused', json(CASE WHEN m.status = 'paused' THEN 'true' ELSE 'false' END)) ORDER BY em.role DESC, m.display_name)
        FROM entry_member em JOIN member m ON m.id = em.member_id WHERE em.entry_id = e.id) AS members
       FROM entry e, scope, q
       WHERE (e.competition_id = scope.competition_id OR e.id = json_extract(j, '$.previousEntryId')

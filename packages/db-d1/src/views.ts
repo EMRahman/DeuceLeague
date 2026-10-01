@@ -59,7 +59,7 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
           WHERE gone.match_id = m.id AND (ge.state = 'withdrawn' OR (
             EXISTS (SELECT 1 FROM entry_member gm WHERE gm.entry_id = ge.id)
             AND NOT EXISTS (SELECT 1 FROM entry_member gm JOIN member gmb ON gmb.id = gm.member_id
-              WHERE gm.entry_id = ge.id AND gmb.status <> 'left' AND gmb.deleted_at IS NULL))))
+              WHERE gm.entry_id = ge.id AND gmb.status = 'active' AND gmb.deleted_at IS NULL))))
     ), permission AS (
       SELECT EXISTS (SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ? AND k.revoked_at IS NULL
         AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000) AND s.value = 'members:pii') AS pii
@@ -135,7 +135,7 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
     db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, e.opted_out_at,
       (e.opted_out_at IS NOT NULL
         OR EXISTS (SELECT 1 FROM entry_member em JOIN member m ON m.id = em.member_id
-          WHERE em.entry_id = e.id AND m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at)
+          WHERE em.entry_id = e.id AND ((m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at) OR m.status = 'paused'))
         OR EXISTS (SELECT 1 FROM entry_member em JOIN partner_choice pc ON pc.member_id = em.member_id
           WHERE em.entry_id = e.id AND pc.competition_id = e.competition_id AND pc.choice = 'leaving')) AS not_playing,
       (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e

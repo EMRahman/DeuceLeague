@@ -36,6 +36,7 @@ the coach normally uses.
 |---|---|---|
 | Add or update members | “Bring in the members from this spreadsheet. Match existing people by email and show me any ambiguous rows first.” | New people, changed details and rows skipped |
 | Place new joiners | “Put the people I approved into next season's draft by their level.” | Each newcomer's division against their level and the division sizes. A newcomer joins at the start of a season, not during one |
+| A player is taking a break | “Sam is taking a season off, and will be back.” | They are out of every draft until the coach (or Sam) says they are back; this season's results stand. Bringing them back does not place them: add them from the draft's newcomers |
 | A player is leaving the league entirely | “Sam is not playing next season at all.” | Marks them out of every draft, singles and doubles, in one go; a doubles partner is left needing a partner. Their results this season stand. It can be taken back |
 | Someone leaves the club | “Sam has left the club.” | The member is marked as left on the Members page: their results stay and they are left out of next season's draft |
 | See what needs attention | “How is the current season going? Show disputed scores, scores waiting for agreement and players with matches left.” | The few exceptions first, then division progress |

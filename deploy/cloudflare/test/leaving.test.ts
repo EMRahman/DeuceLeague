@@ -202,3 +202,121 @@ test("the coach marks a member as not playing next season, and the draft names w
   assert.equal((await coach.post(`/coach/members/${leaver.id}/staying`)).status, 303);
   assert.equal((await f.api(`/v1/members/${leaver.id}`, f.admin)).body.leaving_at, null);
 });
+
+test("a break leaves a member out of every draft until they are back, and does nothing to this season", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const [sam, alex] = p.members as { id: string }[];
+  const next = await f.create("/v1/competitions", { season_id: p.season.id, name: "Next", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak", previous_competition_id: p.comp.id });
+  const goes = async () => ((await f.api(`/v1/competitions/${next.id}/placements`, f.admin)).body.suggestions as any[]);
+  const chased = async () => (await f.api("/v1/chase-list", f.admin)).body.data.length as number;
+  assert.equal(await chased(), 2);
+
+  const paused = await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "POST");
+  assert.equal(paused.status, 200, JSON.stringify(paused.body)); assert.equal(paused.body.status, "paused");
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "POST")).body.status, "paused");
+  assert.equal(await events(f, "member.paused"), 1, "saying it twice records nothing more");
+
+  // Out of the draft, with the reason; the other player is carried. This season stands.
+  const out = (await goes()).find((s) => s.previous_entry_id === p.entries[0].id);
+  assert.deepEqual([out.to_division, out.reason], [null, null]);
+  assert.match(out.explanation, /a member is taking a break, so not carried over/);
+  assert.equal((await goes()).find((s) => s.previous_entry_id === p.entries[1].id).to_division, 1);
+  assert.equal((await f.api(`/v1/entries/${p.entries[0].id}`, f.admin)).body.state, "active");
+  assert.equal((await f.api(`/v1/matches/${p.match}`, f.admin)).body.status, "open");
+  // Nobody is chased for a match against an entry that is away, and the dashboard lists the entry.
+  assert.equal(await chased(), 0);
+  const listed = ((await f.api(`/v1/seasons/${p.season.id}/progress`, f.admin)).body.competitions as any[])
+    .find((c) => c.competition_id === p.comp.id).opted_out.map((x: { label: string }) => x.label);
+  assert.deepEqual(listed, ["Sam"]);
+  // They cannot be put in a competition while away.
+  const cup = await f.create("/v1/competitions", { season_id: p.season.id, name: "Cup", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
+  const division = await f.create(`/v1/competitions/${cup.id}/divisions`, {});
+  const refused = await f.api(`/v1/competitions/${cup.id}/entries`, f.admin, "POST", { division_id: division.id, member_ids: [sam!.id] });
+  assert.equal(refused.status, 400); assert.match(JSON.stringify(refused.body), /on a break/);
+
+  // Back: in the reckoning again for every draft, and chased again; the break had no end date to expire.
+  const back = await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "DELETE");
+  assert.equal(back.status, 200); assert.equal(back.body.status, "active");
+  assert.equal(await events(f, "member.resumed"), 1);
+  assert.equal((await goes()).find((s) => s.previous_entry_id === p.entries[0].id).to_division, 1);
+  assert.equal(await chased(), 2);
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "DELETE")).status, 200, "harmless when not on a break");
+  assert.equal(await events(f, "member.resumed"), 1);
+  void alex;
+});
+
+test("a break is a player's own to take, and not for someone who has left or been removed", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const [sam, alex] = p.members as { id: string }[];
+  const mine = await session(f, sam!.id);
+  assert.equal((await f.api(`/v1/members/${alex!.id}/pause`, mine, "POST")).status, 403);
+  const own = await f.api(`/v1/members/${sam!.id}/pause`, mine, "POST");
+  assert.equal(own.status, 200, JSON.stringify(own.body)); assert.equal(own.body.status, "paused");
+  assert.equal((await f.api("/v1/me", mine)).body.credential.member.status, "paused");
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, mine, "DELETE")).body.status, "active");
+  const reader = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Reader", scopes: ["members:read"] })).body.key;
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, reader, "POST")).status, 403);
+  await f.api(`/v1/members/${alex!.id}`, f.admin, "PATCH", { status: "left" });
+  assert.equal((await f.api(`/v1/members/${alex!.id}/pause`, f.admin, "POST")).body.code, "member_left");
+  assert.equal((await f.api(`/v1/members/${alex!.id}/pause`, f.admin, "DELETE")).body.code, "member_left", "left is not a break to come back from");
+  await f.api(`/v1/members/${sam!.id}`, f.admin, "DELETE");
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "POST")).body.code, "member_removed");
+});
+
+test("a player takes a break from their home page, and comes back from it", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const home = (await sam.get("/")).html;
+  assert.match(home, /I am taking a break/); assert.match(home, /I am not playing next season at all/);
+  assert.doesNotMatch(home, /You are on a break/);
+  assert.equal((await sam.post("/pause", {}, "https://evil.invalid")).status, 403);
+  const said = await sam.post("/pause");
+  assert.equal(said.status, 303); assert.equal(said.location, "/?done=paused");
+  assert.equal((await f.api(`/v1/members/${p.members[0].id}`, f.admin)).body.status, "paused");
+  const away = (await sam.get("/?done=paused")).html;
+  assert.match(away, /You are on a break/); assert.match(away, /I am back/); assert.match(away, /Done\. You are on a break/);
+  assert.doesNotMatch(away, /I am taking a break/); assert.doesNotMatch(away, /I am not playing next season at all/);
+  assert.match((await sam.get(`/competitions/${p.comp.id}`)).html, /You are on a break, so you are not in the draft for next season/);
+  const back = await sam.post("/resume");
+  assert.equal(back.status, 303); assert.equal(back.location, "/?done=resumed");
+  assert.equal((await f.api(`/v1/members/${p.members[0].id}`, f.admin)).body.status, "active");
+  assert.match((await sam.get("/?done=resumed")).html, /Welcome back/);
+});
+
+test("the coach puts a member on a break, and the draft says so and what it means for a doubles partner", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const doublesId = ((await f.api("/v1/competitions", f.admin)).body.data as { id: string; discipline: string }[]).find((x) => x.discipline === "doubles")!.id;
+  const entries = (await f.api(`/v1/competitions/${doublesId}/entries`, f.admin)).body.data as
+    { label: string; opted_out_at: string | null; members: { id: string; display_name: string }[] }[];
+  const said = new Set(((await f.api(`/v1/competitions/${doublesId}/partner-choices`, f.admin)).body.data as { member_id: string; partner_id: string | null }[])
+    .flatMap((c) => [c.member_id, c.partner_id ?? ""]));
+  const pair = entries.find((e) => !e.opted_out_at && e.members.every((m) => !said.has(m.id)))!;
+  const [away, stays] = [pair.members[0]!, pair.members[1]!];
+
+  assert.match((await coach.get("/coach/members")).html, new RegExp(`action="/coach/members/${away.id}/pause"`));
+  assert.equal((await coach.post(`/coach/members/${away.id}/pause`)).status, 303);
+  const marked = (await coach.get("/coach/members")).html;
+  assert.match(marked, /<span class="tag">On a break<\/span>/); assert.match(marked, new RegExp(`action="/coach/members/${away.id}/resume"`));
+
+  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`); if (r.status !== 307) break; }
+  for (let hop = 0; hop < 20; hop++) {
+    const r = await coach.post("/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
+    if (r.status !== 307) break;
+  }
+  const draft = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((d: { discipline: string }) => d.discipline === "doubles");
+  const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const escaped = pair.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const page = text((await coach.get(`/coach/season/drafts/${draft.id}`)).html);
+  assert.match(page, new RegExp(`${escaped} ${away.display_name} is on a break`), "not 'no longer on the club's list'");
+  assert.doesNotMatch(page, new RegExp(`${away.display_name} is no longer on the club`));
+  const needing = page.split("Players without a pair")[1]!.split("Make a pair")[0]!;
+  assert.match(needing, new RegExp(`${stays.display_name}( Level \\d+)? Was in ${escaped} · ${away.display_name} is on a break`));
+  assert.match(page, /bring them back from the Members page first/);
+
+  // Back from the break from the members page.
+  assert.equal((await coach.post(`/coach/members/${away.id}/resume`)).status, 303);
+  assert.equal((await f.api(`/v1/members/${away.id}`, f.admin)).body.status, "active");
+});

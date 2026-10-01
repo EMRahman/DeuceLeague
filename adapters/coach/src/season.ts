@@ -186,6 +186,8 @@ export function draftView(
   plan: PlacementPlan = { suggestions: [], vacancies: [] },
   /** The draft's own minimum matches, for flagging a division too small to play it. */
   rules: { minMatchesToPlay: number } = { minMatchesToPlay: 0 },
+  /** Members on a break from the league: not in `members`, but not gone either. */
+  onBreak: ReadonlySet<string> = new Set(),
 ): DraftView {
   const rows = new Map(previous.standings.divisions.flatMap((d) => d.rows.map((r) => [r.entry_id, { division: d, row: r }])));
   const drafted = new Set(draft.entries.flatMap((e) => e.members.map((m) => m.id)));
@@ -221,7 +223,8 @@ export function draftView(
   for (const entry of previous.entries) {
     if (followed.has(entry.id)) continue;
     const place = rows.get(entry.id);
-    const gone = entry.members.filter((m) => !inClub.has(m.id));
+    const away = entry.members.filter((m) => onBreak.has(m.id));
+    const gone = entry.members.filter((m) => !inClub.has(m.id) && !onBreak.has(m.id));
     // Said they are leaving the league altogether, before this entry was made: it is out of the draft.
     const leaving = entry.members.filter((m) => {
       const said = inClub.get(m.id)?.leaving_at;
@@ -231,7 +234,8 @@ export function draftView(
     const fixtures = row ? row.matches.length + row.outstanding : 0;
     const needed = Math.min(minimum, fixtures);
     const broke = breaking(entry);
-    const why = gone.length > 0 ? `${gone.map((m) => m.display_name).join(" and ")} ${gone.length === 1 ? "is" : "are"} no longer on the club's list`
+    const why = away.length > 0 && gone.length === 0 ? `${away.map((m) => m.display_name).join(" and ")} ${away.length === 1 ? "is" : "are"} on a break`
+      : gone.length > 0 ? `${gone.map((m) => m.display_name).join(" and ")} ${gone.length === 1 ? "is" : "are"} no longer on the club's list`
       : entry.opted_out_at ? "Opted out of next season"
       : leaving.length > 0 ? `${leaving.map((m) => m.display_name).join(" and ")} ${leaving.length === 1 ? "is" : "are"} leaving the league`
       : broke ? broke
@@ -239,7 +243,7 @@ export function draftView(
       : row && row.played < needed ? `Played ${row.played} of the ${needed} ${needed === 1 ? "match" : "matches"} needed to keep a place${never(row, needed)}`
       : "Taken out of the draft";
     leftOut.push({ entry, why, ordinal: place?.division.ordinal ?? 1, from: fromOf(entry.id),
-      addable: gone.length === 0 && entry.members.every((m) => !drafted.has(m.id)) });
+      addable: gone.length === 0 && away.length === 0 && entry.members.every((m) => !drafted.has(m.id)) });
   }
   leftOut.sort((a, b) => tableOrder(a.from, b.from));
 
