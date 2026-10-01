@@ -95,9 +95,11 @@ test("coach sign-in refuses other credentials and other sites; a revoked key or 
   assert.equal((await coach.post("/coach/sign-in", { key: "dl_" + "x".repeat(43) })).status, 401);
   const readOnly = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Reader", scopes: ["league:read", "members:read"] })).body.key;
   const refused = await coach.post("/coach/sign-in", { key: readOnly });
-  assert.equal(refused.status, 403); assert.match(refused.html, /cannot read the league, list members or make sign-in links/);
+  assert.equal(refused.status, 403); assert.match(refused.html, /cannot read and change the league, list members or make sign-in links/);
+  const noWrite = (await f.api("/v1/api-keys", f.admin, "POST", { name: "No write", scopes: ["league:read", "members:read", "members:write"] })).body.key;
+  assert.equal((await coach.post("/coach/sign-in", { key: noWrite })).status, 403, "the Season tab writes the league, so the key needs league:write");
   assert.equal(coach.session(), "", "no cookie for a refused key");
-  const agent = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Agent", scopes: ["league:read", "members:read", "members:write"] })).body.key;
+  const agent = (await f.api("/v1/api-keys", f.admin, "POST", { name: "Agent", scopes: ["league:read", "league:write", "members:read", "members:write"] })).body.key;
   assert.equal((await coach.post("/coach/sign-in", { key: agent }, "https://evil.invalid")).status, 403);
   const keys = async () => (await f.api("/v1/api-keys", f.admin)).body.data.length as number;
   const before = await keys();
@@ -294,6 +296,21 @@ test("the dashboard's table follows a minimum the coach's agent sets", async (t)
   assert.equal((await coach.post(`/coach/competitions/${singles.id}/minimum`, { minimum: "5" })).status, 404, "no setting on the coach's site");
 });
 
+test("a season with a competition not yet started cannot be ended from the Season tab", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const running = (await f.api("/v1/competitions?state=active", f.admin)).body.data[0];
+  const draft = await f.api("/v1/competitions", f.admin, "POST", { season_id: season.id, name: "Late singles", discipline: "singles",
+    match_format: running.match_format, previous_competition_id: running.id });
+  assert.equal(draft.status, 201, JSON.stringify(draft.body));
+  for (const r of [await coach.get(`/coach/season/${season.id}/end`), await coach.post(`/coach/season/${season.id}/end`)]) {
+    assert.equal(r.status, 400); assert.match(r.html, /Late singles not started/);
+  }
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin)).body.state, "active");
+  assert.equal((await f.api(`/v1/competitions/${running.id}`, f.admin)).body.state, "active");
+});
+
 test("the coach ends the sample season early and starts the next from its final tables", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -378,6 +395,10 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.equal((await coach.post(`/coach/season/drafts/${doubles.id}/entries`,
     { member: id("Umi"), partner: id("Val"), division_id: doublesDivisions[1]!.id })).status, 303);
   assert.ok((await entries(doubles.id)).some((e) => e.label === "Sample Umi / Sample Val"));
+  // A pair needs two players: the same one twice is refused with a message, not an error page.
+  const itself = await coach.post(`/coach/season/drafts/${doubles.id}/entries`,
+    { member: id("Gray"), partner: id("Gray"), division_id: doublesDivisions[0]!.id });
+  assert.equal(itself.status, 400); assert.match(itself.html, /A pair needs two different players/);
 
   // Starting it draws the matches and opens the season and its competitions.
   const started = await send(coach, `/coach/season/${planned[0].id}/start`);
@@ -389,5 +410,9 @@ test("the coach ends the sample season early and starts the next from its final 
     assert.ok(open.length > 0, `${x.name} has its matches`);
   }
   assert.equal((await coach.get(`/coach/season/drafts/${singles.id}`)).status, 404, "a started competition is no draft");
+  // A form left open on the draft page cannot add anyone once the matches are drawn.
+  const late = await coach.post(`/coach/season/drafts/${singles.id}/entries`, { member: id("Val"), division_id: divisions[0]!.id });
+  assert.equal(late.status, 404); assert.match(late.html, /Not a draft/);
+  assert.ok(!(await entries(singles.id)).some((e) => e.label === "Sample Val"));
   assert.match((await coach.get("/coach")).html, /<h1>Sample season 2<\/h1>/);
 });
