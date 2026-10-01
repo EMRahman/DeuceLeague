@@ -66,7 +66,7 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
       (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
         AND g.kind = 'session') AS signed_in_at,
       CASE WHEN permission.pii THEN json_object('fullName', m.full_name, 'email', m.email, 'phone', m.phone,
-        'dateOfBirth', m.date_of_birth, 'gender', m.gender, 'notes', m.notes) ELSE NULL END AS personal_json
+        'dateOfBirth', m.date_of_birth, 'gender', m.gender, 'ageGroup', m.age_group, 'notes', m.notes) ELSE NULL END AS personal_json
     FROM member m, q, permission WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
       AND (json_extract(q.filter, '$.id') IS NULL OR m.id = json_extract(q.filter, '$.id'))
       AND (json_extract(q.filter, '$.after') IS NULL OR m.id > json_extract(q.filter, '$.after'))
@@ -164,16 +164,26 @@ export type MemberMutation =
   | { type: "patch"; changes: MemberChanges; fields: string[] }
   | { type: "remove" }
   | { type: "erase" };
+/**
+ * A member who leaves, or is removed, is taken out of next season's drafts in the same batch: a draft
+ * has no matches yet, so nothing is lost, and starting it cannot draw fixtures for someone who has gone.
+ * Found through the member's own entries, never by reading every competition.
+ */
+function leaveDrafts(db: D1Database, clubId: string, memberId: string) {
+  return db.prepare(`DELETE FROM entry WHERE club_id = ? AND id IN (SELECT em.entry_id FROM entry_member em
+    JOIN competition c ON c.id = em.competition_id AND c.club_id = em.club_id
+    WHERE em.member_id = ? AND em.club_id = ? AND c.state = 'draft')`).bind(clubId, memberId, clubId);
+}
 export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot, id: string, mutation: MemberMutation): Promise<MemberRecord> {
   const clubId = state.club!.id;
   const writes: D1PreparedStatement[] = [];
   if (mutation.type === "create") {
     const c = mutation.changes;
     writes.push(db.prepare(`INSERT INTO member (id, club_id, display_name, status, rating, rating_system, level, joined_on,
-      full_name, email, phone, date_of_birth, gender, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      full_name, email, phone, date_of_birth, gender, age_group, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .bind(id, clubId, c.displayName, c.status ?? "active", rating(c.rating), c.ratingSystem ?? null, c.level ?? null, c.joinedOn ?? null,
-        c.fullName ?? null, c.email ?? null, c.phone ?? null, c.dateOfBirth ?? null, c.gender ?? null, c.notes ?? null),
+        c.fullName ?? null, c.email ?? null, c.phone ?? null, c.dateOfBirth ?? null, c.gender ?? null, c.ageGroup ?? null, c.notes ?? null),
       audit(db, state, "member.created", "member", id, { fields: mutation.fields,
         ...(mutation.joinRequest ? { join_request_id: mutation.joinRequest.id, privacy_notice: mutation.joinRequest.privacyNotice } : {}) }));
     // Its member.created event, naming the request, is the record that it was approved.
@@ -193,23 +203,31 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       phone = CASE WHEN json_type(input.changes, '$.phone') IS NULL THEN phone ELSE json_extract(input.changes, '$.phone') END,
       date_of_birth = CASE WHEN json_type(input.changes, '$.dateOfBirth') IS NULL THEN date_of_birth ELSE json_extract(input.changes, '$.dateOfBirth') END,
       gender = CASE WHEN json_type(input.changes, '$.gender') IS NULL THEN gender ELSE json_extract(input.changes, '$.gender') END,
+      age_group = CASE WHEN json_type(input.changes, '$.ageGroup') IS NULL THEN age_group ELSE json_extract(input.changes, '$.ageGroup') END,
       notes = CASE WHEN json_type(input.changes, '$.notes') IS NULL THEN notes ELSE json_extract(input.changes, '$.notes') END,
       updated_at = ? FROM (SELECT ? AS changes) input WHERE id = ? AND club_id = ? AND deleted_at IS NULL`)
       .bind(state.now, JSON.stringify({ ...mutation.changes,
         ...(mutation.changes.rating === undefined ? {} : { rating: rating(mutation.changes.rating) }) }), id, clubId),
       audit(db, state, "member.updated", "member", id, { changed: mutation.fields }));
+    if (mutation.changes.status === "left") writes.push(leaveDrafts(db, clubId, id));
   } else {
+    writes.push(leaveDrafts(db, clubId, id));
     if (mutation.type === "remove") writes.push(db.prepare(`UPDATE member SET deleted_at = coalesce(deleted_at, ?), updated_at = ?
       WHERE id = ? AND club_id = ?`).bind(state.now, state.now, id, clubId));
     else writes.push(
       db.prepare(`UPDATE member SET display_name = 'Erased member', full_name = NULL, email = NULL, phone = NULL,
-        date_of_birth = NULL, gender = NULL, notes = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
+        date_of_birth = NULL, gender = NULL, age_group = NULL, notes = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
         status = 'left', deleted_at = coalesce(deleted_at, ?), updated_at = ? WHERE id = ? AND club_id = ?`)
         .bind(state.now, state.now, id, clubId),
       db.prepare(`UPDATE entry SET display_name = NULL, updated_at = ? WHERE club_id = ? AND display_name IS NOT NULL
         AND id IN (SELECT entry_id FROM entry_member WHERE member_id = ? AND club_id = ?)`)
         .bind(state.now, clubId, id, clubId),
       db.prepare("UPDATE result_submission SET raw_input = NULL WHERE submitted_by_member_id = ? AND club_id = ?").bind(id, clubId),
+      // Who they would partner, and who asked them: a choice is only ever made in a competition they play in.
+      db.prepare(`DELETE FROM partner_choice WHERE member_id = ? AND club_id = ?
+        AND competition_id IN (SELECT competition_id FROM entry_member WHERE member_id = ?)`).bind(id, clubId, id),
+      db.prepare(`UPDATE partner_choice SET partner_id = NULL, confirmed_at = NULL, updated_at = ? WHERE partner_id = ? AND club_id = ?`)
+        .bind(state.now, id, clubId),
     );
     writes.push(db.prepare("DELETE FROM access_grant WHERE member_id = ? AND club_id = ?").bind(id, clubId),
       audit(db, state, mutation.type === "erase" ? "member.erased" : "member.removed", "member", id));

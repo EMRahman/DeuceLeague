@@ -1,4 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
+import { AgeGroup, Gender } from "@deuceleague/schema";
 import { Level, Member, pii } from "./members.js";
 import { authProblems, conflictProblem, IdParam, notFoundProblem, PageQuery, pageOf, requires, Timestamp, validationProblem } from "./shared.js";
 
@@ -9,6 +10,8 @@ export const JoinRequest = z
     surname: z.string().openapi({ description: pii("As they typed it.") }),
     email: z.string().nullable().openapi({ description: pii("An email address, a phone number, or both.") }),
     phone: z.string().nullable().openapi({ description: pii("As they typed it.") }),
+    gender: Gender.nullable().openapi({ description: pii("As they chose it on the form; null if the request did not carry one.") }),
+    age_group: AgeGroup.nullable().openapi({ description: pii("The band they chose on the form, or null if they left it blank.") }),
     privacy_notice: z.string().openapi({
       example: "uk-2026-09-30",
       description: "Which privacy notice they read and agreed to, when they asked.",
@@ -33,6 +36,8 @@ export const NewJoinRequest = z
       .regex(/^\+?[0-9][0-9 ()-]{5,23}$/, "A phone number has digits, and may start with +")
       .nullable()
       .optional(),
+    gender: Gender.nullable().optional().openapi({ description: "The club's own form always sends one. Copied to the member on approval." }),
+    age_group: AgeGroup.nullable().optional().openapi({ description: "Optional. Copied to the member on approval." }),
     privacy_notice: z.string().trim().min(1).max(40).openapi({
       example: "uk-2026-09-30",
       description: "Which privacy notice the person read and agreed to. The form that showed it names it.",
@@ -47,6 +52,8 @@ export const Approval = z
       description: 'The name they play under. Defaults to their first name and initial, such as "Sam K."',
     }),
     level: Level.nullable().optional(),
+    gender: Gender.nullable().optional().openapi({ description: "Replaces the one on the request, if the coach knows better." }),
+    age_group: AgeGroup.nullable().optional().openapi({ description: "Replaces the one on the request." }),
   })
   .openapi("JoinRequestApproval");
 
@@ -104,8 +111,9 @@ export const approve = createRoute({
   tags: ["Join requests"],
   summary: "Approve a join request",
   description:
-    "Adds them to the club's list as an active member, with their full name, contact details and the level " +
-    "given, and deletes the request. The member's `member.created` event records the request and the privacy " +
+    "Adds them to the club's list as an active member, with their full name, contact details, gender and age " +
+    "group, and the level given, and deletes the request. They are not placed in a running season: the " +
+    "coach places them in the draft for the next one. The member's `member.created` event records the request and the privacy " +
     "notice they agreed to.",
   ...requires("members:write", "members:pii"),
   request: {

@@ -198,3 +198,50 @@ test("a club that starts without email can switch it on later; sessions and coac
   assert.match((await other.get("/")).html, /Hello, Sam/);
 });
 
+
+test("a doubles player answers a request to partner them next season, and sees what their partner has said", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const members = (await f.api("/v1/members?limit=200", f.admin)).body.data as { id: string; display_name: string }[];
+  const id = (name: string) => members.find((m) => m.display_name === `Sample ${name}`)!.id;
+  /** A browser signed in as a sample player, with a link the coach made. */
+  async function as(name: string) {
+    const token = (await f.api(`/v1/members/${id(name)}/login-link`, f.admin, "POST")).body.token;
+    const b = browser(f); assert.equal((await b.post("/login/confirm", { token })).status, 303); return b;
+  }
+  const doubles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample doubles").id;
+  const page = `/competitions/${doubles}`;
+  const text = (html: string) => html.split("<main>")[1]!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+  // Indy has asked Bailey, in the sample. Bailey agrees, which ends their pair with Quinn.
+  const bailey = await as("Bailey");
+  const asked = text((await bailey.get(page)).html);
+  assert.match(asked, /Sample Indy has asked you to be their partner next season\. Agreeing ends your pair with Sample Quinn\./);
+  assert.match(asked, /You are down to play with Sample Quinn again\./);
+  const agreed = await bailey.post(`${page}/partner`, { choice: "new_partner", partner_id: id("Indy") });
+  assert.equal(agreed.status, 303); assert.equal(agreed.location, page);
+  const now = text((await bailey.get(page)).html);
+  assert.match(now, /Sample Indy has agreed: you will be a pair next season, once the coach places you\./);
+  assert.doesNotMatch(now, /has asked you/);
+
+  // Quinn sees their partner has moved on; Alex, whose partner Parker agreed to play with Harper, too.
+  assert.match(text((await (await as("Quinn")).get(page)).html), /Sample Bailey is pairing with Sample Indy next season\. Ask someone else/);
+  const alex = await as("Alex");
+  assert.match(text((await alex.get(page)).html), /Sample Parker is pairing with Sample Harper next season/);
+  // Alex asks for a new partner without naming one, then says they are not playing after all.
+  assert.equal((await alex.post(`${page}/partner`, { choice: "new_partner", partner_id: "" })).status, 303);
+  assert.match(text((await alex.get(page)).html), /You want a new partner\. The coach will find you one/);
+  assert.equal((await alex.post(`${page}/partner`, { choice: "leaving" })).status, 303);
+  assert.match(text((await alex.get(page)).html), /You have told the coach you are not playing next season\./);
+
+  // Saying no: Kai asks Sage, who says no thanks, and Kai is left for the coach to pair.
+  const kai = await as("Kai");
+  assert.equal((await kai.post(`${page}/partner`, { choice: "new_partner", partner_id: id("Sage") })).status, 303);
+  assert.match(text((await kai.get(page)).html), /You have asked Sample Sage\. Waiting for them to agree\./);
+  const sage = await as("Sage");
+  assert.equal((await sage.post(`${page}/partner/${id("Kai")}/decline`)).status, 303);
+  assert.match(text((await kai.get(page)).html), /You want a new partner\./);
+  // Singles keeps its opt-out, with no partner to choose.
+  const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles").id;
+  const solo = (await kai.get(`/competitions/${singles}`)).html;
+  assert.match(solo, /I am not playing next season/); assert.doesNotMatch(solo, /New partner/);
+});

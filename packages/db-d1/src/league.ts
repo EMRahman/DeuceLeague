@@ -67,7 +67,7 @@ export async function readLeague(db: D1Database, hash: string, kind: CredentialK
       WHERE (e.competition_id = scope.competition_id OR e.id = json_extract(j, '$.previousEntryId')
       OR (json_extract(j, '$.includePrevious') = 1 AND e.competition_id = (SELECT previous_competition_id FROM competition WHERE id = scope.competition_id)))
       AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id) ORDER BY e.id`).bind(q),
-    db.prepare(`SELECT m.id, m.display_name, m.deleted_at, CASE WHEN EXISTS (
+    db.prepare(`SELECT m.id, m.display_name, m.deleted_at, m.status, CASE WHEN EXISTS (
       SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ? AND k.revoked_at IS NULL
       AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000) AND s.value = 'members:pii'
       ) THEN m.gender ELSE NULL END AS gender FROM member m
@@ -82,7 +82,7 @@ export async function readLeague(db: D1Database, hash: string, kind: CredentialK
   ]);
   const r = identity.extraResults.map((result) => result.results as Row[]);
   return { identity, extraResults: identity.extraResults.slice(7), data: { seasons: r[0]!.map(season), competitions: r[1]!.map(competition), divisions: r[2]!.map(division),
-    entries: r[3]!.map(entry), members: r[4]!.map((m) => ({ id: m.id, displayName: m.display_name, deletedAt: date(m.deleted_at), gender: m.gender })),
+    entries: r[3]!.map(entry), members: r[4]!.map((m) => ({ id: m.id, displayName: m.display_name, deletedAt: date(m.deleted_at), status: m.status, gender: m.gender })),
     matches: r[5]!.map((m) => ({ id: m.id, divisionId: m.division_id, status: m.status, pairingKey: m.pairing_key,
       hasClaims: Boolean(m.has_claims), entryIds: JSON.parse(m.entry_ids) })), referencedEntries: r[6]!.map((r) => r.previous_entry_id) } };
 }
@@ -152,6 +152,20 @@ export function leagueStatements(db: D1Database, clubId: string, changes: League
       case "deleteEntry": writes.push(db.prepare("DELETE FROM entry WHERE id = ? AND club_id = ?").bind(change.id, clubId)); break;
       case "deleteFixtures": writes.push(db.prepare(`DELETE FROM match WHERE id IN (SELECT value FROM json_each(?)) AND status = 'open'
         AND NOT EXISTS (SELECT 1 FROM result_submission r WHERE r.match_id = match.id)`).bind(JSON.stringify(change.ids))); break;
+      case "partnerChoices": {
+        // One statement however many change together: agreeing to a pair changes two.
+        const records = change.records.map((r) => ({ ...r, confirmedAt: r.confirmedAt?.getTime() ?? null,
+          createdAt: r.createdAt.getTime(), updatedAt: r.updatedAt.getTime() }));
+        writes.push(db.prepare(`INSERT INTO partner_choice (club_id, competition_id, member_id, choice, partner_id, confirmed_at, created_at, updated_at)
+          SELECT ?, json_extract(value, '$.competitionId'), json_extract(value, '$.memberId'), json_extract(value, '$.choice'),
+            json_extract(value, '$.partnerId'), json_extract(value, '$.confirmedAt'), json_extract(value, '$.createdAt'), json_extract(value, '$.updatedAt')
+          FROM json_each(?) WHERE true
+          ON CONFLICT (competition_id, member_id) DO UPDATE SET choice = excluded.choice, partner_id = excluded.partner_id,
+            confirmed_at = excluded.confirmed_at, updated_at = excluded.updated_at`).bind(clubId, JSON.stringify(records)));
+        break;
+      }
+      case "deletePartnerChoice": writes.push(db.prepare("DELETE FROM partner_choice WHERE competition_id = ? AND member_id = ? AND club_id = ?")
+        .bind(change.competitionId, change.memberId, clubId)); break;
       case "fixtures": {
         // Two bulk statements regardless of division size: no per-fixture query or placeholder growth.
         const fixtures = change.fixtures.map((f) => ({ ...f, side0Id: uuidv7(), side1Id: uuidv7() }));

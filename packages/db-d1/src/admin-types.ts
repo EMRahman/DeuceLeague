@@ -14,7 +14,7 @@ export type ApiKeyRecord = {
 };
 export type PersonalFields = {
   fullName: string | null; email: string | null; phone: string | null;
-  dateOfBirth: string | null; gender: string | null; notes: string | null;
+  dateOfBirth: string | null; gender: string | null; ageGroup: string | null; notes: string | null;
 };
 export type MemberRecord = {
   id: string; displayName: string; status: string; rating: string | null;
