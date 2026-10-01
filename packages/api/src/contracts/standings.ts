@@ -249,7 +249,10 @@ export const chase = createRoute({
   tags: ["Standings and progress"],
   summary: "Who has matches outstanding",
   description:
-    "One row per member per division, most outstanding first, split by what is needed from them. " +
+    "One row per member per division, most outstanding first, split by what is needed from them. Only the " +
+    "running season is listed: a finished season's matches cannot be settled, so nothing would clear them. A " +
+    "match against a withdrawn entry, or one whose members have all left the club, is outstanding for no one " +
+    "until the entry returns. " +
     "`within_days` is the whole reminder workflow: 30 a month out, 14 a fortnight later. Emails appear only " +
     "for a credential holding `members:pii`. What gets sent, and to whom, is the coach's decision — the " +
     "core sends nothing.",

@@ -240,7 +240,9 @@ a season's dashboard in one read.
 **Chase list.** Who has matches outstanding and how long is left, filterable
 by days remaining — `within_days=30` a month out, 14 a fortnight later. Each
 row says how many matches the member has played toward the minimum and how
-many short they are. Needs `members:read`; emails appear only with
+many short they are. Only the running season is listed, and a match against a
+withdrawn entry, or one whose members have all left the club, counts for no one
+until the entry returns. Needs `members:read`; emails appear only with
 `members:pii`. What gets sent, to whom, stays the coach's decision.
 
 **Events** (`league:read`). `GET /v1/events?after=<cursor>` reads the event

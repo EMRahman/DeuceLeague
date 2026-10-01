@@ -315,6 +315,10 @@ test("the club's 17 divisions generate 933 unique fixtures through production AP
     assert.equal(progress.body.matches, config.divisions * config.size * (config.size - 1) / 2);
     assert.equal(progress.body.played, 0);
   }
+  // A season still being planned has nobody to chase; once it runs, every division's matches are outstanding.
+  assert.deepEqual((await send(f, "/v1/chase-list")).body.data, []);
+  assert.equal((await send(f, `/v1/seasons/${season.id}`, "PATCH", { state: "active", starts_on: "2026-01-01", ends_on: "2026-12-31" })).status, 200);
+  for (const { id } of previous) assert.equal((await send(f, `/v1/competitions/${id}`, "PATCH", { state: "active" })).status, 200);
   const chase = await send(f, "/v1/chase-list");
   assert.equal(chase.status, 200);
   assert.equal(chase.body.data.length, 276);
