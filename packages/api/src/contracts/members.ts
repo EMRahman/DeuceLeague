@@ -135,7 +135,8 @@ export const patch = createRoute({
   description:
     "Only the fields sent change; null clears one. Changing any personal field also needs `members:pii`. " +
     "`status: left` records that they have left the club: their results stay, they are not placed in the next " +
-    "season's draft, and they cannot be entered in a competition. Setting it back to `active` undoes it.",
+    "season's draft, and they cannot be entered in a competition. Any place they hold in a draft is taken out at once. Setting " +
+    "it back to `active` undoes the status, not the places taken out.",
   ...requires("members:write"),
   request: { params: IdParam, body: { content: { "application/json": { schema: MemberPatch } }, required: true } },
   responses: {

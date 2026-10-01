@@ -99,6 +99,27 @@ test("a member who has left keeps their results, is left out of the next draft a
   assert.equal((await send(f, `/v1/competitions/${next.id}/entries`, "POST", { division_id: division, member_ids: [leaver] })).status, 201);
 });
 
+test("a member who leaves or is removed after the draft was filled is taken out of the draft, not out of last season", async (t) => {
+  const f = await source(t, 4); const next = await target(f);
+  assert.equal((await fill(f, next.id)).status, 201);
+  const draft = async () => (await summary(f, next.id)).entries as any[];
+  const placed = await draft(); assert.equal(placed.length, 4);
+  const [leaver, removed] = [placed[0].members[0].id, placed[1].members[0].id];
+  assert.equal((await send(f, `/v1/members/${leaver}`, "PATCH", { status: "left" })).status, 200);
+  assert.deepEqual((await draft()).map((e) => e.id).sort(), placed.slice(1).map((e) => e.id).sort());
+  assert.equal((await send(f, `/v1/members/${removed}`, "DELETE")).status, 204);
+  assert.equal((await draft()).length, 2);
+  // Last season's entries and results are untouched, and coming back does not restore the place.
+  assert.equal((await send(f, `/v1/competitions/${f.ids.competition}/entries`)).body.data.length, 4);
+  assert.equal((await send(f, `/v1/members/${leaver}`, "PATCH", { status: "active" })).status, 200);
+  assert.equal((await draft()).length, 2);
+  // Only drafts: a member leaving a competition already under way keeps their entry and fixtures.
+  const live = (await send(f, `/v1/competitions/${f.ids.competition}/entries`)).body.data.find((e: any) => e.members[0].id === placed[2].members[0].id);
+  assert.equal((await send(f, `/v1/members/${placed[2].members[0].id}`, "PATCH", { status: "left" })).status, 200);
+  assert.ok((await send(f, `/v1/competitions/${f.ids.competition}/entries`)).body.data.some((e: any) => e.id === live.id));
+  assert.equal((await draft()).length, 1);
+});
+
 test("doubles stay together with their custom label and role order; removal of either partner excludes the pair", async (t) => {
   const f = await source(t, 2, true);
   await send(f, `/v1/entries/${f.entries[0]}`, "PATCH", { display_name: "The A team", seed: 2 });

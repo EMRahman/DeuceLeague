@@ -164,6 +164,16 @@ export type MemberMutation =
   | { type: "patch"; changes: MemberChanges; fields: string[] }
   | { type: "remove" }
   | { type: "erase" };
+/**
+ * A member who leaves, or is removed, is taken out of next season's drafts in the same batch: a draft
+ * has no matches yet, so nothing is lost, and starting it cannot draw fixtures for someone who has gone.
+ * Found through the member's own entries, never by reading every competition.
+ */
+function leaveDrafts(db: D1Database, clubId: string, memberId: string) {
+  return db.prepare(`DELETE FROM entry WHERE club_id = ? AND id IN (SELECT em.entry_id FROM entry_member em
+    JOIN competition c ON c.id = em.competition_id AND c.club_id = em.club_id
+    WHERE em.member_id = ? AND em.club_id = ? AND c.state = 'draft')`).bind(clubId, memberId, clubId);
+}
 export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot, id: string, mutation: MemberMutation): Promise<MemberRecord> {
   const clubId = state.club!.id;
   const writes: D1PreparedStatement[] = [];
@@ -199,7 +209,9 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       .bind(state.now, JSON.stringify({ ...mutation.changes,
         ...(mutation.changes.rating === undefined ? {} : { rating: rating(mutation.changes.rating) }) }), id, clubId),
       audit(db, state, "member.updated", "member", id, { changed: mutation.fields }));
+    if (mutation.changes.status === "left") writes.push(leaveDrafts(db, clubId, id));
   } else {
+    writes.push(leaveDrafts(db, clubId, id));
     if (mutation.type === "remove") writes.push(db.prepare(`UPDATE member SET deleted_at = coalesce(deleted_at, ?), updated_at = ?
       WHERE id = ? AND club_id = ?`).bind(state.now, state.now, id, clubId));
     else writes.push(
