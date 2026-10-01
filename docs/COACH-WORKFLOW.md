@@ -40,7 +40,7 @@ the coach normally uses.
 | See what needs attention | “How is the current season going? Show disputed scores, scores waiting for agreement and players with matches left.” | The few exceptions first, then division progress |
 | Settle a result | “Sam and Alex agreed it was 6-4, 3-6, 10-7 to Sam. Settle that match.” | Players, competition, score and winner before submitting |
 | Prepare the next season | “Draft Autumn from the Summer tables. Use the normal movement rules and leave out anyone who opted out.” | Every promotion, relegation, hold and omission, with its reason; anyone short of the minimum is left out, and can be added back |
-| Adjust placements | “Keep Priya in Division 2 and put the new member Lee in Division 4 of the draft.” | The affected divisions and their new sizes |
+| Adjust placements | “Keep Priya in Division 2 and put the new member Lee in Division 4 of the draft.” | The affected divisions and their new sizes, and any promotion or relegation place left empty because its holder was left out. The entry below does not take it unasked |
 | Open a competition | “The divisions look right. Generate the missing fixtures and activate Autumn Singles.” | Dates, rules, division lists and fixture counts |
 | Close a season | “Show me everything unresolved before we close Summer.” | Settle or deliberately leave each outstanding match, then close |
 | Set the minimum matches | “This season's singles divisions have eight players. Expect everyone to play at least 5.” | Division sizes, and that a division too small for the minimum expects all its matches |

@@ -4625,6 +4625,166 @@
           "matches_short"
         ]
       },
+      "PlacementPlan": {
+        "type": "object",
+        "properties": {
+          "competition_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "previous_competition_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "final": {
+            "type": "boolean"
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "previous_entry_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "from": {
+                  "type": "object",
+                  "properties": {
+                    "division": {
+                      "type": "integer"
+                    },
+                    "position": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "division",
+                    "position"
+                  ]
+                },
+                "to_division": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "The ordinal it would play in, or null: not carried over."
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "promoted",
+                    "relegated",
+                    "held",
+                    null
+                  ]
+                },
+                "explanation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "previous_entry_id",
+                "label",
+                "from",
+                "to_division",
+                "reason",
+                "explanation"
+              ]
+            }
+          },
+          "vacancies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "promotion",
+                    "relegation"
+                  ]
+                },
+                "from_division": {
+                  "type": "integer",
+                  "description": "The ordinal of the division the place is in."
+                },
+                "to_division": {
+                  "type": "integer",
+                  "description": "The ordinal of the division it leads to."
+                },
+                "previous_entry_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The entry that held the place in last time's table."
+                },
+                "label": {
+                  "type": "string"
+                },
+                "because": {
+                  "type": "string",
+                  "example": "opted out of the next competition",
+                  "description": "Why the entry cannot move into the place."
+                },
+                "fill": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "previous_entry_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "place": {
+                      "type": "string",
+                      "example": "3rd in Division 2"
+                    }
+                  },
+                  "required": [
+                    "previous_entry_id",
+                    "label",
+                    "place"
+                  ],
+                  "description": "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a promotion; the worst, for a relegation. Null when nobody qualifies. The coach decides."
+                },
+                "explanation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "from_division",
+                "to_division",
+                "previous_entry_id",
+                "label",
+                "because",
+                "fill",
+                "explanation"
+              ]
+            }
+          }
+        },
+        "required": [
+          "competition_id",
+          "previous_competition_id",
+          "final",
+          "suggestions",
+          "vacancies"
+        ]
+      },
       "Placements": {
         "type": "object",
         "properties": {
@@ -4709,6 +4869,81 @@
               ]
             }
           },
+          "vacancies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "promotion",
+                    "relegation"
+                  ]
+                },
+                "from_division": {
+                  "type": "integer",
+                  "description": "The ordinal of the division the place is in."
+                },
+                "to_division": {
+                  "type": "integer",
+                  "description": "The ordinal of the division it leads to."
+                },
+                "previous_entry_id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "The entry that held the place in last time's table."
+                },
+                "label": {
+                  "type": "string"
+                },
+                "because": {
+                  "type": "string",
+                  "example": "opted out of the next competition",
+                  "description": "Why the entry cannot move into the place."
+                },
+                "fill": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "previous_entry_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "place": {
+                      "type": "string",
+                      "example": "3rd in Division 2"
+                    }
+                  },
+                  "required": [
+                    "previous_entry_id",
+                    "label",
+                    "place"
+                  ],
+                  "description": "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a promotion; the worst, for a relegation. Null when nobody qualifies. The coach decides."
+                },
+                "explanation": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "from_division",
+                "to_division",
+                "previous_entry_id",
+                "label",
+                "because",
+                "fill",
+                "explanation"
+              ]
+            },
+            "description": "Promotion and relegation places nobody takes. Movement is decided by table position: the top `promote` of a division are its promotion places and the bottom `relegate` its relegation places. An entry in one that is not carried over, or that played too few matches to go up, leaves it empty; the entry below does not move up to take it."
+          },
           "not_carried": {
             "type": "array",
             "items": {
@@ -4740,6 +4975,7 @@
           "final",
           "divisions_copied",
           "placed",
+          "vacancies",
           "not_carried"
         ]
       },
@@ -9940,12 +10176,91 @@
       }
     },
     "/v1/competitions/{id}/placements": {
+      "get": {
+        "tags": [
+          "Entries"
+        ],
+        "summary": "What filling a draft would do, and which places it would leave empty",
+        "description": "The same decision as filling the draft, worked out now from the previous competition's tables and writing nothing, so it can be read before the draft is filled and again after the coach has changed it. Each entry of last time with where it would go and why, and the promotion and relegation places left empty with who to suggest instead. For a draft that names its previous competition.",
+        "security": [
+          {
+            "apiKey": [
+              "league:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlacementPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`not_draft`; `no_previous_competition`; or `discipline_mismatch`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "tags": [
           "Entries"
         ],
         "summary": "Fill a draft competition from the previous one's tables",
-        "description": "For a draft competition that names its previous competition and has no entries yet. Every entry that finished last time is entered again, each with its reason and a sentence saying why: by default the top three of each division promoted, the bottom three relegated and the rest held — this draft's own rules set the counts, so changing them changes the suggestion. Anyone who opted out of the next competition is left out, and takes nobody's place with them, as is a doubles pair with a player not playing next season or wanting a new partner; so, once the previous competition's tables are final, is anyone who played fewer matches than its `minMatchesToPlay`, or all their fixtures if fewer. A draft with no divisions gets a copy of the previous ones. The coach then adjusts the draft with the entry routes and submits it by activating the competition. Nothing is in effect until then: the engine suggests, and the coach decides.",
+        "description": "For a draft competition that names its previous competition and has no entries yet. Every entry that finished last time is entered again, each with its reason and a sentence saying why: by default the top three of each division promoted, the bottom three relegated and the rest held — this draft's own rules set the counts, so changing them changes the suggestion. Anyone who opted out of the next competition is left out, and leaves their place empty (the entry below does not move up or down to take it: the response lists each such place under `vacancies`, with who to suggest instead), as is a doubles pair with a player not playing next season or wanting a new partner; so, once the previous competition's tables are final, is anyone who played fewer matches than its `minMatchesToPlay`, or all their fixtures if fewer. A draft with no divisions gets a copy of the previous ones. The coach then adjusts the draft with the entry routes and submits it by activating the competition. Nothing is in effect until then: the engine suggests, and the coach decides.",
         "security": [
           {
             "apiKey": [

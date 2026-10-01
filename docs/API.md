@@ -201,9 +201,16 @@ coach creates the new competition as a draft, naming the previous one, and one
 call fills it: every entry that finished is placed with its reason and a
 sentence saying why — the top three of each division promoted, the bottom
 three relegated, the rest held, by default; the draft's own rules set the
-counts, since it is the competition being built. Anyone who opted out of it is
-left out, and takes nobody's place with them, as is a doubles pair with a player
-not playing or wanting a new partner; so, once the previous
+counts, since it is the competition being built. Movement is by table
+position: the top places go up and the bottom places go down, so an entry
+never moves from outside them. Anyone who opted out of it is left out, as is a
+doubles pair with a player not playing or wanting a new partner, a member who
+has left the club, and anyone held back from promotion for too few matches.
+Their promotion or relegation place stays empty: the entry below does not take
+it, and the response lists each as a `vacancy` with who the engine would
+suggest instead (the best carried entry not moving, for a promotion; the worst,
+for a relegation). `GET /v1/competitions/{id}/placements` gives the same plan
+without writing anything, before or after the draft is filled; so, once the previous
 competition's tables are final, is anyone who played fewer matches than it
 expected of them (its `minMatchesToPlay`, or all their fixtures if fewer),
 with a sentence saying how many they played. A draft filled before then is

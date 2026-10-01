@@ -8,7 +8,31 @@ import type { CoachCompetition } from "./views.js";
  * the API returns; the API decides, and nothing is stored by these pages.
  */
 
-export type Division = { id: string; ordinal: number; name: string };
+export type Division = { id: string; ordinal: number; name: string; target_size?: number | null };
+
+/** A promotion or relegation place left empty, as the placements route's plan names it. */
+export type PlanVacancy = {
+  kind: "promotion" | "relegation"; from_division: number; to_division: number; previous_entry_id: string;
+  label: string; because: string; explanation: string;
+  fill: { previous_entry_id: string; label: string; place: string } | null;
+};
+/** What filling the draft from last season's tables would do: only what the draft page needs of it. */
+export type PlacementPlan = {
+  suggestions: { previous_entry_id: string; label: string; from: { division: number }; to_division: number | null; reason: string | null }[];
+  vacancies: PlanVacancy[];
+};
+
+/** A place still empty in the draft, with the entry the engine suggests for it if that entry is still where it was. */
+export type OpenVacancy = {
+  vacancy: PlanVacancy;
+  /** The draft's division the place leads to. */
+  to: Division;
+  /** The suggested entry, still in the division it came from, ready to move. */
+  fill: DraftEntry | null;
+};
+
+/** A division with fewer entries than it takes to play the minimum, for the coach to see before starting. */
+export type SmallDivision = { ordinal: number; entries: number; minimum: number };
 
 /** An entry as the entry routes return it, with where it came from. */
 export type DraftEntry = Entry & {
@@ -138,6 +162,10 @@ export type DraftView = {
   unplaced: Unplaced[];
   /** Doubles: two players who agreed to pair up, neither in the draft yet. */
   pairs: [Unplaced, Unplaced][];
+  /** Promotion and relegation places nobody has taken yet, by the division they lead to. */
+  vacancies: OpenVacancy[];
+  /** Divisions too small for their minimum, by ordinal. */
+  small: SmallDivision[];
 };
 
 /**
@@ -152,6 +180,10 @@ export function draftView(
   choices: PartnerChoice[] = [],
   /** The draft's category: a men's, women's or mixed competition offers only players who fit it. */
   category = "open",
+  /** What the engine would do with last season's tables, for the places it leaves empty. */
+  plan: PlacementPlan = { suggestions: [], vacancies: [] },
+  /** The draft's own minimum matches, for flagging a division too small to play it. */
+  rules: { minMatchesToPlay: number } = { minMatchesToPlay: 0 },
 ): DraftView {
   const rows = new Map(previous.standings.divisions.flatMap((d) => d.rows.map((r) => [r.entry_id, { division: d, row: r }])));
   const drafted = new Set(draft.entries.flatMap((e) => e.members.map((m) => m.id)));
@@ -213,7 +245,53 @@ export function draftView(
     if (c.agreed && together) pairs.push([a!, b!]);
   }
 
+  // The places each division's table gave to the one above or below, as the engine counts them: an entry
+  // it moves, or a place it leaves empty. Each is filled while someone from that division sits in the one
+  // it leads to. A mover still there fills its own; anyone else the coach put there, such as the engine's
+  // suggestion, fills an empty place; a mover the coach took out or moved opens a place of its own.
+  const byOrdinal = new Map(draft.divisions.map((d) => [d.ordinal, d]));
+  const vacancies: OpenVacancy[] = [];
+  const kinds = [["promotion", "promoted"], ["relegation", "relegated"]] as const;
+  for (const [kind, moved] of kinds) {
+    const groups = new Map<number, { to: Division; movers: PlacementPlan["suggestions"]; empty: PlanVacancy[] }>();
+    const groupFor = (from: number, toOrdinal: number) => {
+      const to = byOrdinal.get(toOrdinal);
+      if (!to) return null;
+      if (!groups.has(from)) groups.set(from, { to, movers: [], empty: [] });
+      return groups.get(from)!;
+    };
+    for (const x of plan.suggestions) if (x.reason === moved && x.to_division !== null) groupFor(x.from.division, x.to_division)?.movers.push(x);
+    for (const v of plan.vacancies) if (v.kind === kind) groupFor(v.from_division, v.to_division)?.empty.push(v);
+    for (const [from, { to, movers, empty }] of groups) {
+      const arrived = draft.entries.filter((e) => e.division_id === to.id && fromOf(e.previous_entry_id)?.ordinal === from);
+      const there = new Set(arrived.map((e) => e.previous_entry_id));
+      const others = arrived.filter((e) => !movers.some((m) => m.previous_entry_id === e.previous_entry_id));
+      // Empty places the coach has filled, the ones whose suggested entry has gone there first.
+      const taken = (v: PlanVacancy) => there.has(v.fill?.previous_entry_id ?? null);
+      const left = [...empty].sort((a, b) => Number(taken(b)) - Number(taken(a))).slice(Math.min(others.length, empty.length));
+      for (const vacancy of left) {
+        const fill = draft.entries.find((e) => e.previous_entry_id === vacancy.fill?.previous_entry_id
+          && fromOf(e.previous_entry_id)?.ordinal === from && e.division_id !== to.id) ?? null;
+        vacancies.push({ vacancy, to, fill });
+      }
+      // Entries beyond the empty places fill the places of movers who are gone, so those are the ones still open.
+      const gone = movers.filter((m) => !there.has(m.previous_entry_id)).slice(Math.max(0, others.length - empty.length));
+      for (const m of gone) {
+        vacancies.push({ to, fill: null, vacancy: { kind, from_division: from, to_division: to.ordinal, previous_entry_id: m.previous_entry_id,
+          label: m.label, because: `was ${moved} but is no longer in ${to.name}`, fill: null,
+          explanation: `A ${kind} place ${kind === "promotion" ? "into" : "down to"} ${to.name} is unfilled: ${m.label}, ` +
+            `who was ${moved}, is no longer there.` } });
+      }
+    }
+  }
+  const small = draft.divisions.flatMap((d) => {
+    const entries = draft.entries.filter((e) => e.division_id === d.id).length;
+    return entries > 0 && entries < rules.minMatchesToPlay + 1 ? [{ ordinal: d.ordinal, entries, minimum: rules.minMatchesToPlay }] : [];
+  });
+
   return {
+    vacancies,
+    small,
     divisions: [...draft.divisions].sort((a, b) => a.ordinal - b.ordinal).map((division) => ({
       ...division,
       entries: draft.entries.filter((e) => e.division_id === division.id)

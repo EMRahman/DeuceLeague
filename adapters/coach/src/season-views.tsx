@@ -191,8 +191,8 @@ const REASONS: Record<string, { label: string; tag: string }> = {
   relegated: { label: "↓ Relegated", tag: "down" },
   held: { label: "Held", tag: "past" },
   new: { label: "New", tag: "now" },
-  returning: { label: "Back", tag: "now" },
-  manual: { label: "Added", tag: "now" },
+  returning: { label: "Added back", tag: "now" },
+  manual: { label: "Moved by coach", tag: "now" },
 };
 
 const DivisionSelect: FC<{ id: string; divisions: Division[]; selected: number }> = ({ id, divisions, selected }) => (
@@ -217,7 +217,8 @@ const Placed: FC<{ placed: PlacedEntry; divisions: Division[]; here: Division }>
           {from && (
             <span class="muted">
               {" "}
-              · {from.position === null ? "unranked" : nth(from.position)} in {from.division}
+              · {entry.placement_reason === "manual" ? "moved by coach from " : entry.placement_reason === "returning" ? "added back, was " : ""}
+              {from.position === null ? "unranked" : nth(from.position)} in {from.division}
             </span>
           )}
         </span>
@@ -318,8 +319,41 @@ export const Draft: FC<{
       {divisions.map((d) => (
         <>
           <h2>
-            {d.name} <span class="muted">· {plural(d.entries.length, doubles ? "pair" : "player")}</span>
+            {d.name}{" "}
+            <span class="muted">
+              · {plural(d.entries.length, doubles ? "pair" : "player")}
+              {d.target_size ? ` of ${d.target_size}` : ""}
+            </span>
           </h2>
+          {!empty &&
+            view.vacancies
+              .filter((v) => v.to.id === d.id)
+              .map(({ vacancy, to, fill }) => (
+                <div class="notice">
+                  {vacancy.explanation}
+                  {fill && (
+                    <form method="post" action={`/coach/season/entries/${fill.id}/move`}>
+                      <input type="hidden" name="draft" value={fill.competition_id} />
+                      <input type="hidden" name="division_id" value={to.id} />
+                      <input type="hidden" name="reason" value={vacancy.kind === "promotion" ? "promoted" : "relegated"} />
+                      <button class="small" type="submit">
+                        {vacancy.kind === "promotion" ? "Promote" : "Relegate"} {fill.label}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              ))}
+          {!empty &&
+            view.small
+              .filter((s) => s.ordinal === d.ordinal)
+              .map((s) => (
+                <p class="deadline">
+                  Only {plural(s.entries, doubles ? "pair" : "player")}:{" "}
+                  {s.entries < 2
+                    ? "no match can be played."
+                    : `a division needs at least ${s.minimum + 1} for everyone to be able to play the ${s.minimum}-match minimum, so each is expected to play all ${s.entries - 1} of their matches.`}
+                </p>
+              ))}
           <div class="card">
             {d.entries.length === 0 ? (
               <p class="muted">Nobody yet.</p>
