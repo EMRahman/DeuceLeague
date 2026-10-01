@@ -1,5 +1,5 @@
 import type { MemberRecord, MemberChanges } from "@deuceleague/db-d1";
-import type { Gender, MemberStatus } from "@deuceleague/schema";
+import type { AgeGroup, Gender, MemberStatus } from "@deuceleague/schema";
 import type { Auth } from "../context.js";
 import { PERSONAL, type MemberPatch, type Member } from "../contracts/members.js";
 import { problems } from "../problems.js";
@@ -30,6 +30,7 @@ export function toMember(m: MemberRecord, withPii: boolean): z.infer<typeof Memb
     phone: m.phone ?? null,
     date_of_birth: m.dateOfBirth ?? null,
     gender: (m.gender ?? null) as Gender | null,
+    age_group: (m.ageGroup ?? null) as AgeGroup | null,
     notes: m.notes ?? null,
   };
 }
@@ -57,6 +58,7 @@ export function toChanges(body: z.infer<typeof MemberPatch>): MemberChanges {
     phone: body.phone,
     dateOfBirth: body.date_of_birth,
     gender: body.gender,
+    ageGroup: body.age_group,
     notes: body.notes,
   });
 }

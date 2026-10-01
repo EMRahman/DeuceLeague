@@ -35,7 +35,7 @@ export const Placements = z
       description:
         "Entries left out: opted out of this competition, a doubles pair breaking up (a player not playing, or " +
         "wanting a new partner: see partner choices), withdrawn last time, short of the previous " +
-        "competition's minimum number of matches, or with a member since removed from the club.",
+        "competition's minimum number of matches, or with a member who has since left or been removed from the club.",
     }),
   })
   .openapi("Placements");

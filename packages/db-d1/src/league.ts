@@ -67,7 +67,7 @@ export async function readLeague(db: D1Database, hash: string, kind: CredentialK
       WHERE (e.competition_id = scope.competition_id OR e.id = json_extract(j, '$.previousEntryId')
       OR (json_extract(j, '$.includePrevious') = 1 AND e.competition_id = (SELECT previous_competition_id FROM competition WHERE id = scope.competition_id)))
       AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id) ORDER BY e.id`).bind(q),
-    db.prepare(`SELECT m.id, m.display_name, m.deleted_at, CASE WHEN EXISTS (
+    db.prepare(`SELECT m.id, m.display_name, m.deleted_at, m.status, CASE WHEN EXISTS (
       SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ? AND k.revoked_at IS NULL
       AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000) AND s.value = 'members:pii'
       ) THEN m.gender ELSE NULL END AS gender FROM member m
@@ -82,7 +82,7 @@ export async function readLeague(db: D1Database, hash: string, kind: CredentialK
   ]);
   const r = identity.extraResults.map((result) => result.results as Row[]);
   return { identity, extraResults: identity.extraResults.slice(7), data: { seasons: r[0]!.map(season), competitions: r[1]!.map(competition), divisions: r[2]!.map(division),
-    entries: r[3]!.map(entry), members: r[4]!.map((m) => ({ id: m.id, displayName: m.display_name, deletedAt: date(m.deleted_at), gender: m.gender })),
+    entries: r[3]!.map(entry), members: r[4]!.map((m) => ({ id: m.id, displayName: m.display_name, deletedAt: date(m.deleted_at), status: m.status, gender: m.gender })),
     matches: r[5]!.map((m) => ({ id: m.id, divisionId: m.division_id, status: m.status, pairingKey: m.pairing_key,
       hasClaims: Boolean(m.has_claims), entryIds: JSON.parse(m.entry_ids) })), referencedEntries: r[6]!.map((r) => r.previous_entry_id) } };
 }

@@ -32,6 +32,9 @@ export const MemberStatus = z.enum(["active", "paused", "left"]);
 /** Recorded solely to warn on ineligible mixed-doubles pairings. Never enforced. */
 export const Gender = z.enum(["female", "male", "other", "undisclosed"]);
 
+/** Bands a club reads at a glance, so a join form never asks for a birth date. Used to plan draws, never enforced. */
+export const AgeGroup = z.enum(["under_18", "18_34", "35_49", "50_64", "65_plus"]);
+
 export const EntryState = z.enum(["active", "withdrawn"]);
 
 /** Why a unit sits in the division it sits in. Written when placements are confirmed. */
@@ -127,6 +130,7 @@ export type Discipline = z.infer<typeof Discipline>;
 export type Category = z.infer<typeof Category>;
 export type MemberStatus = z.infer<typeof MemberStatus>;
 export type Gender = z.infer<typeof Gender>;
+export type AgeGroup = z.infer<typeof AgeGroup>;
 export type EntryState = z.infer<typeof EntryState>;
 export type PlacementReason = z.infer<typeof PlacementReason>;
 export type EntryRole = z.infer<typeof EntryRole>;

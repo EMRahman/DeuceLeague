@@ -9,11 +9,12 @@ import { partnerChoiceRecords } from "./partner-choices.js";
 export async function readPlacements(db: D1Database, hash: string, kind: CredentialKind, targetId: string) {
   const snapshot = await readLeague(db, hash, kind, { competitionId: targetId, includePrevious: true }, [
     ledgerRead(db, null, null, targetId),
-    db.prepare(`SELECT DISTINCT m.id FROM member m JOIN entry_member em ON em.member_id = m.id
-      WHERE em.competition_id = (SELECT previous_competition_id FROM competition WHERE id = ?) AND m.deleted_at IS NOT NULL`).bind(targetId),
+    db.prepare(`SELECT DISTINCT m.id, m.deleted_at IS NOT NULL AS removed FROM member m JOIN entry_member em ON em.member_id = m.id
+      WHERE em.competition_id = (SELECT previous_competition_id FROM competition WHERE id = ?)
+        AND (m.deleted_at IS NOT NULL OR m.status = 'left')`).bind(targetId),
     db.prepare(`SELECT * FROM partner_choice WHERE competition_id = (SELECT previous_competition_id FROM competition WHERE id = ?)`).bind(targetId),
   ]);
-  return { ...snapshot, ledger: ledgerRecords(snapshot.extraResults[0]!), removed: new Set(snapshot.extraResults[1]!.results.map((r) => String((r as { id: string }).id))),
+  return { ...snapshot, ledger: ledgerRecords(snapshot.extraResults[0]!), gone: new Map(snapshot.extraResults[1]!.results.map((r) => [String((r as { id: string }).id), (r as { removed: number }).removed ? "removed" as const : "left" as const])),
     partnerChoices: partnerChoiceRecords(snapshot.extraResults[2]!) };
 }
 export type PlacementSnapshot = Awaited<ReturnType<typeof readPlacements>>;

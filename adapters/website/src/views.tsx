@@ -3,7 +3,7 @@ import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
-import { PRIVACY_NOTICE, type JoinForm } from "./join.js";
+import { AGE_GROUPS, GENDERS, PRIVACY_NOTICE, type JoinForm } from "./join.js";
 
 /**
  * Every page, as plain server-rendered HTML: no scripts, so it works on any
@@ -358,6 +358,25 @@ export const Join: FC<{
         <label for="phone">Phone number</label>
         <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength={24} value={values.phone} />
       </div>
+      <div class="field">
+        <label for="gender">Gender</label>
+        <select id="gender" name="gender" required>
+          <option value="" selected={!values.gender}>Choose one</option>
+          {GENDERS.map(([value, label]) => (
+            <option value={value} selected={values.gender === value}>{label}</option>
+          ))}
+        </select>
+        <span class="muted">Used to enter you in the right men's, women's or mixed competitions.</span>
+      </div>
+      <div class="field">
+        <label for="age_group">Age group (optional)</label>
+        <select id="age_group" name="age_group">
+          <option value="" selected={!values.age_group}>Rather not say</option>
+          {AGE_GROUPS.map(([value, label]) => (
+            <option value={value} selected={values.age_group === value}>{label}</option>
+          ))}
+        </select>
+      </div>
       <div class="field choices">
         <label>
           <input type="checkbox" name="privacy" value="yes" required checked={values.privacy} />
@@ -404,13 +423,14 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     </p>
     <h2>What we keep</h2>
     <p>
-      Your name, the email address or phone number you give us, the playing level the coach gives you, which
-      competitions you play in, and your results.
+      Your name, the email address or phone number you give us, your gender, your age group if you gave one, the
+      playing level the coach gives you, which competitions you play in, and your results.
     </p>
     <h2>Why</h2>
     <p>
       To run the league you asked to join: to place you in a division, arrange your matches, let you sign in and
-      report scores, and contact you about the league. We send no marketing, and never sell or share your details
+      report scores, and contact you about the league. Your gender decides which men's, women's or mixed
+      competitions you can join, and your age group helps the coach plan fair draws. We send no marketing, and never sell or share your details
       for anyone else's use.
     </p>
     <h2>Who sees them</h2>

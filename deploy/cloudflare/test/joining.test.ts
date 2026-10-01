@@ -88,6 +88,45 @@ test("a join request waits apart from members until the coach approves it, as a 
   assert.equal((await send(f, `/v1/join-requests/${listed[2].id}/approve`, "POST", { display_name: "Sammy" })).body.display_name, "Sammy");
 });
 
+test("a join request carries gender and age group to the member; the log records that they were given, never what they were", async (t) => {
+  const f = await fixture(t);
+  const form = await key(f, ["members:read", "members:write", "members:pii"]);
+  for (const bad of [{ gender: "robot" }, { age_group: "ancient" }]) {
+    assert.equal((await send(f, "/v1/join-requests", "POST", { ...sam, ...bad }, form)).status, 400, JSON.stringify(bad));
+  }
+  const created = await send(f, "/v1/join-requests", "POST", { ...sam, gender: "female", age_group: "18_34" }, form);
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  assert.equal(created.body.gender, "female"); assert.equal(created.body.age_group, "18_34");
+  // The form's other callers may send neither.
+  const bare = await send(f, "/v1/join-requests", "POST", { ...sam, email: "bare@example.org" }, form);
+  assert.equal(bare.body.gender, null); assert.equal(bare.body.age_group, null);
+
+  const approved = await send(f, `/v1/join-requests/${created.body.id}/approve`, "POST", {});
+  assert.equal(approved.status, 201, JSON.stringify(approved.body));
+  assert.equal(approved.body.gender, "female"); assert.equal(approved.body.age_group, "18_34");
+  const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'member.created' AND subject_id = ?").bind(approved.body.id).first<string>("payload");
+  assert.deepEqual(JSON.parse(event!).fields, ["display_name", "full_name", "joined_on", "email", "phone", "gender", "age_group"]);
+  const received = await f.db.prepare("SELECT payload FROM event WHERE type = 'join_request.received' AND subject_id = ?").bind(created.body.id).first<string>("payload");
+  assert.deepEqual(JSON.parse(received!).fields, ["first_name", "surname", "email", "phone", "gender", "age_group"]);
+  const payloads = (await f.db.prepare("SELECT payload FROM event").all<{ payload: string }>()).results.map((r) => r.payload).join();
+  for (const value of ["female", "18_34"]) assert.ok(!payloads.includes(value), value);
+
+  // The coach can replace what was asked, or clear it, when approving.
+  const changed = await send(f, `/v1/join-requests/${bare.body.id}/approve`, "POST", { gender: "male", age_group: "65_plus" });
+  assert.equal(changed.body.gender, "male"); assert.equal(changed.body.age_group, "65_plus");
+
+  // Both are personal data: behind members:pii, to read and to write.
+  const plain = await key(f, ["members:read", "members:write"]);
+  const seen = (await send(f, `/v1/members/${approved.body.id}`, "GET", undefined, plain)).body;
+  assert.ok(!("age_group" in seen) && !("gender" in seen));
+  assert.equal((await send(f, `/v1/members/${approved.body.id}`, "PATCH", { age_group: "50_64" }, plain)).status, 403);
+  assert.equal((await send(f, `/v1/members/${approved.body.id}`, "PATCH", { age_group: "50_64" })).body.age_group, "50_64");
+  assert.equal((await send(f, `/v1/members/${approved.body.id}`, "PATCH", { age_group: "ancient" })).status, 400);
+  assert.equal((await send(f, `/v1/members/${approved.body.id}`, "PATCH", { age_group: null })).body.age_group, null);
+  await send(f, `/v1/members/${approved.body.id}`, "PATCH", { age_group: "35_49" });
+  assert.equal((await send(f, `/v1/members/${approved.body.id}/erase`, "POST")).body.age_group, null);
+});
+
 test("a request nobody decides is gone after 30 days, and deleted by the next one", async (t) => {
   const f = await fixture(t);
   const old = await send(f, "/v1/join-requests", "POST", sam);
@@ -137,7 +176,8 @@ function started(f: WebsiteFixture, ago = 5_000) {
   return `${at}.${createHmac("sha256", f.websiteKey).update(`join-form:${at}`).digest("hex")}`;
 }
 const person = (f: WebsiteFixture, fields: Record<string, string> = {}) => ({
-  started: started(f), website: "", first_name: "Robin", surname: "Hale", email: "robin@example.org", phone: "", privacy: "yes", ...fields,
+  started: started(f), website: "", first_name: "Robin", surname: "Hale", email: "robin@example.org", phone: "", gender: "female",
+  age_group: "35_49", privacy: "yes", ...fields,
 });
 const waiting = (f: WebsiteFixture) => f.db.prepare("SELECT count(*) AS n FROM join_request").first<number>("n");
 async function join(f: WebsiteFixture, form: Record<string, string>, address?: string) {
@@ -154,10 +194,13 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal(page.status, 200); assert.equal(page.headers.get("cache-control"), "no-store");
   assert.match(page.html, /name="started" value="\d{13}\.[0-9a-f]{64}"/);
   assert.match(page.html, /<a href="\/privacy">privacy notice<\/a>/);
+  assert.match(page.html, /<select id="gender" name="gender" required="">/); assert.match(page.html, /<select id="age_group" name="age_group">/);
+  assert.match(page.html, /<option value="undisclosed"[^>]*>Prefer not to say<\/option>/); assert.match(page.html, /<option value="65_plus"[^>]*>65 or over<\/option>/);
   // No Turnstile set up: no script, and the page's policy allows none.
   assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-09-30/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-01/);
+  assert.match(privacy.html, /your gender, your age group if you gave one/);
 
   // A program is thanked, and nothing is kept: a filled-in hidden field, a made-up time, or a form sent too fast.
   for (const form of [person(f, { website: "https://spam.example" }), person(f, { started: "1700000000000.abc" }),
@@ -171,29 +214,55 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal(wrong.status, 400);
   assert.match(wrong.html, /Give an email address, a phone number, or both/); assert.match(wrong.html, /Tick the box/);
   assert.match(wrong.html, /value="Hale&lt;script&gt;"/);
+  const noGender = await join(f, person(f, { gender: "" }));
+  assert.equal(noGender.status, 400); assert.match(noGender.html, /Choose your gender/);
+  const oddAge = await join(f, person(f, { age_group: "ancient" }));
+  assert.equal(oddAge.status, 400); assert.match(oddAge.html, /Choose one of the age groups/);
+  assert.match(oddAge.html, /<option value="female" selected="">/);
   const stale = await join(f, person(f, { started: started(f, 2 * 86_400_000) }));
   assert.equal(stale.status, 400); assert.match(stale.html, /open a long time/);
   assert.equal(await waiting(f), 0);
 
   assert.match((await join(f, person(f))).html, /Thank you, Robin/);
-  assert.match((await join(f, person(f, { first_name: "Alex", surname: "Moss", email: "", phone: "+44 7700 900456" }))).html, /Thank you, Alex/);
+  assert.match((await join(f, person(f, { first_name: "Alex", surname: "Moss", email: "", phone: "+44 7700 900456", gender: "male", age_group: "" }))).html, /Thank you, Alex/);
   // Asking twice is answered the same, so the form tells nobody who has asked.
   assert.match((await join(f, person(f, { email: "ROBIN@example.org" }))).html, /Thank you, Robin/);
   assert.equal(await waiting(f), 2);
-  const request = await f.db.prepare("SELECT privacy_notice, email FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-09-30", email: "robin@example.org" });
+  const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-01", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   assert.match((await coach.get("/coach")).html, /2 people are asking to join the league/);
   const members = await coach.get("/coach/members");
   assert.match(members.html, /Asking to join/); assert.match(members.html, /Robin Hale/); assert.match(members.html, /\+44 7700 900456/);
   assert.match(members.html, /name="display_name"[^>]*value="Robin H\."/);
+  assert.match(members.html, /Female · 35 to 49/); assert.match(members.html, /Male<\/span>/);
+  assert.match(members.html, /<option value="female" selected="">Female<\/option>/);
+  assert.match(members.html, /not put them in a running season/);
   const [robin, alex] = [...members.html.matchAll(/\/coach\/join-requests\/([0-9a-f-]{36})\/approve/g)].map((m) => m[1]!);
-  const added = await coach.post(`/coach/join-requests/${robin}/approve`, { display_name: "Robin H.", level: "4" });
+  const added = await coach.post(`/coach/join-requests/${robin}/approve`, { display_name: "Robin H.", level: "4", gender: "female", age_group: "35_49" });
   assert.equal(added.status, 303); assert.match(added.location!, /^\/coach\/members\?added=[0-9a-f-]{36}$/);
   const after = await coach.get(added.location!);
   assert.match(after.html, /Robin H\. is now a member/); assert.match(after.html, /Level 4/);
+  assert.match(after.html, /placed in a division at the start of next season/);
+  assert.match(after.html, /Waiting to be placed/);
   const memberId = added.location!.split("=")[1]!;
+  const approved = (await f.api(`/v1/members/${memberId}`, f.admin)).body;
+  assert.equal(approved.gender, "female"); assert.equal(approved.age_group, "35_49");
+  // The coach corrects them, or clears them, from the members page.
+  assert.equal((await coach.post(`/coach/members/${memberId}/details`, { gender: "other", age_group: "50_64" })).status, 303);
+  assert.deepEqual(((b) => [b.gender, b.age_group])((await f.api(`/v1/members/${memberId}`, f.admin)).body), ["other", "50_64"]);
+  assert.equal((await coach.post(`/coach/members/${memberId}/details`, { gender: "female", age_group: "" })).status, 303);
+  assert.deepEqual(((b) => [b.gender, b.age_group])((await f.api(`/v1/members/${memberId}`, f.admin)).body), ["female", null]);
+  // Leaving the club moves them to their own list; coming back puts them where they were.
+  assert.equal((await coach.post(`/coach/members/${memberId}/left`)).status, 303);
+  assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.status, "left");
+  const gone = (await coach.get("/coach/members")).html;
+  assert.match(gone, /<h2>Left the club<\/h2>/); assert.doesNotMatch(gone, /Waiting to be placed/);
+  assert.equal((await coach.post(`/coach/members/${memberId}/back`)).status, 303);
+  assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.status, "active");
+  assert.doesNotMatch((await coach.get("/coach/members")).html, /<h2>Left the club<\/h2>/);
   assert.equal((await coach.post(`/coach/members/${memberId}/level`, { level: "3" })).status, 303);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.level, 3);
   assert.equal((await coach.post(`/coach/members/${memberId}/level`, { level: "" })).status, 303);

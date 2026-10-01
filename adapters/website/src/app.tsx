@@ -59,7 +59,7 @@ export {
 export { deadlineLine, describe, playedOn } from "./score.js";
 export { CompetitionTables, Credit, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
-export { PRIVACY_NOTICE } from "./join.js";
+export { AGE_GROUPS, ageGroupLabel, GENDERS, genderLabel, PRIVACY_NOTICE } from "./join.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
 export type WebsiteOptions = {
@@ -476,6 +476,8 @@ export function createWebsite(options: WebsiteOptions) {
         surname: values.surname,
         email: values.email || null,
         phone: values.phone || null,
+        gender: values.gender,
+        age_group: values.age_group || null,
         privacy_notice: PRIVACY_NOTICE,
       });
       log("join request received");

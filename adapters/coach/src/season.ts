@@ -16,7 +16,27 @@ export type DraftEntry = Entry & {
   previous_entry_id: string | null;
 };
 
-export type ActiveMember = { id: string; display_name: string; level: number | null };
+export type ActiveMember = {
+  id: string; display_name: string; level: number | null;
+  /** Personal: present only when the coach's key may read members' details. */
+  gender?: string | null;
+};
+
+/**
+ * Whether someone's recorded gender suits a competition. A men's competition takes men, a women's women, and a
+ * mixed pair one of each: pass the side (0 the woman, 1 the man) to ask about one place in it. Someone with
+ * no gender recorded, "other" or "prefer not to say" is never ruled out, since the coach knows them.
+ */
+export function fits(member: { gender?: string | null }, category: string, side?: 0 | 1): boolean {
+  const wanted = category === "mens" ? "male" : category === "womens" ? "female"
+    : category === "mixed" && side !== undefined ? (side === 0 ? "female" : "male") : null;
+  return !wanted || (member.gender !== "female" && member.gender !== "male") || member.gender === wanted;
+}
+
+/** Whether a gendered competition has no clear gender for this player, which the coach should check. */
+export const genderUnclear = (member: { gender?: string | null }, category: string) =>
+  (category === "mens" || category === "womens" || category === "mixed")
+  && member.gender !== undefined && member.gender !== "female" && member.gender !== "male";
 
 /** A doubles player's say about next season, as the partner-choices route gives it. */
 export type PartnerChoice = { member_id: string; choice: "leaving" | "new_partner"; partner_id: string | null;
@@ -130,6 +150,8 @@ export function draftView(
   members: ActiveMember[],
   /** Doubles: what last season's players said about their partners. */
   choices: PartnerChoice[] = [],
+  /** The draft's category: a men's, women's or mixed competition offers only players who fit it. */
+  category = "open",
 ): DraftView {
   const rows = new Map(previous.standings.divisions.flatMap((d) => d.rows.map((r) => [r.entry_id, { division: d, row: r }])));
   const drafted = new Set(draft.entries.flatMap((e) => e.members.map((m) => m.id)));
@@ -177,7 +199,8 @@ export function draftView(
     if (!c.partner_id) return { said: "Wants a new partner", out: false };
     return { said: c.agreed ? `Agreed to play with ${c.partner_name}` : `Asked ${c.partner_name}, who has not agreed yet`, out: false };
   };
-  const unplaced = members.filter((m) => !drafted.has(m.id)).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
+  // Those who played in it last season stay listed, whatever their gender, with why they are out.
+  const unplaced = members.filter((m) => !drafted.has(m.id) && (lastOf.has(m.id) || fits(m, category))).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
     .sort((a, b) => Number(!!b.last) - Number(!!a.last) || (a.level ?? 11) - (b.level ?? 11)
       || a.display_name.localeCompare(b.display_name));
   const free = new Map(unplaced.map((u) => [u.id, u]));
@@ -186,7 +209,8 @@ export function draftView(
     const [a, b] = [free.get(c.member_id), c.partner_id ? free.get(c.partner_id) : undefined];
     // Each agreed pair once, named in alphabetical order.
     const first = a && b && (a.display_name.localeCompare(b.display_name) || (a.id < b.id ? -1 : 1)) < 0;
-    if (c.agreed && first) pairs.push([a!, b!]);
+    const together = first && (fits(a!, category, 0) && fits(b!, category, 1) || fits(a!, category, 1) && fits(b!, category, 0));
+    if (c.agreed && together) pairs.push([a!, b!]);
   }
 
   return {
