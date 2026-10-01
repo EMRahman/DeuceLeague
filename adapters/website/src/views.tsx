@@ -730,6 +730,8 @@ export const Home: FC<{
   later: string[];
   /** On a break: out of every draft until they say they are back. */
   onBreak: boolean;
+  /** Still in the club and not on a break: only they are offered a break or leaving. */
+  active: boolean;
 }> = (p) => (
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
@@ -872,18 +874,22 @@ export const Home: FC<{
         <MatchRows matches={p.closed} />
       </section>
     )}
-    {!p.leaving && !p.onBreak && p.entries.length > 0 && (
+    {!p.leaving && p.active && (
       <section class="card">
         <h2>Next season</h2>
-        <p class="muted">
-          Not playing next season at all? Say so once and the coach leaves you out of the draft for{" "}
-          {p.entries.join(", ")}. Your matches this season still count, and you can take it back.
-        </p>
-        <form method="post" action="/leave">
-          <button class="quiet" type="submit">
-            I am not playing next season at all
-          </button>
-        </form>
+        {p.entries.length > 0 && (
+          <>
+            <p class="muted">
+              Not playing next season at all? Say so once and the coach leaves you out of the draft for{" "}
+              {p.entries.join(", ")}. Your matches this season still count, and you can take it back.
+            </p>
+            <form method="post" action="/leave">
+              <button class="quiet" type="submit">
+                I am not playing next season at all
+              </button>
+            </form>
+          </>
+        )}
         <p class="muted">
           Away for longer, or not sure when you will be back? Take a break instead: you stay out of every draft until you
           say you are back. Your matches this season still count.

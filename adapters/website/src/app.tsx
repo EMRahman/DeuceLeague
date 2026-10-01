@@ -646,6 +646,7 @@ export function createWebsite(options: WebsiteOptions) {
           resumed: "Welcome back. Tell the coach if you want a place in the next season." }[c.req.query("done") ?? ""] ?? null}
         leaving={p.me.credential.member.leaving_at ?? null}
         onBreak={p.me.credential.member.status === "paused"}
+        active={p.me.credential.member.status === "active"}
         entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
         // What they said covers the entries they held when they said it; one made after is still in the reckoning.
         covered={registered.filter((r) => r.entry && covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
@@ -807,7 +808,13 @@ export function createWebsite(options: WebsiteOptions) {
     app.post(`/${path}`, async (c) => {
       const p = await player(c);
       if (!p) return c.redirect("/", 303);
-      await api(method, `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/pause`, p.session);
+      try {
+        await api(method, `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/pause`, p.session);
+      } catch (error) {
+        // Someone who has left the club is not on a break; the page they came from does not offer it.
+        if (!(error instanceof ApiProblem) || error.problem.status !== 409) throw error;
+        return c.redirect("/", 303);
+      }
       return c.redirect(`/?done=${done}`, 303);
     });
   }

@@ -320,3 +320,43 @@ test("the coach puts a member on a break, and the draft says so and what it mean
   assert.equal((await coach.post(`/coach/members/${away.id}/resume`)).status, 303);
   assert.equal((await f.api(`/v1/members/${away.id}`, f.admin)).body.status, "active");
 });
+
+test("a break takes the member out of a draft already filled; it is not put back when they return", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const [sam, alex] = p.members as { id: string }[];
+  const next = await f.create("/v1/competitions", { season_id: p.season.id, name: "Next", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak", previous_competition_id: p.comp.id });
+  assert.equal((await f.api(`/v1/competitions/${next.id}/placements`, f.admin, "POST")).status, 201);
+  const draft = async () => ((await f.api(`/v1/competitions/${next.id}/entries`, f.admin)).body.data as { label: string }[]).map((e) => e.label).sort();
+  assert.deepEqual(await draft(), ["Alex", "Sam"]);
+
+  // Through the break routes, and through PATCH, which the API still supports: either way they come out, so the
+  // season cannot start with matches drawn for someone who is away. Last season's entry is untouched.
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "POST")).status, 200);
+  assert.deepEqual(await draft(), ["Alex"]);
+  assert.equal((await f.api(`/v1/members/${alex!.id}`, f.admin, "PATCH", { status: "paused" })).status, 200);
+  assert.deepEqual(await draft(), []);
+  assert.equal((await f.api(`/v1/competitions/${p.comp.id}/entries`, f.admin)).body.data.length, 2);
+  // Back from the break: in the reckoning again, but not put back in a draft that is already filled.
+  assert.equal((await f.api(`/v1/members/${sam!.id}/pause`, f.admin, "DELETE")).status, 200);
+  assert.deepEqual(await draft(), []);
+});
+
+test("the break is offered to anyone active, with or without a place in a competition, and to no one who has left", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  await f.create("/v1/members", { display_name: "Newcomer", email: "newcomer@example.org" });
+  const newcomer = await signIn(f, "newcomer@example.org");
+  const home = (await newcomer.get("/")).html;
+  assert.match(home, /I am taking a break/, "no entries yet, still offered");
+  assert.doesNotMatch(home, /I am not playing next season at all/, "leaving covers entries, and they have none");
+  assert.equal((await newcomer.post("/pause")).status, 303);
+  assert.match((await newcomer.get("/")).html, /You are on a break/);
+
+  // Someone who has left the club is offered neither, and a stale form does not break the page.
+  const sam = await signIn(f, "sam@example.org");
+  assert.equal((await f.api(`/v1/members/${p.members[0].id}`, f.admin, "PATCH", { status: "left" })).status, 200);
+  const left = (await sam.get("/")).html;
+  assert.doesNotMatch(left, /I am taking a break/); assert.doesNotMatch(left, /I am not playing next season at all/);
+  const stale = await sam.post("/pause");
+  assert.equal(stale.status, 303); assert.equal(stale.location, "/");
+});
