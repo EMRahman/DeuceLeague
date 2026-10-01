@@ -5948,6 +5948,11 @@
             "apiKey": [
               "admin"
             ]
+          },
+          {
+            "apiKey": [
+              "league:write"
+            ]
           }
         ],
         "requestBody": {
@@ -6066,6 +6071,11 @@
             "apiKey": [
               "admin"
             ]
+          },
+          {
+            "apiKey": [
+              "league:write"
+            ]
           }
         ],
         "requestBody": {
@@ -6143,6 +6153,11 @@
           {
             "apiKey": [
               "admin"
+            ]
+          },
+          {
+            "apiKey": [
+              "league:write"
             ]
           }
         ],
@@ -6231,6 +6246,11 @@
           {
             "apiKey": [
               "admin"
+            ]
+          },
+          {
+            "apiKey": [
+              "league:write"
             ]
           }
         ],
