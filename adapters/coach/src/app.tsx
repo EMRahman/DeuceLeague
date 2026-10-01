@@ -19,7 +19,7 @@ import {
   type Weather,
 } from "@deuceleague/website";
 import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry,
-  type PartnerChoice } from "./season.js";
+  type PartnerChoice, type PlacementPlan } from "./season.js";
 import { Draft, EndSeason, SeasonPage, type NextForm } from "./season-views.js";
 import {
   Activity,
@@ -969,7 +969,7 @@ export function createCoachSite(options: CoachOptions) {
     const draft = await draftOf(who.key, c.req.param("id"));
     if (!draft) return notADraft(c, who);
     const previousId = draft.previous_competition_id!;
-    const [season, previous, divisions, entries, lastEntries, standings, members] = await Promise.all([
+    const [season, previous, divisions, entries, lastEntries, standings, members, plan] = await Promise.all([
       api<Season>("GET", `/v1/seasons/${draft.season_id}`, who.key),
       api<CoachCompetition>("GET", `/v1/competitions/${previousId}`, who.key),
       api<{ data: Division[] }>("GET", `/v1/competitions/${draft.id}/divisions`, who.key),
@@ -977,11 +977,18 @@ export function createCoachSite(options: CoachOptions) {
       api<{ data: Entry[] }>("GET", `/v1/competitions/${previousId}/entries`, who.key),
       api<Standings>("GET", `/v1/competitions/${previousId}/standings`, who.key),
       all<ActiveMember>("/v1/members?status=active", who.key),
+      // The engine's view of last season's tables: which promotion and relegation places it leaves empty.
+      api<PlacementPlan>("GET", `/v1/competitions/${draft.id}/placements`, who.key).catch((error: unknown) => {
+        // A plan the engine cannot make (the competitions do not match) is no reason to hide the draft.
+        if (!(error instanceof ApiProblem) || error.problem.status !== 409) throw error;
+        return { suggestions: [], vacancies: [] } as PlacementPlan;
+      }),
     ]);
     const choices = draft.discipline === "doubles"
       ? (await api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${previousId}/partner-choices`, who.key)).data : [];
     const view = draftView({ divisions: divisions.data, entries: entries.data },
-      { competition: previous, entries: lastEntries.data, standings }, members, choices, draft.category);
+      { competition: previous, entries: lastEntries.data, standings }, members, choices, draft.category, plan,
+      draft.rules);
     return c.html(<Draft frame={seasonFrame(who)} season={season} draft={draft} previous={previous} view={view}
       genders={members.some((m) => m.gender !== undefined)}
       empty={divisions.data.length === 0 && entries.data.length === 0} />);
@@ -1043,7 +1050,9 @@ export function createCoachSite(options: CoachOptions) {
       const draftId = String(form.draft ?? "");
       if (!(await draftOf(who.key, draftId))) return notADraft(c, who);
       try {
-        if (action === "move") await api("PATCH", `/v1/entries/${id}`, who.key, { division_id: String(form.division_id ?? "") });
+        // Taking the engine's suggestion for an empty place is the engine's own reason; any other move is the coach's.
+        const accepted = form.reason === "promoted" || form.reason === "relegated" ? { placement_reason: form.reason } : {};
+        if (action === "move") await api("PATCH", `/v1/entries/${id}`, who.key, { division_id: String(form.division_id ?? ""), ...accepted });
         else await api("DELETE", `/v1/entries/${id}`, who.key);
       } catch (error) {
         return refused(c, who, draftId, error);

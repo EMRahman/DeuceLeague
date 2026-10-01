@@ -29,7 +29,35 @@ export type PlacementSuggestion = {
   explanation: string;
 };
 
-export function suggestPlacements(
+/**
+ * A promotion or relegation place that nobody takes. Movement is decided by table position: the top
+ * `promote` of a division are its promotion places, the bottom `relegate` its relegation places. An entry in
+ * one that cannot move (it is not carried over, or played too few matches to go up) leaves the place empty.
+ * The entry below does not move up to take it, since the coach knows who should; the engine only says who it
+ * would suggest.
+ */
+export type Vacancy = {
+  kind: "promotion" | "relegation";
+  /** The division the place is in, and the one it leads to, by ordinal. */
+  from: number;
+  to: number;
+  /** The entry that held the place in the table, and why it cannot move. */
+  entryId: string;
+  label: string;
+  because: string;
+  /** Who to suggest instead: the best carried entry not moving, for a promotion; the worst, for a relegation. */
+  fill: { entryId: string; label: string; place: string } | null;
+  explanation: string;
+};
+
+export type PlacementPlan = { suggestions: PlacementSuggestion[]; vacancies: Vacancy[] };
+
+/** Same as {@link planPlacements}, for callers that only want where each entry goes. */
+export function suggestPlacements(...args: Parameters<typeof planPlacements>): PlacementSuggestion[] {
+  return planPlacements(...args).suggestions;
+}
+
+export function planPlacements(
   previous: readonly DivisionStandings[],
   movement: RulesSpec["movement"],
   target: readonly TargetDivision[],
@@ -42,9 +70,11 @@ export function suggestPlacements(
    * "Sam asked for a new partner".
    */
   breakingUp: ReadonlyMap<string, string> = new Map(),
-): PlacementSuggestion[] {
+  /** Entries with a member who has left the club or been removed from it. */
+  departed: ReadonlyMap<string, "left" | "removed"> = new Map(),
+): PlacementPlan {
   const ordinals = target.map((d) => d.ordinal).sort((a, b) => a - b);
-  if (ordinals.length === 0) return [];
+  if (ordinals.length === 0) return { suggestions: [], vacancies: [] };
   // A division that no longer exists folds into the nearest existing one,
   // preferring the higher division on an equal distance. Ordinals may have gaps.
   const nearest = (ordinal: number) => ordinals.reduce((best, next) =>
@@ -52,36 +82,56 @@ export function suggestPlacements(
   const nameOf = (ordinal: number) => target.find((d) => d.ordinal === ordinal)?.name ?? `Division ${ordinal}`;
 
   const suggestions: PlacementSuggestion[] = [];
+  const vacancies: Vacancy[] = [];
+  const notCarried = (id: string) => optedOut.has(id) || breakingUp.has(id) || tooFewToStay.has(id) || departed.has(id);
   for (const division of [...previous].sort((a, b) => a.ordinal - b.ordinal)) {
     const here = nearest(division.ordinal);
     const up = ordinals.filter((n) => n < division.ordinal).at(-1) ?? here;
     const down = ordinals.find((n) => n > division.ordinal) ?? here;
-    // Someone who has opted out, is breaking up their pair, or played too few
-    // matches to keep a place, is out of the reckoning: they take no promotion
-    // place from the entry below them, and no relegation place from the one above.
-    const active = division.standings.filter((r) => r.standing !== "withdrawn" && !optedOut.has(r.entryId)
-      && !breakingUp.has(r.entryId) && !tooFewToStay.has(r.entryId));
+    // Movement is by table position. A withdrawn entry has no final position, so it holds no place.
+    const inTable = division.standings.filter((r) => r.standing !== "withdrawn");
+    const promotionPlaces = up < here ? inTable.filter((r) => r.standing === "ranked").slice(0, movement.promote) : [];
+    const inPromotion = new Set(promotionPlaces.map((r) => r.entryId));
+    // Never the same entry as a promotion place, in a division too small for both. An unranked entry can go
+    // down but never up.
+    const relegationPlaces = down > here && movement.relegate > 0
+      ? inTable.filter((r) => !inPromotion.has(r.entryId)).slice(-movement.relegate) : [];
 
-    // Promotion: the top of the ranked table, passing over anyone who played
-    // too few matches — their place goes to the next entry down.
     const promoted = new Set<string>();
+    const relegated = new Set<string>();
     const tooFewToGoUp = new Set<string>();
-    if (up < here) {
-      for (const row of active) {
-        if (promoted.size >= movement.promote || row.standing !== "ranked") break;
-        if (row.played < movement.minMatchesForPromotion) tooFewToGoUp.add(row.entryId);
-        else promoted.add(row.entryId);
-      }
+    const open: { kind: Vacancy["kind"]; row: StandingsRow; because: string; held: boolean }[] = [];
+    for (const row of promotionPlaces) {
+      if (notCarried(row.entryId)) open.push({ kind: "promotion", row, because: notCarriedBecause(row.entryId), held: false });
+      else if (row.played < movement.minMatchesForPromotion) {
+        tooFewToGoUp.add(row.entryId);
+        open.push({ kind: "promotion", row, held: true, because:
+          `played ${row.played} of the ${movement.minMatchesForPromotion} matches needed for promotion` });
+      } else promoted.add(row.entryId);
+    }
+    for (const row of relegationPlaces) {
+      if (notCarried(row.entryId)) open.push({ kind: "relegation", row, because: notCarriedBecause(row.entryId), held: false });
+      else relegated.add(row.entryId);
     }
 
-    // Relegation: the bottom of the table, unranked entries included, never
-    // an entry just promoted.
-    const relegated = new Set<string>();
-    if (down > here) {
-      for (const row of [...active].reverse()) {
-        if (relegated.size >= movement.relegate) break;
-        if (!promoted.has(row.entryId)) relegated.add(row.entryId);
-      }
+    // Who to suggest for each empty place: the best entry that is carried over, is not moving and could go
+    // up, for a promotion; the worst that is carried over and not moving, for a relegation.
+    const suggested = new Set<string>();
+    const staying = (r: StandingsRow) => !notCarried(r.entryId) && !promoted.has(r.entryId) && !relegated.has(r.entryId)
+      && !suggested.has(r.entryId);
+    for (const { kind, row, because, held } of [...open.filter((o) => o.kind === "promotion"), ...open.filter((o) => o.kind === "relegation")]) {
+      const pick = kind === "promotion"
+        ? inTable.find((r) => r.standing === "ranked" && r.played >= movement.minMatchesForPromotion && staying(r))
+        : [...inTable].reverse().find(staying);
+      if (pick) suggested.add(pick.entryId);
+      const to = kind === "promotion" ? up : down;
+      const fill = pick ? { entryId: pick.entryId, label: pick.label, place: describePlace(pick, division.name) } : null;
+      vacancies.push({
+        kind, from: division.ordinal, to, entryId: row.entryId, label: row.label, because, fill,
+        explanation: `A ${kind} place ${kind === "promotion" ? "into" : "down to"} ${nameOf(to)} is unfilled: ` +
+          `${describePlace(row, division.name)} (${row.label}) is ${held ? "held back" : "not carried over"} (${because}). ` +
+          (fill ? `Suggested instead: ${fill.place}, ${fill.label}.` : `Nobody else in ${division.name} can take it.`),
+      });
     }
 
     for (const row of division.standings) {
@@ -122,6 +172,13 @@ export function suggestPlacements(
           reason: null,
           explanation: `Withdrew from ${division.name}, so not carried over. Add them back if they are returning.`,
         });
+      } else if (departed.has(row.entryId)) {
+        suggestions.push({
+          ...base,
+          to: null,
+          reason: null,
+          explanation: `${place}, but ${departedClause(departed.get(row.entryId)!)}, so not carried over.`,
+        });
       } else if (promoted.has(row.entryId)) {
         suggestions.push({ ...base, to: up, reason: "promoted", explanation: `${place}: promoted to ${nameOf(up)}.` });
       } else if (relegated.has(row.entryId)) {
@@ -139,9 +196,23 @@ export function suggestPlacements(
         suggestions.push({ ...base, to: here, reason: "held", explanation: `${place}: held in ${nameOf(here)}.` });
       }
     }
+
+    /** Why an entry in a movement place is not carried over, as a clause that follows its name. */
+    function notCarriedBecause(id: string): string {
+      if (optedOut.has(id)) return "opted out of the next competition";
+      if (breakingUp.has(id)) return breakingUp.get(id)!;
+      if (tooFewToStay.has(id)) {
+        const { played, target } = tooFewToStay.get(id)!;
+        return `played ${played} of the ${target} ${target === 1 ? "match" : "matches"} needed to keep a place`;
+      }
+      return departedClause(departed.get(id)!);
+    }
   }
-  return suggestions;
+  return { suggestions, vacancies };
 }
+
+const departedClause = (how: "left" | "removed") =>
+  `a member has since ${how === "removed" ? "been removed from" : "left"} the club`;
 
 function describePlace(row: StandingsRow, divisionName: string): string {
   return row.position === null

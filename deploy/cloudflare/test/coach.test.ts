@@ -408,6 +408,45 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   assert.equal((await f.api(`/v1/competitions/${singles.id}/entries`, f.admin, "POST", { division_id: division, member_ids: [id("Val")] })).status, 400);
 });
 
+test("a draft shows the promotion and relegation places left empty, with a one-click fill, and says how entries were moved", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
+  const singles = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((x: { discipline: string }) => x.discipline === "singles");
+  const divisions = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data as { id: string; ordinal: number }[];
+  const entries = async () => (await f.api(`/v1/competitions/${singles.id}/entries`, f.admin)).body.data as
+    { id: string; label: string; division_id: string; placement_reason: string }[];
+  const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const vacancy = "A relegation place down to Division 2 is unfilled: \\d\\w\\w in Division 1 \\(Sample Gray\\) is not carried over " +
+    "\\(opted out of the next competition\\)\\. Suggested instead: \\d\\w\\w in Division 1, (Sample \\w+)\\.";
+
+  // Gray, in a relegation place of Division 1, opted out: the place is left empty, not passed up to the one above, and the worst carried entry is suggested.
+  const page = (await coach.get(`/coach/season/drafts/${singles.id}`)).html;
+  assert.match(text(page), new RegExp(vacancy));
+  assert.match(text(page), /Division 1 · \d players of 5/);
+  assert.match(text(page), /Only \d players: a division needs at least 5 for everyone to be able to play the 4-match minimum/);
+  const suggested = new RegExp(vacancy).exec(text(page))![1]!;
+  const emery = (await entries()).find((e) => e.label === suggested)!;
+  assert.equal(emery.placement_reason, "held");
+  assert.match(page, new RegExp(`action="/coach/season/entries/${emery.id}/move"[^]*?name="reason" value="relegated"`));
+
+  // One click takes the suggestion: the engine's own reason, and the place is no longer empty.
+  assert.equal((await coach.post(`/coach/season/entries/${emery.id}/move`,
+    { draft: singles.id, division_id: divisions[1]!.id, reason: "relegated" })).status, 303);
+  const taken = (await entries()).find((e) => e.id === emery.id)!;
+  assert.equal(taken.division_id, divisions[1]!.id); assert.equal(taken.placement_reason, "relegated");
+  assert.doesNotMatch(text((await coach.get(`/coach/season/drafts/${singles.id}`)).html), /A relegation place down to Division 2 is unfilled/);
+
+  // Anyone else the coach moves by hand is described as moved by the coach, and from where.
+  const drew = (await entries()).find((e) => e.placement_reason === "held" && e.division_id === divisions[0]!.id)!;
+  assert.equal((await coach.post(`/coach/season/entries/${drew.id}/move`, { draft: singles.id, division_id: divisions[2]!.id })).status, 303);
+  assert.equal((await entries()).find((e) => e.id === drew.id)!.placement_reason, "manual");
+  const moved = text((await coach.get(`/coach/season/drafts/${singles.id}`)).html);
+  assert.match(moved, new RegExp(`${drew.label} Moved by coach · moved by coach from \\d\\w\\w in Division 1`));
+});
+
 test("a season with a competition not yet started cannot be ended from the Season tab", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);

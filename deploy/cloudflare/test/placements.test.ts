@@ -72,11 +72,43 @@ test("draft rules govern movement and opt-outs free places; withdrawals and remo
   await send(f, `/v1/members/${members[3]}`, "DELETE");
   const next = await target(f, { rules: { ...comp.rules, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } } });
   const filled = await fill(f, next.id); assert.equal(filled.status, 201, JSON.stringify(filled.body));
-  assert.equal(filled.body.placed.find((p: any) => p.previous_entry_id === entries[1]).reason, "promoted");
+  // B1 opted out of the one promotion place, which stays empty: B2 is not promoted in its stead, but is suggested for it.
+  assert.equal(filled.body.placed.find((p: any) => p.previous_entry_id === entries[1]).reason, "held");
+  const vacancy = filled.body.vacancies.find((v: any) => v.kind === "promotion");
+  assert.deepEqual([vacancy.previous_entry_id, vacancy.fill.previous_entry_id, vacancy.from_division, vacancy.to_division], [entries[0], entries[1], 2, 1]);
+  assert.match(vacancy.because, /opted out/); assert.match(vacancy.explanation, /^A promotion place into Division 1 is unfilled/);
   assert.equal(filled.body.placed.filter((p: any) => p.reason === "relegated").length, 1);
   const excluded = Object.fromEntries(filled.body.not_carried.map((p: any) => [p.previous_entry_id, p.explanation]));
   assert.match(excluded[entries[0]!], /opted out/); assert.match(excluded[entries[2]!], /Withdrew/); assert.match(excluded[entries[3]!], /removed/);
   assert.ok(filled.body.not_carried.every((p: any) => !JSON.stringify(p).includes("Private")));
+});
+
+test("the plan can be read before the draft is filled and after, writes nothing, and names the places it leaves empty", async (t) => {
+  const f = await source(t, 3); const comp = (await send(f, `/v1/competitions/${f.ids.competition}`)).body;
+  const bottom = await create(f, `/v1/competitions/${f.ids.competition}/divisions`, {});
+  const entries: string[] = [];
+  for (let i = 1; i <= 4; i++) entries.push((await create(f, `/v1/competitions/${f.ids.competition}/entries`, { division_id: bottom.id, member_ids: [await f.member(`B${i}`)] })).id);
+  await send(f, `/v1/entries/${entries[0]}/opt-out`, "POST");
+  const next = await target(f, { rules: { ...comp.rules, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } } });
+  const revision = async () => f.db.prepare("SELECT revision FROM mutation_clock").first("revision");
+  const before = await revision();
+  const plan = await send(f, `/v1/competitions/${next.id}/placements`);
+  assert.equal(plan.status, 200, JSON.stringify(plan.body));
+  assert.equal(await revision(), before, "reading the plan writes nothing");
+  assert.equal((await summary(f, next.id)).entries.length, 0);
+  assert.equal(plan.body.suggestions.length, 7);
+  const moves = Object.fromEntries(plan.body.suggestions.map((x: any) => [x.previous_entry_id, [x.to_division, x.reason]]));
+  assert.deepEqual([moves[entries[0]!], moves[entries[1]!]], [[null, null], [2, "held"]]);
+  assert.deepEqual(plan.body.vacancies.map((v: any) => [v.kind, v.from_division, v.to_division, v.previous_entry_id, v.fill.previous_entry_id]),
+    [["promotion", 2, 1, entries[0], entries[1]]]);
+
+  // After filling, and after the coach has moved someone, it is still the same advice on the same tables.
+  const filled = await fill(f, next.id); assert.equal(filled.status, 201, JSON.stringify(filled.body));
+  assert.deepEqual(filled.body.vacancies, plan.body.vacancies);
+  const after = (await send(f, `/v1/competitions/${next.id}/placements`)).body;
+  assert.deepEqual(after.suggestions, plan.body.suggestions); assert.deepEqual(after.vacancies, plan.body.vacancies);
+  // Not a draft, or not named a previous competition: nothing to plan.
+  assert.equal((await send(f, `/v1/competitions/${f.ids.competition}/placements`)).body.code, "not_draft");
 });
 
 test("a member who has left keeps their results, is left out of the next draft and cannot be entered; coming back undoes it", async (t) => {

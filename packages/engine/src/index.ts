@@ -16,8 +16,11 @@ export {
   type PointsFor,
 } from "./standings.js";
 export {
+  planPlacements,
   suggestPlacements,
   type DivisionStandings,
+  type PlacementPlan,
+  type Vacancy,
   type TargetDivision,
   type PlacementSuggestion,
 } from "./placements.js";

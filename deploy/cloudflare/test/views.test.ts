@@ -60,7 +60,8 @@ test("movement includes surrounding divisions when filtering and honors next-sea
   assert.deepEqual((await send(f, `${path}?division_id=${divs[1]}`)).body.divisions, [all.divisions[1]]);
   await send(f, `/v1/entries/${middle[0]}/opt-out`, "POST");
   const rows = (await send(f, `${path}?division_id=${divs[1]}`)).body.divisions[0].rows;
-  assert.equal(rows[0].movement, null); assert.equal(rows[1].movement, "promoted");
+  // The place stays empty: the one below does not show as going up in its stead.
+  assert.equal(rows[0].movement, null); assert.equal(rows[1].movement, null);
   assert.deepEqual((await send(f, `${path}?division_id=${randomUUID()}`)).body.divisions, []);
 });
 
