@@ -13,8 +13,16 @@ Regent's Park (sample), for the coach to replace with the club's own.
 
 ## Changing the courts
 
-Use the administrator key saved at setup, or a key holding `admin`, with your
-website address in place of the example:
+On the coach's site, open **Weather** at `/coach/weather`. Each court has its
+name and its latitude and longitude, to change and **Save**, or **Remove**.
+**Add a court** takes a name and where it is: right-click the court in Google
+Maps and click the numbers at the top of the menu to copy them, then paste them
+in. **Check on the map** opens the spot on OpenStreetMap. Units are at the foot
+of the page.
+
+Through the API, use a key holding `admin` or `league:write`, such as the
+administrator key saved at setup, with your website address in place of the
+example:
 
 ```sh
 SITE=https://your-club.your-subdomain.workers.dev
@@ -51,7 +59,7 @@ Each change is recorded in the event log.
 
 | What you see | What to check |
 | --- | --- |
-| No weather on the home page | Check `GET /v1/weather` lists at least one court. |
+| No weather on the home page | Check the Weather tab at `/coach/weather`, or `GET /v1/weather`, lists at least one court. |
 | Weather appears late or not at all | Open-Meteo may be slow or unavailable. Forecasts are optional: the page shows without them, and the next visit tries again. |
 
 ## Older deployments
