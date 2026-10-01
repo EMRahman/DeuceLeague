@@ -34,6 +34,12 @@ export const WeatherChanges = z.object({ units: WeatherUnits.optional() }).opena
 
 const court = { content: { "application/json": { schema: CourtLocation } } };
 
+/**
+ * Where the club plays is league setup, not a key or a club setting, so the
+ * coach's own website, which never holds `admin`, can change it.
+ */
+const changes = requires.anyKey("admin", "league:write");
+
 export const get = createRoute({
   method: "get",
   path: "/v1/weather",
@@ -52,7 +58,7 @@ export const patch = createRoute({
   tags: ["Weather"],
   summary: "Change forecast units",
   description: "Only the fields sent change. Court locations have their own endpoints.",
-  ...requires("admin"),
+  ...changes,
   request: { body: { content: { "application/json": { schema: WeatherChanges } }, required: true } },
   responses: { 200: { description: "The changed configuration.", content: { "application/json": { schema: Weather } } }, ...validationProblem, ...authProblems },
 });
@@ -75,7 +81,7 @@ export const createCourt = createRoute({
   path: "/v1/court-locations",
   tags: ["Weather"],
   summary: "Add a court location",
-  ...requires("admin"),
+  ...changes,
   request: { body: { content: { "application/json": { schema: NewCourtLocation } }, required: true } },
   responses: {
     201: { description: "The new court location.", ...court },
@@ -91,7 +97,7 @@ export const patchCourt = createRoute({
   tags: ["Weather"],
   summary: "Change a court location",
   description: "Only the fields sent change.",
-  ...requires("admin"),
+  ...changes,
   request: { params: IdParam, body: { content: { "application/json": { schema: CourtLocationPatch } }, required: true } },
   responses: { 200: { description: "The changed court location.", ...court }, ...validationProblem, ...authProblems, ...notFoundProblem },
 });
@@ -101,7 +107,7 @@ export const deleteCourt = createRoute({
   path: "/v1/court-locations/{id}",
   tags: ["Weather"],
   summary: "Remove a court location",
-  ...requires("admin"),
+  ...changes,
   request: { params: IdParam },
   responses: { 204: { description: "Removed." }, ...authProblems, ...notFoundProblem },
 });

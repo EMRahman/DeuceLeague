@@ -33,7 +33,8 @@ without the other, stops the website rather than leaving the form half-guarded.
 
 Court locations and forecast units are coach-managed D1 data, not deployment
 variables. A new club starts with no locations, so its player website simply
-omits weather until the coach adds one through the API; see [court forecasts](WEATHER.md).
+omits weather until the coach adds one on the coach's Weather page or through
+the API; see [court forecasts](WEATHER.md).
 
 `SETUP_TOKEN` and `WEBSITE_API_KEY` are each 32 random bytes, base64url
 encoded, with `dl_` in front of the website key; [Try it](TRY.md#1-make-two-passwords)

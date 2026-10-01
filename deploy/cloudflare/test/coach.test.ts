@@ -161,7 +161,7 @@ test("the coach's pages show the sample league: progress, disputes, waiting resu
 test("the coach's pages send a signed-out browser to sign in", async (t) => {
   const f = await websiteFixture(t);
   for (const path of ["/coach/results", "/coach/tables", "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members",
-    "/coach/season"]) {
+    "/coach/season", "/coach/weather"]) {
     const r = await browser(f).get(path);
     assert.equal(r.status, 303, path); assert.equal(r.location, "/coach");
   }
@@ -234,7 +234,7 @@ test("a browser still holding a key without league:read, from before these pages
   assert.match(r.headers.get("set-cookie") ?? "", /Max-Age=0/, "the cookie is forgotten");
 });
 
-test("the coach sees the tables and the forecast as players do, for the competitions open to them", async (t) => {
+test("the coach sees the tables as players do, for the competitions open to them", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
   const draft = await f.create("/v1/competitions", { season_id: season.id, name: "Next singles", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
@@ -246,14 +246,84 @@ test("the coach sees the tables and the forecast as players do, for the competit
   assert.equal(page.status, 200);
   assert.match(page.html, /<a href="\/coach\/tables" aria-current="page">Tables<\/a>/);
   assert.match(page.html, /What players see/);
-  for (const text of ["Division 1", "Division 2", "Sample season · Results close in", "Weather at the courts", "row-toggle"]) {
+  for (const text of ["Division 1", "Division 2", "Sample season · Results close in", "row-toggle"]) {
     assert.ok(page.html.includes(text), text);
   }
+  assert.doesNotMatch(page.html, /Weather at the courts/, "the forecast is on the Weather tab");
   const tabs = [...page.html.matchAll(/href="\/coach\/tables\/([0-9a-f-]{36})"/g)].map((m) => m[1]);
   assert.equal(new Set(tabs).size, 2, "both sample competitions, and not the draft");
   assert.ok(!tabs.includes(draft.id));
   assert.doesNotMatch(page.html, /href="\/matches\/|\(yours\)|action="\/entries/, "nothing that is a player's own");
   assert.equal((await coach.get(`/coach/tables/${draft.id}`)).status, 404, "players can't see a draft");
+});
+
+test("the coach adds, renames, moves and removes the forecast's courts, and sets its units", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const courts = async () => (await f.api("/v1/weather", f.admin)).body;
+
+  const page = await coach.get("/coach/weather");
+  assert.equal(page.status, 200);
+  assert.match(page.html, /<a href="\/coach\/weather" aria-current="page">Weather<\/a>/);
+  assert.match(page.html, /Courts \(2 of 8\)/); assert.match(page.html, /Wimbledon Park \(sample\)/);
+  assert.match(page.html, /Weather at the courts/, "the forecast as players see it");
+  assert.ok(page.html.indexOf("Weather at the courts") < page.html.indexOf("Courts (2 of 8)"), "above the courts it is for");
+  const sample = (await courts()).court_locations as { id: string; name: string }[];
+  for (const c of sample) {
+    assert.match(page.html, new RegExp(`action="/coach/weather/courts/${c.id}"`));
+    assert.match(page.html, new RegExp(`action="/coach/weather/courts/${c.id}/delete"`));
+  }
+
+  const added = await coach.post("/coach/weather/courts", { name: " Club courts ", coordinates: "51.5074, −0.1278" });
+  assert.equal(added.status, 303); assert.match(added.location!, /^\/coach\/weather\?done=added#court-[0-9a-f-]{36}$/);
+  const made = (await courts()).court_locations.find((c: { name: string }) => c.name === "Club courts");
+  assert.deepEqual([made.latitude, made.longitude], [51.5074, -0.1278]);
+  assert.match((await coach.get(added.location!)).html, /Court added/);
+
+  const moved = await coach.post(`/coach/weather/courts/${made.id}`, { name: "Home courts", coordinates: "40.7128 -74.006" });
+  assert.equal(moved.status, 303);
+  const now = (await courts()).court_locations.find((c: { id: string }) => c.id === made.id);
+  assert.deepEqual([now.name, now.latitude, now.longitude], ["Home courts", 40.7128, -74.006]);
+
+  for (const [coordinates, why] of [["here", /as a map gives them/], ["151.5, -0.1278", /right way round/]] as const) {
+    const refused = await coach.post(`/coach/weather/courts/${made.id}`, { name: "Kept", coordinates });
+    assert.equal(refused.status, 400); assert.match(refused.html, why);
+    assert.match(refused.html, new RegExp(`value="${coordinates}"`), "what the coach typed stays to correct");
+  }
+  assert.equal((await coach.post("/coach/weather/courts", { name: " ", coordinates: "1, 1" })).status, 400);
+  // A court made through the API so close to the meridian that it shows as "1e-7" still saves as shown.
+  const tiny = await f.create("/v1/court-locations", { name: "Meridian", latitude: 51.4779, longitude: 0.0000001 });
+  const shown = /name="coordinates"[^>]*value="([^"]+)"/.exec((await coach.get("/coach/weather")).html.split(`court-${tiny.id}`)[1]!)?.[1];
+  assert.equal(shown, "51.4779, 1e-7");
+  assert.equal((await coach.post(`/coach/weather/courts/${tiny.id}`, { name: "Greenwich", coordinates: shown })).status, 303);
+  assert.equal((await courts()).court_locations.find((c: { id: string }) => c.id === tiny.id).longitude, 0.0000001);
+  assert.equal((await f.api(`/v1/court-locations/${tiny.id}`, f.admin, "DELETE")).status, 204);
+  assert.equal((await courts()).court_locations.length, 3, "nothing refused was kept");
+
+  for (let i = 4; i <= 8; i++) {
+    assert.equal((await coach.post("/coach/weather/courts", { name: `Court ${i}`, coordinates: `${i}, ${i}` })).status, 303);
+  }
+  const full = await coach.get("/coach/weather");
+  assert.match(full.html, /Courts \(8 of 8\)/); assert.doesNotMatch(full.html, /Add a court/);
+  const ninth = await coach.post("/coach/weather/courts", { name: "Ninth", coordinates: "9, 9" });
+  assert.equal(ninth.status, 400); assert.match(ninth.html, /already has eight courts/);
+
+  const removed = await coach.post(`/coach/weather/courts/${made.id}/delete`);
+  assert.equal(removed.status, 303); assert.equal(removed.location, "/coach/weather?done=removed");
+  assert.equal((await coach.post(`/coach/weather/courts/${made.id}/delete`)).status, 303, "removing twice is no error");
+  assert.equal((await coach.post(`/coach/weather/courts/${made.id}`, { name: "Gone", coordinates: "1, 1" })).location,
+    "/coach/weather?done=gone");
+  assert.equal((await courts()).court_locations.length, 7);
+
+  assert.equal((await coach.post("/coach/weather/units", { units: "us" })).status, 303);
+  assert.equal((await courts()).units, "us");
+  assert.match((await coach.get("/coach/weather")).html, /<option value="us" selected="">/);
+  assert.equal((await coach.post("/coach/weather/units", { units: "kelvin" })).status, 303);
+  assert.equal((await courts()).units, "us", "an unknown unit changes nothing");
+
+  const feed = await coach.get("/coach/activity/all");
+  assert.match(feed.html, /Coach website, [\d-]+ added the court Court 4/);
+  assert.match(feed.html, /changed the forecast settings/);
 });
 
 test("the chase list and dashboard say how many are short of the minimum, and who", async (t) => {

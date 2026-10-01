@@ -37,8 +37,8 @@ them. For example:
 [Running the league day to day](../../docs/COACH-WORKFLOW.md) explains how to
 give the agent its own key and what it can do.
 
-Add your courts for the forecast as described in
-[court forecasts](WEATHER.md).
+Add your courts for the forecast on the **Weather** tab of the coach's site,
+at `/coach/weather`; see [court forecasts](WEATHER.md).
 
 ## 4. Invite your players
 

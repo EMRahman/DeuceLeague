@@ -48,7 +48,7 @@ usually held by their coding agent. There is no separate user-account system.
 |---|---|
 | `league:read` | seasons, competitions, divisions, standings, matches, progress, events |
 | `results:write` | report, accept and correct results |
-| `league:write` | create and edit competitions, entries, placements and fixtures; settle results |
+| `league:write` | create and edit competitions, entries, placements and fixtures; settle results; forecast court locations and units |
 | `members:read` | the member list, with display names and status; forecast configuration |
 | `members:write` | create and edit members, and mint their login links |
 | `members:pii` | full name, email, phone, date of birth, gender, notes; join requests |
@@ -74,9 +74,10 @@ club it belongs to from `GET /v1/me`. Create, list and revoke API keys. The club
 working admin key cannot be revoked — nothing could manage the club without
 it — so a coach rotating keys makes the new one first.
 
-**Weather** (`admin` to change; `admin` or `members:read` to read). A coach
-adds, changes and removes up to eight named court locations with latitude and
-longitude, and sets `uk`, `metric` or `us` units. `GET /v1/weather` returns the
+**Weather** (`admin` or `league:write` to change; `admin` or `members:read` to
+read). A coach adds, changes and removes up to eight named court locations with
+latitude and longitude, and sets `uk`, `metric` or `us` units, through the API
+or the Weather tab at `/coach`. `GET /v1/weather` returns the
 configuration to the reference website, whose Worker fetches and publicly
 caches forecasts; the core stores neither forecasts nor player data with them.
 A club with no locations shows no weather.
