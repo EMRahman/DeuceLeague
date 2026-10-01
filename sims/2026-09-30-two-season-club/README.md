@@ -4,6 +4,7 @@ A local DeuceLeague club (Sim Tennis Club, no sample league) run through two sea
 
 | File | What it is |
 |---|---|
+| [prompt.md](prompt.md) | The prompt the simulation ran from, verbatim: setup, the club, the fast-forward engine, the agents, season 2, the orchestrator's checks and the report format |
 | [report.md](report.md) | What happened, pain points ranked, what only the agent could do, bugs with request ids, the orchestrator's checks, limits |
 | [findings-raw.md](findings-raw.md) | The unmerged notes taken at each checkpoint, including findings discarded as artefacts |
 | [issues.md](issues.md) | Seven issue drafts from the top findings, with the decisions made on 1 October 2026 |

@@ -1,6 +1,7 @@
 # DeuceLeague two-season simulation: findings
 
 Branch `feat/partner-choices` (2540261), Worker on `localhost:8788`, D1 local, no sample league, no source changed, nothing committed or pushed.
+The prompt this simulation ran from is [prompt.md](prompt.md).
 Scripts and per-checkpoint briefings are kept outside the repo (`.wrangler/sim-scripts/`, `.wrangler/personas/`, both ignored by Git). The request log is `request-log.jsonl`; raw, unmerged notes are `findings-raw.md`.
 
 ## 1. What happened
