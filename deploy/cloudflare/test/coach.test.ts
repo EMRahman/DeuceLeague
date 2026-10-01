@@ -439,6 +439,15 @@ test("a draft shows the promotion and relegation places left empty, with a one-c
   assert.equal(taken.division_id, divisions[1]!.id); assert.equal(taken.placement_reason, "relegated");
   assert.doesNotMatch(text((await coach.get(`/coach/season/drafts/${singles.id}`)).html), /A relegation place down to Division 2 is unfilled/);
 
+  // Take out one of the entries the engine relegated: its place opens, named for it, and the suggestion already
+  // taken is not offered again.
+  const relegated = (await entries()).find((e) => e.placement_reason === "relegated" && e.id !== emery.id && e.division_id === divisions[1]!.id)!;
+  assert.equal((await coach.post(`/coach/season/entries/${relegated.id}/remove`, { draft: singles.id })).status, 303);
+  const opened = text((await coach.get(`/coach/season/drafts/${singles.id}`)).html);
+  assert.match(opened, new RegExp(`A relegation place down to Division 2 is unfilled: ${relegated.label}, who was relegated, is no longer there\\.`));
+  assert.doesNotMatch(opened, /Gray\) is not carried over/, "the place Gray left was filled, by the suggestion");
+  assert.equal((await entries()).find((e) => e.id === emery.id)!.division_id, divisions[1]!.id);
+
   // Anyone else the coach moves by hand is described as moved by the coach, and from where.
   const drew = (await entries()).find((e) => e.placement_reason === "held" && e.division_id === divisions[0]!.id)!;
   assert.equal((await coach.post(`/coach/season/entries/${drew.id}/move`, { draft: singles.id, division_id: divisions[2]!.id })).status, 303);

@@ -18,7 +18,7 @@ export type PlanVacancy = {
 };
 /** What filling the draft from last season's tables would do: only what the draft page needs of it. */
 export type PlacementPlan = {
-  suggestions: { previous_entry_id: string; from: { division: number }; to_division: number | null; reason: string | null }[];
+  suggestions: { previous_entry_id: string; label: string; from: { division: number }; to_division: number | null; reason: string | null }[];
   vacancies: PlanVacancy[];
 };
 
@@ -245,26 +245,42 @@ export function draftView(
     if (c.agreed && together) pairs.push([a!, b!]);
   }
 
-  // A place is filled once as many entries from its division sit in the division it leads to as the table
-  // gave places: the engine's movers and its empty places together. Whoever the coach moved counts.
+  // The places each division's table gave to the one above or below, as the engine counts them: an entry
+  // it moves, or a place it leaves empty. Each is filled while someone from that division sits in the one
+  // it leads to. A mover still there fills its own; anyone else the coach put there, such as the engine's
+  // suggestion, fills an empty place; a mover the coach took out or moved opens a place of its own.
   const byOrdinal = new Map(draft.divisions.map((d) => [d.ordinal, d]));
   const vacancies: OpenVacancy[] = [];
-  for (const kind of ["promotion", "relegation"] as const) {
-    for (const from of new Set(plan.vacancies.filter((v) => v.kind === kind).map((v) => v.from_division))) {
-      const group = plan.vacancies.filter((v) => v.kind === kind && v.from_division === from);
-      const to = byOrdinal.get(group[0]!.to_division);
-      if (!to) continue;
-      const movers = plan.suggestions.filter((x) => x.from.division === from && x.to_division === to.ordinal
-        && x.reason === (kind === "promotion" ? "promoted" : "relegated")).length;
-      const arrived = draft.entries.filter((e) => e.division_id === to.id && fromOf(e.previous_entry_id)?.ordinal === from).length;
-      const empty = Math.max(0, Math.min(group.length, movers + group.length - arrived));
-      const taken = (v: PlanVacancy) => draft.entries.some((e) => e.previous_entry_id === v.fill?.previous_entry_id && e.division_id === to.id);
-      // Those whose suggested entry has already moved are the ones filled.
-      const open = [...group].sort((a, b) => Number(taken(b)) - Number(taken(a))).slice(group.length - empty);
-      for (const vacancy of open) {
+  const kinds = [["promotion", "promoted"], ["relegation", "relegated"]] as const;
+  for (const [kind, moved] of kinds) {
+    const groups = new Map<number, { to: Division; movers: PlacementPlan["suggestions"]; empty: PlanVacancy[] }>();
+    const groupFor = (from: number, toOrdinal: number) => {
+      const to = byOrdinal.get(toOrdinal);
+      if (!to) return null;
+      if (!groups.has(from)) groups.set(from, { to, movers: [], empty: [] });
+      return groups.get(from)!;
+    };
+    for (const x of plan.suggestions) if (x.reason === moved && x.to_division !== null) groupFor(x.from.division, x.to_division)?.movers.push(x);
+    for (const v of plan.vacancies) if (v.kind === kind) groupFor(v.from_division, v.to_division)?.empty.push(v);
+    for (const [from, { to, movers, empty }] of groups) {
+      const arrived = draft.entries.filter((e) => e.division_id === to.id && fromOf(e.previous_entry_id)?.ordinal === from);
+      const there = new Set(arrived.map((e) => e.previous_entry_id));
+      const others = arrived.filter((e) => !movers.some((m) => m.previous_entry_id === e.previous_entry_id));
+      // Empty places the coach has filled, the ones whose suggested entry has gone there first.
+      const taken = (v: PlanVacancy) => there.has(v.fill?.previous_entry_id ?? null);
+      const left = [...empty].sort((a, b) => Number(taken(b)) - Number(taken(a))).slice(Math.min(others.length, empty.length));
+      for (const vacancy of left) {
         const fill = draft.entries.find((e) => e.previous_entry_id === vacancy.fill?.previous_entry_id
           && fromOf(e.previous_entry_id)?.ordinal === from && e.division_id !== to.id) ?? null;
         vacancies.push({ vacancy, to, fill });
+      }
+      // Entries beyond the empty places fill the places of movers who are gone, so those are the ones still open.
+      const gone = movers.filter((m) => !there.has(m.previous_entry_id)).slice(Math.max(0, others.length - empty.length));
+      for (const m of gone) {
+        vacancies.push({ to, fill: null, vacancy: { kind, from_division: from, to_division: to.ordinal, previous_entry_id: m.previous_entry_id,
+          label: m.label, because: `was ${moved} but is no longer in ${to.name}`, fill: null,
+          explanation: `A ${kind} place ${kind === "promotion" ? "into" : "down to"} ${to.name} is unfilled: ${m.label}, ` +
+            `who was ${moved}, is no longer there.` } });
       }
     }
   }
