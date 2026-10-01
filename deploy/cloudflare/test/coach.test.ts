@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { browser, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
+import { browser, playingWebsite, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
 
 /** Each competition's table on the dashboard, by its heading, as text: [name, players, played, waiting, disputed, short, %]. */
 function dashboardTables(html: string): Record<string, string[][]> {
@@ -406,6 +406,49 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   assert.doesNotMatch(text((await coach.get(`/coach/season/drafts/${singles.id}`)).html, "Not in Sample singles last season"), /Sample Val/);
   const division = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data[0].id;
   assert.equal((await f.api(`/v1/competitions/${singles.id}/entries`, f.admin, "POST", { division_id: division, member_ids: [id("Val")] })).status, 400);
+});
+
+test("the coach sees this season's disputes with both claims, and who keeps ending up in them, across seasons", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  // A second competition with the same two players, so each has been in two disputes by the end.
+  const second = await f.create("/v1/competitions", { season_id: p.season.id, name: "Cup", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
+  const division = await f.create(`/v1/competitions/${second.id}/divisions`, {});
+  for (const member of p.members) await f.create(`/v1/competitions/${second.id}/entries`, { division_id: division.id, member_ids: [member.id] });
+  const fixtures = await f.api(`/v1/divisions/${division.id}/fixtures`, f.admin, "POST"); assert.equal(fixtures.status, 200);
+  assert.equal((await f.api(`/v1/competitions/${second.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  const cup = fixtures.body.created[0].match_id as string;
+  const win = { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } };
+  const lose = { outcome: "completed", score: { sets: [{ games: [1, 6] }, { games: [1, 6] }] } };
+  for (const match of [p.match, cup]) {
+    assert.equal((await f.api(`/v1/matches/${match}/claims`, f.admin, "POST", { side: 0, ...win })).status, 201);
+    assert.equal((await f.api(`/v1/matches/${match}/claims`, f.admin, "POST", { side: 1, ...lose })).status, 201);
+  }
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+  const open = await coach.get("/coach/results");
+  assert.match(open.html, /Disputed \(2\)/);
+  assert.match(text(open.html), /Sam says [^]*? Alex says/, "both claims side by side");
+  assert.match(open.html, /<div class="muted">\d{1,2} \w{3}[^<]*\d{2}:\d{2}[^<]*<\/div>/, "and when each was made");
+  assert.match(text(open.html), /This page takes no side/); assert.doesNotMatch(open.html, /action="[^"]*settle/, "nothing to settle from the site");
+  assert.match(text(open.html), /Players in 2 or more disputes/);
+  assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier/);
+  assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier\s+2 still open/);
+
+  // Alex accepts Sam's score in one: Alex gave way, and Sam's was accepted.
+  const claim = (await f.api(`/v1/matches/${p.match}`, f.admin)).body.claims.find((c: any) => c.side === 0 && c.state === "pending").id;
+  assert.equal((await f.api(`/v1/matches/${p.match}/claims/${claim}/accept`, f.admin, "POST", {})).status, 201);
+  const mixed = text((await coach.get("/coach/results")).html);
+  assert.match(mixed, /Sam · 2 disputes: 2 this season, 0 earlier the other gave way in 1 · 1 still open/);
+  assert.match(mixed, /Alex · 2 disputes: 2 this season, 0 earlier gave way in 1 · 1 still open/);
+  assert.match(mixed, /Disputed \(1\)/);
+
+  // The season ends: its loose ends are no longer listed, but the history keeps them, as earlier.
+  for (const id of [p.comp.id, second.id]) assert.equal((await f.api(`/v1/competitions/${id}`, f.admin, "PATCH", { state: "complete" })).status, 200);
+  assert.equal((await f.api(`/v1/seasons/${p.season.id}`, f.admin, "PATCH", { state: "complete" })).status, 200);
+  const ended = await coach.get("/coach/results");
+  assert.match(ended.html, /Disputed \(0\)/); assert.match(ended.html, /No disputes/);
+  assert.match(text(ended.html), /Sam · 2 disputes: 0 this season, 2 earlier/);
 });
 
 test("a draft shows the promotion and relegation places left empty, with a one-click fill, and says how entries were moved", async (t) => {

@@ -13,6 +13,7 @@ export type * from "./view-types.js";
 export * from "./views.js";
 export * from "./placements.js";
 export * from "./partner-choices.js";
+export * from "./disputes.js";
 export * from "./events.js";
 export * from "./website.js";
 export * from "./setup.js";

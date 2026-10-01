@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
-import { commitMutation, eventStatement, importEventHistory, readSnapshot, StaleSnapshotError,
+import { commitMutation, eventStatement, importEventHistory, readDisputeHistory, readSnapshot, StaleSnapshotError,
   type HistoryEvent } from "@deuceleague/db-d1";
 import { Scope } from "@deuceleague/schema";
 import { change, fixture } from "./helpers.ts";
@@ -127,6 +127,19 @@ test("upgrade backfills existing D1 audits without changing or dropping them", a
   assert.deepEqual(p.data.map((e) => e.id), ["1", "2", "3"]);
   await change(f.db, [audit(f)]);
   assert.equal((await page(f, p.next_cursor)).data[0]!.cursor, "1.4");
+});
+
+test("dispute history follows the feed's order, not the local ids that imported events were given", async (t) => {
+  const f = await importFixture(t); const match = randomUUID();
+  const at = (txId: string, id: string, type: string, payload: object): HistoryEvent => ({ txId, id, type, subjectType: "match", subjectId: match,
+    actorType: "system", actorId: null, occurredAt: new Date("2026-01-01T12:30:00Z"), payload });
+  // Disputed, then side 1 accepts, then the result is confirmed: imported in the opposite order, so the
+  // local ids run backwards and sorting by them would read the dispute as the last thing to happen.
+  const history = [at("1", "3", "match.result.confirmed", { how: "accepted" }), at("1", "2", "match.claim.accepted", { side: 1 }),
+    at("1", "1", "match.disputed", { differences: [] })];
+  await importEventHistory(f.db, f.clubId, history, { txId: "1", id: "3" });
+  const read = await readDisputeHistory(f.db, hash(f.admin), "api_key");
+  assert.deepEqual(read.events.map((e) => e.type), ["match.disputed", "match.claim.accepted", "match.result.confirmed"]);
 });
 
 test("saved cursors resume imported history by transaction then ID, with exact large values", async (t) => {

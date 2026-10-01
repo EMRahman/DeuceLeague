@@ -241,6 +241,18 @@ twice is harmless, so a bot that retries does no damage. Two claims on one
 match are judged one after the other, so both sides reporting at the same
 moment still agree.
 
+Players settle their own disputes: each can accept the other's score or report
+their own again, and the player who does so gives way. The coach is not asked
+to take a side in a match they did not watch, and the coach's site settles
+nothing; a match that stays stuck is settled through the API, which needs an
+explicit override to replace what players agreed. `GET /v1/dispute-history`
+(`league:read` and `members:read`, an API key only) shows the coach who has been
+on a side of a disputed match, this season and earlier, and how each ended for
+them: they gave way, the other side did, the coach settled it, or it is still
+open. Both players are in every dispute, so a count alone does not say who is
+at fault. It is built from the event log, so it covers every season, and a
+player's session cannot read it.
+
 Results are recorded while a competition is active, and until the season's
 results deadline. A complete competition is a record, so correcting it means
 reopening it first. The deadline is a cut-off: after it no new claim or

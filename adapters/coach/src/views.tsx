@@ -546,6 +546,13 @@ const where = (m: Match) => [m.competition_name, m.division_name].filter(Boolean
 
 const namesOf = (m: Match): [string, string] => [m.sides[0]?.label ?? "Side 1", m.sides[1]?.label ?? "Side 2"];
 
+/** A member's disputes, as the API counts them. */
+type DisputeCounts = { disputes: number; gave_way: number; held: number; settled_by_coach: number; unresolved: number };
+export type DisputeRow = { member_id: string; display_name: string; this_season: DisputeCounts; earlier: DisputeCounts };
+
+/** The disputes of a member who has been in at least this many are shown to the coach. */
+const REPEAT = 2;
+
 export const Results: FC<{
   frame: Frame;
   disputed: MatchDetail[];
@@ -555,13 +562,15 @@ export const Results: FC<{
   /** Those not read in full: disputes first, then the reports waiting longest. */
   more: (Match & { updated_at: string })[];
   late: Match[];
+  history: DisputeRow[];
   timezone: string;
-}> = ({ frame, disputed, reported, counts, more, late, timezone }) => (
+}> = ({ frame, disputed, reported, counts, more, late, history, timezone }) => (
   <Layout title="Results" frame={frame}>
     <h1>Results to sort out</h1>
     <p class="muted">
-      Scores the players have not agreed yet. Either player can change their report on the match page; a result that
-      stays stuck can be settled through the API.
+      Scores the players have not agreed yet, in the season under way. Players sort these out themselves: either can
+      accept the other's score, or report their own again, on the match page. This page takes no side. A match that
+      stays stuck can be settled by your agent through the API, which asks for an explicit override.
     </p>
 
     <h2>Disputed ({counts.disputed})</h2>
@@ -581,6 +590,7 @@ export const Results: FC<{
               <div>
                 <div class="who">{names[side]} says</div>
                 <div class="what">{claim ? describe(claim, 0, names) : "Nothing yet"}</div>
+                {claim && <div class="muted">{at(claim.submitted_at, timezone)}</div>}
               </div>
             ))}
           </div>
@@ -671,6 +681,52 @@ export const Results: FC<{
                 </li>
               );
             })}
+          </ul>
+        </div>
+      </>
+    )}
+
+    <h2>Players in repeated disputes</h2>
+    {history.filter((r) => r.this_season.disputes + r.earlier.disputes >= REPEAT).length === 0 ? (
+      <p class="muted">
+        {history.length === 0
+          ? "Nobody has been in a dispute."
+          : `Nobody has been in more than ${REPEAT - 1} dispute across the seasons.`}
+      </p>
+    ) : (
+      <>
+        <p class="muted">
+          Players in {REPEAT} or more disputes, this season and earlier. Both players are in every dispute, so look at
+          how each ended: someone who keeps giving way, or whose score others keep accepting, is not the same as
+          someone caught up in another player's. Only you see this.
+        </p>
+        <div class="card">
+          <ul class="list">
+            {history
+              .filter((r) => r.this_season.disputes + r.earlier.disputes >= REPEAT)
+              .map((r) => {
+                const total = (key: keyof DisputeCounts) => r.this_season[key] + r.earlier[key];
+                return (
+                  <li class="answer">
+                    <strong>{r.display_name}</strong>{" "}
+                    <span class="muted">
+                      · {plural(total("disputes"), "dispute")}: {r.this_season.disputes} this season,{" "}
+                      {r.earlier.disputes} earlier
+                    </span>
+                    <br />
+                    <span class="muted">
+                      {[
+                        total("gave_way") > 0 && `gave way in ${total("gave_way")}`,
+                        total("held") > 0 && `the other gave way in ${total("held")}`,
+                        total("settled_by_coach") > 0 && `settled by you in ${total("settled_by_coach")}`,
+                        total("unresolved") > 0 && `${total("unresolved")} still open`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </li>
+                );
+              })}
           </ul>
         </div>
       </>

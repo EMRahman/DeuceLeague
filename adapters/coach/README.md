@@ -41,11 +41,15 @@ MIT-licensed.
   says what the columns mean instead (`GET /v1/seasons/{id}/progress`, one read a season however many
   competitions it runs). It counts and names who has opted out of next season
   and says whether next season's competition is drafted yet.
-- **Results** (`/coach/results`). Disputes, with what each side says and what
-  differs; reports waiting on the other side, the longest waiting first; and,
-  once a season's deadline has passed, its matches nobody played. Up to 12 are
-  read in full (`GET /v1/matches/{id}`), since each read costs D1 queries and
-  Workers Free allows 50 a request; the rest are listed by name.
+- **Results** (`/coach/results`). For the season under way: disputes, with what
+  each side says, when, and what differs; reports waiting on the other side,
+  the longest waiting first; and, once the deadline has passed, its matches
+  nobody played. Up to 12 are read in full (`GET /v1/matches/{id}`), since each
+  read costs D1 queries and Workers Free allows 50 a request; the rest are
+  listed by name. Players resolve disputes themselves, so nothing here settles
+  a match or takes a side. Below, players in two or more disputes across all
+  seasons (`GET /v1/dispute-history`), with how each ended for them: they gave
+  way, the other side did, you settled it, or it is open. Only the coach sees it.
 - **Tables** (`/coach/tables`). The tables exactly as players see them, for the
   competitions open to members: the players' site's own view
   (`CompetitionTables`), with nobody's row marked and
