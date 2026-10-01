@@ -928,6 +928,56 @@
           }
         }
       },
+      "SettledMatch": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MatchDetail"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "short_of_minimum": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "entry_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "played": {
+                      "type": "integer",
+                      "description": "As the tables count it: a match against a no-show counts for the side that turned up."
+                    },
+                    "target": {
+                      "type": "integer",
+                      "description": "The competition's minimum, or all its fixtures if fewer."
+                    },
+                    "still_possible": {
+                      "type": "boolean",
+                      "description": "Whether its matches still to be played could bring it to the minimum before the season ends."
+                    }
+                  },
+                  "required": [
+                    "entry_id",
+                    "label",
+                    "played",
+                    "target",
+                    "still_possible"
+                  ]
+                },
+                "description": "Only for `outcome: unplayed`, which credits neither side: the entries in this match now short of the competition's minimum, who are left out of next season's draft if they stay short once the tables are final. Empty for any other outcome, and when neither side is short."
+              }
+            },
+            "required": [
+              "short_of_minimum"
+            ]
+          }
+        ]
+      },
       "Settlement": {
         "type": "object",
         "properties": {
@@ -5902,7 +5952,7 @@
           "Matches"
         ],
         "summary": "Settle a match as the coach",
-        "description": "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a correction to one already played. Every earlier claim is kept, marked superseded. Settling with the result already in the ledger changes nothing. Replacing a result the two players agreed needs `override: true`, so overruling them is deliberate. The deadline does not stop a settlement.",
+        "description": "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a correction to one already played. Every earlier claim is kept, marked superseded. Settling with the result already in the ledger changes nothing. Replacing a result the two players agreed needs `override: true`, so overruling them is deliberate. The deadline does not stop a settlement. A match that one side did not turn up to is a `walkover` with `retired_side` the absent side: the side that was there is credited the points and a match played, and the other's row counts it as unplayed. `unplayed` credits neither, and the response says who it leaves short of the competition's minimum.",
         "security": [
           {
             "apiKey": [
@@ -5939,7 +5989,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MatchDetail"
+                  "$ref": "#/components/schemas/SettledMatch"
                 }
               }
             }
@@ -5949,7 +5999,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MatchDetail"
+                  "$ref": "#/components/schemas/SettledMatch"
                 }
               }
             }

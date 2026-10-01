@@ -202,6 +202,19 @@ export function draftView(
     const place = entryId ? rows.get(entryId) : undefined;
     return place ? { division: place.division.name, ordinal: place.division.ordinal, position: place.row.position } : null;
   };
+  const labels = new Map(previous.entries.map((e) => [e.id, e.label]));
+  /**
+   * Matches this entry never played, which no one is credited for: settled unplayed, or still open when the
+   * deadline passed. Says so, and whether they alone are why it is short. A match its opponent did not turn up
+   * to is credited to it, so it is never among them.
+   */
+  const never = (row: Standings["divisions"][number]["rows"][number], needed: number) => {
+    const missed = row.matches.filter((m) => m.result === "unplayed" && m.outcome === null);
+    if (missed.length === 0) return "";
+    const against = missed.map((m) => labels.get(m.opponent_entry_id) ?? "an opponent").join(", ");
+    const only = row.played + missed.length >= needed ? "Short only because " : "Of those it missed, ";
+    return `. ${only}${missed.length} ${missed.length === 1 ? "match was" : "matches were"} never played (against ${against})`;
+  };
   const leftOut: LeftOut[] = [];
   for (const entry of previous.entries) {
     if (followed.has(entry.id)) continue;
@@ -215,7 +228,7 @@ export function draftView(
       : entry.opted_out_at ? "Opted out of next season"
       : broke ? broke
       : entry.state === "withdrawn" ? "Withdrew last season"
-      : row && row.played < needed ? `Played ${row.played} of the ${needed} ${needed === 1 ? "match" : "matches"} needed to keep a place`
+      : row && row.played < needed ? `Played ${row.played} of the ${needed} ${needed === 1 ? "match" : "matches"} needed to keep a place${never(row, needed)}`
       : "Taken out of the draft";
     leftOut.push({ entry, why, ordinal: place?.division.ordinal ?? 1, from: fromOf(entry.id),
       addable: gone.length === 0 && entry.members.every((m) => !drafted.has(m.id)) });

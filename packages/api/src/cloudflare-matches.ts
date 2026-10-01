@@ -1,13 +1,16 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import {
-  commitIdentity, commitResult, readMatchPage, readResult, ResultDeadlineError, retryMutation, uuidv7,
+  commitIdentity, commitResult, readLeagueViews, readMatchPage, readResult, ResultDeadlineError, retryMutation, uuidv7,
   type IdentitySnapshot,
 } from "@deuceleague/db-d1";
+import { RulesSpec } from "@deuceleague/schema";
 import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
-import { accept, get, list, report, settle } from "./contracts/matches.js";
+import { accept, get, list, report, settle, type ShortOfMinimum } from "./contracts/matches.js";
+import type { z } from "@hono/zod-openapi";
+import { towardMinimum } from "./league/progress.js";
 import { problems } from "./problems.js";
 import { deadlinePassed, decideResult, visibleToPlayer, type ResultAction } from "./results/decide.js";
 import { matchDetail, toMatch } from "./results/model.js";
@@ -74,8 +77,30 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
     const result = await detail(c, id, { type: "accept", claimId: claim_id, body: c.req.valid("json") ?? {} });
     return c.json(result.body, result.status);
   });
+  /**
+   * Who a match settled unplayed leaves short of the competition's minimum, from the tables as they stand
+   * now. Read after the settlement, so it counts the match as it now is.
+   */
+  async function shortAfterUnplayed(c: Context<CloudflareEnv>, match: { competition_id: string; sides: { entry_id: string | null; label: string | null }[] }) {
+    const initial = c.get("identity");
+    const view = await readLeagueViews(db, initial.hash, initial.kind, { competitionId: match.competition_id });
+    const competition = view.data.competitions.find((x) => x.id === match.competition_id);
+    if (!competition) return [];
+    const entries = view.data.entries.filter((e) => e.competitionId === competition.id);
+    const counts = towardMinimum(RulesSpec.parse(competition.rules), competition.matchFormat, entries, view.ledger);
+    const open = (id: string) => view.ledger.filter((m) => (m.side0 === id || m.side1 === id)
+      && ["open", "reported", "disputed"].includes(m.status)).length;
+    return match.sides.flatMap((side): z.infer<typeof ShortOfMinimum>[] => {
+      const count = side.entry_id ? counts.get(side.entry_id) : undefined;
+      return side.entry_id && count && count.played < count.target
+        ? [{ entry_id: side.entry_id, label: side.label ?? "", played: count.played, target: count.target,
+          still_possible: count.played + open(side.entry_id) >= count.target }] : [];
+    });
+  }
   app.openapi(settle, async (c) => {
-    const result = await detail(c, c.req.valid("param").id, { type: "settle", body: c.req.valid("json") });
-    return c.json(result.body, result.status);
+    const body = c.req.valid("json");
+    const result = await detail(c, c.req.valid("param").id, { type: "settle", body });
+    const short = body.outcome === "unplayed" ? await shortAfterUnplayed(c, result.body) : [];
+    return c.json({ ...result.body, short_of_minimum: short }, result.status);
   });
 }

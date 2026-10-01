@@ -83,6 +83,24 @@ test("draft rules govern movement and opt-outs free places; withdrawals and remo
   assert.ok(filled.body.not_carried.every((p: any) => !JSON.stringify(p).includes("Private")));
 });
 
+test("a player short only because an opponent withdrew is not left out of the next draft: the match is credited", async (t) => {
+  const f = await source(t, 3); const comp = (await send(f, `/v1/competitions/${f.ids.competition}`)).body;
+  assert.equal(comp.rules.withdrawal.remainingMatches, "walkover_to_opponent");
+  assert.equal((await send(f, `/v1/competitions/${f.ids.competition}`, "PATCH", { rules: { ...comp.rules, minMatchesToPlay: 2 } })).status, 200);
+  const all = (await send(f, `/v1/matches?competition_id=${f.ids.competition}`)).body.data as any[];
+  const between = all.find((m) => m.sides.every((s: any) => [f.entries[0], f.entries[1]].includes(s.entry_id)));
+  const played = await send(f, `/v1/matches/${between.id}/settle`, "POST", { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } });
+  assert.equal(played.status, 201, JSON.stringify(played.body));
+  await send(f, `/v1/entries/${f.entries[2]}`, "PATCH", { state: "withdrawn" });
+  await send(f, `/v1/competitions/${f.ids.competition}`, "PATCH", { state: "complete" });
+  const next = await target(f);
+  const filled = await fill(f, next.id); assert.equal(filled.status, 201, JSON.stringify(filled.body));
+  // A and B each played one match and were credited the other, so both reach the minimum of 2.
+  assert.deepEqual(filled.body.placed.map((p: any) => p.previous_entry_id).sort(), [f.entries[0], f.entries[1]].sort());
+  assert.deepEqual(filled.body.not_carried.map((p: any) => p.previous_entry_id), [f.entries[2]]);
+  assert.match(filled.body.not_carried[0].explanation, /Withdrew/);
+});
+
 test("the plan can be read before the draft is filled and after, writes nothing, and names the places it leaves empty", async (t) => {
   const f = await source(t, 3); const comp = (await send(f, `/v1/competitions/${f.ids.competition}`)).body;
   const bottom = await create(f, `/v1/competitions/${f.ids.competition}/divisions`, {});

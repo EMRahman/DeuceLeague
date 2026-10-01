@@ -252,6 +252,17 @@ Replacing a result the two players agreed between them needs `override: true`
 on the settlement, so overruling them is a deliberate act. Correcting a
 settlement of the coach's own does not.
 
+A match one side did not turn up to is settled as a `walkover` with
+`retired_side` the side that was absent. The side that was there is credited
+the points and a match played, so it is never short of the minimum because of
+its opponent; the absent side's row counts it as unplayed (and still scores
+`walkoverLoss`, 0 by default), not as a loss. A withdrawn entry's fixtures are
+walkovers to its opponents by default (`rules.withdrawal.remainingMatches`,
+`walkover_to_opponent` for competitions made without rules of their own; a
+club can set `unplayed` instead). A match settled `unplayed` credits neither
+side, and the settle response says which of the two it leaves short of the
+competition's minimum (`short_of_minimum`).
+
 **Standings and progress** (`league:read`). Computed on request from the
 competition's rules — points, tiebreaks, unranked below the minimum played,
 and what a walkover is worth — and never stored. Each row says what separated

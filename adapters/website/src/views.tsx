@@ -886,7 +886,8 @@ export const RulesExplained: FC<{ rules: Rules; tiebreakFormat: string }> = ({ r
           If someone retires, the winner gets {pts(p.retiredWin)} in all and the player who retired {pts(p.retiredLoss)}.
         </li>
         <li>
-          A walkover: {pts(p.walkoverWin)} to the player who turned up, {pts(p.walkoverLoss)} to the one who did not.
+          A walkover: {pts(p.walkoverWin)} and a match played to the player who turned up, {pts(p.walkoverLoss)} to the
+          one who did not, for whom it counts as not played.
         </li>
         <li>
           Injured and could not play: {pts(p.concededWin)} to the opponent, {pts(p.concededLoss)} to the injured

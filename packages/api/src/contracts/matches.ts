@@ -64,6 +64,27 @@ export const MatchDetail = Match.extend({
   }),
 }).openapi("MatchDetail");
 
+/** An entry the settlement leaves short of its competition's minimum number of matches. */
+export const ShortOfMinimum = z.object({
+  entry_id: z.uuid(),
+  label: z.string(),
+  played: z.number().int().openapi({ description: "As the tables count it: a match against a no-show counts for the side that turned up." }),
+  target: z.number().int().openapi({ description: "The competition's minimum, or all its fixtures if fewer." }),
+  still_possible: z.boolean().openapi({
+    description: "Whether its matches still to be played could bring it to the minimum before the season ends.",
+  }),
+});
+
+/** What settling returns: the match, and for a match settled unplayed, who that leaves short of the minimum. */
+export const SettledMatch = MatchDetail.extend({
+  short_of_minimum: z.array(ShortOfMinimum).openapi({
+    description:
+      "Only for `outcome: unplayed`, which credits neither side: the entries in this match now short of the " +
+      "competition's minimum, who are left out of next season's draft if they stay short once the tables are " +
+      "final. Empty for any other outcome, and when neither side is short.",
+  }),
+}).openapi("SettledMatch");
+
 /** Where a claim came from. A coach's entry comes only through /settle. */
 const ClaimSource = z.enum(["api", "telegram", "web", "nl_parse"]);
 
@@ -227,15 +248,18 @@ export const settle = createRoute({
     "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a " +
     "correction to one already played. Every earlier claim is kept, marked superseded. Settling with the " +
     "result already in the ledger changes nothing. Replacing a result the two players agreed needs " +
-    "`override: true`, so overruling them is deliberate. The deadline does not stop a settlement.",
+    "`override: true`, so overruling them is deliberate. The deadline does not stop a settlement. A match that " +
+    "one side did not turn up to is a `walkover` with `retired_side` the absent side: the side that was there is " +
+    "credited the points and a match played, and the other's row counts it as unplayed. `unplayed` credits " +
+    "neither, and the response says who it leaves short of the competition's minimum.",
   ...requires("league:write"),
   request: {
     params: IdParam,
     body: { content: { "application/json": { schema: Settlement } }, required: true },
   },
   responses: {
-    201: { description: "Settled; the match is played.", ...matchDetail },
-    200: { description: "The ledger already held this result; nothing changed.", ...matchDetail },
+    201: { description: "Settled; the match is played.", content: { "application/json": { schema: SettledMatch } } },
+    200: { description: "The ledger already held this result; nothing changed.", content: { "application/json": { schema: SettledMatch } } },
     ...validationProblem,
     ...authProblems,
     ...notFoundProblem,
