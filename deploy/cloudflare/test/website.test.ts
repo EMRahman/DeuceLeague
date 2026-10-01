@@ -72,6 +72,25 @@ test("website score report and opponent acceptance update D1 standings; outsider
   assert.equal((await f.api("/v1/competitions", f.websiteKey)).status, 403, "service key has no league/admin privilege");
 });
 
+test("Home asks nobody to play a withdrawn opponent, and does not call a no-show a loss", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org"), alex = await signIn(f, "alex@example.org");
+  assert.match((await sam.get("/")).html, /To play \(1\)/);
+  // Alex withdraws: the match is credited to Sam by the rules, so Sam is not asked to play or report it.
+  assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
+  assert.doesNotMatch((await sam.get("/")).html, /To play/);
+  assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  assert.match((await sam.get("/")).html, /To play \(1\)/);
+
+  // Settled as Alex not turning up: Sam won, and Alex is not shown as having lost.
+  const match = (await f.api(`/v1/matches/${p.match}`, f.admin)).body;
+  const side = match.sides.findIndex((s: any) => s.entry_id === p.entries[1].id);
+  assert.equal((await f.api(`/v1/matches/${p.match}/settle`, f.admin, "POST", { outcome: "walkover", retired_side: side })).status, 201);
+  const [mine, theirs] = [(await sam.get("/")).html, (await alex.get("/")).html];
+  assert.match(mine, /Won Walkover: Alex did not turn up/);
+  assert.match(theirs, /Walkover: Alex did not turn up/); assert.doesNotMatch(theirs, /Lost\s+Walkover/);
+});
+
 test("a doubles partner can report through the website and the other pair can agree", async (t) => {
   const f = await websiteFixture(t); const p = await playingWebsite(f, true);
   const partner = await signIn(f, "partner@example.org"), opponent = await signIn(f, "other@example.org");

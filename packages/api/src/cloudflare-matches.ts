@@ -88,8 +88,12 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
     if (!competition) return [];
     const entries = view.data.entries.filter((e) => e.competitionId === competition.id);
     const counts = towardMinimum(RulesSpec.parse(competition.rules), competition.matchFormat, entries, view.ledger);
+    // A fixture against a withdrawn entry may still be open, but the withdrawal rule has already settled it for
+    // the tables (credited or unplayed), so it is no match still to be played.
+    const withdrawn = new Set(entries.filter((e) => e.state === "withdrawn").map((e) => e.id));
     const open = (id: string) => view.ledger.filter((m) => (m.side0 === id || m.side1 === id)
-      && ["open", "reported", "disputed"].includes(m.status)).length;
+      && ["open", "reported", "disputed"].includes(m.status)
+      && !(m.side0 !== null && withdrawn.has(m.side0)) && !(m.side1 !== null && withdrawn.has(m.side1))).length;
     return match.sides.flatMap((side): z.infer<typeof ShortOfMinimum>[] => {
       const count = side.entry_id ? counts.get(side.entry_id) : undefined;
       return side.entry_id && count && count.played < count.target

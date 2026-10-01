@@ -119,6 +119,19 @@ test("a match nobody turned up to credits the player who did, and one settled un
   assert.equal(rb.matches.find((m: any) => m.match_id === ab.id).result, "unplayed");
 });
 
+test("a fixture against a withdrawn entry is not a match still to play when settling says who could still reach the minimum", async (t) => {
+  const f = await playing(t, 3);
+  const [a, b, c] = f.entries as [string, string, string];
+  await send(f, `/v1/entries/${c}`, "PATCH", { state: "withdrawn" });
+  const all = (await f.send(`/v1/matches?competition_id=${f.ids.competition}`)).body.data as any[];
+  const ab = all.find((m) => m.sides.every((s: any) => [a, b].includes(s.entry_id)));
+  // A–C and B–C are still open, but already credited to A and B: nothing is left for either to play.
+  const settled = await send(f, `/v1/matches/${ab.id}/settle`, "POST", { outcome: "unplayed" });
+  assert.equal(settled.status, 201, JSON.stringify(settled.body));
+  assert.deepEqual(settled.body.short_of_minimum.map((x: any) => [x.entry_id, x.played, x.target, x.still_possible]),
+    [[a, 1, 2, false], [b, 1, 2, false]]);
+});
+
 test("progress rolls up divisions, counts disputes once and computes entry totals and percentages", async (t) => {
   const f = await playing(t, 3); await beat(f, 0, 1);
   const remaining = (await f.send(`/v1/matches?competition_id=${f.ids.competition}&status=open`)).body.data;
