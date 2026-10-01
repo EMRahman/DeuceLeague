@@ -12,7 +12,7 @@ import { history } from "./contracts/disputes.js";
 import { disputeHistory } from "./league/disputes.js";
 import { iso } from "./contracts/shared.js";
 import { daysRemaining, progressCounts, towardMinimum } from "./league/progress.js";
-import { tooFewToStay } from "./league/placements.js";
+import { departedOf, tooFewToStay } from "./league/placements.js";
 import { playerVisible } from "./league/rules.js";
 import { tablesFromRecords } from "./league/tables.js";
 import { toStandings, toCounts, toChase } from "./league/views.js";
@@ -74,7 +74,9 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
       const suggestions = suggestPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
         RulesSpec.parse(competition.rules).movement, s.data.divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
         new Set(s.data.entries.filter((e) => e.optedOutAt !== null).map((e) => e.id)),
-        tables.final ? tooFewToStay(competition, s.data.entries, s.ledger) : new Map());
+        tables.final ? tooFewToStay(competition, s.data.entries, s.ledger) : new Map(), new Map(),
+        // Someone leaving the league altogether is out of the draft, so the arrows leave their place empty too.
+        departedOf(s.data.entries, new Map()));
       const movement = new Map(suggestions.flatMap((p) => p.reason === "promoted" || p.reason === "relegated" ? [[p.entryId, p.reason]] : []));
       return toStandings(id, { ...tables, divisions: tables.divisions.filter((d) => !division_id || d.division.id === division_id) }, movement);
     }), 200);

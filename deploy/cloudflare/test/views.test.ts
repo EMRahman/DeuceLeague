@@ -289,7 +289,8 @@ test("a season's progress gives every competition's counts and opt-outs in one r
     const { name, discipline, state, opted_out, ...counts } = c;
     assert.deepEqual(counts, (await f.api(`/v1/competitions/${c.competition_id}/progress`, f.admin)).body, `${name}: the same as its own progress`);
   }
-  assert.equal(named("Sample singles").opted_out.length, 2); assert.equal(named("Sample doubles").opted_out.length, 0);
+  // Two singles opted out; and in doubles one pair has a player who told the coach they are not playing.
+  assert.equal(named("Sample singles").opted_out.length, 2); assert.equal(named("Sample doubles").opted_out.length, 1);
   assert.equal(named("Next singles").state, "draft");
   const alex = (await f.api("/v1/members?limit=200", f.admin)).body.data.find((m: { display_name: string }) => m.display_name === "Sample Alex");
   const link = (await f.api(`/v1/members/${alex.id}/login-link`, f.admin, "POST")).body.token;

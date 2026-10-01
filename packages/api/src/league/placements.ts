@@ -33,6 +33,18 @@ export function tooFewToStay(competition: LeagueCompetitionRecord, entries: Entr
   return new Map([...counts].filter(([, c]) => c.played < c.target));
 }
 
+/**
+ * The previous entries with a member who is no longer there: removed, left the club, or, for an entry made
+ * before they said so, leaving the league altogether. The firmer reason is the one given.
+ */
+export function departedOf(entries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left">) {
+  return new Map(entries.flatMap((e) => {
+    const how = e.members.map((m) => gone.get(m.id) ?? (m.leaving ? "leaving" as const : undefined)).filter((g) => g !== undefined);
+    const reason = how.includes("removed") ? "removed" as const : how.includes("left") ? "left" as const : how.length ? "leaving" as const : null;
+    return reason ? [[e.id, reason] as const] : [];
+  }));
+}
+
 /** Shared placement/exclusion decision; persistence happens only after the complete plan exists. */
 export function placementSelections(target: LeagueCompetitionRecord, tables: { divisions: DivisionTable[] },
   divisions: DivisionRecord[], previousEntries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left">,
@@ -40,10 +52,7 @@ export function placementSelections(target: LeagueCompetitionRecord, tables: { d
   const { suggestions, vacancies } = planPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
     RulesSpec.parse(target.rules).movement, divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
     new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)), short, breakingUp,
-    new Map(previousEntries.flatMap((e) => {
-      const how = e.members.map((m) => gone.get(m.id)).filter((g) => g !== undefined);
-      return how.length ? [[e.id, how.includes("removed") ? "removed" as const : "left" as const] as const] : [];
-    })));
+    departedOf(previousEntries, gone));
   const before = new Map(previousEntries.map((e) => [e.id, e]));
   const selected: { source: EntryRecord; division: DivisionRecord; reason: "promoted" | "relegated" | "held";
     label: string; from: { division: number; position: number | null }; explanation: string }[] = [];

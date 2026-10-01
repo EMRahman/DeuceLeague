@@ -125,8 +125,11 @@ test("the coach's pages show the sample league: progress, disputes, waiting resu
   assert.match(home.html, /2 results disputed, 1 result waiting on the other side/);
   for (const name of ["Sample singles", "Sample doubles", "Division 1", "Division 3"]) assert.match(home.html, new RegExp(name));
   assert.match(home.html, /played \(\d+%\)/);
-  const optedOut = (await f.db.prepare(
-    "SELECT competition_id, count(*) AS n FROM entry WHERE opted_out_at IS NOT NULL GROUP BY competition_id").all<{ n: number }>()).results;
+  // Not playing next season: opted out, or a doubles player who told the coach they are not playing.
+  const optedOut = (await f.db.prepare(`SELECT e.competition_id, count(*) AS n FROM entry e WHERE e.opted_out_at IS NOT NULL
+    OR EXISTS (SELECT 1 FROM partner_choice pc JOIN entry_member em ON em.member_id = pc.member_id
+      WHERE em.entry_id = e.id AND pc.competition_id = e.competition_id AND pc.choice = 'leaving')
+    GROUP BY e.competition_id`).all<{ n: number }>()).results;
   assert.deepEqual([...home.html.matchAll(/<strong>(\d+)<\/strong> opted out of next season: /g)].map((m) => Number(m[1])).sort(),
     optedOut.map((x) => x.n).sort(), "how many opted out of each competition");
   assert.match(home.html, /Next season is not drafted yet/);

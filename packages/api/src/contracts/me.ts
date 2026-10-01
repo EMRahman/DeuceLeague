@@ -1,6 +1,6 @@
 import { Scope } from "@deuceleague/schema";
 import { createRoute, z } from "@hono/zod-openapi";
-import { authProblems, requires } from "./shared.js";
+import { authProblems, requires, Timestamp } from "./shared.js";
 
 const ApiKeyCredential = z.object({
   type: z.literal("api_key"),
@@ -17,7 +17,13 @@ const SessionCredential = z.object({
     description: "A player's: read the league, and report results — for their own side only.",
   }),
   member: z
-    .object({ id: z.uuid(), display_name: z.string().openapi({ example: "Sam K." }) })
+    .object({
+      id: z.uuid(),
+      display_name: z.string().openapi({ example: "Sam K." }),
+      leaving_at: Timestamp.nullable().openapi({
+        description: "When they said they are not playing next season at all, if they did. See `POST /v1/members/{id}/leave`.",
+      }),
+    })
     .openapi({ description: "Who is signed in." }),
 });
 

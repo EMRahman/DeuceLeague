@@ -164,6 +164,20 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "patch", changes: toChanges(body), fields }), holdsPii(auth));
     }), 200);
   });
+  for (const [route, on] of [[members.leave, true], [members.stay, false]] as const) {
+    app.openapi(route, async (c) => {
+      const { id } = c.req.valid("param");
+      return c.json(await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s, auth) => {
+        // A player speaks for themselves; anyone else's id looks like nobody's to them.
+        if (auth.credential.type === "session" && auth.credential.memberId !== id) throw problems.notYou();
+        const member = s.rows[0]; if (!member) throw problems.notFound("member");
+        if (member.deletedAt) throw problems.conflict("member_removed", "The member has been removed");
+        // Saying it twice keeps the first time, and records nothing more.
+        if ((member.leavingAt !== null) === on) { await touch(s); return toMember(member, holdsPii(auth)); }
+        return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "leaving", on }), holdsPii(auth));
+      }), 200);
+    });
+  }
   app.openapi(members.remove, async (c) => {
     const { id } = c.req.valid("param");
     await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s) => {

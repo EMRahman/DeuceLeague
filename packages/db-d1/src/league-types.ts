@@ -9,7 +9,7 @@ export type LeagueCompetitionRecord = RecordBase & { seasonId: string; name: str
   previousCompetitionId: string | null; state: string; visibility: string };
 export type DivisionRecord = RecordBase & { competitionId: string; ordinal: number; name: string; targetSize: number | null };
 export type EntryRecord = RecordBase & { competitionId: string; divisionId: string; displayName: string | null;
-  label: string; members: { id: string; displayName: string; role: string }[]; seed: number | null; state: string;
+  label: string; members: { id: string; displayName: string; role: string; leaving?: boolean }[]; seed: number | null; state: string;
   placementReason: string | null; previousEntryId: string | null; withdrawnAt: Date | null; optedOutAt: Date | null };
 export type LeagueMatch = { id: string; divisionId: string | null; status: string; pairingKey: string | null; hasClaims: boolean; entryIds: string[] };
 export type LineupMember = { id: string; displayName?: string; deletedAt: Date | null; status: string; gender: string | null };

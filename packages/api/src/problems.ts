@@ -116,6 +116,9 @@ export const problems = {
     new ApiError(403, "not_your_entry", "You are not in this entry", {
       detail: "A player speaks only for the entries they play in.",
     }),
+  /** A player's session acting on another member. */
+  notYou: () =>
+    new ApiError(403, "not_you", "That is not you", { detail: "A player speaks only for themselves." }),
   conflict: (code: string, title: string, detail?: string) =>
     new ApiError(409, code, title, detail === undefined ? {} : { detail }),
   internal: () =>

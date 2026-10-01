@@ -76,6 +76,9 @@ MIT-licensed.
   which takes the name they play under and a level, and **Decline**. The
   dashboard says when anyone is waiting. See
   [new players joining](../../deploy/cloudflare/JOINING.md).
+  Each member also has **Not playing next season** (`POST /v1/members/{id}/leave`),
+  for a player leaving the league altogether: out of every draft, singles and
+  doubles, while this season carries on as it is, and **Take it back**.
 - **Season** (`/coach/season`). The turn of a season, in four steps, each an
   existing API route:
   - **End season now**, after a page saying what ending early does: moves the

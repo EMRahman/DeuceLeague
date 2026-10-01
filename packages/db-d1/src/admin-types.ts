@@ -19,6 +19,8 @@ export type PersonalFields = {
 export type MemberRecord = {
   id: string; displayName: string; status: string; rating: string | null;
   ratingSystem: string | null; level: number | null; joinedOn: string | null; deletedAt: Date | null;
+  /** When they said they are not playing next season at all, if they did. */
+  leavingAt: Date | null;
   /** The newest session still signed in; null when signed in nowhere. */
   signedInAt: Date | null;
   createdAt: Date; updatedAt: Date;
