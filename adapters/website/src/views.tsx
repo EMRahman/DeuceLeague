@@ -725,6 +725,9 @@ export const Home: FC<{
   leaving: string | null;
   /** The competitions they are in now, which saying so would leave. */
   entries: string[];
+  /** Those of them that what they said covers, and those entered after they said it, which it does not. */
+  covered: string[];
+  later: string[];
 }> = (p) => (
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
@@ -734,9 +737,15 @@ export const Home: FC<{
         <h2>You are not playing next season</h2>
         <p>
           You have told the coach you are leaving the league
-          {p.entries.length > 0 ? `, so you will not be in the draft for ${p.entries.join(", ")}` : ""}. Your matches this
+          {p.covered.length > 0 ? `, so you will not be in the draft for ${p.covered.join(", ")}` : ""}. Your matches this
           season still count, so keep reporting them.
         </p>
+        {p.later.length > 0 && (
+          <p class="muted">
+            You were entered in {p.later.join(", ")} after you said this, so that is not covered and you are still in the
+            draft for it. Not playing that either? Say so on its page.
+          </p>
+        )}
         <form method="post" action="/leave/undo">
           <button class="quiet" type="submit">
             I have changed my mind

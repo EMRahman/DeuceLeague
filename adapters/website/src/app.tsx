@@ -644,6 +644,9 @@ export function createWebsite(options: WebsiteOptions) {
           staying: "Taken back. You are in the reckoning for next season again." }[c.req.query("done") ?? ""] ?? null}
         leaving={p.me.credential.member.leaving_at ?? null}
         entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
+        // What they said covers the entries they held when they said it; one made after is still in the reckoning.
+        covered={registered.filter((r) => r.entry && covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
+        later={registered.filter((r) => r.entry && !covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
         answer={answer}
         toPlay={toPlay}
         waiting={waiting}
@@ -712,7 +715,7 @@ export function createWebsite(options: WebsiteOptions) {
         standings={standings}
         mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null,
           // What they said about leaving altogether covers the entries they held when they said it.
-          leaving: leavingAt !== null && Date.parse(entry.created_at) <= Date.parse(leavingAt) } : null}
+          leaving: covers(leavingAt, entry) } : null}
         breakdowns={breakdowns(standings, matches)}
         next={next}
       />,
@@ -775,6 +778,10 @@ export function createWebsite(options: WebsiteOptions) {
     }
     return c.redirect(`/competitions/${id}`, 303);
   });
+
+  /** Whether what a player said about leaving altogether covers this entry: they held it when they said so. */
+  const covers = (leavingAt: string | null | undefined, entry: Entry) =>
+    leavingAt != null && Date.parse(entry.created_at) <= Date.parse(leavingAt);
 
   // Not playing next season at all: one thing said once, for every entry, and taken back the same way.
   for (const [path, method, done] of [

@@ -128,6 +128,17 @@ test("a player says it from their home page, sees what it does, and can take it 
   assert.match(after.html, /You are not playing next season/); assert.match(after.html, /so you will not be in the draft for Club league/);
   assert.match(after.html, /Done\. The coach will see you are not playing next season/);
   assert.doesNotMatch(after.html, /I am not playing next season at all/);
+  // Entered in something new after saying so: that is not covered, and the page says so rather than promising it.
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const cup = await f.create("/v1/competitions", { season_id: p.season.id, name: "Cup", discipline: "singles", match_format: "best_of_3_champions_tiebreak" });
+  const cupDivision = await f.create(`/v1/competitions/${cup.id}/divisions`, {});
+  await f.create(`/v1/competitions/${cup.id}/entries`, { division_id: cupDivision.id, member_ids: [p.members[0].id] });
+  await f.api(`/v1/competitions/${cup.id}`, f.admin, "PATCH", { state: "active" });
+  const mixed = (await sam.get("/")).html;
+  assert.match(mixed, /you will not be in the draft for Club league\./);
+  assert.match(mixed, /You were entered in Cup after you said this, so that is not covered/);
+  assert.doesNotMatch((await sam.get(`/competitions/${cup.id}`)).html, /so this is one of the competitions you are leaving/);
+
   // The competition page says the same, and does not offer the per-entry opt-out beside it.
   const page = (await sam.get(`/competitions/${p.comp.id}`)).html;
   assert.match(page, /you are not playing next season at all, so this is one of the competitions you are leaving/);
