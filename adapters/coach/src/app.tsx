@@ -395,6 +395,23 @@ export function createCoachSite(options: CoachOptions) {
     return c.redirect(`/coach/members#member-${id}`, 303);
   });
 
+  /** A break from the league, for as long as it lasts, and the end of it. This season carries on as it is. */
+  for (const [action, method] of [["pause", "POST"], ["resume", "DELETE"]] as const) {
+    app.post(`/members/:id/${action}`, async (c) => {
+      const who = await coach(c);
+      if (!who) return c.redirect("/coach", 303);
+      const id = c.req.param("id");
+      try {
+        await api(method, `/v1/members/${encodeURIComponent(id)}/pause`, who.key);
+      } catch (error) {
+        if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
+        return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
+          detail="That member has left the club or is not on its list any more." />, 404);
+      }
+      return c.redirect(`/coach/members#member-${id}`, 303);
+    });
+  }
+
   /** Not playing next season at all, for every entry they hold, and taking it back. This season carries on as it is. */
   for (const [action, method] of [["leaving", "POST"], ["staying", "DELETE"]] as const) {
     app.post(`/members/:id/${action}`, async (c) => {
@@ -994,7 +1011,7 @@ export function createCoachSite(options: CoachOptions) {
     const draft = await draftOf(who.key, c.req.param("id"));
     if (!draft) return notADraft(c, who);
     const previousId = draft.previous_competition_id!;
-    const [season, previous, divisions, entries, lastEntries, standings, members, plan] = await Promise.all([
+    const [season, previous, divisions, entries, lastEntries, standings, members, plan, onBreak] = await Promise.all([
       api<Season>("GET", `/v1/seasons/${draft.season_id}`, who.key),
       api<CoachCompetition>("GET", `/v1/competitions/${previousId}`, who.key),
       api<{ data: Division[] }>("GET", `/v1/competitions/${draft.id}/divisions`, who.key),
@@ -1008,12 +1025,14 @@ export function createCoachSite(options: CoachOptions) {
         if (!(error instanceof ApiProblem) || error.problem.status !== 409) throw error;
         return { suggestions: [], vacancies: [] } as PlacementPlan;
       }),
+      // Who is on a break, so an entry of theirs is explained as that, not as someone no longer on the list.
+      all<ActiveMember>("/v1/members?status=paused", who.key),
     ]);
     const choices = draft.discipline === "doubles"
       ? (await api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${previousId}/partner-choices`, who.key)).data : [];
     const view = draftView({ divisions: divisions.data, entries: entries.data },
       { competition: previous, entries: lastEntries.data, standings }, members, choices, draft.category, plan,
-      draft.rules);
+      draft.rules, new Set(onBreak.map((m) => m.id)));
     return c.html(<Draft frame={seasonFrame(who)} season={season} draft={draft} previous={previous} view={view}
       genders={members.some((m) => m.gender !== undefined)}
       empty={divisions.data.length === 0 && entries.data.length === 0} />);

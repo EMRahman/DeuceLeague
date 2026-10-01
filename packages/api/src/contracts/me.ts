@@ -1,4 +1,4 @@
-import { Scope } from "@deuceleague/schema";
+import { MemberStatus, Scope } from "@deuceleague/schema";
 import { createRoute, z } from "@hono/zod-openapi";
 import { authProblems, requires, Timestamp } from "./shared.js";
 
@@ -20,6 +20,8 @@ const SessionCredential = z.object({
     .object({
       id: z.uuid(),
       display_name: z.string().openapi({ example: "Sam K." }),
+      /** `paused` while they are on a break from the league. */
+      status: MemberStatus,
       leaving_at: Timestamp.nullable().openapi({
         description: "When they said they are not playing next season at all, if they did. See `POST /v1/members/{id}/leave`.",
       }),

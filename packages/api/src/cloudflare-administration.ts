@@ -178,6 +178,21 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       }), 200);
     });
   }
+  /** A break from the league, and the end of it: the member's status moves between active and paused. */
+  for (const [route, on] of [[members.pause, true], [members.resume, false]] as const) {
+    app.openapi(route, async (c) => {
+      const { id } = c.req.valid("param");
+      return c.json(await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s, auth) => {
+        if (auth.credential.type === "session" && auth.credential.memberId !== id) throw problems.notYou();
+        const member = s.rows[0]; if (!member) throw problems.notFound("member");
+        if (member.deletedAt) throw problems.conflict("member_removed", "The member has been removed");
+        if (member.status === "left") throw problems.conflict("member_left", "The member has left the club",
+          "Someone who has left is not on a break. Set their status to active to bring them back.");
+        if ((member.status === "paused") === on) { await touch(s); return toMember(member, holdsPii(auth)); }
+        return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "pause", on }), holdsPii(auth));
+      }), 200);
+    });
+  }
   app.openapi(members.remove, async (c) => {
     const { id } = c.req.valid("param");
     await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s) => {

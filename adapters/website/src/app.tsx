@@ -641,8 +641,12 @@ export function createWebsite(options: WebsiteOptions) {
         name={p.me.credential.member.display_name}
         deadlines={deadlines}
         notice={{ accepted: "Agreed. The result counts now.", leaving: "Done. The coach will see you are not playing next season.",
-          staying: "Taken back. You are in the reckoning for next season again." }[c.req.query("done") ?? ""] ?? null}
+          staying: "Taken back. You are in the reckoning for next season again.",
+          paused: "Done. You are on a break, and the coach will see it.",
+          resumed: "Welcome back. Tell the coach if you want a place in the next season." }[c.req.query("done") ?? ""] ?? null}
         leaving={p.me.credential.member.leaving_at ?? null}
+        onBreak={p.me.credential.member.status === "paused"}
+        active={p.me.credential.member.status === "active"}
         entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
         // What they said covers the entries they held when they said it; one made after is still in the reckoning.
         covered={registered.filter((r) => r.entry && covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
@@ -715,7 +719,7 @@ export function createWebsite(options: WebsiteOptions) {
         standings={standings}
         mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null,
           // What they said about leaving altogether covers the entries they held when they said it.
-          leaving: covers(leavingAt, entry) } : null}
+          leaving: covers(leavingAt, entry), onBreak: p.me.credential.member.status === "paused" } : null}
         breakdowns={breakdowns(standings, matches)}
         next={next}
       />,
@@ -792,6 +796,25 @@ export function createWebsite(options: WebsiteOptions) {
       const p = await player(c);
       if (!p) return c.redirect("/", 303);
       await api(method, `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/leave`, p.session);
+      return c.redirect(`/?done=${done}`, 303);
+    });
+  }
+
+  // A break from the league, for as long as they like: out of every draft until they say they are back.
+  for (const [path, method, done] of [
+    ["pause", "POST", "paused"],
+    ["resume", "DELETE", "resumed"],
+  ] as const) {
+    app.post(`/${path}`, async (c) => {
+      const p = await player(c);
+      if (!p) return c.redirect("/", 303);
+      try {
+        await api(method, `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/pause`, p.session);
+      } catch (error) {
+        // Someone who has left the club is not on a break; the page they came from does not offer it.
+        if (!(error instanceof ApiProblem) || error.problem.status !== 409) throw error;
+        return c.redirect("/", 303);
+      }
       return c.redirect(`/?done=${done}`, 303);
     });
   }

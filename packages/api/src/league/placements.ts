@@ -37,17 +37,19 @@ export function tooFewToStay(competition: LeagueCompetitionRecord, entries: Entr
  * The previous entries with a member who is no longer there: removed, left the club, or, for an entry made
  * before they said so, leaving the league altogether. The firmer reason is the one given.
  */
-export function departedOf(entries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left">) {
+export function departedOf(entries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left" | "paused">) {
   return new Map(entries.flatMap((e) => {
-    const how = e.members.map((m) => gone.get(m.id) ?? (m.leaving ? "leaving" as const : undefined)).filter((g) => g !== undefined);
-    const reason = how.includes("removed") ? "removed" as const : how.includes("left") ? "left" as const : how.length ? "leaving" as const : null;
+    const how = e.members.map((m) => gone.get(m.id) ?? (m.paused ? "paused" as const : m.leaving ? "leaving" as const : undefined))
+      .filter((g) => g !== undefined);
+    // The firmer reason is the one given: removed, left, on a break, then leaving next season.
+    const reason = (["removed", "left", "paused"] as const).find((r) => how.includes(r)) ?? (how.length ? "leaving" as const : null);
     return reason ? [[e.id, reason] as const] : [];
   }));
 }
 
 /** Shared placement/exclusion decision; persistence happens only after the complete plan exists. */
 export function placementSelections(target: LeagueCompetitionRecord, tables: { divisions: DivisionTable[] },
-  divisions: DivisionRecord[], previousEntries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left">,
+  divisions: DivisionRecord[], previousEntries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left" | "paused">,
   short: ReadonlyMap<string, { played: number; target: number }>, breakingUp: ReadonlyMap<string, string> = new Map()) {
   const { suggestions, vacancies } = planPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
     RulesSpec.parse(target.rules).movement, divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),

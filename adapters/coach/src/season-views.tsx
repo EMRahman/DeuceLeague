@@ -265,7 +265,10 @@ const AddBack: FC<{ draft: string; left: LeftOut; divisions: Division[] }> = ({ 
         </button>
       </form>
     ) : (
-      <p class="muted">Can't be added back as it was: someone in it has left the club or is already in the draft.</p>
+      <p class="muted">
+        Can't be added back as it was: someone in it has left the club, is on a break (bring them back from the Members
+        page first), or is already in the draft.
+      </p>
     )}
   </li>
 );

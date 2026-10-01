@@ -140,7 +140,7 @@ export const patch = createRoute({
   summary: "Change a member",
   description:
     "Only the fields sent change; null clears one. Changing any personal field also needs `members:pii`. " +
-    "`status: left` records that they have left the club: their results stay, they are not placed in the next " +
+    "`status: paused` is a break (see `POST /v1/members/{id}/pause`). `status: left` records that they have left the club: their results stay, they are not placed in the next " +
     "season's draft, and they cannot be entered in a competition. Any place they hold in a draft is taken out at once. Setting " +
     "it back to `active` undoes the status, not the places taken out.",
   ...requires("members:write"),
@@ -193,6 +193,48 @@ export const stay = createRoute({
     ...authProblems,
     ...notFoundProblem,
     ...conflictProblem("`member_removed`: a removed member cannot be changed."),
+  },
+});
+
+export const pause = createRoute({
+  method: "post",
+  path: "/v1/members/{id}/pause",
+  tags: ["Members"],
+  summary: "Take a break from the league until they say they are back",
+  description:
+    "Sets the member's status to `paused`: a player taking a season off, or longer, who will return. Unlike " +
+    "`/leave`, which covers the next draft only, a break lasts until it is ended with `DELETE`. While it lasts they " +
+    "are left out of every draft (the reason says a member is taking a break), a doubles partner is left needing " +
+    "a partner, they cannot be entered in a competition, and a match against an entry whose members are all away is " +
+    "not chased. It changes nothing about this season: their results and matches stand, and anyone whose opponent " +
+    "has stepped away for good is credited by withdrawing the entry. A player's session may do this for themselves; " +
+    "a key needs `league:write`. Not for someone who has left the club (`status: left`). Saying it twice does nothing more.",
+  ...requires.orPlayerOwn("league:write"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The member, on a break.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+    ...conflictProblem("`member_removed`, or `member_left`: someone who has left the club is not on a break."),
+  },
+});
+
+export const resume = createRoute({
+  method: "delete",
+  path: "/v1/members/{id}/pause",
+  tags: ["Members"],
+  summary: "Say they are back from a break",
+  description:
+    "Sets the member's status back to `active`. They are in the reckoning for drafts again, but not placed in one " +
+    "already filled: the coach adds them from the draft's newcomers, or from those not carried over, who are listed " +
+    "with where they finished. Harmless if they were not on a break.",
+  ...requires.orPlayerOwn("league:write"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The member, active.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+    ...conflictProblem("`member_removed`, or `member_left`."),
   },
 });
 

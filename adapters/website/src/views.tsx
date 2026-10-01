@@ -728,11 +728,27 @@ export const Home: FC<{
   /** Those of them that what they said covers, and those entered after they said it, which it does not. */
   covered: string[];
   later: string[];
+  /** On a break: out of every draft until they say they are back. */
+  onBreak: boolean;
+  /** Still in the club and not on a break: only they are offered a break or leaving. */
+  active: boolean;
 }> = (p) => (
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
     {p.notice && <Notice ok messages={[p.notice]} />}
-    {p.leaving && (
+    {p.onBreak && (
+      <section class="card">
+        <h2>You are on a break</h2>
+        <p>
+          You are not in the draft for any season until you say you are back. Your matches this season still count, so
+          keep reporting them{p.entries.length > 0 ? `, or ask the coach about ${p.entries.join(", ")}` : ""}.
+        </p>
+        <form method="post" action="/resume">
+          <button type="submit">I am back</button>
+        </form>
+      </section>
+    )}
+    {p.leaving && !p.onBreak && (
       <section class="card">
         <h2>You are not playing next season</h2>
         <p>
@@ -858,16 +874,29 @@ export const Home: FC<{
         <MatchRows matches={p.closed} />
       </section>
     )}
-    {!p.leaving && p.entries.length > 0 && (
+    {!p.leaving && p.active && (
       <section class="card">
         <h2>Next season</h2>
+        {p.entries.length > 0 && (
+          <>
+            <p class="muted">
+              Not playing next season at all? Say so once and the coach leaves you out of the draft for{" "}
+              {p.entries.join(", ")}. Your matches this season still count, and you can take it back.
+            </p>
+            <form method="post" action="/leave">
+              <button class="quiet" type="submit">
+                I am not playing next season at all
+              </button>
+            </form>
+          </>
+        )}
         <p class="muted">
-          Not playing next season at all? Say so once and the coach leaves you out of the draft for{" "}
-          {p.entries.join(", ")}. Your matches this season still count, and you can take it back.
+          Away for longer, or not sure when you will be back? Take a break instead: you stay out of every draft until you
+          say you are back. Your matches this season still count.
         </p>
-        <form method="post" action="/leave">
+        <form method="post" action="/pause">
           <button class="quiet" type="submit">
-            I am not playing next season at all
+            I am taking a break
           </button>
         </form>
       </section>
@@ -1005,7 +1034,7 @@ export type TablesProps = {
   season: string | null;
   standings: Standings;
   /** The viewer's own entry, marked in the tables; null for someone not playing, such as the coach. */
-  mine: { entryId: string; divisionId: string; optedOut: boolean; leaving?: boolean } | null;
+  mine: { entryId: string; divisionId: string; optedOut: boolean; leaving?: boolean; onBreak?: boolean } | null;
   breakdowns: Record<string, Breakdown>;
   /** Where a competition's tab links. */
   competitionHref?: (id: string) => string;
@@ -1160,14 +1189,19 @@ export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & Ta
     <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
       <CompetitionTables {...tables} />
 
-      {mine && next && !mine.optedOut && !mine.leaving && competition.state === "active" && (
+      {mine && next && !mine.optedOut && !mine.leaving && !mine.onBreak && competition.state === "active" && (
         <Partners competitionId={competition.id} next={next} />
       )}
 
-      {mine && (mine.leaving || !(next && !mine.optedOut)) && competition.state === "active" && (
+      {mine && (mine.leaving || mine.onBreak || !(next && !mine.optedOut)) && competition.state === "active" && (
         <section>
           <h2>Next season</h2>
-          {mine.leaving ? (
+          {mine.onBreak ? (
+            <p>
+              You are on a break, so you are not in the draft for next season, and will not be until you say you are
+              back. Your matches in this one still count. You can end the break on your <a href="/">home page</a>.
+            </p>
+          ) : mine.leaving ? (
             <p>
               You have told the coach you are not playing next season at all, so this is one of the competitions you are
               leaving. Your matches in this one still count. You can take it back on your <a href="/">home page</a>.

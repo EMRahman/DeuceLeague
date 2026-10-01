@@ -1211,7 +1211,7 @@ export const Members: FC<{
                 <span>
                   {m.display_name}
                   {m.level !== null && <span class="tag level">Level {m.level}</span>}
-                  {m.status === "paused" && <span class="tag">Paused</span>}
+                  {m.status === "paused" && <span class="tag">On a break</span>}
                   {m.email && <span class="muted"> · {m.email}</span>}
                   {m.phone && <span class="muted"> · {m.phone}</span>}
                   <br />
@@ -1242,6 +1242,22 @@ export const Members: FC<{
                   <button class="quiet small" type="submit">
                     Save
                   </button>
+                </form>
+              )}
+              {m.status === "paused" ? (
+                <form method="post" action={`/coach/members/${m.id}/resume`}>
+                  <span class="deadline">On a break</span>
+                  <span class="muted"> · out of every draft until they are back · </span>
+                  <button class="quiet small" type="submit">
+                    Back from a break
+                  </button>
+                </form>
+              ) : (
+                <form method="post" action={`/coach/members/${m.id}/pause`}>
+                  <button class="quiet small" type="submit">
+                    Take a break
+                  </button>
+                  <span class="muted"> Out of every draft until they are back. This season carries on as it is.</span>
                 </form>
               )}
               {m.leaving_at ? (

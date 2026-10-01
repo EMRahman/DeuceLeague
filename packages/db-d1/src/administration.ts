@@ -166,7 +166,9 @@ export type MemberMutation =
   | { type: "remove" }
   | { type: "erase" }
   /** Saying they are not playing next season at all, or taking it back. Saying it twice keeps the first time. */
-  | { type: "leaving"; on: boolean };
+  | { type: "leaving"; on: boolean }
+  /** Taking a break from the league until they say they are back: `paused`, and `active` again. Never from `left`. */
+  | { type: "pause"; on: boolean };
 /**
  * A member who leaves, or is removed, is taken out of next season's drafts in the same batch: a draft
  * has no matches yet, so nothing is lost, and starting it cannot draw fixtures for someone who has gone.
@@ -212,7 +214,15 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       .bind(state.now, JSON.stringify({ ...mutation.changes,
         ...(mutation.changes.rating === undefined ? {} : { rating: rating(mutation.changes.rating) }) }), id, clubId),
       audit(db, state, "member.updated", "member", id, { changed: mutation.fields }));
-    if (mutation.changes.status === "left") writes.push(leaveDrafts(db, clubId, id));
+    if (mutation.changes.status === "left" || mutation.changes.status === "paused") writes.push(leaveDrafts(db, clubId, id));
+  } else if (mutation.type === "pause") {
+    writes.push(db.prepare(`UPDATE member SET status = ?, updated_at = ?
+      WHERE id = ? AND club_id = ? AND deleted_at IS NULL AND status = ?`)
+      .bind(mutation.on ? "paused" : "active", state.now, id, clubId, mutation.on ? "active" : "paused"),
+    audit(db, state, mutation.on ? "member.paused" : "member.resumed", "member", id));
+    // Taken out of next season's drafts at once, as for leaving the club: a draft already filled would
+    // otherwise start with matches drawn for someone who is away. Coming back does not put them in again.
+    if (mutation.on) writes.push(leaveDrafts(db, clubId, id));
   } else if (mutation.type === "leaving") {
     writes.push(db.prepare(`UPDATE member SET leaving_at = CASE WHEN ? THEN coalesce(leaving_at, ?) END, updated_at = ?
       WHERE id = ? AND club_id = ? AND deleted_at IS NULL AND (leaving_at IS NULL) = ?`)

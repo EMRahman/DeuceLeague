@@ -72,7 +72,7 @@ test("login exchange stores hashes, returns no PII, and retains the existing tok
   assert.deepEqual(session.member, { id: member, display_name: "Sam K." });
   assert.equal(await f.db.prepare("SELECT expires_at FROM access_grant").first("expires_at"), null);
   const me = await (await f.call("/v1/me", session.token)).json() as any;
-  assert.deepEqual(me.credential.member, { ...session.member, leaving_at: null });
+  assert.deepEqual(me.credential.member, { ...session.member, status: "active", leaving_at: null });
   assert.deepEqual(me.credential.scopes, ["league:read", "results:write"]);
   assert.ok(!JSON.stringify(me).includes("Private"));
   const events = await f.db.prepare("SELECT * FROM event ORDER BY id").all();

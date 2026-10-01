@@ -76,6 +76,8 @@ MIT-licensed.
   which takes the name they play under and a level, and **Decline**. The
   dashboard says when anyone is waiting. See
   [new players joining](../../deploy/cloudflare/JOINING.md).
+  A member can be put on a break (`POST /v1/members/{id}/pause`): out of every
+  draft until they are **Back from a break**, with this season as it is.
   Each member also has **Not playing next season** (`POST /v1/members/{id}/leave`),
   for a player leaving the league altogether: out of every draft, singles and
   doubles, while this season carries on as it is, and **Take it back**.
