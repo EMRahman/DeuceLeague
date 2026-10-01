@@ -366,6 +366,48 @@ test("the dashboard's table follows a minimum the coach's agent sets", async (t)
   assert.equal((await coach.post(`/coach/competitions/${singles.id}/minimum`, { minimum: "5" })).status, 404, "no setting on the coach's site");
 });
 
+test("a draft offers only newcomers who suit its category by recorded gender, and members who left are not offered", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  const members = (await f.api("/v1/members?limit=200", f.admin)).body.data as { id: string; display_name: string }[];
+  const id = (name: string) => members.find((m) => m.display_name === `Sample ${name}`)!.id;
+  const setGender = async (name: string, gender: string | null) =>
+    assert.equal((await f.api(`/v1/members/${id(name)}`, f.admin, "PATCH", { gender })).status, 200);
+  await setGender("Umi", "female"); await setGender("Val", "male"); await setGender("Parker", null);
+
+  // On the members page the newcomers are waiting to be placed: they are in no running competition.
+  const waiting = (await coach.get("/coach/members")).html.split("Waiting to be placed")[1]!.split("On the club")[0]!;
+  for (const name of ["Umi", "Val"]) assert.match(waiting, new RegExp(`Sample ${name}`));
+  assert.doesNotMatch(waiting, /Sample Parker/, "Parker plays doubles");
+
+  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
+  const drafts = (await f.api("/v1/competitions?state=draft", f.admin)).body.data as { id: string; discipline: string }[];
+  const singles = drafts.find((x) => x.discipline === "singles")!; const doubles = drafts.find((x) => x.discipline === "doubles")!;
+  const text = (html: string, heading: string) => html.split(heading)[1]!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+
+  assert.equal((await f.api(`/v1/competitions/${singles.id}`, f.admin, "PATCH", { category: "mens" })).status, 200);
+  const mens = (await coach.get(`/coach/season/drafts/${singles.id}`)).html;
+  const mensNewcomers = text(mens, "Not in Sample singles last season");
+  assert.match(mensNewcomers, /Sample Val/); assert.doesNotMatch(mensNewcomers, /Sample Umi/);
+  assert.match(mensNewcomers, /Sample Parker Gender not recorded/, "no gender recorded: still listed, and marked");
+  assert.match(mens, /Players below are those who suit a men(&#39;|')s competition/);
+
+  assert.equal((await f.api(`/v1/competitions/${doubles.id}`, f.admin, "PATCH", { category: "mixed" })).status, 200);
+  const mixed = (await coach.get(`/coach/season/drafts/${doubles.id}`)).html;
+  const select = (name: string) => new RegExp(`<select id="${name}"[^>]*>([\\s\\S]*?)</select>`).exec(mixed)![1]!;
+  assert.match(select("member"), /Sample Umi/); assert.doesNotMatch(select("member"), /Sample Val/);
+  assert.match(select("partner"), /Sample Val/); assert.doesNotMatch(select("partner"), /Sample Umi/);
+  assert.match(mixed, /<label for="member">Woman<\/label>/); assert.match(mixed, /<label for="partner">Man<\/label>/);
+
+  // Someone who has left is offered nowhere, and cannot be entered.
+  assert.equal((await coach.post(`/coach/members/${id("Val")}/left`)).status, 303);
+  assert.doesNotMatch(text((await coach.get(`/coach/season/drafts/${singles.id}`)).html, "Not in Sample singles last season"), /Sample Val/);
+  const division = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data[0].id;
+  assert.equal((await f.api(`/v1/competitions/${singles.id}/entries`, f.admin, "POST", { division_id: division, member_ids: [id("Val")] })).status, 400);
+});
+
 test("a season with a competition not yet started cannot be ended from the Season tab", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);

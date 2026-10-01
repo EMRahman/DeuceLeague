@@ -12,7 +12,7 @@ export type EntryRecord = RecordBase & { competitionId: string; divisionId: stri
   label: string; members: { id: string; displayName: string; role: string }[]; seed: number | null; state: string;
   placementReason: string | null; previousEntryId: string | null; withdrawnAt: Date | null; optedOutAt: Date | null };
 export type LeagueMatch = { id: string; divisionId: string | null; status: string; pairingKey: string | null; hasClaims: boolean; entryIds: string[] };
-export type LineupMember = { id: string; displayName?: string; deletedAt: Date | null; gender: string | null };
+export type LineupMember = { id: string; displayName?: string; deletedAt: Date | null; status: string; gender: string | null };
 export type LeagueData = { seasons: SeasonRecord[]; competitions: LeagueCompetitionRecord[]; divisions: DivisionRecord[];
   entries: EntryRecord[]; members: LineupMember[]; matches: LeagueMatch[]; referencedEntries: string[] };
 export type LeagueQuery = {

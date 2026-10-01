@@ -1,9 +1,11 @@
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
+  AGE_GROUPS,
   ApiProblem,
   breakdowns,
   deadlineLine,
+  GENDERS,
   newestFirst,
   within,
   WEATHER_GRACE_MS,
@@ -146,6 +148,11 @@ function courtOf(form: Record<string, unknown>): { name: string; latitude: numbe
   return { name, latitude, longitude };
 }
 
+/** A gender or age group from a form's select, or null for none: anything not on the list is treated as blank. */
+function choiceOf(value: unknown, allowed: readonly (readonly [string, string])[]): string | null {
+  return allowed.find(([v]) => v === value)?.[0] ?? null;
+}
+
 /** A level from a form's select: 1 to 10, or null for none. */
 function levelOf(value: unknown): number | null {
   const level = Number(value);
@@ -274,6 +281,22 @@ export function createCoachSite(options: CoachOptions) {
     return { requests: page.data, more: page.next_cursor !== null };
   }
 
+  /** Seasons this deep are not worked through: every competition costs a read. */
+  const WAITING_COMPETITIONS = 12;
+
+  /**
+   * Active members in none of the competitions under way or being drafted: they join at the next
+   * draft. Null when the club runs too many competitions to read cheaply, or the key cannot read the league.
+   */
+  async function waitingForPlacement(who: Coach, members: CoachMember[]): Promise<CoachMember[] | null> {
+    if (!who.scopes.includes("league:read")) return null;
+    const open = (await all<CoachCompetition>("/v1/competitions", who.key)).filter((x) => x.state === "active" || x.state === "draft");
+    if (open.length > WAITING_COMPETITIONS) return null;
+    const entries = await Promise.all(open.map((x) => all<Entry>(`/v1/competitions/${x.id}/entries`, who.key)));
+    const placed = new Set(entries.flat().flatMap((e) => e.members.map((m) => m.id)));
+    return members.filter((m) => m.status === "active" && !placed.has(m.id));
+  }
+
   app.get("/members", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
@@ -281,7 +304,10 @@ export function createCoachSite(options: CoachOptions) {
       all<CoachMember & { deleted_at: string | null }>("/v1/members", who.key),
       joinRequests(who),
     ]);
-    const members = listed.filter((m) => !m.deleted_at);
+    const present = listed.filter((m) => !m.deleted_at);
+    const members = present.filter((m) => m.status !== "left");
+    const left = present.filter((m) => m.status === "left").sort((a, b) => a.display_name.localeCompare(b.display_name));
+    const waiting = await waitingForPlacement(who, members);
     // Who still needs a link first, then by name.
     members.sort(
       (a, b) =>
@@ -291,7 +317,8 @@ export function createCoachSite(options: CoachOptions) {
     const added = members.find((m) => m.id === c.req.query("added"));
     const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted." : null;
     return c.html(
-      <Members frame={frameOf(who, "members")} members={members} requests={requests?.requests ?? null}
+      <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
+        requests={requests?.requests ?? null}
         moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
         timezone={who.club.timezone} />,
     );
@@ -306,6 +333,8 @@ export function createCoachSite(options: CoachOptions) {
       const member = await api<CoachMember>("POST", `/v1/join-requests/${encodeURIComponent(c.req.param("id"))}/approve`, who.key, {
         ...(name ? { display_name: name } : {}),
         level: levelOf(form.level),
+        gender: choiceOf(form.gender, GENDERS),
+        age_group: choiceOf(form.age_group, AGE_GROUPS),
       });
       return c.redirect(`/coach/members?added=${member.id}`, 303);
     } catch (error) {
@@ -346,6 +375,41 @@ export function createCoachSite(options: CoachOptions) {
     }
     return c.redirect(`/coach/members#member-${id}`, 303);
   });
+
+  /** Gender and age group, as the coach corrects them. Blank clears the field. */
+  app.post("/members/:id/details", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const form = await c.req.parseBody();
+    try {
+      await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, {
+        gender: choiceOf(form.gender, GENDERS), age_group: choiceOf(form.age_group, AGE_GROUPS),
+      });
+    } catch (error) {
+      if (!(error instanceof ApiProblem) || ![403, 404, 409].includes(error.problem.status)) throw error;
+      return c.html(<Problem frame={frameOf(who, "members")} title="Details not changed"
+        detail={error.problem.status === 403 ? "This key cannot change members' personal details." : "That member is not on the club's list any more."} />, error.problem.status === 403 ? 403 : 404);
+    }
+    return c.redirect(`/coach/members#member-${id}`, 303);
+  });
+
+  /** Leaving the club, and coming back. Results stay either way; the status decides who the next draft places. */
+  for (const [action, status] of [["left", "left"], ["back", "active"]] as const) {
+    app.post(`/members/:id/${action}`, async (c) => {
+      const who = await coach(c);
+      if (!who) return c.redirect("/coach", 303);
+      const id = c.req.param("id");
+      try {
+        await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { status });
+      } catch (error) {
+        if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
+        return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
+          detail="That member is not on the club's list any more." />, 404);
+      }
+      return c.redirect(`/coach/members#member-${id}`, 303);
+    });
+  }
 
   app.get("/results", async (c) => {
     const who = await coach(c);
@@ -917,8 +981,9 @@ export function createCoachSite(options: CoachOptions) {
     const choices = draft.discipline === "doubles"
       ? (await api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${previousId}/partner-choices`, who.key)).data : [];
     const view = draftView({ divisions: divisions.data, entries: entries.data },
-      { competition: previous, entries: lastEntries.data, standings }, members, choices);
+      { competition: previous, entries: lastEntries.data, standings }, members, choices, draft.category);
     return c.html(<Draft frame={seasonFrame(who)} season={season} draft={draft} previous={previous} view={view}
+      genders={members.some((m) => m.gender !== undefined)}
       empty={divisions.data.length === 0 && entries.data.length === 0} />);
   });
 

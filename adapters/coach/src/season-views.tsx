@@ -1,6 +1,6 @@
 import type { FC } from "hono/jsx";
 import { deadlineLine, type Season } from "@deuceleague/website";
-import type { DraftView, Division, LeftOut, PlacedEntry, Turnover, Unplaced } from "./season.js";
+import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PlacedEntry, type Turnover, type Unplaced } from "./season.js";
 import { Layout, type CoachCompetition, type Frame, type SeasonProgress } from "./views.js";
 
 /** The Season tab's pages: ending a season, starting the next from its tables, and adjusting the drafts. */
@@ -280,7 +280,9 @@ export const Draft: FC<{
   view: DraftView;
   /** The draft has not been filled from last season's tables yet. */
   empty: boolean;
-}> = ({ frame, season, draft, previous, view, empty }) => {
+  /** The coach's key can read members' genders, so the lists can be narrowed by them. */
+  genders: boolean;
+}> = ({ frame, season, draft, previous, view, empty, genders }) => {
   const doubles = draft.discipline === "doubles";
   const divisions = view.divisions;
   const bottom = divisions.at(-1)?.ordinal ?? 1;
@@ -302,6 +304,14 @@ export const Draft: FC<{
         <p class="muted">
           Placed from the final tables of {previous.name}. Move anyone, take them out, or add players below: players see
           none of this until you start {season.name}.
+        </p>
+      )}
+
+      {!empty && draft.category !== "open" && (
+        <p class="muted">
+          {genders
+            ? `Players below are those who suit a ${draft.category === "mixed" ? "mixed" : draft.category === "mens" ? "men's" : "women's"} competition by the gender recorded. Anyone with none recorded, or who prefers not to say, is still listed and marked.`
+            : "This key cannot read members' genders, so the lists below are not narrowed by gender."}
         </p>
       )}
 
@@ -350,6 +360,7 @@ export const Draft: FC<{
                   <li class="answer">
                     {m.display_name}
                     <Level level={m.level} />
+                    {genderUnclear(m, draft.category) && <span class="tag">Gender not recorded</span>}
                     <form class="level" method="post" action={`/coach/season/drafts/${draft.id}/entries`}>
                       <input type="hidden" name="member" value={m.id} />
                       <label class="muted" for={`add-${m.id}`}>
@@ -368,7 +379,9 @@ export const Draft: FC<{
         </>
       )}
 
-      {!empty && doubles && <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} />}
+      {!empty && doubles && (
+        <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} category={draft.category} />
+      )}
     </Layout>
   );
 };
@@ -377,11 +390,12 @@ export const Draft: FC<{
 const note = (u: Unplaced) =>
   u.said ?? (u.last ? `Was in ${u.last.entry.label} · ${u.last.why}` : "Not in doubles last season");
 
-const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number }> = ({
+const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number; category: string }> = ({
   draft,
   view,
   divisions,
   bottom,
+  category,
 }) => {
   const paired = new Set(view.pairs.flat().map((u) => u.id));
   const free = view.unplaced.filter((u) => !u.out && !paired.has(u.id));
@@ -425,6 +439,7 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
               <li class="answer">
                 {u.display_name}
                 <Level level={u.level} />
+                {genderUnclear(u, category) && <span class="tag">Gender not recorded</span>}
                 <br />
                 <span class="muted">{note(u)}</span>
               </li>
@@ -437,12 +452,14 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
           <h2>Make a pair</h2>
           <form method="post" action={`/coach/season/drafts/${draft}/entries`}>
             <div class="field">
-              <label for="member">Player</label>
-              <PlayerSelect id="member" name="member" players={choosable} />
+              <label for="member">{category === "mixed" ? "Woman" : "Player"}</label>
+              <PlayerSelect id="member" name="member" players={choosable.filter((p) => fits(p, category, 0))}
+                category={category} />
             </div>
             <div class="field">
-              <label for="partner">Partner</label>
-              <PlayerSelect id="partner" name="partner" players={choosable} />
+              <label for="partner">{category === "mixed" ? "Man" : "Partner"}</label>
+              <PlayerSelect id="partner" name="partner" players={choosable.filter((p) => fits(p, category, 1))}
+                category={category} />
             </div>
             <div class="field">
               <label for="pair-division">Division</label>
@@ -462,13 +479,19 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
   );
 };
 
-const PlayerSelect: FC<{ id: string; name: string; players: Unplaced[] }> = ({ id, name, players }) => (
+const PlayerSelect: FC<{ id: string; name: string; players: Unplaced[]; category: string }> = ({
+  id,
+  name,
+  players,
+  category,
+}) => (
   <select id={id} name={name} required>
     <option value="">Choose</option>
     {players.map((p) => (
       <option value={p.id}>
         {p.display_name}
         {p.level !== null ? ` (level ${p.level})` : ""}
+        {genderUnclear(p, category) ? " (gender not recorded)" : ""}
       </option>
     ))}
   </select>

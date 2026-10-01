@@ -26,7 +26,7 @@ export function decidePlacements(snapshot: PlacementSnapshot, targetId: string, 
   const short = tables.final ? tooFewToStay(previous, previousEntries, snapshot.ledger) : new Map();
   // A doubles pair with a player not playing, or wanting a new partner, breaks up.
   const pairs = breakingUp(previousEntries, snapshot.partnerChoices);
-  const { selected, notCarried } = placementSelections(target, tables, divisions, previousEntries, snapshot.removed, short, pairs);
+  const { selected, notCarried } = placementSelections(target, tables, divisions, previousEntries, snapshot.gone, short, pairs);
   const writes: PlacementWrites = { previousId: previous.id, final: tables.final, divisions: newDivisions, entries: [], events: [] };
   for (const d of newDivisions) writes.events.push({ type: "division.created", subjectType: "division", id: d.id,
     payload: { competition_id: target.id, ordinal: d.ordinal, name: d.name } });

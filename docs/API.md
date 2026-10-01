@@ -51,7 +51,7 @@ usually held by their coding agent. There is no separate user-account system.
 | `league:write` | create and edit competitions, entries, placements and fixtures; settle results; forecast court locations and units |
 | `members:read` | the member list, with display names and status; forecast configuration |
 | `members:write` | create and edit members, and mint their login links |
-| `members:pii` | full name, email, phone, date of birth, gender, notes; join requests |
+| `members:pii` | full name, email, phone, date of birth, gender, age group, notes; join requests |
 | `admin` | API keys and club settings |
 
 A new key defaults to `league:read` + `results:write`. Granting `members:pii`
@@ -100,15 +100,20 @@ which fields changed, never the values, because the log cannot be erased.
 
 **Join requests.** Someone asking to join from a club's public form,
 `POST /v1/join-requests` (`members:write` and `members:pii`): first name,
-surname, an email address or phone number or both, and the name of the privacy
-notice they agreed to. A request is not a member. It waits in its own table
+surname, an email address or phone number or both, a gender and an optional age
+group (a band, never a birth date), and the name of the privacy notice they
+agreed to. A request is not a member. It waits in its own table
 until the coach approves it, `POST /v1/join-requests/{id}/approve`, which adds
-the member with a display name and level and deletes the request, or declines
+the member with a display name, level, gender and age group (the coach may
+replace the last two) and deletes the request, or declines
 it, `DELETE /v1/join-requests/{id}`, which deletes it. One nobody decides is
 gone after 30 days. Reading them needs `members:pii`, since everything in one
 is personal, and a request shows any member who already has its email address.
 Its events record which fields were given, never their values, and the new
-member's `member.created` names the request and the notice. The API sets no
+member's `member.created` names the request and the notice. Approving does not
+place the member in a running season: they are placed at the next season's
+draft, and `PATCH /v1/members/{id}` with `status: left` takes a member out of
+that draft, leaving their results where they are. The API sets no
 limit on how many arrive: the form's website does, since only it sees who is
 asking. The reference website's form, and how it keeps out spam, is described
 in [new players joining](../deploy/cloudflare/JOINING.md).

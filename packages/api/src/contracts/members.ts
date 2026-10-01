@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { Gender, MemberStatus } from "@deuceleague/schema";
+import { AgeGroup, Gender, MemberStatus } from "@deuceleague/schema";
 import { authProblems, conflictProblem, Flag, IdParam, notFoundProblem, PageQuery, pageOf, requires, Timestamp, validationProblem } from "./shared.js";
 
 /** The coach's playing level, on the scale British clubs know from the LTA's ratings. */
@@ -44,12 +44,15 @@ export const Member = z
     gender: Gender.nullable()
       .optional()
       .openapi({ description: pii("Used only to warn about an unusual mixed pair; never enforced.") }),
+    age_group: AgeGroup.nullable()
+      .optional()
+      .openapi({ description: pii("An age band the club reads at a glance, never a birth date. Used to plan draws.") }),
     notes: z.string().nullable().optional().openapi({ description: pii("Anything the coach wrote down.") }),
   })
   .openapi("Member");
 
 /** The fields that are personal data. Reading or writing any of them needs members:pii. */
-export const PERSONAL = ["full_name", "email", "phone", "date_of_birth", "gender", "notes"] as const;
+export const PERSONAL = ["full_name", "email", "phone", "date_of_birth", "gender", "age_group", "notes"] as const;
 
 export const MemberFields = z.object({
   display_name: z.string().trim().min(1).max(60),
@@ -63,6 +66,7 @@ export const MemberFields = z.object({
   phone: z.string().trim().min(1).max(40).nullable().optional().openapi({ description: PII_INPUT }),
   date_of_birth: z.iso.date().nullable().optional().openapi({ description: PII_INPUT }),
   gender: Gender.nullable().optional().openapi({ description: PII_INPUT }),
+  age_group: AgeGroup.nullable().optional().openapi({ description: PII_INPUT }),
   notes: z.string().max(5000).nullable().optional().openapi({ description: PII_INPUT }),
 });
 export const NewMember = MemberFields.openapi("NewMember");
@@ -129,7 +133,10 @@ export const patch = createRoute({
   tags: ["Members"],
   summary: "Change a member",
   description:
-    "Only the fields sent change; null clears one. Changing any personal field also needs `members:pii`.",
+    "Only the fields sent change; null clears one. Changing any personal field also needs `members:pii`. " +
+    "`status: left` records that they have left the club: their results stay, they are not placed in the next " +
+    "season's draft, and they cannot be entered in a competition. Any place they hold in a draft is taken out at once. Setting " +
+    "it back to `active` undoes the status, not the places taken out.",
   ...requires("members:write"),
   request: { params: IdParam, body: { content: { "application/json": { schema: MemberPatch } }, required: true } },
   responses: {

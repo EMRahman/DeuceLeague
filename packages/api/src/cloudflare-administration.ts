@@ -204,7 +204,8 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
     return c.json(await run(c, read, async (s) => {
       if (s.rows.length) throw new JoinRequestExistsError();
       return toJoinRequest(await createJoinRequest(db, s.identity, { id: uuidv7(), firstName: body.first_name,
-        surname: body.surname, email, phone: body.phone ?? null, privacyNotice: body.privacy_notice }));
+        surname: body.surname, email, phone: body.phone ?? null, privacyNotice: body.privacy_notice,
+        gender: body.gender ?? null, ageGroup: body.age_group ?? null }));
     }), 201);
   });
   app.openapi(joinRequests.approve, async (c) => {
@@ -215,11 +216,14 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       const changes = {
         displayName: body.display_name ?? displayNameOf(request), fullName: `${request.firstName} ${request.surname}`,
         email: request.email, phone: request.phone, level: body.level ?? null, joinedOn: today(s.identity.club!.timezone),
+        gender: body.gender === undefined ? request.gender : body.gender,
+        ageGroup: body.age_group === undefined ? request.ageGroup : body.age_group,
       };
       const record = await mutateMemberAdmin(db, s.identity, uuidv7(), {
         type: "create", changes, joinRequest: { id: request.id, privacyNotice: request.privacyNotice },
         fields: ["display_name", "full_name", "joined_on", ...(request.email ? ["email"] : []),
-          ...(request.phone ? ["phone"] : []), ...(changes.level === null ? [] : ["level"])],
+          ...(request.phone ? ["phone"] : []), ...(changes.level === null ? [] : ["level"]),
+          ...(changes.gender ? ["gender"] : []), ...(changes.ageGroup ? ["age_group"] : [])],
       });
       return toMember(record, holdsPii(auth));
     }), 201);

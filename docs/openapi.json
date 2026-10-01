@@ -1530,6 +1530,21 @@
             ],
             "description": "PII. Used only to warn about an unusual mixed pair; never enforced. Present only for a credential holding `members:pii`."
           },
+          "age_group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "under_18",
+              "18_34",
+              "35_49",
+              "50_64",
+              "65_plus",
+              null
+            ],
+            "description": "PII. An age band the club reads at a glance, never a birth date. Used to plan draws. Present only for a credential holding `members:pii`."
+          },
           "notes": {
             "type": [
               "string",
@@ -1651,6 +1666,21 @@
             ],
             "description": "PII. Setting it needs `members:pii`."
           },
+          "age_group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "under_18",
+              "18_34",
+              "35_49",
+              "50_64",
+              "65_plus",
+              null
+            ],
+            "description": "PII. Setting it needs `members:pii`."
+          },
           "notes": {
             "type": [
               "string",
@@ -1763,6 +1793,21 @@
             ],
             "description": "PII. Setting it needs `members:pii`."
           },
+          "age_group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "under_18",
+              "18_34",
+              "35_49",
+              "50_64",
+              "65_plus",
+              null
+            ],
+            "description": "PII. Setting it needs `members:pii`."
+          },
           "notes": {
             "type": [
               "string",
@@ -1825,6 +1870,35 @@
             ],
             "description": "PII. As they typed it. Present only for a credential holding `members:pii`."
           },
+          "gender": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "female",
+              "male",
+              "other",
+              "undisclosed",
+              null
+            ],
+            "description": "PII. As they chose it on the form; null if the request did not carry one. Present only for a credential holding `members:pii`."
+          },
+          "age_group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "under_18",
+              "18_34",
+              "35_49",
+              "50_64",
+              "65_plus",
+              null
+            ],
+            "description": "PII. The band they chose on the form, or null if they left it blank. Present only for a credential holding `members:pii`."
+          },
           "privacy_notice": {
             "type": "string",
             "example": "uk-2026-09-30",
@@ -1867,6 +1941,8 @@
           "surname",
           "email",
           "phone",
+          "gender",
+          "age_group",
           "privacy_notice",
           "created_at",
           "expires_at",
@@ -1901,6 +1977,35 @@
             ],
             "pattern": "^\\+?[0-9][0-9 ()-]{5,23}$"
           },
+          "gender": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "female",
+              "male",
+              "other",
+              "undisclosed",
+              null
+            ],
+            "description": "The club's own form always sends one. Copied to the member on approval."
+          },
+          "age_group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "under_18",
+              "18_34",
+              "35_49",
+              "50_64",
+              "65_plus",
+              null
+            ],
+            "description": "Optional. Copied to the member on approval."
+          },
           "privacy_notice": {
             "type": "string",
             "minLength": 1,
@@ -1933,6 +2038,35 @@
             "maximum": 10,
             "example": 5,
             "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+          },
+          "gender": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "female",
+              "male",
+              "other",
+              "undisclosed",
+              null
+            ],
+            "description": "Replaces the one on the request, if the coach knows better."
+          },
+          "age_group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "under_18",
+              "18_34",
+              "35_49",
+              "50_64",
+              "65_plus",
+              null
+            ],
+            "description": "Replaces the one on the request."
           }
         }
       },
@@ -4597,7 +4731,7 @@
                 "explanation"
               ]
             },
-            "description": "Entries left out: opted out of this competition, a doubles pair breaking up (a player not playing, or wanting a new partner: see partner choices), withdrawn last time, short of the previous competition's minimum number of matches, or with a member since removed from the club."
+            "description": "Entries left out: opted out of this competition, a doubles pair breaking up (a player not playing, or wanting a new partner: see partner choices), withdrawn last time, short of the previous competition's minimum number of matches, or with a member who has since left or been removed from the club."
           }
         },
         "required": [
@@ -6675,7 +6809,7 @@
           "Members"
         ],
         "summary": "Change a member",
-        "description": "Only the fields sent change; null clears one. Changing any personal field also needs `members:pii`.",
+        "description": "Only the fields sent change; null clears one. Changing any personal field also needs `members:pii`. `status: left` records that they have left the club: their results stay, they are not placed in the next season's draft, and they cannot be entered in a competition. Any place they hold in a draft is taken out at once. Setting it back to `active` undoes the status, not the places taken out.",
         "security": [
           {
             "apiKey": [
@@ -7204,7 +7338,7 @@
           "Join requests"
         ],
         "summary": "Approve a join request",
-        "description": "Adds them to the club's list as an active member, with their full name, contact details and the level given, and deletes the request. The member's `member.created` event records the request and the privacy notice they agreed to.",
+        "description": "Adds them to the club's list as an active member, with their full name, contact details, gender and age group, and the level given, and deletes the request. They are not placed in a running season: the coach places them in the draft for the next one. The member's `member.created` event records the request and the privacy notice they agreed to.",
         "security": [
           {
             "apiKey": [
