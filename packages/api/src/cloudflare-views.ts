@@ -1,5 +1,5 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { commitIdentity, readLeagueViews, readChase, readSeasonProgress, retryMutation, type IdentitySnapshot,
+import { commitIdentity, readDisputeHistory, readLeagueViews, readChase, readSeasonProgress, retryMutation, type IdentitySnapshot,
   type LedgerMatch } from "@deuceleague/db-d1";
 import { suggestPlacements } from "@deuceleague/engine";
 import { RulesSpec, type MatchFormat } from "@deuceleague/schema";
@@ -8,6 +8,8 @@ import type { Context } from "hono";
 import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import * as routes from "./contracts/standings.js";
+import { history } from "./contracts/disputes.js";
+import { disputeHistory } from "./league/disputes.js";
 import { iso } from "./contracts/shared.js";
 import { daysRemaining, progressCounts, towardMinimum } from "./league/progress.js";
 import { tooFewToStay } from "./league/placements.js";
@@ -112,6 +114,9 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
       const p = progressCounts(s.ledger.filter((m) => m.side0 === id || m.side1 === id));
       return { entry_id: id, matches: p.matches, played: p.played, outstanding: p.outstanding };
     }), 200);
+  });
+  app.openapi(history, async (c) => {
+    return c.json(await run(c, (i) => readDisputeHistory(db, i.hash, i.kind), (s) => ({ data: disputeHistory(s.events, s.sides) })), 200);
   });
   app.openapi(routes.chase, async (c) => {
     const { competition_id, within_days } = c.req.valid("query");

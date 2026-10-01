@@ -35,6 +35,7 @@ import {
   Tables,
   Weather as WeatherPage,
   type ChaseRow,
+  type DisputeRow,
   type CoachCompetition,
   type CoachMember,
   type FeedEvent,
@@ -414,31 +415,37 @@ export function createCoachSite(options: CoachOptions) {
   app.get("/results", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
+    // Only the running season's competitions: a finished season's loose ends are in the history below, not
+    // here, since nothing on them can be settled or agreed any more.
+    const seasons = await all<Season>("/v1/seasons?state=active", who.key);
+    const competitions = await all<CoachCompetition>("/v1/competitions", who.key);
+    const running = new Set(
+      competitions.filter((x) => x.state === "active" && seasons.some((s) => s.id === x.season_id)).map((x) => x.id),
+    );
     // Disputes first, then the reports waiting longest, each read in full up to the page's limit.
     const listed = [
       ...(await all<Listed>("/v1/matches?status=disputed", who.key)),
       ...(await all<Listed>("/v1/matches?status=reported", who.key)).sort(
         (a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at),
       ),
-    ];
+    ].filter((m) => running.has(m.competition_id));
     const detailed = await Promise.all(
       listed.slice(0, DETAILED).map((m) => api<MatchDetail>("GET", `/v1/matches/${m.id}`, who.key)),
     );
     const more = listed.slice(DETAILED);
     // Open matches matter here only once reporting has closed: the coach settles what is left.
-    const seasons = await all<Season>("/v1/seasons?state=active", who.key);
     const closed = new Set(
       seasons.filter((s) => s.results_deadline_at && Date.parse(s.results_deadline_at) <= Date.now()).map((s) => s.id),
     );
     const settling = new Set(
-      (await all<CoachCompetition>("/v1/competitions", who.key))
-        .filter((x) => x.state === "active" && closed.has(x.season_id))
-        .map((x) => x.id),
+      competitions.filter((x) => x.state === "active" && closed.has(x.season_id)).map((x) => x.id),
     );
     // One read for the whole club, not one a competition, then kept to those whose reporting has closed.
     const late = settling.size
       ? (await all<Match>("/v1/matches?status=open", who.key)).filter((m) => settling.has(m.competition_id))
       : [];
+    // Who keeps ending up in disputes, and how each ended: for the coach only, and across seasons.
+    const history = (await api<{ data: DisputeRow[] }>("GET", "/v1/dispute-history", who.key)).data;
     return c.html(
       <Results
         frame={frameOf(who, "results")}
@@ -450,6 +457,7 @@ export function createCoachSite(options: CoachOptions) {
         }}
         more={more}
         late={late}
+        history={history}
         timezone={who.club.timezone}
       />,
     );
