@@ -108,6 +108,41 @@ test("chase list distinguishes arranging, waiting and disputes for both doubles 
   await send(f, `/v1/matches/${f.matches[0]}/settle`, "POST", { outcome: "unplayed" }); assert.deepEqual((await send(f, path)).body.data, []);
 });
 
+test("the chase list shows only the running season, and ends with it", async (t) => {
+  const f = await playing(t, 3); const path = `/v1/chase-list?competition_id=${f.ids.competition}`;
+  assert.equal((await send(f, "/v1/chase-list")).body.data.length, 3);
+  // Ending the season clears every row, whether asked for all at once or by competition.
+  for (const [route, state] of [[`/v1/competitions/${f.ids.competition}`, "complete"], [`/v1/seasons/${f.ids.season}`, "complete"]] as const) {
+    assert.equal((await send(f, route, "PATCH", { state })).status, 200);
+  }
+  assert.deepEqual((await send(f, "/v1/chase-list")).body.data, []);
+  assert.deepEqual((await send(f, path)).body.data, []);
+});
+
+test("the chase list leaves out matches against a withdrawn entry or a member who left, and they return with them", async (t) => {
+  const f = await playing(t, 3); const all = async () => (await send(f, "/v1/chase-list")).body.data as any[];
+  const byMember = (rows: any[], member: string) => rows.find((r) => r.member_id === member);
+  const [a, b, c] = f.members.map((m) => m[0]!);
+  const before = await all(); assert.equal(before.length, 3);
+  assert.ok(before.every((r) => r.outstanding_matches === 2 && r.needs_playing === 2));
+
+  // A withdrawn entry is not chased, and its opponents are not chased for matches against it.
+  assert.equal((await send(f, `/v1/entries/${f.entries[0]}`, "PATCH", { state: "withdrawn" })).status, 200);
+  const withdrawn = await all();
+  assert.equal(byMember(withdrawn, a), undefined);
+  assert.deepEqual([b, c].map((m) => byMember(withdrawn, m).outstanding_matches), [1, 1]);
+  assert.ok(withdrawn.every((r) => !r.waiting_on.includes(before.find((x) => x.member_id === a).display_name)));
+  assert.equal((await send(f, `/v1/entries/${f.entries[0]}`, "PATCH", { state: "active" })).status, 200);
+  assert.deepEqual((await all()).map((r) => r.outstanding_matches), [2, 2, 2]);
+
+  // The same when the member leaves the club, and when they come back.
+  assert.equal((await send(f, `/v1/members/${a}`, "PATCH", { status: "left" })).status, 200);
+  const left = await all();
+  assert.equal(byMember(left, a), undefined); assert.deepEqual([b, c].map((m) => byMember(left, m).outstanding_matches), [1, 1]);
+  assert.equal((await send(f, `/v1/members/${a}`, "PATCH", { status: "active" })).status, 200);
+  assert.deepEqual((await all()).map((r) => r.outstanding_matches), [2, 2, 2]);
+});
+
 test("chase emails require live PII permission in D1 and members:read at the route", async (t) => {
   const f = await playing(t); const publicKey = await key(f, ["members:read"]);
   const r = await send(f, "/v1/chase-list", "GET", undefined, publicKey); assert.equal(r.status, 200);

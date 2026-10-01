@@ -34,6 +34,11 @@ export async function readLeagueViews(db: D1Database, hash: string, kind: Creden
 
 /** No email leaves D1 without the requesting live key's PII scope in this snapshot.
  * Aggregate only outstanding matches; duplicates in waiting_on are intentional.
+ * Only the running season's competitions that are not closed appear: a finished season's loose ends
+ * cannot be settled, so nothing would ever clear them. They are found from their outstanding matches
+ * and then by key. A match against a withdrawn entry, or one whose members have all left or been
+ * removed (a doubles pair with one partner still in the club stays), is outstanding for no one: it
+ * cannot be played, so neither side is chased for it, and it returns if the entry does.
  */
 export async function readChase(db: D1Database, hash: string, kind: CredentialKind, competitionId?: string) {
   const identity = await readIdentity(db, hash, kind, null, [
@@ -49,6 +54,12 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
       JOIN match_side own ON own.match_id = m.id JOIN entry_member em ON em.entry_id = own.entry_id
       LEFT JOIN match_side other ON other.match_id = m.id AND other.side_index <> own.side_index
       WHERE m.status IN ('open', 'reported', 'disputed') AND (? IS NULL OR m.competition_id = ?)
+        AND c.state NOT IN ('complete', 'archived') AND season.state = 'active'
+        AND NOT EXISTS (SELECT 1 FROM match_side gone JOIN entry ge ON ge.id = gone.entry_id
+          WHERE gone.match_id = m.id AND (ge.state = 'withdrawn' OR (
+            EXISTS (SELECT 1 FROM entry_member gm WHERE gm.entry_id = ge.id)
+            AND NOT EXISTS (SELECT 1 FROM entry_member gm JOIN member gmb ON gmb.id = gm.member_id
+              WHERE gm.entry_id = ge.id AND gmb.status <> 'left' AND gmb.deleted_at IS NULL))))
     ), permission AS (
       SELECT EXISTS (SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ? AND k.revoked_at IS NULL
         AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000) AND s.value = 'members:pii') AS pii
@@ -67,18 +78,24 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     // What the tables are counted from, for each competition with a match outstanding:
     // how many each entry has played toward the minimum is the engine's to say.
     db.prepare(`SELECT c.id, c.rules, c.match_format FROM competition c
-      WHERE c.id IN (SELECT competition_id FROM match WHERE status IN ('open', 'reported', 'disputed'))
+      WHERE c.id IN (SELECT m2.competition_id FROM match m2 JOIN competition c2 ON c2.id = m2.competition_id
+        JOIN season s2 ON s2.id = c2.season_id
+        WHERE m2.status IN ('open', 'reported', 'disputed') AND c2.state NOT IN ('complete', 'archived') AND s2.state = 'active')
         AND (? IS NULL OR c.id = ?)`).bind(competitionId ?? null, competitionId ?? null),
     db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state,
       (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e
-      WHERE e.competition_id IN (SELECT competition_id FROM match WHERE status IN ('open', 'reported', 'disputed'))
+      WHERE e.competition_id IN (SELECT m2.competition_id FROM match m2 JOIN competition c2 ON c2.id = m2.competition_id
+        JOIN season s2 ON s2.id = c2.season_id
+        WHERE m2.status IN ('open', 'reported', 'disputed') AND c2.state NOT IN ('complete', 'archived') AND s2.state = 'active')
         AND (? IS NULL OR e.competition_id = ?) AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id)`)
       .bind(competitionId ?? null, competitionId ?? null),
     db.prepare(`SELECT m.id, m.competition_id, m.division_id, m.status, m.outcome, m.winning_side, m.retired_side, m.score,
       s0.entry_id AS side0, s1.entry_id AS side1 FROM match m
       LEFT JOIN match_side s0 ON s0.match_id = m.id AND s0.side_index = 0
       LEFT JOIN match_side s1 ON s1.match_id = m.id AND s1.side_index = 1
-      WHERE m.competition_id IN (SELECT competition_id FROM match WHERE status IN ('open', 'reported', 'disputed'))
+      WHERE m.competition_id IN (SELECT m2.competition_id FROM match m2 JOIN competition c2 ON c2.id = m2.competition_id
+        JOIN season s2 ON s2.id = c2.season_id
+        WHERE m2.status IN ('open', 'reported', 'disputed') AND c2.state NOT IN ('complete', 'archived') AND s2.state = 'active')
         AND (? IS NULL OR m.competition_id = ?) ORDER BY m.id`)
       .bind(competitionId ?? null, competitionId ?? null),
   ]);
