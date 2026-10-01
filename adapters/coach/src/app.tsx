@@ -395,6 +395,23 @@ export function createCoachSite(options: CoachOptions) {
     return c.redirect(`/coach/members#member-${id}`, 303);
   });
 
+  /** Not playing next season at all, for every entry they hold, and taking it back. This season carries on as it is. */
+  for (const [action, method] of [["leaving", "POST"], ["staying", "DELETE"]] as const) {
+    app.post(`/members/:id/${action}`, async (c) => {
+      const who = await coach(c);
+      if (!who) return c.redirect("/coach", 303);
+      const id = c.req.param("id");
+      try {
+        await api(method, `/v1/members/${encodeURIComponent(id)}/leave`, who.key);
+      } catch (error) {
+        if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
+        return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
+          detail="That member is not on the club's list any more." />, 404);
+      }
+      return c.redirect(`/coach/members#member-${id}`, 303);
+    });
+  }
+
   /** Leaving the club, and coming back. Results stay either way; the status decides who the next draft places. */
   for (const [action, status] of [["left", "left"], ["back", "active"]] as const) {
     app.post(`/members/:id/${action}`, async (c) => {

@@ -41,6 +41,7 @@ function keyRecord(r: Row): ApiKeyRecord {
 function memberRecord(r: Row): MemberRecord {
   return { id: String(r.id), displayName: String(r.display_name), status: String(r.status), rating: string(r.rating),
     ratingSystem: string(r.rating_system), level: r.level === null ? null : Number(r.level), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
+    leavingAt: date(r.leaving_at),
     signedInAt: date(r.signed_in_at), createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
     ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as object) };
 }
@@ -61,7 +62,7 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
       AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000)
       AND s.value = 'members:pii') AS pii
     ) SELECT m.id, m.display_name, m.status, m.rating, m.rating_system, m.level, m.joined_on,
-      m.deleted_at, m.created_at, m.updated_at,
+      m.deleted_at, m.leaving_at, m.created_at, m.updated_at,
       -- Sessions are deleted when they end, so this is the newest one still signed in.
       (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
         AND g.kind = 'session') AS signed_in_at,
@@ -163,7 +164,9 @@ export type MemberMutation =
       joinRequest?: { id: string; privacyNotice: string } }
   | { type: "patch"; changes: MemberChanges; fields: string[] }
   | { type: "remove" }
-  | { type: "erase" };
+  | { type: "erase" }
+  /** Saying they are not playing next season at all, or taking it back. Saying it twice keeps the first time. */
+  | { type: "leaving"; on: boolean };
 /**
  * A member who leaves, or is removed, is taken out of next season's drafts in the same batch: a draft
  * has no matches yet, so nothing is lost, and starting it cannot draw fixtures for someone who has gone.
@@ -210,13 +213,18 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
         ...(mutation.changes.rating === undefined ? {} : { rating: rating(mutation.changes.rating) }) }), id, clubId),
       audit(db, state, "member.updated", "member", id, { changed: mutation.fields }));
     if (mutation.changes.status === "left") writes.push(leaveDrafts(db, clubId, id));
+  } else if (mutation.type === "leaving") {
+    writes.push(db.prepare(`UPDATE member SET leaving_at = CASE WHEN ? THEN coalesce(leaving_at, ?) END, updated_at = ?
+      WHERE id = ? AND club_id = ? AND deleted_at IS NULL AND (leaving_at IS NULL) = ?`)
+      .bind(mutation.on ? 1 : 0, state.now, state.now, id, clubId, mutation.on ? 1 : 0),
+    audit(db, state, mutation.on ? "member.leaving.recorded" : "member.leaving.cleared", "member", id));
   } else {
     writes.push(leaveDrafts(db, clubId, id));
     if (mutation.type === "remove") writes.push(db.prepare(`UPDATE member SET deleted_at = coalesce(deleted_at, ?), updated_at = ?
       WHERE id = ? AND club_id = ?`).bind(state.now, state.now, id, clubId));
     else writes.push(
       db.prepare(`UPDATE member SET display_name = 'Erased member', full_name = NULL, email = NULL, phone = NULL,
-        date_of_birth = NULL, gender = NULL, age_group = NULL, notes = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
+        date_of_birth = NULL, gender = NULL, age_group = NULL, notes = NULL, leaving_at = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
         status = 'left', deleted_at = coalesce(deleted_at, ?), updated_at = ? WHERE id = ? AND club_id = ?`)
         .bind(state.now, state.now, id, clubId),
       db.prepare(`UPDATE entry SET display_name = NULL, updated_at = ? WHERE club_id = ? AND display_name IS NOT NULL

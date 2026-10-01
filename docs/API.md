@@ -196,6 +196,19 @@ its partner's; a key with `league:write` records a choice for a player who said
 so in person, and sees them all. Once the competition is complete, choices are
 fixed and the coach places players directly.
 
+A player leaving the league altogether says so once, for every competition:
+`POST /v1/members/{id}/leave` (a player's session for themselves, or a key with
+`league:write`). Every entry they hold then, in singles and doubles, is left out
+of next season's draft with a sentence saying why, a doubles partner is left
+needing a partner, and the coach's dashboard lists them under each competition
+they were in. It is recorded once, as one event (`member.leaving.recorded`), and
+changes nothing about this season: results and outstanding matches stand.
+`DELETE` takes it back, and the opt-outs a player made one entry at a time stay
+as they were. It covers the entries they held when they said it, so a player
+who changes their mind and is entered again is not caught by it. It is not
+leaving the club: that is `status: left` on the member. A member shows it as
+`leaving_at`, and a player's `/v1/me` does too.
+
 Placements fill next season's competition from this one's final tables. The
 coach creates the new competition as a draft, naming the previous one, and one
 call fills it: every entry that finished is placed with its reason and a

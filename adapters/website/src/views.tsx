@@ -721,10 +721,38 @@ export const Home: FC<{
   standings: MyStanding[];
   /** The outlook at the courts, and the last day results are taken. Null when no location is set. */
   weather: { venues: VenueForecast[]; lastDay: string | null } | null;
+  /** When they said they are not playing next season at all, if they did. */
+  leaving: string | null;
+  /** The competitions they are in now, which saying so would leave. */
+  entries: string[];
+  /** Those of them that what they said covers, and those entered after they said it, which it does not. */
+  covered: string[];
+  later: string[];
 }> = (p) => (
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
     {p.notice && <Notice ok messages={[p.notice]} />}
+    {p.leaving && (
+      <section class="card">
+        <h2>You are not playing next season</h2>
+        <p>
+          You have told the coach you are leaving the league
+          {p.covered.length > 0 ? `, so you will not be in the draft for ${p.covered.join(", ")}` : ""}. Your matches this
+          season still count, so keep reporting them.
+        </p>
+        {p.later.length > 0 && (
+          <p class="muted">
+            You were entered in {p.later.join(", ")} after you said this, so that is not covered and you are still in the
+            draft for it. Not playing that either? Say so on its page.
+          </p>
+        )}
+        <form method="post" action="/leave/undo">
+          <button class="quiet" type="submit">
+            I have changed my mind
+          </button>
+        </form>
+      </section>
+    )}
     {p.deadlines.map((deadline) => (
       <p class="deadline">{deadline}</p>
     ))}
@@ -828,6 +856,20 @@ export const Home: FC<{
       <section class="card">
         <h2>Results closed ({p.closed.length})</h2>
         <MatchRows matches={p.closed} />
+      </section>
+    )}
+    {!p.leaving && p.entries.length > 0 && (
+      <section class="card">
+        <h2>Next season</h2>
+        <p class="muted">
+          Not playing next season at all? Say so once and the coach leaves you out of the draft for{" "}
+          {p.entries.join(", ")}. Your matches this season still count, and you can take it back.
+        </p>
+        <form method="post" action="/leave">
+          <button class="quiet" type="submit">
+            I am not playing next season at all
+          </button>
+        </form>
       </section>
     )}
     {p.weather && <WeatherBox {...p.weather} />}
@@ -963,7 +1005,7 @@ export type TablesProps = {
   season: string | null;
   standings: Standings;
   /** The viewer's own entry, marked in the tables; null for someone not playing, such as the coach. */
-  mine: { entryId: string; divisionId: string; optedOut: boolean } | null;
+  mine: { entryId: string; divisionId: string; optedOut: boolean; leaving?: boolean } | null;
   breakdowns: Record<string, Breakdown>;
   /** Where a competition's tab links. */
   competitionHref?: (id: string) => string;
@@ -1118,12 +1160,19 @@ export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & Ta
     <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
       <CompetitionTables {...tables} />
 
-      {mine && next && !mine.optedOut && competition.state === "active" && <Partners competitionId={competition.id} next={next} />}
+      {mine && next && !mine.optedOut && !mine.leaving && competition.state === "active" && (
+        <Partners competitionId={competition.id} next={next} />
+      )}
 
-      {mine && !(next && !mine.optedOut) && competition.state === "active" && (
+      {mine && (mine.leaving || !(next && !mine.optedOut)) && competition.state === "active" && (
         <section>
           <h2>Next season</h2>
-          {mine.optedOut ? (
+          {mine.leaving ? (
+            <p>
+              You have told the coach you are not playing next season at all, so this is one of the competitions you are
+              leaving. Your matches in this one still count. You can take it back on your <a href="/">home page</a>.
+            </p>
+          ) : mine.optedOut ? (
             <form method="post" action={`/entries/${mine.entryId}/opt-in`}>
               <p>You have told the coach you are not playing in the next one.</p>
               <button class="quiet" type="submit">

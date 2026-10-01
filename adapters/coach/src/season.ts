@@ -42,6 +42,8 @@ export type DraftEntry = Entry & {
 
 export type ActiveMember = {
   id: string; display_name: string; level: number | null;
+  /** When they said they are not playing next season at all, if they did. */
+  leaving_at?: string | null;
   /** Personal: present only when the coach's key may read members' details. */
   gender?: string | null;
 };
@@ -220,12 +222,18 @@ export function draftView(
     if (followed.has(entry.id)) continue;
     const place = rows.get(entry.id);
     const gone = entry.members.filter((m) => !inClub.has(m.id));
+    // Said they are leaving the league altogether, before this entry was made: it is out of the draft.
+    const leaving = entry.members.filter((m) => {
+      const said = inClub.get(m.id)?.leaving_at;
+      return said != null && Date.parse(entry.created_at) <= Date.parse(said);
+    });
     const row = place?.row;
     const fixtures = row ? row.matches.length + row.outstanding : 0;
     const needed = Math.min(minimum, fixtures);
     const broke = breaking(entry);
     const why = gone.length > 0 ? `${gone.map((m) => m.display_name).join(" and ")} ${gone.length === 1 ? "is" : "are"} no longer on the club's list`
       : entry.opted_out_at ? "Opted out of next season"
+      : leaving.length > 0 ? `${leaving.map((m) => m.display_name).join(" and ")} ${leaving.length === 1 ? "is" : "are"} leaving the league`
       : broke ? broke
       : entry.state === "withdrawn" ? "Withdrew last season"
       : row && row.played < needed ? `Played ${row.played} of the ${needed} ${needed === 1 ? "match" : "matches"} needed to keep a place${never(row, needed)}`
@@ -239,6 +247,7 @@ export function draftView(
   const said = (m: ActiveMember): Pick<Unplaced, "said" | "out"> => {
     const c = saidBy.get(m.id);
     const optedOut = lastOf.get(m.id)?.entry.opted_out_at;
+    if (m.leaving_at) return { said: "Leaving the league", out: true };
     if (c?.choice === "leaving" || (!c && optedOut)) return { said: "Not playing next season", out: true };
     if (!c) return { said: null, out: false };
     if (!c.partner_id) return { said: "Wants a new partner", out: false };

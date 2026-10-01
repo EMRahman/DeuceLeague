@@ -640,7 +640,13 @@ export function createWebsite(options: WebsiteOptions) {
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
         deadlines={deadlines}
-        notice={c.req.query("done") === "accepted" ? "Agreed. The result counts now." : null}
+        notice={{ accepted: "Agreed. The result counts now.", leaving: "Done. The coach will see you are not playing next season.",
+          staying: "Taken back. You are in the reckoning for next season again." }[c.req.query("done") ?? ""] ?? null}
+        leaving={p.me.credential.member.leaving_at ?? null}
+        entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
+        // What they said covers the entries they held when they said it; one made after is still in the reckoning.
+        covered={registered.filter((r) => r.entry && covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
+        later={registered.filter((r) => r.entry && !covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
         answer={answer}
         toPlay={toPlay}
         waiting={waiting}
@@ -680,6 +686,7 @@ export function createWebsite(options: WebsiteOptions) {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
     const id = c.req.param("id");
+    const leavingAt = p.me.credential.member.leaving_at ?? null;
     const [competition, standings, seasons, matches] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${id}`, p.session),
       api<Standings>("GET", `/v1/competitions/${id}/standings`, p.session),
@@ -706,7 +713,9 @@ export function createWebsite(options: WebsiteOptions) {
         past={season.state === "active" ? null : season.name}
         season={seasonLine(p, season)}
         standings={standings}
-        mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null } : null}
+        mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null,
+          // What they said about leaving altogether covers the entries they held when they said it.
+          leaving: covers(leavingAt, entry) } : null}
         breakdowns={breakdowns(standings, matches)}
         next={next}
       />,
@@ -769,6 +778,23 @@ export function createWebsite(options: WebsiteOptions) {
     }
     return c.redirect(`/competitions/${id}`, 303);
   });
+
+  /** Whether what a player said about leaving altogether covers this entry: they held it when they said so. */
+  const covers = (leavingAt: string | null | undefined, entry: Entry) =>
+    leavingAt != null && Date.parse(entry.created_at) <= Date.parse(leavingAt);
+
+  // Not playing next season at all: one thing said once, for every entry, and taken back the same way.
+  for (const [path, method, done] of [
+    ["leave", "POST", "leaving"],
+    ["leave/undo", "DELETE", "staying"],
+  ] as const) {
+    app.post(`/${path}`, async (c) => {
+      const p = await player(c);
+      if (!p) return c.redirect("/", 303);
+      await api(method, `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/leave`, p.session);
+      return c.redirect(`/?done=${done}`, 303);
+    });
+  }
 
   for (const [path, method] of [
     ["opt-out", "POST"],

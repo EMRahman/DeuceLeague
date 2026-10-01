@@ -130,7 +130,14 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
       WHERE season_id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1) ORDER BY id`).bind(seasonId),
     db.prepare(`SELECT d.id, d.competition_id, d.ordinal, d.name FROM division d
       JOIN competition c ON c.id = d.competition_id WHERE c.season_id = ? ORDER BY d.ordinal`).bind(seasonId),
+    // Not playing next season: the entry opted out, a member of it said they are leaving altogether, or a
+    // doubles player told the coach they are not playing, which breaks the pair up.
     db.prepare(`SELECT e.id, e.competition_id, e.division_id, e.state, e.opted_out_at,
+      (e.opted_out_at IS NOT NULL
+        OR EXISTS (SELECT 1 FROM entry_member em JOIN member m ON m.id = em.member_id
+          WHERE em.entry_id = e.id AND m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at)
+        OR EXISTS (SELECT 1 FROM entry_member em JOIN partner_choice pc ON pc.member_id = em.member_id
+          WHERE em.entry_id = e.id AND pc.competition_id = e.competition_id AND pc.choice = 'leaving')) AS not_playing,
       (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e
       JOIN competition c ON c.id = e.competition_id
       WHERE c.season_id = ? AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id)
@@ -153,7 +160,7 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
       matchFormat: JSON.parse(String(c.match_format)) as MatchFormat })),
     divisions: divisions!.map((d) => ({ id: String(d.id), competitionId: String(d.competition_id), ordinal: Number(d.ordinal), name: String(d.name) })),
     entries: entries!.map((e) => ({ id: String(e.id), competitionId: String(e.competition_id), divisionId: String(e.division_id),
-      state: String(e.state), optedOut: e.opted_out_at !== null, label: String(e.label) })),
+      state: String(e.state), optedOut: Boolean(e.not_playing), label: String(e.label) })),
     // Each match as the ledger holds it, for counting who has played how many.
     matches: ledgerRecords(identity.extraResults[4]!).map((m, i) => ({ ...m, competitionId: String(matches![i]!.competition_id) })),
     timezone: String(club![0]!.timezone),

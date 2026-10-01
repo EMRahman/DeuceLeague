@@ -38,6 +38,8 @@ export type CoachMember = {
   level: number | null;
   signed_in_at: string | null;
   status: "active" | "paused" | "left";
+  /** When they said they are not playing next season at all, if they did. */
+  leaving_at: string | null;
   /** Personal: present only when this browser's key may read members' details. */
   gender?: string | null;
   age_group?: string | null;
@@ -1240,6 +1242,22 @@ export const Members: FC<{
                   <button class="quiet small" type="submit">
                     Save
                   </button>
+                </form>
+              )}
+              {m.leaving_at ? (
+                <form method="post" action={`/coach/members/${m.id}/staying`}>
+                  <span class="deadline">Not playing next season at all</span>
+                  <span class="muted"> · since {at(m.leaving_at, timezone)} · </span>
+                  <button class="quiet small" type="submit">
+                    Take it back
+                  </button>
+                </form>
+              ) : (
+                <form method="post" action={`/coach/members/${m.id}/leaving`}>
+                  <button class="quiet small" type="submit">
+                    Not playing next season
+                  </button>
+                  <span class="muted"> Out of every draft, singles and doubles. This season carries on as it is.</span>
                 </form>
               )}
               <form method="post" action={`/coach/members/${m.id}/left`}>

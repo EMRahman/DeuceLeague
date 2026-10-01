@@ -9,6 +9,8 @@ export type CredentialKind = "api_key" | "login_link" | "session";
 export type CredentialRecord = {
   id: string; club_id: string; kind: CredentialKind; scopes: string;
   member_id: string | null; display_name: string | null;
+  /** For a player's credential: when they said they are not playing next season at all. */
+  leaving_at?: number | null;
   name: string | null; prefix: string | null; last_used_at: number | null;
 };
 export type ClubRecord = { id: string; slug: string; name: string; timezone: string };
@@ -33,10 +35,10 @@ export async function readIdentity(
 ): Promise<IdentitySnapshot> {
   const credential = kind === "api_key"
     ? db.prepare(`SELECT id, club_id, 'api_key' AS kind, scopes, name, prefix, last_used_at,
-        NULL AS member_id, NULL AS display_name FROM api_key
+        NULL AS member_id, NULL AS display_name, NULL AS leaving_at FROM api_key
         WHERE key_hash = ? AND revoked_at IS NULL
           AND (expires_at IS NULL OR expires_at > unixepoch('subsec') * 1000)`).bind(hash)
-    : db.prepare(`SELECT a.id, a.club_id, a.kind, a.scopes, a.member_id, m.display_name,
+    : db.prepare(`SELECT a.id, a.club_id, a.kind, a.scopes, a.member_id, m.display_name, m.leaving_at,
         NULL AS name, NULL AS prefix, NULL AS last_used_at
         FROM access_grant a JOIN member m ON m.id = a.member_id AND m.club_id = a.club_id
         WHERE a.token_hash = ? AND a.kind = ? AND m.deleted_at IS NULL

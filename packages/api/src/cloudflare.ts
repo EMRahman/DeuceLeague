@@ -19,6 +19,7 @@ import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { HTTPException } from "hono/http-exception";
 import { checkAccess } from "./access.js";
+import { iso } from "./contracts/shared.js";
 import type { Auth } from "./context.js";
 import { exchange, LOGIN_LINK_MINUTES, mint, signOut, signOutEverywhere } from "./contracts/logins.js";
 import { me } from "./contracts/me.js";
@@ -166,7 +167,8 @@ export function createCloudflareApp(options: Options) {
         prefix: state.credential!.prefix!, scopes: [...auth.scopes],
       } : {
         type: "session" as const, id: auth.credential.id, scopes: [...auth.scopes],
-        member: { id: state.credential!.member_id!, display_name: state.credential!.display_name! },
+        member: { id: state.credential!.member_id!, display_name: state.credential!.display_name!,
+          leaving_at: iso(state.credential!.leaving_at == null ? null : new Date(state.credential!.leaving_at)) },
       },
     },
   })), 200));

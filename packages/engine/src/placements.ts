@@ -70,8 +70,11 @@ export function planPlacements(
    * "Sam asked for a new partner".
    */
   breakingUp: ReadonlyMap<string, string> = new Map(),
-  /** Entries with a member who has left the club or been removed from it. */
-  departed: ReadonlyMap<string, "left" | "removed"> = new Map(),
+  /**
+   * Entries with a member who has left the club or been removed from it, or who has said they are leaving
+   * the league altogether (`leaving`), which takes every entry they hold out of the draft.
+   */
+  departed: ReadonlyMap<string, "left" | "removed" | "leaving"> = new Map(),
 ): PlacementPlan {
   const ordinals = target.map((d) => d.ordinal).sort((a, b) => a - b);
   if (ordinals.length === 0) return { suggestions: [], vacancies: [] };
@@ -211,8 +214,8 @@ export function planPlacements(
   return { suggestions, vacancies };
 }
 
-const departedClause = (how: "left" | "removed") =>
-  `a member has since ${how === "removed" ? "been removed from" : "left"} the club`;
+const departedClause = (how: "left" | "removed" | "leaving") =>
+  how === "leaving" ? "a member is leaving the league" : `a member has since ${how === "removed" ? "been removed from" : "left"} the club`;
 
 function describePlace(row: StandingsRow, divisionName: string): string {
   return row.position === null

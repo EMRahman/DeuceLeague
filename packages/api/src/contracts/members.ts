@@ -27,6 +27,12 @@ export const Member = z
     rating_system: z.string().nullable().openapi({ example: "UTR" }),
     level: Level.nullable(),
     joined_on: z.iso.date().nullable(),
+    leaving_at: Timestamp.nullable().openapi({
+      description:
+        "When they said they are not playing next season at all, if they did. It takes every entry they held " +
+        "then out of next season's draft, singles and doubles, as if each had opted out; their results and " +
+        "outstanding matches stand. See `POST /v1/members/{id}/leave`.",
+    }),
     deleted_at: Timestamp.nullable().openapi({
       description: "When they were removed from the club's list. Their results remain.",
     }),
@@ -145,6 +151,48 @@ export const patch = createRoute({
     ...authProblems,
     ...notFoundProblem,
     ...conflictProblem("`email_taken`, or `member_removed`: a removed member cannot be changed."),
+  },
+});
+
+export const leave = createRoute({
+  method: "post",
+  path: "/v1/members/{id}/leave",
+  tags: ["Members"],
+  summary: "Say this member is not playing next season at all",
+  description:
+    "For a player who is leaving the league altogether, not only one competition: every entry they hold now, in " +
+    "singles and doubles, is left out of next season's draft with a sentence saying why, and a doubles partner is " +
+    "left needing a partner. Recorded once, as one event. It changes nothing about this season: their results " +
+    "and outstanding matches stand, and they can still report them. An entry made after they said it is not " +
+    "covered, so a player who changes their mind and is entered again is not caught by it. A player's session " +
+    "may do this for themselves; a key needs `league:write`, for a player who said so in person. Saying it twice " +
+    "keeps the first time. It is not leaving the club: that is `status: left` on the member.",
+  ...requires.orPlayerOwn("league:write"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The member, leaving.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+    ...conflictProblem("`member_removed`: a removed member cannot be changed."),
+  },
+});
+
+export const stay = createRoute({
+  method: "delete",
+  path: "/v1/members/{id}/leave",
+  tags: ["Members"],
+  summary: "Take back not playing next season at all",
+  description:
+    "Clears it, so the entries it covered are back in the reckoning for next season, except those that had " +
+    "opted out on their own: the opt-outs a player made one entry at a time are left as they were. Harmless " +
+    "if they never said it.",
+  ...requires.orPlayerOwn("league:write"),
+  request: { params: IdParam },
+  responses: {
+    200: { description: "The member, playing on.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+    ...conflictProblem("`member_removed`: a removed member cannot be changed."),
   },
 });
 
