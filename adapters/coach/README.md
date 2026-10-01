@@ -84,7 +84,10 @@ MIT-licensed.
   - **A draft's page** (`/coach/season/drafts/{id}`): each division's entries
     with why they are there and where they finished, to move or take out; last
     season's entries not carried over, with why, to add back; and the members
-    not in the draft, to add, or in doubles to pair.
+    not in the draft, to add, or in doubles to pair. In doubles it reads what
+    players said about next season's partners
+    (`GET /v1/competitions/{id}/partner-choices`): pairs who agreed wait to be
+    added, and anyone not playing is listed apart.
   - **Start** the season: activates it, then draws each division's matches
     (`POST /v1/divisions/{id}/fixtures`) and activates each draft.
 

@@ -1,6 +1,8 @@
 import { raw } from "hono/html";
 import type { FC, PropsWithChildren } from "hono/jsx";
 import {
+  AGE_GROUPS,
+  ageGroupLabel,
   CompetitionTables,
   Credit,
   deadlineLine,
@@ -9,6 +11,8 @@ import {
   STYLE,
   WeatherBox,
   type TablesProps,
+  GENDERS,
+  genderLabel,
   type VenueForecast,
   type Competition,
   type Match,
@@ -33,6 +37,10 @@ export type CoachMember = {
   phone?: string | null;
   level: number | null;
   signed_in_at: string | null;
+  status: "active" | "paused" | "left";
+  /** Personal: present only when this browser's key may read members' details. */
+  gender?: string | null;
+  age_group?: string | null;
 };
 
 /** Someone who asked to join on the club's form, waiting for the coach. */
@@ -42,6 +50,8 @@ export type JoinRequest = {
   surname: string;
   email: string | null;
   phone: string | null;
+  gender: string | null;
+  age_group: string | null;
   created_at: string;
   expires_at: string;
   /** A member already on the list with the same email address. */
@@ -73,6 +83,30 @@ const LevelSelect: FC<{ id: string; value: number | null }> = ({ id, value }) =>
       </option>
     ))}
   </select>
+);
+
+/** Gender and age group as two selects, the way the join form asks, so the coach can fill or correct them. */
+const PersonSelects: FC<{ id: string; gender: string | null; ageGroup: string | null }> = ({ id, gender, ageGroup }) => (
+  <>
+    <div class="field">
+      <label for={`gender-${id}`}>Gender</label>
+      <select id={`gender-${id}`} name="gender">
+        <option value="" selected={!gender}>Not recorded</option>
+        {GENDERS.map(([value, label]) => (
+          <option value={value} selected={gender === value}>{label}</option>
+        ))}
+      </select>
+    </div>
+    <div class="field">
+      <label for={`age-${id}`}>Age group</label>
+      <select id={`age-${id}`} name="age_group">
+        <option value="" selected={!ageGroup}>Not recorded</option>
+        {AGE_GROUPS.map(([value, label]) => (
+          <option value={value} selected={ageGroup === value}>{label}</option>
+        ))}
+      </select>
+    </div>
+  </>
 );
 
 /** "Sam K.": the name the API gives a new member unless the coach chooses another. */
@@ -708,6 +742,16 @@ function sentence(e: FeedEvent): string {
       return `${subject} opted out of next season`;
     case "entry.opt_out.cleared":
       return `${subject} opted back in to next season`;
+    case "partner_choice.recorded":
+      if (e.payload.choice === "leaving") return `${subject} is not playing doubles next season`;
+      if (e.payload.agreed) return `${subject} agreed a new doubles partner for next season`;
+      return e.payload.partner_id
+        ? `${subject} asked someone to be their doubles partner next season`
+        : `${subject} is looking for a new doubles partner for next season`;
+    case "partner_choice.cleared":
+      return `${subject} is keeping their doubles partner next season`;
+    case "partner_choice.declined":
+      return `${actor} said no to partnering ${subject} next season`;
     case "division.fixtures_generated":
       return `${actor} drew up the fixtures for ${subject}`;
     case "competition.placements_filled":
@@ -983,6 +1027,10 @@ export const Chase: FC<{
 export const Members: FC<{
   frame: Frame;
   members: CoachMember[];
+  /** Members who have left the club: their results stay, and they are not placed again. */
+  left: CoachMember[];
+  /** Active members in no competition under way or being drafted, to be placed in the next draft. Null when not worked out. */
+  waiting: CoachMember[] | null;
   /** Null when this browser's key may not read their details. */
   requests: JoinRequest[] | null;
   /** More are waiting behind these. */
@@ -991,7 +1039,7 @@ export const Members: FC<{
   done: string | null;
   addedId: string | null;
   timezone: string;
-}> = ({ frame, members, requests, moreRequests, done, addedId, timezone }) => (
+}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
     {done && (
@@ -1000,7 +1048,9 @@ export const Members: FC<{
         {addedId && (
           <>
             {" "}
-            Make them a sign-in link below, or they can sign in with their email if they gave one.
+            They will be placed in a division at the start of next season, from the draft on the{" "}
+            <a href="/coach/season">Season</a> tab; a running season is not changed. Make them a sign-in link below, or
+            they can sign in with their email if they gave one.
           </>
         )}
       </div>
@@ -1010,7 +1060,8 @@ export const Members: FC<{
         <h2>Asking to join</h2>
         <p class="muted">
           From the form at <a href="/join">/join</a>. Approve someone to add them to the club's list, or decline to
-          delete what they sent. A request nobody decides is deleted after 30 days.
+          delete what they sent. Approving does not put them in a running season: they are placed at the start of next
+          season. A request nobody decides is deleted after 30 days.
         </p>
         <div class="card">
           <ul class="list">
@@ -1021,6 +1072,11 @@ export const Members: FC<{
                 </strong>
                 <br />
                 <span class="muted">{[r.email, r.phone].filter(Boolean).join(" · ")}</span>
+                <br />
+                <span class="muted">
+                  {[genderLabel(r.gender), ageGroupLabel(r.age_group)].filter(Boolean).join(" · ") ||
+                    "No gender or age group given"}
+                </span>
                 <br />
                 <span class="muted">
                   Asked {at(r.created_at, timezone)} · deleted {at(r.expires_at, timezone)} if not decided
@@ -1037,6 +1093,7 @@ export const Members: FC<{
                     <label for={`level-${r.id}`}>Level</label>
                     <LevelSelect id={`level-${r.id}`} value={null} />
                   </div>
+                  <PersonSelects id={r.id} gender={r.gender} ageGroup={r.age_group} />
                   <button class="small" type="submit">
                     Approve
                   </button>
@@ -1053,9 +1110,28 @@ export const Members: FC<{
         {moreRequests && (
           <p class="muted">More are waiting. These are the oldest {requests.length}: decide them to see the next.</p>
         )}
-        <h2>On the club's list</h2>
       </>
     )}
+    {waiting && waiting.length > 0 && (
+      <>
+        <h2>Waiting to be placed</h2>
+        <p class="muted">
+          In no competition of a season under way or being prepared. Add them in the draft for next season, on the{" "}
+          <a href="/coach/season">Season</a> tab.
+        </p>
+        <div class="card">
+          <ul class="list">
+            {waiting.map((m) => (
+              <li class="answer">
+                <a href={`#member-${m.id}`}>{m.display_name}</a>
+                {m.level !== null && <span class="tag level">Level {m.level}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </>
+    )}
+    <h2>On the club's list</h2>
     <p>
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
       once, within 72 hours. Once signed in, a player stays signed in on that phone.
@@ -1077,6 +1153,7 @@ export const Members: FC<{
                 <span>
                   {m.display_name}
                   {m.level !== null && <span class="tag level">Level {m.level}</span>}
+                  {m.status === "paused" && <span class="tag">Paused</span>}
                   {m.email && <span class="muted"> · {m.email}</span>}
                   {m.phone && <span class="muted"> · {m.phone}</span>}
                   <br />
@@ -1101,10 +1178,49 @@ export const Members: FC<{
                   Save
                 </button>
               </form>
+              {m.gender !== undefined && (
+                <form class="approve" method="post" action={`/coach/members/${m.id}/details`}>
+                  <PersonSelects id={m.id} gender={m.gender} ageGroup={m.age_group ?? null} />
+                  <button class="quiet small" type="submit">
+                    Save
+                  </button>
+                </form>
+              )}
+              <form method="post" action={`/coach/members/${m.id}/left`}>
+                <button class="quiet small" type="submit">
+                  Left the club
+                </button>
+                <span class="muted"> Their results stay. They are not placed next season.</span>
+              </form>
             </li>
           ))}
         </ul>
       </div>
+    )}
+    {left.length > 0 && (
+      <>
+        <h2>Left the club</h2>
+        <p class="muted">
+          Their scores stay in past tables. They are left out of next season's draft and cannot be entered in a
+          competition. If one comes back, put them back in the club.
+        </p>
+        <div class="card">
+          <ul class="list">
+            {left.map((m) => (
+              <li class="answer" id={`member-${m.id}`}>
+                <div class="answer-row">
+                  <span>{m.display_name}</span>
+                  <form method="post" action={`/coach/members/${m.id}/back`}>
+                    <button class="quiet small" type="submit">
+                      Back in the club
+                    </button>
+                  </form>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </>
     )}
   </Layout>
 );

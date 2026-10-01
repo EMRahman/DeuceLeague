@@ -35,11 +35,11 @@ export function tooFewToStay(competition: LeagueCompetitionRecord, entries: Entr
 
 /** Shared placement/exclusion decision; persistence happens only after the complete plan exists. */
 export function placementSelections(target: LeagueCompetitionRecord, tables: { divisions: DivisionTable[] },
-  divisions: DivisionRecord[], previousEntries: EntryRecord[], removed: ReadonlySet<string>,
-  short: ReadonlyMap<string, { played: number; target: number }>) {
+  divisions: DivisionRecord[], previousEntries: EntryRecord[], gone: ReadonlyMap<string, "removed" | "left">,
+  short: ReadonlyMap<string, { played: number; target: number }>, breakingUp: ReadonlyMap<string, string> = new Map()) {
   const suggestions = suggestPlacements(tables.divisions.map(({ division, rows }) => ({ ordinal: division.ordinal, name: division.name, standings: rows })),
     RulesSpec.parse(target.rules).movement, divisions.map((d) => ({ ordinal: d.ordinal, name: d.name })),
-    new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)), short);
+    new Set(previousEntries.filter((e) => e.optedOutAt !== null).map((e) => e.id)), short, breakingUp);
   const before = new Map(previousEntries.map((e) => [e.id, e]));
   const selected: { source: EntryRecord; division: DivisionRecord; reason: "promoted" | "relegated" | "held";
     label: string; from: { division: number; position: number | null }; explanation: string }[] = [];
@@ -48,9 +48,10 @@ export function placementSelections(target: LeagueCompetitionRecord, tables: { d
     const source = before.get(s.entryId)!;
     if (s.to === null || s.reason === null) {
       notCarried.push({ previous_entry_id: s.entryId, label: s.label, explanation: s.explanation });
-    } else if (source.members.some((m) => removed.has(m.id))) {
+    } else if (source.members.some((m) => gone.has(m.id))) {
+      const removed = source.members.some((m) => gone.get(m.id) === "removed");
       notCarried.push({ previous_entry_id: s.entryId, label: s.label,
-        explanation: `${s.explanation} Not carried over: a member has since been removed from the club.` });
+        explanation: `${s.explanation} Not carried over: a member has since ${removed ? "been removed from" : "left"} the club.` });
     } else {
       const division = divisions.find((d) => d.ordinal === s.to);
       if (!division) throw new Error("Placement engine selected a missing division");

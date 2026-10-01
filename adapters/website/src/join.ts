@@ -11,14 +11,27 @@
  * GDPR; a club elsewhere, or one that changes the notice's words, gives it a
  * new name here, so each member's record says which one they agreed to.
  */
-export const PRIVACY_NOTICE = "uk-2026-09-30";
+export const PRIVACY_NOTICE = "uk-2026-10-01";
 
 /** Quicker than this, the form was not filled in by a person. */
 export const MIN_FILL_MS = 3_000;
 /** Older than this, the page has sat open too long: it is shown again, to send afresh. */
 export const MAX_FILL_MS = 86_400_000;
 
-export type JoinForm = { first_name: string; surname: string; email: string; phone: string; privacy: boolean };
+/** The genders the club records, as the form words them. Gender decides which competitions someone can be placed in. */
+export const GENDERS = [
+  ["female", "Female"], ["male", "Male"], ["other", "Other"], ["undisclosed", "Prefer not to say"],
+] as const;
+/** The age bands the club records, as the form words them. Never a birth date. */
+export const AGE_GROUPS = [
+  ["under_18", "Under 18"], ["18_34", "18 to 34"], ["35_49", "35 to 49"], ["50_64", "50 to 64"], ["65_plus", "65 or over"],
+] as const;
+export const genderLabel = (value: string | null | undefined) => GENDERS.find(([v]) => v === value)?.[1] ?? null;
+export const ageGroupLabel = (value: string | null | undefined) => AGE_GROUPS.find(([v]) => v === value)?.[1] ?? null;
+
+export type JoinForm = {
+  first_name: string; surname: string; email: string; phone: string; gender: string; age_group: string; privacy: boolean;
+};
 
 const bytes = new TextEncoder();
 const hex = (buffer: ArrayBuffer) => Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -49,6 +62,8 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
     surname: text("surname"),
     email: text("email"),
     phone: text("phone"),
+    gender: text("gender"),
+    age_group: text("age_group"),
     privacy: form.privacy === "yes",
   };
   const problems: string[] = [];
@@ -62,6 +77,8 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
   if (values.phone && !/^\+?[0-9][0-9 ()-]{5,23}$/.test(values.phone)) {
     problems.push("A phone number has digits, and may start with +, such as 07700 900123 or +44 7700 900123.");
   }
+  if (!GENDERS.some(([v]) => v === values.gender)) problems.push("Choose your gender, or say you would rather not.");
+  if (values.age_group && !AGE_GROUPS.some(([v]) => v === values.age_group)) problems.push("Choose one of the age groups, or leave it blank.");
   if (!values.privacy) problems.push("Tick the box to say you have read the privacy notice.");
   return { values, problems };
 }

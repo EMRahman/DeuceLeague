@@ -100,6 +100,9 @@ A link works once, within 72 hours.
 2. **As Bailey,** in the private window: agree Alex's score from the home page.
 3. **As either:** the match now shows as played, and the singles table has
    changed.
+4. **As Bailey,** open **Tables** and then **Sample doubles**. Under
+   **Next season**, Sample Indy has asked Bailey to be their partner. Press
+   **Agree**.
 
 That's the league: players report and agree, the tables follow, and the coach
 hands out links.
@@ -116,7 +119,10 @@ hands out links.
    expected, such as Sample Casey, with a line saying so.
 3. Open the singles draft. Move anyone, take them out, add back anyone left
    out, and add **Sample Umi** and **Sample Val**, who played no singles last
-   season. In the doubles draft, make them a pair.
+   season. In the doubles draft, the pairs whose players asked each other
+   (Harper and Parker, and Indy and Bailey) wait to be added. Sample Taylor
+   said they are not playing. Pair Umi and Val, and anyone else without a
+   partner.
 4. Press **Start Sample season 2**. Every division gets its matches, and the
    players see the new tables.
 

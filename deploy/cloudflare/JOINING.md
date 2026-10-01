@@ -5,8 +5,9 @@ Anyone can ask to join the league at `/join` on your site, for example
 however you like: on the club's website, a poster's QR code, or WhatsApp. The
 sign-in page links to it too, as "Ask to join the league".
 
-The form asks for a first name, a surname, and an email address, a phone number
-or both. It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
+The form asks for a first name, a surname, an email address, a phone number or
+both, a gender (female, male, other, or prefer not to say) and, if they wish, an
+age group (under 18, 18 to 34, 35 to 49, 50 to 64, 65 or over). It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
 and asks the person to tick that they have read it.
 
 Nobody is a member until you approve them. Until then, they are only a request.
@@ -19,10 +20,19 @@ they gave. It also warns you if a member already has the same email address.
 
 - **Approve** adds them to the club's list, under the name they play under
   (their first name and initial, such as "Robin H.", unless you change it) and
-  the level you choose. You can then make them a **Sign-in link**. If they gave
+  the level you choose, with the gender and age group they gave, which you can
+  change before approving or later on the Members page. You can then make them
+  a **Sign-in link**. If they gave
   an email address and [sign-in emails](EMAIL.md) are set up, they can also
   sign in with that.
 - **Decline** deletes the request and everything they sent. They are not told.
+
+Approving someone does **not** put them in a competition that is already
+running. They are listed under **Waiting to be placed** on Members, and you
+place them in the draft for next season (the **Season** tab), where the newcomers
+are offered with the level you gave them. A player who leaves the club is marked
+**Left the club** on Members: their results stay in past tables and they are not
+placed again, and **Back in the club** undoes it.
 
 A request nobody decides is deleted after 30 days, by a job the Worker runs
 every hour. Keep the `triggers` entry in `wrangler.jsonc` that runs it. The
@@ -107,8 +117,10 @@ The form's [privacy notice](../../adapters/website/src/views.tsx) (the
 `Privacy` page, at `/privacy`) is written for a club in the UK, under UK GDPR
 and the Data Protection Act 2018. It says:
 
-- who holds the details (the club), and what it holds;
-- why: to run the league the person asked to join. That is a contract, so it
+- who holds the details (the club), and what it holds, including the gender and
+  the optional age group the form asks for;
+- why: to run the league the person asked to join, including entering them in
+  the right men's, women's or mixed competitions. That is a contract, so it
   needs no consent box;
 - who sees what (other players see only the name they play under and their
   results), and that Cloudflare hosts it and runs Turnstile;
