@@ -541,6 +541,8 @@ test("the coach ends the sample season early and starts the next from its final 
   const without = await coach.get(`/coach/season/drafts/${singles.id}`);
   assert.match(without.html, /Sample Drew<br\/><span class="muted">Taken out of the draft/);
   assert.match(without.html, /Sample Casey<br\/><span class="muted">Played 3 of the 4 matches needed to keep a place/);
+  // Short only because a match was never played, which the draft says, and against whom.
+  assert.match(without.html, /Sample Casey<br\/><span class="muted">Played 3 of the 4 matches needed to keep a place\. Short only because 1 match was never played \(against Sample \w+\)/);
   const gray = (await f.api(`/v1/competitions/${singles.previous_competition_id}/entries`, f.admin)).body.data
     .find((e: { label: string }) => e.label === "Sample Gray");
   assert.equal((await coach.post(`/coach/season/drafts/${singles.id}/entries`,

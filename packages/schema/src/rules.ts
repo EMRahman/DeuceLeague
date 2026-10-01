@@ -156,7 +156,9 @@ export const DEFAULT_RULES: RulesSpec = {
   // Level on points: games difference first, then who won when they met.
   tiebreaks: ["points", "game_difference", "head_to_head", "set_difference", "matches_won"],
   movement: { promote: 3, relegate: 3, minMatchesForPromotion: 2 },
-  withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" },
+  // The fixtures a withdrawn entry never played go to its opponents as walkovers, so someone whose opponent
+  // withdrew is not left short of the minimum for it. A club that disagrees sets `unplayed`.
+  withdrawal: { playedMatches: "keep", remainingMatches: "walkover_to_opponent" },
   minMatchesForRanking: 0,
   minMatchesToPlay: 4,
   walkoverScore: "nominal",

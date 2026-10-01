@@ -53,12 +53,17 @@ export type Tally = {
   /**
    * Matches this entry took the court for, or turned up ready to: a completed
    * or retired match counts for both sides, a walkover or concession only for
-   * the side that was there.
+   * the side that was there. A player whose opponent did not turn up is
+   * credited the match, so a no-show never leaves them short.
    */
   played: number;
   won: number;
   lost: number;
-  /** Matches never played, each worth rules.points.unplayedBoth to both sides. */
+  /**
+   * Matches never played, each worth rules.points.unplayedBoth to both sides; and
+   * walkovers this entry gave away, which are worth rules.points.walkoverLoss to it
+   * and count as a loss to nobody.
+   */
   unplayed: number;
   /** Matches not yet in the ledger. They count for nothing until they are. */
   outstanding: number;
@@ -80,7 +85,10 @@ export type MatchPoints = {
   matchId: string;
   opponentId: string;
   result: "won" | "lost" | "unplayed";
-  /** Null for a match that never happened. */
+  /**
+   * Null for a match that never happened, settled unplayed. A walkover is `walkover` on
+   * both lines: `won` for the side that turned up, `unplayed` for the one that did not.
+   */
   outcome: Exclude<MatchOutcome, "unplayed"> | null;
   points: number;
   items: { for: PointsFor; points: number }[];
@@ -135,7 +143,8 @@ export function computeStandings(input: StandingsInput): StandingsRow[] {
     const lines = ([0, 1] as const).map((i): MatchPoints => ({
       matchId: match.id,
       opponentId: ids[i === 0 ? 1 : 0],
-      result: result.kind === "unplayed" ? "unplayed" : result.winner === i ? "won" : "lost",
+      result: result.kind === "unplayed" ? "unplayed"
+        : result.winner === i ? "won" : result.outcome === "walkover" ? "unplayed" : "lost",
       outcome: result.kind === "unplayed" ? null : result.outcome,
       points: 0,
       items: [],
@@ -275,7 +284,9 @@ function apply(result: Decided, sides: [Tally, Tally], input: StandingsInput, aw
   const loser = sides[loserSide];
   winner.won += 1;
   award(result.winner, "result", forWinner);
-  loser.lost += 1;
+  // A walkover given away is a match this side never played, not one it lost: the other side was there.
+  if (result.outcome === "walkover") loser.unplayed += 1;
+  else loser.lost += 1;
   award(loserSide, "result", forLoser);
 
   if (result.outcome === "walkover" || result.outcome === "conceded") {

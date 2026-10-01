@@ -216,8 +216,33 @@ test("a walkover counts as played only for the side that turned up, and scores t
   // Two sets to love in this format, so 12 games to none: a walkover counts in
   // the set and game tiebreaks, as the club's rules now say by default.
   assert.deepEqual([a.points, a.won, a.played, a.setsWon, a.gamesWon], [3, 1, 1, 2, 12]);
-  assert.deepEqual([b.points, b.lost, b.played, b.setsLost, b.gamesLost], [0, 1, 0, 2, 12]);
+  // The side that did not turn up never played it, and lost nothing to anyone: it is unplayed for them.
+  assert.deepEqual([b.points, b.lost, b.unplayed, b.played, b.setsLost, b.gamesLost], [0, 0, 1, 0, 2, 12]);
+  assert.deepEqual([a.lost, a.unplayed], [0, 0]);
   assert.deepEqual([a.setsLost, a.gamesLost, b.setsWon, b.gamesWon], [0, 0, 0, 0]);
+});
+
+test("a walkover is the present side's win and played match, and the absent side's unplayed one, on both lines", () => {
+  const rows = table({ entries: entries("A", "B"), matches: [walkover("A", "B", 1)] });
+  assert.deepEqual(row(rows, "A").matches.map((m) => [m.result, m.outcome, m.points]), [["won", "walkover", 3]]);
+  assert.deepEqual(row(rows, "B").matches.map((m) => [m.result, m.outcome, m.points]), [["unplayed", "walkover", 0]]);
+  // A concession is not a no-show: the side that gave up still lost.
+  const conceded = table({ entries: entries("A", "B"), matches: [{ ...walkover("A", "B", 1), outcome: "conceded" }] });
+  assert.deepEqual([row(conceded, "B").lost, row(conceded, "B").unplayed], [1, 0]);
+});
+
+test("a club that penalises a walkover given away still can: walkoverLoss applies to the side that did not turn up", () => {
+  const rules: RulesSpec = { ...FLAT, points: { ...FLAT.points, walkoverLoss: -1 } };
+  const rows = table({ entries: entries("A", "B"), matches: [walkover("A", "B", 1)], rules });
+  assert.deepEqual([row(rows, "A").points, row(rows, "B").points, row(rows, "B").unplayed], [3, -1, 1]);
+});
+
+test("opponents' no-shows leave nobody short: the player who turned up is credited each match", () => {
+  const rows = table({ entries: entries("A", "B", "C", "D"),
+    matches: [walkover("A", "B", 1), walkover("A", "C", 1), walkover("A", "D", 1)] });
+  // Three fixtures and three played, though A never hit a ball.
+  assert.deepEqual([row(rows, "A").played, row(rows, "A").won], [3, 3]);
+  assert.deepEqual(["B", "C", "D"].map((id) => [row(rows, id).played, row(rows, id).unplayed]), [[0, 1], [0, 1], [0, 1]]);
 });
 
 test("a club can say a walkover moves no sets or games", () => {
@@ -263,10 +288,22 @@ test("an entry that played too few is listed after the ranked ones, unranked", (
   assert.equal(row(rows, "D").separatedBy, null, "the top of its own group");
 });
 
-test("a withdrawal, by default: results already played stand, the rest go unplayed", () => {
+test("a withdrawal, by default: results already played stand, and the rest are walkovers to the opponents", () => {
   const rows = table({
     entries: [...entries("A", "B"), { id: "C", label: "C", withdrawn: true }],
     matches: [played("A", "C", "6-0 6-0"), open("B", "C"), open("A", "B")],
+  });
+  assert.equal(DEFAULT_RULES.withdrawal.remainingMatches, "walkover_to_opponent");
+  // B never played C, who left, but is credited the match: points, a win, and a match played.
+  assert.deepEqual([row(rows, "B").points, row(rows, "B").won, row(rows, "B").played, row(rows, "B").unplayed], [3, 1, 1, 0]);
+  assert.deepEqual([row(rows, "C").standing, row(rows, "C").position], ["withdrawn", null]);
+});
+
+test("a withdrawal, when a club leaves the rest unplayed: results already played stand, the rest go unplayed", () => {
+  const rows = table({
+    entries: [...entries("A", "B"), { id: "C", label: "C", withdrawn: true }],
+    matches: [played("A", "C", "6-0 6-0"), open("B", "C"), open("A", "B")],
+    rules: { ...FLAT, withdrawal: { playedMatches: "keep", remainingMatches: "unplayed" } },
   });
   assert.deepEqual(order(rows), ["A", "B", "C"]);
   assert.equal(row(rows, "A").points, 3, "the win over C stands");

@@ -556,6 +556,11 @@ export function createWebsite(options: WebsiteOptions) {
     const answer: ToAnswer[] = [];
     const toPlay: MyMatch[] = [];
     const waiting: Waiting[] = [];
+    // Entries that have withdrawn: the rules have already settled their fixtures for the tables, so nobody is
+    // asked to play or report them, though the matches are still open.
+    const withdrawn = new Set(
+      tables.flatMap(({ table }) => table.divisions.flatMap((d) => d.rows.filter((r) => r.standing === "withdrawn").map((r) => r.entry_id))),
+    );
     const closed: MyMatch[] = [];
     const played: (MyMatch & { on: string })[] = [];
     for (const m of matches) {
@@ -566,11 +571,13 @@ export function createWebsite(options: WebsiteOptions) {
       const opponent = names[mine === 0 ? 1 : 0];
       const item = (note: string): MyMatch => ({ id: m.id, competition: competition.name, opponent, note });
       if (m.status === "played" && m.result) {
-        const outcome = m.result.winning_side === mine ? "Won" : m.result.winning_side === null ? "" : "Lost";
+        // Not turning up to a walkover is a match not played, not one lost: the table counts it that way.
+        const absent = m.result.outcome === "walkover" && m.result.retired_side === mine;
+        const outcome = absent ? "" : m.result.winning_side === mine ? "Won" : m.result.winning_side === null ? "" : "Lost";
         const result = [outcome, describe(m.result, mine, names)].filter(Boolean).join(" ");
         const date = shortDate(m.result.played_on);
         played.push({ ...item(date ? `${date} · ${result}` : result), on: m.result.played_on ?? "" });
-      } else if (competition.state !== "active") {
+      } else if (competition.state !== "active" || m.sides.some((s) => s.entry_id !== null && withdrawn.has(s.entry_id))) {
         continue;
       } else if (deadlinePassed(seasonOf.get(competition.id)?.results_deadline_at ?? null, now)) {
         const note = m.status === "open" ? "not reported" : m.status === "disputed" ? "scores differ" : "not agreed";

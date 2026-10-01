@@ -80,6 +80,58 @@ test("withdrawal policies and changed scoring rules take effect without rewritin
   assert.ok(changed.points >= 20);
 });
 
+test("by default a withdrawn entry's fixtures are walkovers to its opponents, who are credited a match played", async (t) => {
+  const f = await playing(t, 3);
+  const comp = (await send(f, `/v1/competitions/${f.ids.competition}`)).body;
+  assert.equal(comp.rules.withdrawal.remainingMatches, "walkover_to_opponent");
+  await send(f, `/v1/entries/${f.entries[2]}`, "PATCH", { state: "withdrawn" });
+  const rows = (await send(f, `/v1/competitions/${f.ids.competition}/standings`)).body.divisions[0].rows;
+  const of = (i: number) => rows.find((r: any) => r.entry_id === f.entries[i]);
+  // Each opponent never played the withdrawn entry, and is credited the match: points, a win, and a match played.
+  for (const i of [0, 1]) assert.deepEqual([of(i).played, of(i).won, of(i).unplayed, of(i).points > 0], [1, 1, 0, true], `entry ${i}`);
+  assert.deepEqual([of(2).standing, of(2).played, of(2).lost, of(2).unplayed], ["withdrawn", 0, 0, 2]);
+  assert.deepEqual(of(2).matches.map((m: any) => [m.result, m.outcome]), [["unplayed", "walkover"], ["unplayed", "walkover"]]);
+});
+
+test("a match nobody turned up to credits the player who did, and one settled unplayed says who it leaves short", async (t) => {
+  const f = await playing(t, 4);
+  const [a, b, c, d] = f.entries as [string, string, string, string];
+  for (const [w, l] of [[a, c], [a, d], [b, c], [b, d]] as const) await beat(f, f.entries.indexOf(w), f.entries.indexOf(l));
+  const matches = (await f.send(`/v1/matches?competition_id=${f.ids.competition}&status=open`)).body.data;
+  const ab = matches.find((m: any) => m.sides.some((s: any) => s.entry_id === a) && m.sides.some((s: any) => s.entry_id === b));
+  const rows = async () => (await send(f, `/v1/competitions/${f.ids.competition}/standings`)).body.divisions[0].rows;
+  const row = async (id: string) => (await rows()).find((r: any) => r.entry_id === id);
+
+  // Unplayed credits neither: both have played 2 of their 3 fixtures, and nothing is left to play.
+  const unplayed = await send(f, `/v1/matches/${ab.id}/settle`, "POST", { outcome: "unplayed" });
+  assert.equal(unplayed.status, 201, JSON.stringify(unplayed.body));
+  assert.deepEqual(unplayed.body.short_of_minimum.map((x: any) => [x.entry_id, x.label, x.played, x.target, x.still_possible]),
+    [[a, "Player 0", 2, 3, false], [b, "Player 1", 2, 3, false]]);
+  assert.deepEqual([(await row(a)).played, (await row(a)).unplayed], [2, 1]);
+
+  // Settled instead as B not turning up: A is credited, B's row counts it as unplayed, and nobody is reported short.
+  const side = ab.sides.findIndex((x: any) => x.entry_id === b);
+  const walkover = await send(f, `/v1/matches/${ab.id}/settle`, "POST", { outcome: "walkover", retired_side: side, override: true });
+  assert.equal(walkover.status, 201, JSON.stringify(walkover.body)); assert.deepEqual(walkover.body.short_of_minimum, []);
+  const [ra, rb] = [await row(a), await row(b)];
+  assert.deepEqual([ra.played, ra.won, ra.unplayed], [3, 3, 0]);
+  assert.deepEqual([rb.played, rb.lost, rb.unplayed, rb.points], [2, 0, 1, rb.points]);
+  assert.equal(rb.matches.find((m: any) => m.match_id === ab.id).result, "unplayed");
+});
+
+test("a fixture against a withdrawn entry is not a match still to play when settling says who could still reach the minimum", async (t) => {
+  const f = await playing(t, 3);
+  const [a, b, c] = f.entries as [string, string, string];
+  await send(f, `/v1/entries/${c}`, "PATCH", { state: "withdrawn" });
+  const all = (await f.send(`/v1/matches?competition_id=${f.ids.competition}`)).body.data as any[];
+  const ab = all.find((m) => m.sides.every((s: any) => [a, b].includes(s.entry_id)));
+  // A–C and B–C are still open, but already credited to A and B: nothing is left for either to play.
+  const settled = await send(f, `/v1/matches/${ab.id}/settle`, "POST", { outcome: "unplayed" });
+  assert.equal(settled.status, 201, JSON.stringify(settled.body));
+  assert.deepEqual(settled.body.short_of_minimum.map((x: any) => [x.entry_id, x.played, x.target, x.still_possible]),
+    [[a, 1, 2, false], [b, 1, 2, false]]);
+});
+
 test("progress rolls up divisions, counts disputes once and computes entry totals and percentages", async (t) => {
   const f = await playing(t, 3); await beat(f, 0, 1);
   const remaining = (await f.send(`/v1/matches?competition_id=${f.ids.competition}&status=open`)).body.data;
