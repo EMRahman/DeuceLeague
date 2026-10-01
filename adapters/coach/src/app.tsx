@@ -69,8 +69,11 @@ const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:
  */
 const LINK_HOURS = 72;
 
-/** What these pages need now: reading the league, the member list, and making sign-in links. */
-const NEEDED = ["league:read", "members:read", "members:write"];
+/**
+ * What these pages need now: reading the league, the member list, and making sign-in links, and
+ * writing the league for the Season tab, which ends and starts seasons and moves players.
+ */
+const NEEDED = ["league:read", "league:write", "members:read", "members:write"];
 
 /**
  * How many unagreed matches the results page reads in full. Each costs D1
@@ -566,8 +569,8 @@ export function createCoachSite(options: CoachOptions) {
     } else if (!NEEDED.every((s) => held.includes(s))) {
       return signIn(
         c,
-        "This key cannot read the league, list members or make sign-in links. It needs league:read, " +
-          "members:read and members:write.",
+        "This key cannot read and change the league, list members or make sign-in links. It needs league:read, " +
+          "league:write, members:read and members:write.",
         403,
       );
     }
@@ -674,11 +677,20 @@ export function createCoachSite(options: CoachOptions) {
     });
   }
 
+  /** A message if the season still has a competition not started: ending it would leave that behind for good. */
+  async function unstarted(key: string, season: Season): Promise<string | null> {
+    const drafts = await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=draft`, key);
+    return drafts.length === 0 ? null : `${season.name} still has ${drafts.map((d) => d.name).join(" and ")} not started. ` +
+      "Start it first, or it would be left behind in a season that has ended.";
+  }
+
   app.get("/season/:id/end", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const season = await seasonOf(who.key, c.req.param("id"));
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
+    const blocked = await unstarted(who.key, season);
+    if (blocked) return seasonPage(c, who, null, blocked);
     const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
     return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} />);
   });
@@ -688,6 +700,8 @@ export function createCoachSite(options: CoachOptions) {
     if (!who) return c.redirect("/coach", 303);
     const season = await seasonOf(who.key, c.req.param("id"));
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
+    const blocked = await unstarted(who.key, season);
+    if (blocked) return seasonPage(c, who, null, blocked);
     const take = allowance();
     // Reporting closes first, so no score arrives while the competitions close.
     if (season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now()) {
@@ -816,6 +830,12 @@ export function createCoachSite(options: CoachOptions) {
     const form = await c.req.parseBody();
     const members = [form.member, form.partner].filter((m) => typeof m === "string" && m !== "") as string[];
     const previous = typeof form.previous_entry_id === "string" && form.previous_entry_id ? form.previous_entry_id : null;
+    // A page left open while the season started must not add someone after the matches were drawn.
+    if (!(await draftOf(who.key, id))) return notADraft(c, who);
+    if (members.length === 2 && members[0] === members[1]) {
+      return c.html(<Problem frame={seasonFrame(who)} title="Not changed" detail="A pair needs two different players."
+        back={{ href: `/coach/season/drafts/${encodeURIComponent(id)}`, label: "Back to the draft" }} />, 400);
+    }
     try {
       await api("POST", `/v1/competitions/${encodeURIComponent(id)}/entries`, who.key, {
         division_id: String(form.division_id ?? ""), member_ids: members,
@@ -858,9 +878,10 @@ export function createCoachSite(options: CoachOptions) {
       await api("PATCH", `/v1/seasons/${season.id}`, who.key, { state: "active" });
     }
     for (const draft of await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=draft`, who.key)) {
-      if (!take()) return again(c);
       const { data } = await api<{ data: Division[] }>("GET", `/v1/competitions/${draft.id}/divisions`, who.key);
-      if (!take(data.length + 1)) return again(c);
+      // The read, a fixtures call a division and the opening, counted together: a fresh request is
+      // always allowed what it asks, so a draft with many divisions still gets through.
+      if (!take(data.length + 2)) return again(c);
       for (const division of data) await api("POST", `/v1/divisions/${division.id}/fixtures`, who.key);
       await api("PATCH", `/v1/competitions/${draft.id}`, who.key, { state: "active" });
     }
