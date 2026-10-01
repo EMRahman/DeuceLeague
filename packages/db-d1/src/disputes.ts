@@ -15,12 +15,14 @@ export type DisputeSide = { matchId: string; seasonState: string; side: 0 | 1; m
  */
 export async function readDisputeHistory(db: D1Database, hash: string, kind: CredentialKind) {
   const identity = await readIdentity(db, hash, kind, null, [
-    db.prepare(`SELECT e.subject_id AS match_id, e.type, e.payload FROM event e
+    // In the feed's own order, (transaction, event) in event_position: history imported from another
+    // database arrives out of order, so the local id does not say what came first.
+    db.prepare(`SELECT e.subject_id AS match_id, e.type, e.payload FROM event e JOIN event_position p ON p.local_id = e.id
       WHERE e.club_id = (SELECT id FROM club WHERE singleton = 1) AND e.subject_type = 'match'
         AND e.type IN ('match.disputed', 'match.claim.reported', 'match.claim.accepted', 'match.result.confirmed')
         AND e.subject_id IN (SELECT d.subject_id FROM event d
           WHERE d.club_id = (SELECT id FROM club WHERE singleton = 1) AND d.type = 'match.disputed')
-      ORDER BY e.subject_id, e.id`),
+      ORDER BY e.subject_id, p.tx_id, p.event_id`),
     db.prepare(`SELECT m.id AS match_id, s.state AS season_state, ms.side_index, mb.id AS member_id, mb.display_name
       FROM match m JOIN competition c ON c.id = m.competition_id JOIN season s ON s.id = c.season_id
       JOIN match_side ms ON ms.match_id = m.id JOIN entry_member em ON em.entry_id = ms.entry_id
