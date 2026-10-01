@@ -15,7 +15,7 @@ Scripts and per-checkpoint briefings are kept outside the repo (`.wrangler/sim-s
 | Disputed | 7 (6 scripted, 1 forced for the persona), 0 self-resolved, all settled or left by the coach | 9 scripted, 2 self-resolved, rest settled by the coach |
 | Never answered | 11 | 9 |
 | Settled by the coach (agent) | 36 calls | 27 calls |
-| Requests | 1,642 (32 non-2xx) | 972 (22 non-2xx); no 5xx anywhere |
+| Responses logged | 1,642 (95 redirects, 32 client errors, 0 server errors) | 972 (37 redirects, 22 client errors, 0 server errors) |
 
 Time taken: about 1 h 20 min from worktree to season-3 draft. The request log spans 50 minutes; the engine itself takes seconds per simulated week, and most of the wall time was the coach agent (8 minutes each at the season ends).
 Checkpoints run: after weeks 1, 5, 9, season 1's end, season 2's start, plus coach-only runs at season 2's week 5 and end. Season 3 is in draft (season `planning`, five competitions `draft`); it was not started.
@@ -91,7 +91,7 @@ No 5xx, no stack trace, no timing above about 200 ms in `wrangler dev`.
 - **Standings**: for every division of every competition (10 competitions, 122 rows at the end), points, played, won, lost, unplayed, outstanding, sets, games and position match an independent computation from `GET /v1/matches` and each competition's rules. 0 mismatches, run after every checkpoint. The season 1 tables were final (complete competitions) when checked.
 - **Placements** (`verify-drafts`): season 1 to 2: 56 placements; season 2 to 3: 50. No opted-out entry was placed, no left member placed, no member in two entries of one competition. The only reason mismatches were the hand-moved entries (5 and 2), see pain point 3. I did not get to see the engine's unedited suggestion after the coach edited it, so promotion and relegation correctness is checked against the code, not the pre-edit draft.
 - **Stuck matches**: season 1 ended with 0 reported and 0 disputed; 16 open fixtures left knowingly by the coach, 3 settled unplayed. Season 2 ended with 0 open.
-- **`Cache-Control: no-store`**: all 2,615 logged requests (API and player/coach pages, including 4xx, 3xx and `/healthz`, `/openapi.json`, `/join`, `/manifest.webmanifest`, `/icon.svg`) carried it.
+- **`Cache-Control: no-store`**: all 2,614 logged responses (API and player/coach pages, including the 3xx and 4xx ones) carried it. One logged attempt, line 732 of `request-log.jsonl` (a coach-agent `GET` sent with a body, rejected client-side with "Request with GET/HEAD method cannot have body"), never got a response, so it has no header to check; it is the 2,615th line. Seven public routes (`/healthz`, `/openapi.json`, `/v1/me` unauthenticated, `/login`, `/join`, `/manifest.webmanifest`, `/icon.svg`) were probed separately with `curl` after the run and also carried it; those probes are not in the log.
 - **`wrangler dev` output**: no errors, no stack traces, no secrets or links (join requests log only "join request received"), slowest request about 200 ms. The only warning is the expected "scheduled workers are not triggered locally".
 
 ## 6. Limits of this simulation
