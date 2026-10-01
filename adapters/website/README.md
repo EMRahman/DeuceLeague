@@ -2,7 +2,8 @@
 
 What a club's players use, out of the box: they sign in with a link emailed
 to them, see their matches and the tables, report scores and agree their
-opponents' — and say they are not playing next season. Server-rendered HTML
+opponents' — and say they are not playing next season or, in doubles, who they
+want as their partner. Server-rendered HTML
 with no scripts, so it works on any phone.
 
 It is built for the four things a player comes to do, each a tap or two from

@@ -62,6 +62,18 @@ const COURTS = [
 /** Opted out of next season: the bottom of the top division, and the middle of the bottom one. */
 const OPTED_OUT = new Set(["Gray", "Morgan"]);
 
+/**
+ * What doubles players have said about next season: Harper and Parker have agreed to pair up,
+ * Taylor is not playing, and Indy has asked Bailey, who has not answered yet, for someone trying
+ * the site as Bailey to agree to.
+ */
+const PARTNERS: { member: string; choice: "leaving" | "new_partner"; partner: string | null; agreed: boolean }[] = [
+  { member: "Harper", choice: "new_partner", partner: "Parker", agreed: true },
+  { member: "Parker", choice: "new_partner", partner: "Harper", agreed: true },
+  { member: "Taylor", choice: "leaving", partner: null, agreed: false },
+  { member: "Indy", choice: "new_partner", partner: "Bailey", agreed: false },
+];
+
 /** A deliberately fictional, new-installation-only league. No mail or I/O here. */
 export function installationSample(clubId: string, timezone: string, now: Date,
   emails: { alex: string | null; bailey: string | null }): InstallationSample {
@@ -96,10 +108,12 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   add({ type: "season", create: true, record: season }, { name: season.name });
 
   let played = 0;
+  let doubles = "";
   for (const [discipline, lineups] of [["singles", SINGLES], ["doubles", DOUBLES]] as const) {
     const competition = { ...base(), seasonId: season.id, name: `Sample ${discipline}`, discipline, category: "open",
       matchFormat: FORMAT, rules: RULES, sequenceInSeason: 1, previousCompetitionId: null, state: "active", visibility: "members" };
     add({ type: "competition", create: true, record: competition }, { name: competition.name, season_id: season.id });
+    if (discipline === "doubles") doubles = competition.id;
     lineups.forEach((division, d) => {
       const record = { ...base(), competitionId: competition.id, ordinal: d + 1, name: `Division ${d + 1}`, targetSize: division.length };
       add({ type: "division", create: true, record }, { competition_id: competition.id, ordinal: record.ordinal, name: record.name });
@@ -150,6 +164,12 @@ export function installationSample(clubId: string, timezone: string, now: Date,
   }
   for (const entry of sample.entries) if (entry.optedOutAt) sample.events.push({ type: "entry.opt_out.recorded",
     subjectType: "entry", id: entry.id, payload: { competition_id: entry.competitionId } });
+  const said = at(2);
+  const partners = PARTNERS.map((p) => ({ clubId, competitionId: doubles, memberId: byName.get(p.member)!.id, choice: p.choice,
+    partnerId: p.partner ? byName.get(p.partner)!.id : null, confirmedAt: p.agreed ? said : null, createdAt: said, updatedAt: said }));
+  sample.changes.push({ type: "partnerChoices", records: partners });
+  for (const r of partners) sample.events.push({ type: "partner_choice.recorded", subjectType: "member", id: r.memberId,
+    payload: { competition_id: doubles, choice: r.choice, partner_id: r.partnerId, agreed: r.confirmedAt !== null } });
   return sample;
 }
 

@@ -181,3 +181,21 @@ test("someone who played too few to keep a place is not carried over, takes nobo
   // Their places go to the next in line: b2 and b3 go up, a3 and a4 go down.
   assert.deepEqual([s.b2!.reason, s.b3!.reason, s.a3!.reason, s.a4!.reason], ["promoted", "promoted", "relegated", "relegated"]);
 });
+
+test("a pair breaking up is left out, told why, and takes nobody's place with it", () => {
+  const s = byId(
+    suggestPlacements(
+      [division(1, ["a1", "a2", "a3", "a4"]), division(2, ["b1", "b2", "b3", "b4"])],
+      movement,
+      divisions(2),
+      new Set(),
+      new Map(),
+      new Map([["b1", "Sam asked for a new partner"], ["a3", "Kim is not playing next season"]]),
+    ),
+  );
+  assert.deepEqual([s.b1?.to, s.b1?.reason], [null, null]);
+  assert.equal(s.b1?.explanation, "1st in Division 2, but Sam asked for a new partner, so the pair is not carried over. " +
+    "Add them back if they stay together.");
+  assert.deepEqual(["b2", "b3"].map((id) => s[id]?.reason), ["promoted", "promoted"], "the two below b1 go up in its place");
+  assert.deepEqual([s.a3?.to, s.a4?.reason, s.a2?.reason], [null, "relegated", "relegated"], "and a2 goes down in a3's");
+});

@@ -33,7 +33,8 @@ export const Placements = z
     placed: z.array(Placed),
     not_carried: z.array(NotCarried).openapi({
       description:
-        "Entries left out: opted out of this competition, withdrawn last time, short of the previous " +
+        "Entries left out: opted out of this competition, a doubles pair breaking up (a player not playing, or " +
+        "wanting a new partner: see partner choices), withdrawn last time, short of the previous " +
         "competition's minimum number of matches, or with a member since removed from the club.",
     }),
   })
@@ -49,7 +50,8 @@ export const fill = createRoute({
     "finished last time is entered again, each with its reason and a sentence saying why: by default the top " +
     "three of each division promoted, the bottom three relegated and the rest held — this draft's own rules " +
     "set the counts, so changing them changes the suggestion. Anyone who opted out of the next competition " +
-    "is left out, and takes nobody's place with them; so, once the previous competition's tables are final, is " +
+    "is left out, and takes nobody's place with them, as is a doubles pair with a player not playing next season " +
+    "or wanting a new partner; so, once the previous competition's tables are final, is " +
     "anyone who played fewer matches than its `minMatchesToPlay`, or all their fixtures if fewer. A draft with no divisions gets a copy of the previous " +
     "ones. The coach then adjusts the draft with the entry routes and submits it by activating the " +
     "competition. Nothing is in effect until then: the engine suggests, and the coach decides.",

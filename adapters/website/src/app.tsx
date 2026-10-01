@@ -35,6 +35,8 @@ import {
   type Frame,
   type MyMatch,
   type MyStanding,
+  type NextSeason,
+  type PartnerChoice,
   type ToAnswer,
   type Waiting,
 } from "./views.js";
@@ -679,6 +681,7 @@ export function createWebsite(options: WebsiteOptions) {
     const registered = await registrations(p, here?.competitions ?? []);
     const entry = registered.find((r) => r.competition.id === id)?.entry;
     const season = here?.season ?? (await api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session));
+    const next = entry && competition.discipline === "doubles" && competition.state === "active" ? await nextSeason(p, id, entry) : null;
     return c.html(
       <CompetitionPage
         frame={frameOf(p, "tables")}
@@ -696,8 +699,66 @@ export function createWebsite(options: WebsiteOptions) {
         standings={standings}
         mine={entry ? { entryId: entry.id, divisionId: entry.division_id, optedOut: entry.opted_out_at !== null } : null}
         breakdowns={breakdowns(standings, matches)}
+        next={next}
       />,
     );
+  });
+
+  /** A doubles player's next season: their say, their partner's, who is asking them, and whom they could ask. */
+  async function nextSeason(p: Player, competitionId: string, entry: Entry): Promise<NextSeason> {
+    const me = p.me.credential.member.id;
+    const [{ data: choices }, { data: entries }] = await Promise.all([
+      api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competitionId}/partner-choices`, p.session),
+      api<{ data: Entry[] }>("GET", `/v1/competitions/${competitionId}/entries?state=active`, p.session),
+    ]);
+    const partner = entry.members.find((m) => m.id !== me);
+    return {
+      partner: partner ? { id: partner.id, name: partner.display_name } : null,
+      mine: choices.find((x) => x.member_id === me) ?? null,
+      partners: choices.find((x) => x.member_id === partner?.id) ?? null,
+      asking: choices.filter((x) => x.partner_id === me && !x.agreed),
+      players: entries.flatMap((e) => e.members).filter((m) => m.id !== me && m.id !== partner?.id)
+        .map((m) => ({ id: m.id, name: m.display_name })).sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  }
+
+  /** A change to next season's partner the API refused, said in the player's words. */
+  function partnerRefused(c: Context, p: Player, error: unknown) {
+    if (!(error instanceof ApiProblem) || ![400, 403, 404, 409].includes(error.problem.status)) throw error;
+    const detail = error.problem.code === "choices_closed"
+      ? "This season is over, so the coach is placing everyone now. Tell them what you want."
+      : error.problem.status === 404 ? "That request has gone: they may have changed their mind."
+      : error.problem.detail ?? error.problem.title;
+    return c.html(<Problem frame={frameOf(p, "tables")} title="Not changed" detail={detail} />, error.problem.status as 400);
+  }
+
+  app.post("/competitions/:id/partner", async (c) => {
+    const p = await player(c);
+    if (!p) return c.redirect("/", 303);
+    const id = c.req.param("id");
+    const form = await c.req.parseBody();
+    const choice = ["keep", "leaving", "new_partner"].includes(String(form.choice)) ? String(form.choice) : "keep";
+    const partner = choice === "new_partner" && typeof form.partner_id === "string" && form.partner_id ? form.partner_id : null;
+    try {
+      await api("PUT", `/v1/competitions/${encodeURIComponent(id)}/partner-choices/${p.me.credential.member.id}`, p.session,
+        { choice, partner_id: partner });
+    } catch (error) {
+      return partnerRefused(c, p, error);
+    }
+    return c.redirect(`/competitions/${id}`, 303);
+  });
+
+  app.post("/competitions/:id/partner/:member/decline", async (c) => {
+    const p = await player(c);
+    if (!p) return c.redirect("/", 303);
+    const id = c.req.param("id");
+    try {
+      await api("POST", `/v1/competitions/${encodeURIComponent(id)}/partner-choices/${encodeURIComponent(c.req.param("member"))}/decline`,
+        p.session);
+    } catch (error) {
+      return partnerRefused(c, p, error);
+    }
+    return c.redirect(`/competitions/${id}`, 303);
   });
 
   for (const [path, method] of [

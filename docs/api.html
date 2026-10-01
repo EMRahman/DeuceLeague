@@ -40,8 +40,8 @@
   </header>
   <main>
     <div class="summary" aria-label="API summary">
-      <div class="stat"><strong>61</strong>operations</div>
-      <div class="stat"><strong>39</strong>paths</div>
+      <div class="stat"><strong>64</strong>operations</div>
+      <div class="stat"><strong>42</strong>paths</div>
       <div class="stat"><strong>15</strong>feature areas</div>
     </div>
     <p class="note">All <code>/v1</code> operations require a bearer credential. <code>/healthz</code> and <code>/openapi.json</code> are public.</p>
@@ -59,7 +59,7 @@
       <a href="#seasons">Seasons (4)</a>
       <a href="#competitions">Competitions (4)</a>
       <a href="#divisions">Divisions (6)</a>
-      <a href="#entries">Entries (8)</a>
+      <a href="#entries">Entries (11)</a>
       <a href="#standings-and-progress">Standings and progress (5)</a>
       <a href="#events">Events (1)</a>
     </div>
@@ -155,6 +155,9 @@
       <div class="operation"><span class="method">DELETE</span><code>/v1/entries/{id}</code><span>Delete an entry made by mistake</span></div>
       <div class="operation"><span class="method">POST</span><code>/v1/entries/{id}/opt-out</code><span>Say this entry is not playing in the next competition</span></div>
       <div class="operation"><span class="method">DELETE</span><code>/v1/entries/{id}/opt-out</code><span>Take back opting out of the next competition</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/competitions/{id}/partner-choices</code><span>What a doubles competition&#39;s players want next season</span></div>
+      <div class="operation"><span class="method">PUT</span><code>/v1/competitions/{id}/partner-choices/{member_id}</code><span>Say what a doubles player wants next season</span></div>
+      <div class="operation"><span class="method">POST</span><code>/v1/competitions/{id}/partner-choices/{member_id}/decline</code><span>Say no to partnering a player next season</span></div>
       <div class="operation"><span class="method">POST</span><code>/v1/competitions/{id}/placements</code><span>Fill a draft competition from the previous one&#39;s tables</span></div>
     </section>
     <section id="standings-and-progress">

@@ -85,7 +85,7 @@ test("sample browser installation stays within its SQL statement budget and reta
   assert.ok(installed.written < 5_000, `installing the sample wrote ${installed.written} rows`);
   const events = (await raw.prepare(`SELECT e.type, p.event_id FROM event e
     JOIN event_position p ON p.local_id = e.id ORDER BY p.tx_id, p.event_id`).all()).results;
-  assert.equal(events.length, 210);
+  assert.equal(events.length, 214);
   assert.deepEqual(events.slice(0, 7).map((e) => e.type), ["club.created", "api_key.created", "api_key.created",
     "member.created", "member.created", "member.created", "member.created"]);
   assert.equal(events.at(-1)!.type, "installation.sample.created");
@@ -112,7 +112,8 @@ test("sample browser installation stays within its SQL statement budget and reta
   const singlesId = await raw.prepare("SELECT id FROM competition WHERE name = 'Sample singles'").first<string>("id");
   const alexMatch = await raw.prepare(`SELECT s.match_id FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id
     WHERE em.member_id = ? LIMIT 1`).bind(alex).first<string>("match_id");
-  for (const path of ["/tables", `/competitions/${singlesId}`, `/matches/${alexMatch}`]) {
+  const doublesId = await raw.prepare("SELECT id FROM competition WHERE name = 'Sample doubles'").first<string>("id");
+  for (const path of ["/tables", `/competitions/${singlesId}`, `/competitions/${doublesId}`, `/matches/${alexMatch}`]) {
     const page = await worker.fetch(new Request(env.PUBLIC_URL + path, { headers: { cookie: `deuceleague_session=${session.token}` } }), env, ctx);
     assert.ok(page.status < 400, path); await page.text();
   }
@@ -179,9 +180,11 @@ test("sample browser installation stays within its SQL statement budget and reta
   }
   assert.ok(await coachForm(`/coach/season/${season.id}/end`) > 1, "twelve competitions take more than one request to end");
   await coachForm("/coach/season/next", { from: season.id, name: "Next season", starts_on: "2026-10-01", ends_on: "2026-11-30" });
-  const drafts = (await json("GET", "/v1/competitions?state=draft")).data as { id: string; season_id: string }[];
+  const drafts = (await json("GET", "/v1/competitions?state=draft")).data as { id: string; season_id: string; discipline: string }[];
   assert.equal(drafts.length, 12);
-  await coachPage(`/coach/season/drafts/${drafts.find((d) => true)!.id}`, "Twelve-competition");
+  for (const discipline of ["singles", "doubles"]) {
+    await coachPage(`/coach/season/drafts/${drafts.find((d) => d.discipline === discipline)!.id}`, "Twelve-competition");
+  }
   await coachForm(`/coach/season/${drafts[0]!.season_id}/start`);
   assert.equal((await json("GET", "/v1/competitions?state=draft")).data.length, 0, "every draft started");
 
