@@ -438,9 +438,9 @@ test("the coach sees this season's disputes with both claims, and who keeps endi
   assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier/);
   assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier\s+2 still open/);
 
-  // Alex accepts Sam's score in one: Alex gave way, and Sam's was accepted.
+  // Alex corrects their independent submission to the agreed score.
   const claim = (await f.api(`/v1/matches/${p.match}`, f.admin)).body.claims.find((c: any) => c.side === 0 && c.state === "pending").id;
-  assert.equal((await f.api(`/v1/matches/${p.match}/claims/${claim}/accept`, f.admin, "POST", {})).status, 201);
+  assert.equal((await f.api(`/v1/matches/${p.match}/claims`, f.admin, "POST", { side: 1, outcome: "completed", score: (await f.api(`/v1/matches/${p.match}`, f.admin)).body.claims.find((c: any) => c.id === claim).score })).status, 201);
   const mixed = text((await coach.get("/coach/results")).html);
   assert.match(mixed, /Sam · 2 disputes: 2 this season, 0 earlier the other gave way in 1 · 1 still open/);
   assert.match(mixed, /Alex · 2 disputes: 2 this season, 0 earlier gave way in 1 · 1 still open/);

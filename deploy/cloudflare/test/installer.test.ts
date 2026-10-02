@@ -250,8 +250,8 @@ test("optional sample works from installation through two players' sign-in, repo
   assert.equal(reported.claims.length, 1);
 
   const bailey = await signIn(second);
-  assert.match(await (await f.request(`/matches/${match}`, { headers: { cookie: bailey } })).text(), /name="claim_id"/);
-  const accepted = await post(`/matches/${match}/accept`, bailey, { claim_id: reported.claims[0].id });
+  assert.match(await (await f.request(`/matches/${match}`, { headers: { cookie: bailey } })).text(), /name="mine_1"/);
+  const accepted = await post(`/matches/${match}/report`, bailey, { outcome: "completed", mine_1: "3", theirs_1: "6", mine_2: "4", theirs_2: "6" });
   assert.equal(accepted.status, 303);
   const played = await (await f.api(`/v1/matches/${match}`, p.admin)).json() as any;
   assert.equal(played.status, "played");

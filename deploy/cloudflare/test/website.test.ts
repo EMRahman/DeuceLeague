@@ -46,7 +46,7 @@ test("cooldown survives new Worker instances, is case insensitive and does not e
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM website_login_cooldown").first("n"), 1);
 });
 
-test("website score report and opponent acceptance update D1 standings; outsiders and CSRF cannot act", async (t) => {
+test("website score report and independent matching entry update D1 standings; outsiders and CSRF cannot act", async (t) => {
   const f = await websiteFixture(t); const p = await playingWebsite(f);
   await f.create("/v1/members", { display_name: "Outside", email: "outside@example.org" });
   const sam = await signIn(f, "sam@example.org"), alex = await signIn(f, "alex@example.org"), outsider = await signIn(f, "outside@example.org");
@@ -58,8 +58,11 @@ test("website score report and opponent acceptance update D1 standings; outsider
   const report = await sam.post(`/matches/${p.match}/report`, form); assert.equal(report.status, 303, report.html);
   const claimed = (await f.api(`/v1/matches/${p.match}`, f.admin)).body;
   assert.equal(claimed.status, "reported"); assert.equal(claimed.claims[0].source, "web");
-  assert.match((await alex.get("/")).html, /4-6, 3-6/, "the opponent sees the score from their own side");
-  assert.equal((await alex.post(`/matches/${p.match}/accept`, { claim_id: claimed.claims[0].id, back: "home" })).location, "/?done=accepted");
+  assert.doesNotMatch((await alex.get("/")).html, /4-6, 3-6|6-4, 6-3|Accept theirs/, "opposing entry stays private");
+  const blank = (await alex.get(`/matches/${p.match}`)).html;
+  assert.doesNotMatch(blank, /value="6" selected|value="4" selected|Accept theirs/);
+  assert.equal((await alex.post(`/matches/${p.match}/accept`, { claim_id: claimed.claims[0].id })).status, 404);
+  assert.equal((await alex.post(`/matches/${p.match}/report`, { outcome: "completed", mine_1: "4", theirs_1: "6", mine_2: "3", theirs_2: "6" })).location, `/matches/${p.match}?done=confirmed`);
   assert.equal((await f.api(`/v1/matches/${p.match}`, f.admin)).body.status, "played");
   const tables = await sam.get(`/competitions/${p.comp.id}`); assert.equal(tables.status, 200);
   assert.match(tables.html, /Sam/); assert.doesNotMatch(tables.html, /Private|example.org|dl_|dls_/);
@@ -97,7 +100,7 @@ test("a doubles partner can report through the website and the other pair can ag
   const r = await partner.post(`/matches/${p.match}/report`, { outcome: "completed", mine_1: "6", theirs_1: "3", mine_2: "6", theirs_2: "4" });
   assert.equal(r.status, 303, r.html);
   const match = (await f.api(`/v1/matches/${p.match}`, f.admin)).body;
-  assert.equal((await opponent.post(`/matches/${p.match}/accept`, { claim_id: match.claims[0].id })).status, 303);
+  assert.equal((await opponent.post(`/matches/${p.match}/report`, { outcome: "completed", mine_1: "3", theirs_1: "6", mine_2: "4", theirs_2: "6" })).status, 303);
   assert.equal((await f.api(`/v1/matches/${p.match}`, f.admin)).body.status, "played");
 });
 
@@ -263,4 +266,36 @@ test("a doubles player answers a request to partner them next season, and sees w
   const singles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample singles").id;
   const solo = (await kai.get(`/competitions/${singles}`)).html;
   assert.match(solo, /I am not playing next season/); assert.doesNotMatch(solo, /New partner/);
+});
+
+test("mismatching entries remain private on Home and match pages, and each side corrects only its own entry", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org"), alex = await signIn(f, "alex@example.org");
+  await f.create("/v1/members", { display_name: "Watcher", email: "watcher@example.org" });
+  const watcher = await signIn(f, "watcher@example.org");
+  const form = { outcome: "completed", mine_1: "6", theirs_1: "4", mine_2: "6", theirs_2: "3" };
+  await sam.post(`/matches/${p.match}/report`, form);
+  await alex.post(`/matches/${p.match}/report`, { ...form, mine_1: "3", theirs_1: "6", mine_2: "2", theirs_2: "6" });
+  for (const path of ["/", `/matches/${p.match}`]) {
+    const a = (await sam.get(path)).html, b = (await alex.get(path)).html;
+    assert.match(a, /speak outside the app/i);
+    assert.match(b, /speak outside the app/i);
+    assert.match(a, /6-4, 6-3/);
+    assert.match(b, /3-6, 2-6/);
+    assert.doesNotMatch(a, /3-6, 2-6|Accept theirs/);
+    assert.doesNotMatch(b, /6-4, 6-3|Accept theirs/);
+  }
+  const watching = (await watcher.get(`/matches/${p.match}`)).html;
+  assert.doesNotMatch(watching, /6-4, 6-3|3-6, 2-6|class="card report"/);
+  const fixed = await alex.post(`/matches/${p.match}/report`, { ...form, mine_1: "4", theirs_1: "6", mine_2: "3", theirs_2: "6" });
+  assert.equal(fixed.location, `/matches/${p.match}?done=confirmed`);
+  const final = (await sam.get(`/matches/${p.match}`)).html;
+  assert.match(final, /Sam v Alex|Alex v Sam/);
+  assert.match(final, /6-4, 6-3/);
+  assert.match(final, /Ask the coach if this result needs correcting/);
+  assert.doesNotMatch(final, /class="card report"/);
+  assert.equal((await sam.post(`/matches/${p.match}/report`, { ...form, theirs_1: "1" })).status, 409);
+  const coach = (await f.api(`/v1/matches/${p.match}`, f.admin)).body;
+  assert.equal(coach.claims.length, 3);
+  assert.equal(coach.claims.filter((c: any) => c.state === "superseded").length, 1);
 });

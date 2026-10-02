@@ -107,7 +107,7 @@ export const problems = {
   /** A player's session acting on a match they are not playing in. */
   notYourMatch: () =>
     new ApiError(403, "not_your_match", "You are not playing in this match", {
-      detail: "A player reports and accepts results only for their own matches.",
+      detail: "A player enters results only for their own matches.",
     }),
   /** A player's session speaking for the other side of their match. */
   notYourSide: (detail: string) => new ApiError(403, "not_your_side", "That is not your side", { detail }),

@@ -570,8 +570,8 @@ export const Results: FC<{
   <Layout title="Results" frame={frame}>
     <h1>Results to sort out</h1>
     <p class="muted">
-      Scores the players have not agreed yet, in the season under way. Players sort these out themselves: either can
-      accept the other's score, or report their own again, on the match page. This page takes no side. A match that
+      Results still waiting for matching entries, in the season under way. Each side enters independently on the
+      match page. If entries differ, ask the players to speak outside the app and enter the agreed result. This page takes no side. A match that
       stays stuck can be settled by your agent through the API, which asks for an explicit override.
     </p>
 

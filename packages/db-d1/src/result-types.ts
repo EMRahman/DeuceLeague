@@ -36,6 +36,6 @@ export type ResultMutation = {
   status: "reported" | "disputed" | "played";
   ledger: LedgerEntry | null;
   events: ResultEvent[];
-  /** Only player reports/acceptances obey the season deadline. */
+  /** Only side submissions obey the season deadline. */
   enforceDeadline: boolean;
 };

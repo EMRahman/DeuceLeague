@@ -4,14 +4,14 @@ Decisions made on 2 October 2026 after reviewing the
 [30 September simulation](../2026-09-30-two-season-club/report.md) and the
 [1 October simulation](report.md).
 
-These are the next four work items. All are **planned, not implemented**.
+These are the next four work items. Item 1 is implemented; items 2–4 remain planned.
 They supersede conflicting proposals in the earlier simulation issue drafts,
 including showing opponents' pending scores and accepting another side's
 submission. The reports remain records of the behaviour tested at the time.
 
 ## Work list
 
-- [ ] 1. Both sides enter results independently; matching submissions confirm them.
+- [x] 1. Both sides enter results independently; matching submissions confirm them.
 - [ ] 2. Give the coach result controls, including injury and no-show overrides.
 - [ ] 3. Explain newcomers' approval and placement status.
 - [ ] 4. Send sign-in links by email, require email and telephone at sign-up,
@@ -22,12 +22,19 @@ the result workflow changes. Items 3 and 4 complete the joining experience.
 
 ## 1. Both sides enter results independently
 
-**Status:** Planned. **Areas:** player website, result API, claim comparison,
+**Status:** Implemented and verified against D1 and the Worker. **Areas:** player website, result API, claim comparison,
 player-visible match reads and activity.
 
 **Why:** In the latest simulation a player misread whose games came first,
 accepted the wrong result and could not correct it. Independent entry removes
 that acceptance step. See [the player's account](findings-raw.md#disputed-cp1).
+
+Implementation removes acceptance, keeps opposing submission history and differences
+private in player responses, and uses independent entry throughout the player site.
+Coach reads retain both sides and their history. Typechecking, the package tests,
+all 229 Worker tests and 18 D1 tests, and the deployment dry run pass. Miniflare's
+runtime tests require permission to listen on localhost. Issue 2's coach website
+controls remain planned.
 
 ### Decision
 

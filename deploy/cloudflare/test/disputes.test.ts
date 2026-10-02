@@ -25,9 +25,8 @@ test("the coach sees who has been in disputes and how each ended; players do not
   const [accepted, retyped, settled] = f.matches as [string, string, string];
   for (const match of f.matches) { await f.report(match, 0); await f.report(match, 1, lose); }
   assert.equal((await f.send(`/v1/matches/${accepted}`)).body.status, "disputed");
-  // Side 1 accepts side 0's score; side 0 reports side 1's score instead; the coach settles the third.
-  const claim = (await f.send(`/v1/matches/${accepted}`)).body.claims.find((c: any) => c.side === 0 && c.state === "pending").id;
-  assert.equal((await f.send(`/v1/matches/${accepted}/claims/${claim}/accept`, f.admin, "POST", {})).status, 201);
+  // Side 1 corrects their pending score; side 0 reports side 1's score instead; the coach settles the third.
+  assert.equal((await f.report(accepted, 1)).status, 201);
   assert.equal((await f.report(retyped, 0, lose)).status, 201);
   assert.equal((await f.send(`/v1/matches/${settled}/settle`, f.admin, "POST", { outcome: "unplayed" })).status, 201);
 
@@ -38,7 +37,7 @@ test("the coach sees who has been in disputes and how each ended; players do not
   const mine = (label: string) => ["this_season", "earlier"].map((k) => row(label)[k]);
   const counts = (label: string) => { const [now, before] = mine(label);
     return [now.disputes, now.gave_way, now.held, now.settled_by_coach, now.unresolved, before.disputes]; };
-  // Each player is in two of the three disputes. Per dispute: the accepter gave way, the retyper gave way, the coach settled.
+  // Each player is in two of the three disputes. Per dispute: the first retyper gave way, the retyper gave way, the coach settled.
   const expected = new Map<string, number[]>();
   const add = (label: string, kind: "gave_way" | "held" | "coach") => {
     const c = expected.get(label) ?? [0, 0, 0, 0, 0, 0]; c[0]! += 1;
