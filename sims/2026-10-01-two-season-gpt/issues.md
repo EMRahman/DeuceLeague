@@ -4,7 +4,7 @@ Decisions made on 2 October 2026 after reviewing the
 [30 September simulation](../2026-09-30-two-season-club/report.md) and the
 [1 October simulation](report.md).
 
-These are the next four work items. Items 1–2 are implemented; items 3–4 remain planned.
+These are the next four work items. Items 1–3 are implemented (item 3 has a PR open); item 4 remains planned.
 They supersede conflicting proposals in the earlier simulation issue drafts,
 including showing opponents' pending scores and accepting another side's
 submission. The reports remain records of the behaviour tested at the time.
