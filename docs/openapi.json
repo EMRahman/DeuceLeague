@@ -215,6 +215,139 @@
           "credential"
         ]
       },
+      "PlayerPlacements": {
+        "type": "object",
+        "properties": {
+          "has_entries": {
+            "type": "boolean",
+            "description": "Whether this member has ever held a league entry; returning or excluded players are not newcomers."
+          },
+          "next_season": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "name": {
+                "type": "string"
+              },
+              "starts_on": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              },
+              "ends_on": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "starts_on",
+              "ends_on"
+            ]
+          },
+          "placements": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "season": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "starts_on": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    },
+                    "ends_on": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "starts_on",
+                    "ends_on"
+                  ]
+                },
+                "competition_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "competition_name": {
+                  "type": "string"
+                },
+                "division_name": {
+                  "type": "string"
+                },
+                "partner": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "display_name": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "display_name"
+                  ]
+                },
+                "provisional": {
+                  "type": "boolean"
+                },
+                "fixtures_ready": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "season",
+                "competition_id",
+                "competition_name",
+                "division_name",
+                "partner",
+                "provisional",
+                "fixtures_ready"
+              ]
+            }
+          }
+        },
+        "required": [
+          "has_entries",
+          "next_season",
+          "placements"
+        ]
+      },
       "LoginLink": {
         "type": "object",
         "properties": {
@@ -5563,6 +5696,52 @@
         }
       }
     },
+    "/v1/me/placements": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Your provisional and open placements",
+        "description": "Only the signed-in player's active entries in member-visible draft or active competitions, with their division and partner. Draft placements are provisional until both season and competition are active. The earliest planning season supplies the next season's announced name and dates even before placement. No other draft entries or private competitions are disclosed. Fixtures ready means this entry has fixtures.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your placements and the next announced season, if any.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerPlacements"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/members/{id}/login-link": {
       "post": {
         "tags": [
@@ -7205,6 +7384,20 @@
             "required": false,
             "description": "PII. The member with this email address, whatever its case. Needs `members:pii`.",
             "name": "email",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "Only members who have never held a league entry, including withdrawn or historical entries. Needs `league:read`."
+            },
+            "required": false,
+            "description": "Only members who have never held a league entry, including withdrawn or historical entries. Needs `league:read`.",
+            "name": "never_entered",
             "in": "query"
           },
           {

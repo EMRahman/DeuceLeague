@@ -1,3 +1,4 @@
+import type { PlayerPlacements } from "./api.js";
 import { Hono, type Context } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import {
@@ -510,9 +511,10 @@ export function createWebsite(options: WebsiteOptions) {
         })
       : Promise.resolve(null);
 
-    const [matches, seasons] = await Promise.all([
+    const [matches, seasons, placementStatus] = await Promise.all([
       all<Match>(api, `/v1/matches?member_id=${memberId}`, p.session),
       seasonsOf(p),
+      api<PlayerPlacements>("GET", "/v1/me/placements", p.session),
     ]);
     // The seasons under way. Finished ones are in the tables' season row, so their
     // matches and tables do not crowd out what needs doing now.
@@ -637,6 +639,7 @@ export function createWebsite(options: WebsiteOptions) {
       <Home
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
+        placementStatus={placementStatus}
         deadlines={deadlines}
         notice={{ leaving: "Done. The coach will see you are not playing next season.",
           staying: "Taken back. You are in the reckoning for next season again.",

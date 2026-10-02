@@ -226,7 +226,11 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match((await join(f, person(f))).html, /Thank you, Robin/);
   assert.match((await join(f, person(f, { first_name: "Alex", surname: "Moss", email: "", phone: "+44 7700 900456", gender: "male", age_group: "" }))).html, /Thank you, Alex/);
   // Asking twice is answered the same, so the form tells nobody who has asked.
-  assert.match((await join(f, person(f, { email: "ROBIN@example.org" }))).html, /Thank you, Robin/);
+  const confirmation = await join(f, person(f, { email: "ROBIN@example.org" }));
+  assert.match(confirmation.html, /Thank you, Robin/);
+  assert.match(confirmation.html, /request has been received/);
+  assert.match(confirmation.html, /coach must approve/);
+  assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
   assert.deepEqual(request, { privacy_notice: "uk-2026-10-01", email: "robin@example.org", gender: "female", age_group: "35_49" });

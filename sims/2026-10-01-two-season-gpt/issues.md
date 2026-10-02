@@ -13,7 +13,7 @@ submission. The reports remain records of the behaviour tested at the time.
 
 - [x] 1. Both sides enter results independently; matching submissions confirm them.
 - [x] 2. Give the coach result controls, including injury and no-show overrides.
-- [ ] 3. Explain newcomers' approval and placement status.
+- [x] 3. Explain newcomers' approval and placement status.
 - [ ] 4. Send sign-in links by email, require email and telephone at sign-up,
   and allow 50 join submissions per IP per day.
 
@@ -131,7 +131,7 @@ results also had no detail link or indication of who needed to respond. See
 
 ## 3. Explain where newcomers stand
 
-**Status:** Planned. **Areas:** join confirmation, player Home, coach Members.
+**Status:** Implemented. **Areas:** join confirmation, player Home, coach Members.
 
 **Why:** An approved beginner repeatedly saw only “You have no matches
 outstanding” and could not tell whether she was registered or awaiting a
@@ -155,13 +155,13 @@ place. See [newcomer findings](findings-raw.md#beginner-cp1).
 
 ### Acceptance
 
-- [ ] A newly approved member can tell that approval succeeded, why they have
+- [x] A newly approved member can tell that approval succeeded, why they have
   no matches yet, and what happens next.
-- [ ] The waiting message works before a next season exists and updates when
+- [x] The waiting message works before a next season exists and updates when
   its name, dates and draft placement become available.
-- [ ] Draft placement is clearly provisional; activation replaces the waiting
+- [x] Draft placement is clearly provisional; activation replaces the waiting
   state with the player's actual competitions and fixtures.
-- [ ] An intentionally excluded member is not presented to the coach as a
+- [x] An intentionally excluded member is not presented to the coach as a
   newcomer needing placement.
 
 ## 4. Email invitations, required contacts and shared-IP joining

@@ -1,3 +1,5 @@
+import { readPlayerPlacements } from "@deuceleague/db-d1";
+import { playerPlacements } from "./contracts/player-placements.js";
 import { health } from "./contracts/health.js";
 import { installationSample } from "./installation-sample.js";
 import { registerCloudflareEvents } from "./cloudflare-events.js";
@@ -173,6 +175,13 @@ export function createCloudflareApp(options: Options) {
       },
     },
   })), 200));
+
+  app.openapi(playerPlacements, async (c) => c.json(await retryMutation(async () => {
+    const state = await readPlayerPlacements(db, c.get("identity").hash);
+    checkAccess(authFor(state.identity), { session: [] });
+    await commitIdentity(db, state.identity, { type: "read" });
+    return { has_entries: state.has_entries, next_season: state.next_season, placements: state.placements };
+  }), 200));
 
   // `curl -X POST -H "Content-Type: application/json"` with no data sends an empty
   // body. These bodies are optional, so that still asks for the defaults — for a

@@ -125,11 +125,13 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
   });
   app.openapi(members.list, async (c) => {
     const q = c.req.valid("query");
+    if (q.never_entered && !c.get("auth").scopes.has("league:read")) throw problems.insufficientScope(["league:read"]);
     // Refuse an email lookup before issuing even the filtered public query.
     if (q.email !== undefined && !holdsPii(c.get("auth"))) throw problems.insufficientScope(["members:pii"]);
     return c.json(await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, {
-      limit: q.limit, after: q.after, status: q.status, email: q.email, includeRemoved: q.include_removed ?? false,
+      limit: q.limit, after: q.after, status: q.status, email: q.email, includeRemoved: q.include_removed ?? false, neverEntered: q.never_entered ?? false,
     }), async (s, auth) => {
+      if (q.never_entered && !auth.scopes.has("league:read")) throw problems.insufficientScope(["league:read"]);
       if (q.email !== undefined && !holdsPii(auth)) throw problems.insufficientScope(["members:pii"]);
       await touch(s);
       return { data: s.rows.map((m) => toMember(m, holdsPii(auth))), next_cursor: s.next };

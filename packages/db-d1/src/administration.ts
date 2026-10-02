@@ -8,7 +8,7 @@ const string = (value: unknown): string | null => value === null ? null : String
 const rows = (result: D1Result): Row[] => result.results as Row[];
 export type AdminSnapshot<T> = { identity: IdentitySnapshot; rows: T[]; next: string | null };
 export type AdminPage = { id?: string; limit?: number; after?: string | undefined };
-export type MemberFilter = AdminPage & { status?: string | undefined; email?: string | undefined; includeRemoved?: boolean };
+export type MemberFilter = AdminPage & { status?: string | undefined; email?: string | undefined; includeRemoved?: boolean; neverEntered?: boolean };
 
 /** Keep three-decimal ratings: decimal ties round away from zero.
  * SQLite round() uses a binary float, which rounds e.g. 1.2345 differently.
@@ -73,6 +73,8 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
       AND (json_extract(q.filter, '$.after') IS NULL OR m.id > json_extract(q.filter, '$.after'))
       AND (json_extract(q.filter, '$.status') IS NULL OR m.status = json_extract(q.filter, '$.status'))
       AND (json_extract(q.filter, '$.email') IS NULL OR lower(m.email) = lower(json_extract(q.filter, '$.email')))
+      AND (coalesce(json_extract(q.filter, '$.neverEntered'), 0) = 0 OR NOT EXISTS
+        (SELECT 1 FROM entry_member em WHERE em.member_id = m.id AND em.club_id = m.club_id))
       AND (json_extract(q.filter, '$.includeRemoved') = 1 OR m.deleted_at IS NULL)
     ORDER BY m.id LIMIT ?`)
     .bind(JSON.stringify({ ...filter, includeRemoved: filter.includeRemoved ?? Boolean(filter.id) }), hash, (filter.limit ?? 1) + 1);
