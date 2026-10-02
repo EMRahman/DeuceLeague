@@ -12,16 +12,29 @@ the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 > so we run whole-club simulations to find them, and no simulation has passed
 > clean yet. Expect rough edges, and try it with the sample club first.
 >
-> **Latest simulation, 30 September 2026:** two seasons of a 52-member club
-> (254 matches) played by scripted players, four player agents and a coach
-> agent. Standings matched an independent calculation with no mismatches, and
-> there were no server errors. It also found 4 bugs and 7 high-severity pain
-> points for a real club; they are written up as issue drafts, and the
-> simulation has not been re-run since.
-> [Report](sims/2026-09-30-two-season-club/report.md) ·
-> [Issue drafts and decisions](sims/2026-09-30-two-season-club/issues.md) ·
-> [Request log](sims/2026-09-30-two-season-club/request-log.jsonl) ·
+> **Latest simulation, 1 October 2026:** two seasons, 218 matches. All 113
+> standings rows matched an independent calculation, with no server errors.
+> The earlier fairness fixes held, but routine coach result handling and
+> player clarity still need work. Real-phone and advancing-clock checks
+> remain outstanding in the simulations.
+> [Report](sims/2026-10-01-two-season-gpt/report.md) ·
+> [Comparison](sims/2026-10-01-two-season-gpt/comparison.md) ·
+> [Request log](sims/2026-10-01-two-season-gpt/request-log.jsonl) ·
 > [All simulations](sims/README.md)
+
+## Next work
+
+The [next four work items](sims/2026-10-01-two-season-gpt/issues.md), agreed on
+2 October, are **planned, not implemented**:
+
+1. Both sides enter results independently, with opposing submissions hidden
+   until confirmation. Matching entries confirm the result; later corrections
+   belong to the coach.
+2. Coach result controls, including overrides for disputed or unanswered injury
+   and no-show reports.
+3. Clear approval and placement status for newcomers.
+4. Email sign-in invitations, required email and telephone at sign-up, and
+   50 join submissions per IP per day.
 
 ## Try it
 

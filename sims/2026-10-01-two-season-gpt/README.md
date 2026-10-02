@@ -7,6 +7,7 @@ A fresh local run against `main` after the fixes prompted by the 30 September si
 | [prompt.md](prompt.md) | The revised GPT-specific simulation prompt and safeguards |
 | [report.md](report.md) | Outcomes, ranked pain points, bugs, checks and limits |
 | [comparison.md](comparison.md) | What changed compared with the 30 September run |
+| [issues.md](issues.md) | The next four work items agreed on 2 October; planned, not implemented |
 | [findings-raw.md](findings-raw.md) | The 27 checkpoint friction logs, unmerged |
 | [request-log.jsonl](request-log.jsonl) | Sanitized request/action log; no credentials, cookies or login links |
 
