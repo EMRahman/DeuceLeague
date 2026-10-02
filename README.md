@@ -26,13 +26,14 @@ the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 ## Next work
 
 The [next four work items](sims/2026-10-01-two-season-gpt/issues.md), agreed on
-2 October, have item 1 implemented and verified; items 2–4 remain planned:
+2 October, have items 1–2 implemented; items 3–4 remain planned:
 
 1. Both sides enter results independently, with opposing submissions hidden
    from players. Matching entries confirm the result; later corrections
    belong to the coach.
 2. Coach result controls, including overrides for disputed or unanswered injury
-   and no-show reports.
+   and no-show reports, a review of points and participation, and recorded
+   reasons for decisions.
 3. Clear approval and placement status for newcomers.
 4. Email sign-in invitations, required email and telephone at sign-up, and
    50 join submissions per IP per day.

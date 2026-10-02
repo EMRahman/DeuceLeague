@@ -56,7 +56,7 @@ export {
   type Side,
   type Standings,
 } from "./api.js";
-export { deadlineLine, describe, playedOn } from "./score.js";
+export { deadlineLine, describe, playedOn, readReportForm, claimToForm, setRows, formatHint, type ReportForm } from "./score.js";
 export { CompetitionTables, Credit, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
 export { AGE_GROUPS, ageGroupLabel, GENDERS, genderLabel, PRIVACY_NOTICE } from "./join.js";

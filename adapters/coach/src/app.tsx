@@ -21,6 +21,8 @@ import {
 import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
 import { Draft, EndSeason, SeasonPage, type NextForm } from "./season-views.js";
+import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
+import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
   Activity,
   Chase,
@@ -497,6 +499,76 @@ export function createCoachSite(options: CoachOptions) {
     );
   });
 
+  app.get("/matches", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const asked = c.req.query("status") ?? "";
+    const status = ["open", "reported", "disputed", "played"].includes(asked) ? asked : "";
+    const after = c.req.query("after");
+    const query = new URLSearchParams({ limit: "50" });
+    if (status) query.set("status", status);
+    if (after) query.set("after", after);
+    const page = await api<Page<Match>>("GET", `/v1/matches?${query}`, who.key);
+    return c.html(<CoachMatches frame={frameOf(who, "results")} matches={page.data} status={status} after={after} next={page.next_cursor} />);
+  });
+
+  async function matchInputs(who: Coach, id: string) {
+    const match = await api<MatchDetail>("GET", `/v1/matches/${encodeURIComponent(id)}`, who.key);
+    const competition = await api<CoachCompetition>("GET", `/v1/competitions/${match.competition_id}`, who.key);
+    return { match, competition };
+  }
+
+  async function coachMatchPage(c: Context, who: Coach, inputs: Awaited<ReturnType<typeof matchInputs>>,
+    values?: Record<string, string>, errors?: string[], status: 200 | 400 | 403 | 404 | 409 = 200) {
+    const after = c.req.query("history_after");
+    const history = await api<{ data: FeedEvent[]; next_cursor: string }>("GET",
+      `/v1/events?match_id=${inputs.match.id}&order=newest&limit=50${after ? `&after=${encodeURIComponent(after)}` : ""}`, who.key);
+    return c.html(<CoachMatch frame={frameOf(who, "results")} {...inputs} timezone={who.club.timezone}
+      events={history.data} historyAfter={after} historyNext={history.data.length === 50 ? history.next_cursor : null}
+      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"} />, status);
+  }
+
+  app.get("/matches/:id", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    return coachMatchPage(c, who, await matchInputs(who, c.req.param("id")));
+  });
+
+  /** The same form parser serves review, edit and save. Only the final route writes. */
+  for (const action of ["preview", "edit", "settle"] as const) app.post(`/matches/:id/${action}`, async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const inputs = await matchInputs(who, c.req.param("id"));
+    const form = Object.fromEntries(Object.entries(await c.req.parseBody()).map(([k, v]) => [k, String(v)]));
+    if (action === "edit") return coachMatchPage(c, who, inputs, form);
+    const parsed = readSettlementForm(form, inputs.competition);
+    if (!parsed.ok) return coachMatchPage(c, who, inputs, form, parsed.errors, 400);
+    const path = `/v1/matches/${inputs.match.id}`;
+    try {
+      if (action === "preview") {
+        const preview = await api<SettlementPreview>("POST", `${path}/settlement-preview`, who.key, parsed.body);
+        return c.html(<ReviewSettlement frame={frameOf(who, "results")} preview={preview} values={form} timezone={who.club.timezone} />);
+      }
+      if (form.confirm !== "yes" || !/^[a-f0-9]{64}$/.test(form.expected_version ?? "")) {
+        return coachMatchPage(c, who, inputs, form, ["Review the decision and its effect before saving."], 400);
+      }
+      await api("POST", `${path}/settle`, who.key, { ...parsed.body,
+        expected_version: form.expected_version, override: form.override === "yes" });
+      return c.redirect(`/coach/matches/${inputs.match.id}?done=saved`, 303);
+    } catch (error) {
+      if (!(error instanceof ApiProblem)) throw error;
+      const p = error.problem;
+      if (![400, 403, 404, 409].includes(p.status)) throw error;
+      // Re-read after a concurrent change so the correction form shows what now stands.
+      const current = p.status === 409 ? await matchInputs(who, inputs.match.id) : inputs;
+      const message = p.code === "already_agreed"
+        ? "This result is confirmed. Review your correction and tick the override box before saving."
+        : p.detail ?? p.title;
+      return coachMatchPage(c, who, current, form,
+        [message, ...(p.errors?.map(e => e.message) ?? [])], p.status as 400 | 403 | 404 | 409);
+    }
+  });
+
   /** A page of the latest results, newest first. */
   const latestResults = (key: string, limit: number, after: string | undefined) =>
     api<Page<Listed>>(
@@ -637,8 +709,7 @@ export function createCoachSite(options: CoachOptions) {
           mine: null,
           breakdowns: breakdowns(standings, matches),
           competitionHref: (x) => `/coach/tables/${x}`,
-          // A match's page is the players' own; the coach sees results on Results and Activity.
-          matchHref: null,
+          matchHref: (id) => `/coach/matches/${id}`,
         }}
       />,
     );

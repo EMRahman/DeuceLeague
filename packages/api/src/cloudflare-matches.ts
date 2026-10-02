@@ -8,12 +8,13 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
-import { get, list, report, settle, type ShortOfMinimum } from "./contracts/matches.js";
+import { get, list, report, settle, previewSettlement, type ShortOfMinimum } from "./contracts/matches.js";
 import type { z } from "@hono/zod-openapi";
 import { towardMinimum } from "./league/progress.js";
 import { problems } from "./problems.js";
 import { deadlinePassed, decideResult, visibleToPlayer, type ResultAction } from "./results/decide.js";
 import { matchDetail, toMatch } from "./results/model.js";
+import { settlementPreview, settlementVersion } from "./results/settlement.js";
 
 function authorize(c: Context<CloudflareEnv>, identity: IdentitySnapshot) {
   const auth = authFor(identity);
@@ -27,7 +28,8 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
   async function detail(c: Context<CloudflareEnv>, id: string, action?: ResultAction) {
     const initial = c.get("identity");
     return retryMutation(async () => {
-      const state = await readResult(db, initial.hash, initial.kind, id);
+      const state = await readResult(db, initial.hash, initial.kind, id,
+        action?.type === "settle" && action.body.expected_version !== undefined);
       const auth = authorize(c, state.identity);
       const memberId = auth.credential.type === "session" ? auth.credential.memberId : null;
       if (!state.match || !state.competition || (memberId !== null && !visibleToPlayer(state.competition))) {
@@ -40,6 +42,11 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
       if (!decision) {
         await commitIdentity(db, state.identity, { type: "read" });
         return { body: matchDetail(state.match, state.claims, memberId !== null ? state.ownSide : undefined), status: 200 as const };
+      }
+      if (action?.type === "settle" && action.body.expected_version !== undefined
+        && action.body.expected_version !== settlementVersion(state)) {
+        throw problems.conflict("settlement_changed", "The match or its standings have changed",
+          "Review the current submissions and the effect of your decision again before saving.");
       }
       try {
         const result = await commitResult(db, state, decision);
@@ -72,6 +79,15 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
     const result = await detail(c, c.req.valid("param").id, { type: "report", body: c.req.valid("json") });
     return c.json(result.body, result.status);
   });
+  app.openapi(previewSettlement, async (c) => retryMutation(async () => {
+    const initial = c.get("identity");
+    const state = await readResult(db, initial.hash, initial.kind, c.req.valid("param").id, true);
+    authorize(c, state.identity);
+    if (!state.match || !state.competition) throw problems.notFound("match");
+    const preview = settlementPreview(state, c.req.valid("json"), uuidv7());
+    await commitIdentity(db, state.identity, { type: "read" });
+    return c.json(preview, 200);
+  }));
   /**
    * Who a match settled unplayed leaves short of the competition's minimum, from the tables as they stand
    * now. Read after the settlement, so it counts the match as it now is.

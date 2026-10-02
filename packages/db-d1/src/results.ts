@@ -1,5 +1,7 @@
 import type { D1Database, D1PreparedStatement, D1Result } from "@cloudflare/workers-types";
-import type { MatchFormat, Score } from "@deuceleague/schema";
+import type { MatchFormat, RulesSpec, Score } from "@deuceleague/schema";
+import { ledgerRecords } from "./views.js";
+import type { LedgerMatch } from "./view-types.js";
 import { commitAuthorized, eventStatement, readIdentity, type CredentialKind, type IdentitySnapshot } from "./identity.js";
 import type { ClaimRecord, MatchRecord, ResultMutation } from "./result-types.js";
 
@@ -32,7 +34,7 @@ function claimRecord(row: Row): ClaimRecord {
 /** Exactly the same reads serve pre-decision snapshots and post-write responses. */
 function resultReads(db: D1Database, matchId: string): D1PreparedStatement[] {
   return [
-    db.prepare(`SELECT m.*, c.state AS competition_state, c.visibility, c.match_format, s.results_deadline_at,
+    db.prepare(`SELECT m.*, c.state AS competition_state, c.visibility, c.match_format, c.rules, s.results_deadline_at,
         c.name AS competition_name, d.name AS division_name
       FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
       JOIN season s ON s.id = c.season_id AND s.club_id = c.club_id
@@ -49,7 +51,7 @@ function resultReads(db: D1Database, matchId: string): D1PreparedStatement[] {
 export type ResultRecords = {
   match: MatchRecord | null;
   claims: ClaimRecord[];
-  competition: { state: string; visibility: string; matchFormat: MatchFormat } | null;
+  competition: { state: string; visibility: string; matchFormat: MatchFormat; rules: RulesSpec } | null;
   deadline: Date | null;
 };
 function resultRecords(results: D1Result[]): ResultRecords {
@@ -58,13 +60,18 @@ function resultRecords(results: D1Result[]): ResultRecords {
   return {
     match: row ? matchRecord(row, sides) : null,
     claims: (results[2]!.results as Row[]).map(claimRecord),
-    competition: row ? { state: String(row.competition_state), visibility: String(row.visibility), matchFormat: JSON.parse(String(row.match_format)) as MatchFormat } : null,
+    competition: row ? { state: String(row.competition_state), visibility: String(row.visibility), matchFormat: JSON.parse(String(row.match_format)) as MatchFormat,
+      rules: JSON.parse(String(row.rules)) as RulesSpec } : null,
     deadline: row?.results_deadline_at == null ? null : new Date(Number(row.results_deadline_at)),
   };
 }
 
-export type ResultSnapshot = ResultRecords & { identity: IdentitySnapshot; ownSide: number | null };
-export async function readResult(db: D1Database, hash: string, kind: CredentialKind, matchId: string): Promise<ResultSnapshot> {
+export type SettlementStanding = {
+  entries: { id: string; label: string; state: string }[];
+  ledger: LedgerMatch[];
+};
+export type ResultSnapshot = ResultRecords & { identity: IdentitySnapshot; ownSide: number | null; standings?: SettlementStanding };
+export async function readResult(db: D1Database, hash: string, kind: CredentialKind, matchId: string, withStandings = false): Promise<ResultSnapshot> {
   const identity = await readIdentity(db, hash, kind, null, [
     ...resultReads(db, matchId),
     db.prepare(`SELECT s.side_index FROM match_side s
@@ -72,10 +79,24 @@ export async function readResult(db: D1Database, hash: string, kind: CredentialK
       JOIN access_grant a ON a.member_id = em.member_id AND a.club_id = em.club_id
       WHERE s.match_id = ? AND a.token_hash = ? AND a.kind = 'session'
         AND s.club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(matchId, hash),
+    ...(withStandings ? [
+      db.prepare(`SELECT e.id, e.state, (SELECT label FROM entry_label WHERE entry_id = e.id) AS label
+        FROM entry e WHERE e.division_id = (SELECT division_id FROM match WHERE id = ?)
+        ORDER BY e.id`).bind(matchId),
+      db.prepare(`SELECT m.id, m.division_id, m.status, m.outcome, m.winning_side, m.retired_side, m.score,
+        s0.entry_id AS side0, s1.entry_id AS side1 FROM match m
+        LEFT JOIN match_side s0 ON s0.match_id = m.id AND s0.side_index = 0
+        LEFT JOIN match_side s1 ON s1.match_id = m.id AND s1.side_index = 1
+        WHERE m.division_id = (SELECT division_id FROM match WHERE id = ?) ORDER BY m.id`).bind(matchId),
+    ] : []),
   ]);
   const extra = identity.extraResults;
   const side = extra[3]!.results[0] as Row | undefined;
-  return { identity, ...resultRecords(extra), ownSide: side ? Number(side.side_index) : null };
+  return { identity, ...resultRecords(extra), ownSide: side ? Number(side.side_index) : null,
+    ...(withStandings ? { standings: {
+      entries: (extra[4]!.results as Row[]).map((r) => ({ id: String(r.id), label: String(r.label), state: String(r.state) })),
+      ledger: ledgerRecords(extra[5]!),
+    } } : {}) };
 }
 
 export class ResultDeadlineError extends Error {}

@@ -186,14 +186,16 @@ legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 .sets { display: grid; grid-template-columns: auto 4.5rem 4.5rem; gap: .4rem .75rem; align-items: center; margin-bottom: 1rem; }
 .sets .head { font-size: .8rem; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Only what applies: no score for a walkover or concession, no "who stopped" for a match played out. */
-form.report:has(input[name=outcome][value=completed]:checked) .stopped { display: none; }
+form.report:has(input[name=outcome][value=completed]:checked) .stopped,
+form.report:has(input[name=outcome][value=unplayed]:checked) .stopped { display: none; }
 .stopped .ask-retired, .stopped .ask-conceded, .stopped .ask-walkover { display: none; }
 form.report:has(input[name=outcome]:checked) .stopped .ask-any { display: none; }
 form.report:has(input[name=outcome][value=retired]:checked) .stopped .ask-retired,
 form.report:has(input[name=outcome][value=conceded]:checked) .stopped .ask-conceded,
 form.report:has(input[name=outcome][value=walkover]:checked) .stopped .ask-walkover { display: inline; }
 form.report:has(input[name=outcome][value=walkover]:checked) .scoring,
-form.report:has(input[name=outcome][value=conceded]:checked) .scoring { display: none; }
+form.report:has(input[name=outcome][value=conceded]:checked) .scoring,
+form.report:has(input[name=outcome][value=unplayed]:checked) .scoring { display: none; }
 .claims { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem; }
 .claims > div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .75rem; }
 .claims .who { font-size: .8rem; color: var(--muted); }

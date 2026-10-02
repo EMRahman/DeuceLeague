@@ -136,9 +136,17 @@ test("sample browser installation stays within its SQL statement budget and reta
   }
   const before = new Map<string, number>();
   const singles = await raw.prepare("SELECT id FROM competition WHERE name = 'Sample singles'").first<string>("id");
-  for (const path of ["/coach", "/coach/results", `/coach/tables/${singles}`, "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
+  for (const path of ["/coach", "/coach/results", "/coach/matches", "/coach/matches?status=reported", `/coach/matches/${alexMatch}`, `/coach/tables/${singles}`, "/coach/activity", "/coach/activity/all", "/coach/chase", "/coach/members"]) {
     before.set(path, await coachPage(path));
   }
+  counted.reset();
+  const review = await worker.fetch(new Request(env.PUBLIC_URL + `/coach/matches/${alexMatch}/preview`, {
+    method: "POST", headers: { cookie: `deuceleague_coach=${admin}`, "content-type": "application/x-www-form-urlencoded", origin: env.PUBLIC_URL },
+    body: new URLSearchParams({ outcome: "walkover", stopped: "them", reason: "no_response" }),
+  }), env, ctx);
+  assert.equal(review.status, 200); await review.text();
+  t.diagnostic(`Coach decision review: ${counted.calls()} D1 calls, ${counted.rows().read} rows read`);
+  assert.ok(counted.calls() <= 30); assert.ok(counted.rows().read < 10_000);
 
   // A big club: ten more competitions running in the season. The dashboard and
   // results pages read the season, not each competition, so they cost the same.

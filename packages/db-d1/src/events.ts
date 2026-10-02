@@ -24,7 +24,7 @@ export type FeedRecord = HistoryEvent & { actorName: string | null; subjectName:
  * is for showing people what happened, since a consumer reading forwards is
  * the one guaranteed never to skip an event. */
 export async function readEventFeed(db: D1Database, hash: string, kind: CredentialKind,
-  after: EventPosition | null, limit: number, order: "oldest" | "newest" = "oldest") {
+  after: EventPosition | null, limit: number, order: "oldest" | "newest" = "oldest", matchId?: string) {
   if (!Number.isInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid feed limit");
   const newest = order === "newest";
   const from = after ?? (newest ? { txId: MAX.toString(), id: MAX.toString() } : { txId: "0", id: "0" });
@@ -41,7 +41,21 @@ export async function readEventFeed(db: D1Database, hash: string, kind: Credenti
       WHERE p.club_id = (SELECT id FROM club WHERE singleton = 1)
         AND (p.tx_id, p.event_id) > (?, ?)
       ORDER BY p.tx_id, p.event_id LIMIT ?`);
-  const identity = await readIdentity(db, hash, kind, null, [read.bind(padded(from.txId), padded(from.id), limit)]);
+  // Start at the indexed match history rather than filtering the club's whole event feed.
+  const matchRead = newest
+    ? db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      FROM event e INDEXED BY event_subject_ix JOIN event_position p ON p.local_id = e.id JOIN event_name n ON n.event_id = e.id
+      WHERE e.club_id = (SELECT id FROM club WHERE singleton = 1) AND e.subject_type = 'match' AND e.subject_id = ?
+        AND (p.tx_id, p.event_id) < (?, ?) ORDER BY p.tx_id DESC, p.event_id DESC LIMIT ?`)
+    : db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      FROM event e INDEXED BY event_subject_ix JOIN event_position p ON p.local_id = e.id JOIN event_name n ON n.event_id = e.id
+      WHERE e.club_id = (SELECT id FROM club WHERE singleton = 1) AND e.subject_type = 'match' AND e.subject_id = ?
+        AND (p.tx_id, p.event_id) > (?, ?) ORDER BY p.tx_id, p.event_id LIMIT ?`);
+  const identity = await readIdentity(db, hash, kind, null, [matchId
+    ? matchRead.bind(matchId, padded(from.txId), padded(from.id), limit)
+    : read.bind(padded(from.txId), padded(from.id), limit)]);
   const events: FeedRecord[] = (identity.extraResults[0]!.results as Record<string, unknown>[]).map((r) => ({
     txId: String(r.tx_id), id: String(r.event_id), type: String(r.type),
     subjectType: String(r.subject_type), subjectId: r.subject_id as string | null,

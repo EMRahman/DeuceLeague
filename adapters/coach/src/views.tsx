@@ -571,9 +571,11 @@ export const Results: FC<{
     <h1>Results to sort out</h1>
     <p class="muted">
       Results still waiting for matching entries, in the season under way. Each side enters independently on the
-      match page. If entries differ, ask the players to speak outside the app and enter the agreed result. This page takes no side. A match that
-      stays stuck can be settled by your agent through the API, which asks for an explicit override.
+      match page. If entries differ, ask the players to speak outside the app and enter the agreed result.
+      Open a match to inspect its history and make a coach decision if it stays unresolved.
+      Correcting a confirmed result asks for an explicit override.
     </p>
+    <p><a href="/coach/matches">Find a match or correct a confirmed result</a> · <a href="/coach/matches?status=open">Matches with no entries yet</a></p>
 
     <h2>Disputed ({counts.disputed})</h2>
     {counts.disputed === 0 && <p class="muted">No disputes.</p>}
@@ -584,7 +586,7 @@ export const Results: FC<{
       return (
         <div class="card">
           <h2>
-            {names[0]} v {names[1]}
+            <a href={`/coach/matches/${m.id}`}>{names[0]} v {names[1]}</a>
           </h2>
           <p class="muted">{where(m)}</p>
           <div class="claims">
@@ -624,7 +626,7 @@ export const Results: FC<{
             return (
               <li class="answer">
                 <strong>
-                  {names[0]} v {names[1]}
+                  <a href={`/coach/matches/${m.id}`}>{names[0]} v {names[1]}</a>
                 </strong>{" "}
                 <span class="muted">· {where(m)}</span>
                 <br />
@@ -655,7 +657,7 @@ export const Results: FC<{
               const names = namesOf(m);
               return (
                 <li class="answer">
-                  {names[0]} v {names[1]} <span class="muted">· {where(m)}</span>
+                  <a href={`/coach/matches/${m.id}`}>{names[0]} v {names[1]}</a> <span class="muted">· {where(m)}</span>
                   <br />
                   <span class="muted">
                     {m.status === "disputed" ? "Disputed" : "Waiting on the other side"} since{" "}
@@ -679,7 +681,7 @@ export const Results: FC<{
               const names = namesOf(m);
               return (
                 <li class="answer">
-                  {names[0]} v {names[1]} <span class="muted">· {where(m)}</span>
+                  <a href={`/coach/matches/${m.id}`}>{names[0]} v {names[1]}</a> <span class="muted">· {where(m)}</span>
                 </li>
               );
             })}
@@ -834,7 +836,7 @@ const ResultList: FC<{ results: Listed[]; timezone: string }> = ({ results, time
     <ul class="list">
       {results.map((m) => (
         <li class="answer">
-          {resultLine(m)}
+          <a href={`/coach/matches/${m.id}`}>{resultLine(m)}</a>
           <br />
           <span class="muted">
             {where(m)} · {m.result?.played_on ? `played ${playedOn(m.result.played_on)}` : `recorded ${at(m.updated_at, timezone)}`}

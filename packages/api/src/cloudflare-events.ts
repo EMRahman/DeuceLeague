@@ -8,11 +8,11 @@ import { problems } from "./problems.js";
 
 export function registerCloudflareEvents(app: OpenAPIHono<CloudflareEnv>, db: D1Database) {
   app.openapi(list, async (c) => {
-    const { after, limit, order } = c.req.valid("query");
+    const { after, limit, order, match_id } = c.req.valid("query");
     return retryMutation(async () => {
       const initial = c.get("identity");
       const { identity, events, from } = await readEventFeed(db, initial.hash, initial.kind,
-        after ? positionOf(after) : null, limit, order);
+        after ? positionOf(after) : null, limit, order, match_id);
       const access = c.get("requiredAccess");
       if (!access) throw problems.credentialNotAccepted(["api_key"]);
       const auth = authFor(identity);

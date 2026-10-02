@@ -4,7 +4,7 @@ Decisions made on 2 October 2026 after reviewing the
 [30 September simulation](../2026-09-30-two-season-club/report.md) and the
 [1 October simulation](report.md).
 
-These are the next four work items. Item 1 is implemented; items 2–4 remain planned.
+These are the next four work items. Items 1–2 are implemented; items 3–4 remain planned.
 They supersede conflicting proposals in the earlier simulation issue drafts,
 including showing opponents' pending scores and accepting another side's
 submission. The reports remain records of the behaviour tested at the time.
@@ -12,7 +12,7 @@ submission. The reports remain records of the behaviour tested at the time.
 ## Work list
 
 - [x] 1. Both sides enter results independently; matching submissions confirm them.
-- [ ] 2. Give the coach result controls, including injury and no-show overrides.
+- [x] 2. Give the coach result controls, including injury and no-show overrides.
 - [ ] 3. Explain newcomers' approval and placement status.
 - [ ] 4. Send sign-in links by email, require email and telephone at sign-up,
   and allow 50 join submissions per IP per day.
@@ -33,8 +33,8 @@ Implementation removes acceptance, keeps opposing submission history and differe
 private in player responses, and uses independent entry throughout the player site.
 Coach reads retain both sides and their history. Typechecking, the package tests,
 all 229 Worker tests and 18 D1 tests, and the deployment dry run pass. Miniflare's
-runtime tests require permission to listen on localhost. Issue 2's coach website
-controls remain planned.
+runtime tests require permission to listen on localhost. Issue 2 adds the coach
+website controls below.
 
 ### Decision
 
@@ -78,7 +78,18 @@ controls remain planned.
 
 ## 2. Coach result controls and injury/no-show overrides
 
-**Status:** Planned. **Areas:** coach Results page, match detail, settlement API.
+**Status:** Implemented. **Areas:** coach Results page, match detail, settlement API.
+
+The coach can open any match from Results, tables, activity or a paged match
+browser; review both submissions; choose an outcome and reason; and review
+points, played credit and minimum-match effects before saving. Corrections to
+any confirmed result require an explicit override. The audit keeps the coach's
+identity and reason alongside the preserved submissions. A version check refuses
+stale reviews, including concurrent coach decisions. Integration tests cover
+all outcomes, player-confirmed corrections, doubles, bonuses, withdrawal rules,
+deadlines, authorization and a 66-match backlog. Chrome browser checks exercise
+review, save and correction at phone and desktop widths; these are emulated
+viewport checks, not physical-phone testing or a repeat of the full club trial.
 
 **Why:** The latest simulation needed 58 agent settlement calls. Some pending
 results also had no detail link or indication of who needed to respond. See
@@ -107,15 +118,15 @@ results also had no detail link or indication of who needed to respond. See
 
 ### Acceptance
 
-- [ ] Matching injury or no-show submissions confirm without coach intervention.
-- [ ] A disagreement or missing submission stays unresolved until matching
+- [x] Matching injury or no-show submissions confirm without coach intervention.
+- [x] A disagreement or missing submission stays unresolved until matching
   entries or a coach decision; no timer or unilateral player entry awards it.
-- [ ] The coach can settle an injury or no-show without the other side's entry.
-- [ ] The coach can correct a confirmed score from the site, with named sides,
+- [x] The coach can settle an injury or no-show without the other side's entry.
+- [x] The coach can correct a confirmed score from the site, with named sides,
   explicit override and a preserved audit history.
-- [ ] Standings and participation credit reflect the settled outcome, including
+- [x] Standings and participation credit reflect the settled outcome, including
   which side attended a no-show.
-- [ ] A large backlog remains fully navigable and actionable without API reads
+- [x] A large backlog remains fully navigable and actionable without API reads
   or a coding agent.
 
 ## 3. Explain where newcomers stand

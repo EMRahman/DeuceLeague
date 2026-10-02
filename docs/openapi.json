@@ -931,54 +931,212 @@
           "outcome"
         ]
       },
-      "SettledMatch": {
-        "allOf": [
-          {
+      "SettlementPreview": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "match": {
             "$ref": "#/components/schemas/MatchDetail"
           },
-          {
+          "result": {
             "type": "object",
             "properties": {
-              "short_of_minimum": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "entry_id": {
-                      "type": "string",
-                      "format": "uuid"
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "completed",
+                  "retired",
+                  "walkover",
+                  "conceded",
+                  "unplayed"
+                ]
+              },
+              "score": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "sets": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "games": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 99
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 99
+                            }
+                          ]
+                        },
+                        "tiebreak": {
+                          "type": "array",
+                          "prefixItems": [
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 99
+                            },
+                            {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 99
+                            }
+                          ]
+                        }
+                      },
+                      "required": [
+                        "games"
+                      ]
                     },
-                    "label": {
-                      "type": "string"
-                    },
-                    "played": {
-                      "type": "integer",
-                      "description": "As the tables count it: a match against a no-show counts for the side that turned up."
-                    },
-                    "target": {
-                      "type": "integer",
-                      "description": "The competition's minimum, or all its fixtures if fewer."
-                    },
-                    "still_possible": {
-                      "type": "boolean",
-                      "description": "Whether its matches still to be played could bring it to the minimum before the season ends."
-                    }
-                  },
-                  "required": [
-                    "entry_id",
-                    "label",
-                    "played",
-                    "target",
-                    "still_possible"
-                  ]
+                    "minItems": 1,
+                    "maxItems": 7
+                  }
                 },
-                "description": "Only for `outcome: unplayed`, which credits neither side: the entries in this match now short of the competition's minimum, who are left out of next season's draft if they stay short once the tables are final. Empty for any other outcome, and when neither side is short."
+                "required": [
+                  "sets"
+                ],
+                "description": "`[0]` is always side 0. Null unless completed or retired."
+              },
+              "winning_side": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "enum": [
+                      0
+                    ]
+                  },
+                  {
+                    "type": "number",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Null only when unplayed."
+              },
+              "retired_side": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "enum": [
+                      0
+                    ]
+                  },
+                  {
+                    "type": "number",
+                    "enum": [
+                      1
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Who retired, conceded or failed to appear."
+              },
+              "played_on": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date"
               }
             },
             "required": [
-              "short_of_minimum"
+              "outcome",
+              "score",
+              "winning_side",
+              "retired_side",
+              "played_on"
             ]
+          },
+          "requires_override": {
+            "type": "boolean"
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "side": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "enum": [
+                        0
+                      ]
+                    },
+                    {
+                      "type": "number",
+                      "enum": [
+                        1
+                      ]
+                    }
+                  ]
+                },
+                "entry_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "points_before": {
+                  "type": "number"
+                },
+                "points_after": {
+                  "type": "number"
+                },
+                "played_before": {
+                  "type": "integer"
+                },
+                "played_after": {
+                  "type": "integer"
+                },
+                "minimum": {
+                  "type": "integer"
+                },
+                "withdrawn": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "side",
+                "entry_id",
+                "label",
+                "points_before",
+                "points_after",
+                "played_before",
+                "played_after",
+                "minimum",
+                "withdrawn"
+              ]
+            }
           }
+        },
+        "required": [
+          "version",
+          "match",
+          "result",
+          "requires_override",
+          "effects"
         ]
       },
       "Settlement": {
@@ -1078,13 +1236,78 @@
             "maxLength": 2000,
             "description": "What the player typed, if they typed it."
           },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_response",
+              "conflicting_entries",
+              "incorrect_result",
+              "unreported_result"
+            ],
+            "description": "Why the coach decided the result. Recorded with the acting API key in the audit history; use a category rather than personal or medical details."
+          },
+          "expected_version": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "description": "The version returned by settlement-preview. Refuses a changed match, division ledger, entries or rules so the coach can review the effect again."
+          },
           "override": {
             "type": "boolean",
-            "description": "Required to replace a result the two players agreed between them. Correcting an earlier settlement of your own, or settling a match still open, reported or disputed, does not need it."
+            "description": "Required to replace any confirmed result, including an earlier coach settlement. An identical retry or a match still open, reported or disputed does not need it."
           }
         },
         "required": [
           "outcome"
+        ]
+      },
+      "SettledMatch": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MatchDetail"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "short_of_minimum": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "entry_id": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "played": {
+                      "type": "integer",
+                      "description": "As the tables count it: a match against a no-show counts for the side that turned up."
+                    },
+                    "target": {
+                      "type": "integer",
+                      "description": "The competition's minimum, or all its fixtures if fewer."
+                    },
+                    "still_possible": {
+                      "type": "boolean",
+                      "description": "Whether its matches still to be played could bring it to the minimum before the season ends."
+                    }
+                  },
+                  "required": [
+                    "entry_id",
+                    "label",
+                    "played",
+                    "target",
+                    "still_possible"
+                  ]
+                },
+                "description": "Only for `outcome: unplayed`, which credits neither side: the entries in this match now short of the competition's minimum, who are left out of next season's draft if they stay short once the tables are final. Empty for any other outcome, and when neither side is short."
+              }
+            },
+            "required": [
+              "short_of_minimum"
+            ]
+          }
         ]
       },
       "Club": {
@@ -5944,13 +6167,114 @@
         }
       }
     },
+    "/v1/matches/{id}/settlement-preview": {
+      "post": {
+        "tags": [
+          "Matches"
+        ],
+        "summary": "Review a coach decision before saving it",
+        "description": "Validates the proposed result and computes both sides' division points and played credit before and after it, including withdrawal rules and all-played bonuses. The minimum is capped at the entry's fixture count. Does not submit a claim or change the ledger. Pass version as expected_version when settling; a change to the decision inputs requires another preview.",
+        "security": [
+          {
+            "apiKey": [
+              "league:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settlement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The proposed result and its effect.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettlementPreview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`competition_not_active`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/matches/{id}/settle": {
       "post": {
         "tags": [
           "Matches"
         ],
         "summary": "Settle a match as the coach",
-        "description": "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a correction to one already played. Every earlier claim is kept, marked superseded. Settling with the result already in the ledger changes nothing. Replacing a result the two players agreed needs `override: true`, so overruling them is deliberate. The deadline does not stop a settlement. A match that one side did not turn up to is a `walkover` with `retired_side` the absent side: the side that was there is credited the points and a match played, and the other's row counts it as unplayed. `unplayed` credits neither, and the response says who it leaves short of the competition's minimum.",
+        "description": "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a correction to one already played. Every earlier claim is kept, marked superseded. Settling with the result already in the ledger changes nothing. Replacing any confirmed result needs `override: true`, so the correction is deliberate. An optional reason records why the coach decided, and expected_version checks the state reviewed in settlement-preview. The deadline does not stop a settlement. A match that one side did not turn up to is a `walkover` with `retired_side` the absent side: the side that was there is credited the points and a match played, and the other's row counts it as unplayed. `unplayed` credits neither, and the response says who it leaves short of the competition's minimum.",
         "security": [
           {
             "apiKey": [
@@ -6043,7 +6367,7 @@
             }
           },
           "409": {
-            "description": "`competition_not_active`, or `already_agreed` without `override`.",
+            "description": "`competition_not_active`, `already_agreed` without `override`, or `settlement_changed` when the preview is out of date.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -10802,6 +11126,17 @@
             },
             "required": false,
             "name": "order",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Only this match's audit history, including who settled it and the recorded reason."
+            },
+            "required": false,
+            "description": "Only this match's audit history, including who settled it and the recorded reason.",
+            "name": "match_id",
             "in": "query"
           },
           {

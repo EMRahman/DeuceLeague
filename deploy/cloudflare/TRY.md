@@ -109,6 +109,14 @@ A link works once, within 72 hours.
 That's the league: both sides enter matching results, the tables follow, and the coach
 hands out links.
 
+To try the coach's result controls, open **Results** on `/coach` and select a
+match. Review both submissions, choose a result and a reason, then press
+**Review decision**. Try **No-show**, naming the absent side: the preview shows
+who earns points and played credit, and who remains short of the minimum.
+Save it, then open it again to try a correction. Replacing the confirmed result
+requires the override checkbox; both decisions remain in the history. **Find a
+match** lets you browse every match, including confirmed results.
+
 ## 6. End the season and start the next
 
 1. **As the coach,** open **Season** and press **End season now**. It says
