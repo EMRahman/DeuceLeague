@@ -84,7 +84,8 @@ test("coach settlement requires deliberate override, retains history/date and re
   const coach = settled.body.claims.at(-1);
   assert.deepEqual([coach.side, coach.source, coach.state], [null, "coach_entry", "confirmed"]);
   assert.deepEqual(settled.body.claims.slice(0, 2).map((c: any) => c.state), ["superseded", "superseded"]);
-  const next = await f.send(path, f.admin, "POST", completed);
+  assert.equal((await f.send(path, f.admin, "POST", completed)).body.code, "already_agreed");
+  const next = await f.send(path, f.admin, "POST", { ...completed, override: true });
   assert.equal(next.status, 201);
   assert.equal(next.body.result.played_on, "2026-09-01");
   assert.equal((await f.events("match.result.confirmed")).at(-1)!.payload.replaces, coach.id);
@@ -238,7 +239,7 @@ test("simultaneous coach corrections return their own committed result and prese
   const identical = await Promise.all([1, 2].map(() => f.send(path, f.admin, "POST", completed)));
   assert.deepEqual(identical.map((r) => r.status).sort(), [200, 201]);
   const bodies = [score([6, 1], [6, 1]), score([6, 2], [6, 2])];
-  const responses = await Promise.all(bodies.map((s) => f.send(path, f.admin, "POST", { outcome: "completed", score: s })));
+  const responses = await Promise.all(bodies.map((s) => f.send(path, f.admin, "POST", { outcome: "completed", score: s, override: true })));
   for (const [i, response] of responses.entries()) {
     assert.equal(response.status, 201);
     assert.deepEqual(response.body.result.score, bodies[i]);

@@ -271,8 +271,9 @@ match are judged one after the other, so both sides reporting at the same
 moment still agree.
 
 Before confirmation, each side can amend its own pending entry. After
-confirmation, adjustments require coach settlement through the API, with an
-explicit override to replace what players agreed. `GET /v1/dispute-history`
+confirmation, adjustments require coach settlement, available on the coach
+website and through the API, with an explicit override to replace any confirmed
+result. `GET /v1/dispute-history`
 (`league:read` and `members:read`, an API key only) shows the coach who has been
 on a side of a disputed match, this season and earlier, and how each ended for
 them: they gave way, the other side did, the coach settled it, or it is still
@@ -286,9 +287,22 @@ reopening it first. The deadline is a cut-off: after it no new claim is taken, a
 season's deadline, which reopens reporting. Closing reporting is not the same
 as agreeing a score: nothing enters the ledger because time passed.
 
-Replacing a result the two players agreed between them needs `override: true`
-on the settlement, so overruling them is a deliberate act. Correcting a
-settlement of the coach's own does not.
+Replacing any confirmed result needs `override: true`, including a previous
+coach decision. An identical retry remains harmless and needs no override.
+Settlement accepts a categorical `reason`: `no_response`, `conflicting_entries`,
+`incorrect_result` or `unreported_result`. The website requires one; it is
+optional for existing API clients. The confirmation event records that reason
+and the acting API key, without putting free-form personal information in the
+event log. `GET /v1/events?match_id={id}` pages through that match's history;
+it retains the event feed's existing API-key permissions.
+
+`POST /v1/matches/{id}/settlement-preview` (`league:write`) validates a proposed
+settlement and returns the current submissions, proposed result, whether an
+override is needed, and points and played credit before and after for each
+side, including bonuses, withdrawal rules and the minimum-match target. It
+does not save a submission or result. Send its `version` as `expected_version`
+when settling to refuse a save if the decision inputs changed (`409
+settlement_changed`). The website always uses this review and version check.
 
 A match one side did not turn up to is settled as a `walkover` with
 `retired_side` the side that was absent. The side that was there is credited

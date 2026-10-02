@@ -433,7 +433,8 @@ test("the coach sees this season's disputes with both claims, and who keeps endi
   assert.match(open.html, /Disputed \(2\)/);
   assert.match(text(open.html), /Sam says [^]*? Alex says/, "both claims side by side");
   assert.match(open.html, /<div class="muted">\d{1,2} \w{3}[^<]*\d{2}:\d{2}[^<]*<\/div>/, "and when each was made");
-  assert.match(text(open.html), /This page takes no side/); assert.doesNotMatch(open.html, /action="[^"]*settle/, "nothing to settle from the site");
+  assert.match(text(open.html), /Open a match to inspect its history and make a coach decision/);
+  assert.match(open.html, new RegExp(`href="/coach/matches/${p.match}"`));
   assert.match(text(open.html), /Players in 2 or more disputes/);
   assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier/);
   assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier\s+2 still open/);

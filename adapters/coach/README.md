@@ -46,14 +46,21 @@ MIT-licensed.
   the longest waiting first; and, once the deadline has passed, its matches
   nobody played. Up to 12 are read in full (`GET /v1/matches/{id}`), since each
   read costs D1 queries and Workers Free allows 50 a request; the rest are
-  listed by name. Players resolve disputes themselves, so nothing here settles
-  a match or takes a side. Below, players in two or more disputes across all
+  listed by name with links to their match pages. Each match page shows both
+  submissions and their history, and lets the coach settle an unresolved result
+  or correct a confirmed one. Injury before play, retirement during play and
+  no-show each name the affected side. Review shows points, played credit and
+  minimum-match consequences before saving; replacing any confirmed result
+  requires an explicit override. A reason and the coach's identity stay in the
+  decision history. A changed match or standings requires a fresh review.
+  **Find a match** (`/coach/matches`) browses all matches, including earlier
+  seasons, 50 at a time with a status filter. Below Results, players in two or more disputes across all
   seasons (`GET /v1/dispute-history`), with how each ended for them: they gave
   way, the other side did, you settled it, or it is open. Only the coach sees it.
 - **Tables** (`/coach/tables`). The tables exactly as players see them, for the
   competitions open to members: the players' site's own view
   (`CompetitionTables`), with nobody's row marked and
-  no links into players' match pages. Its cost doesn't grow with the number of
+  links into coach match pages. Its cost doesn't grow with the number of
   competitions.
 - **Activity** (`/coach/activity`). The ten latest results
   (`GET /v1/matches?status=played&order=recent`) and the ten latest events of

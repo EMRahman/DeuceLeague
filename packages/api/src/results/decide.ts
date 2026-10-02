@@ -86,13 +86,14 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
   const { claim, checked } = checkResult(body, competition.matchFormat);
   const playedOn = body.played_on ?? match.playedOn;
   if (match.status === "played" && compareClaims(ledgerClaim(match), claim).length === 0 && playedOn === match.playedOn) return null;
-  if (match.status === "played" && !body.override && claims.find((c) => c.id === match.acceptedSubmissionId)?.sideIndex !== null) {
-    throw problems.conflict("already_agreed", "The two players agreed this result between them",
-      "Replacing what both sides settled is the coach overruling them, so say so: send override: true.");
+  if (match.status === "played" && !body.override) {
+    throw problems.conflict("already_agreed", "This result is already confirmed",
+      "Replacing a confirmed result requires an explicit coach override: send override: true.");
   }
   const created = newClaim({ sideIndex: null, ...claim, playedOn: body.played_on ?? null, state: "confirmed",
     acceptsSubmissionId: null, source: "coach_entry", rawInput: body.raw_input ?? null });
   const ledger = ledgerEntry(claim, checked, playedOn, id);
+  const event = announce("settled", ledger, match.acceptedSubmissionId);
   return { claim: created, supersede: claims.filter((c) => c.state !== "superseded").map((c) => c.id), confirm: [],
-    status: "played", ledger, events: [announce("settled", ledger, match.acceptedSubmissionId)], enforceDeadline: false };
+    status: "played", ledger, events: [{ ...event, payload: { ...event.payload, ...(body.reason ? { reason: body.reason } : {}) } }], enforceDeadline: false };
 }

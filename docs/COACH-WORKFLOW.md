@@ -5,7 +5,7 @@ agent. The agent reads the API specification, shows the coach the important
 changes, and carries them out with its own scoped key. The coach should not
 need to know route names, JSON or database commands.
 
-Handing players their sign-in links needs no agent: the coach does it on the
+Handing players their sign-in links and deciding results need no agent: the coach does them on the
 coach's site, `/coach`. This is the first-season workflow. Try it with the coach before building a
 general admin panel. If a repeated job is still awkward, build a small screen
 for that job from observed use rather than introducing a second way to manage
@@ -40,7 +40,7 @@ the coach normally uses.
 | A player is leaving the league entirely | “Sam is not playing next season at all.” | Marks them out of every draft, singles and doubles, in one go; a doubles partner is left needing a partner. Their results this season stand. It can be taken back |
 | Someone leaves the club | “Sam has left the club.” | The member is marked as left on the Members page: their results stay and they are left out of next season's draft |
 | See what needs attention | “How is the current season going? Show disputed scores, scores waiting for agreement and players with matches left.” | The few exceptions first, then division progress |
-| Settle a result | “Sam and Alex agreed it was 6-4, 3-6, 10-7 to Sam. Settle that match.” | Players, competition, score and winner before submitting. Players resolve their own disputes; only settle one that stays stuck, and replacing a score they agreed needs an explicit override |
+| Settle a result | “Sam and Alex agreed it was 6-4, 3-6, 10-7 to Sam. Settle that match.” | Players, competition, score, winner, reason and participation before submitting. Replacing any confirmed result needs an explicit override |
 | See who is often in disputes | “Who keeps ending up in disputed matches, and how did they end?” | The coach's Results page shows it. Both players are in every dispute, so look at who gave way, not only the count |
 | Settle a no-show | “Alex never turned up to play Sam. Settle it as a walkover to Sam.” | Who was absent. The player who turned up is credited the match, so a no-show never leaves them short of the minimum. “Unplayed” credits neither side, and the answer says who it leaves short |
 | Prepare the next season | “Draft Autumn from the Summer tables. Use the normal movement rules and leave out anyone who opted out.” | Every promotion, relegation, hold and omission, with its reason; anyone short of the minimum is left out, and can be added back |
@@ -49,6 +49,17 @@ the coach normally uses.
 | Close a season | “Show me everything unresolved before we close Summer.” | Settle or deliberately leave each outstanding match, then close |
 | Set the minimum matches | “This season's singles divisions have eight players. Expect everyone to play at least 5.” | Division sizes, and that a division too small for the minimum expects all its matches |
 | Handle a lost phone | “Sign Sam out everywhere.” | The intended member before revoking sessions |
+
+On **Results**, open a match to see both sides' entries and submission history.
+Enter the result, name who was injured, retired or absent where appropriate,
+and choose a reason. **Review decision** shows the proposed result and each
+side's points, played credit and minimum-match requirement before saving.
+Correcting a confirmed result requires ticking the override box. Previous
+submissions remain in the history with the decision's reason and coach identity.
+If the match or standings change during review, review again before saving.
+**Find a match** pages through all matches by status; tables and recent results
+also link to the coach's match page. A completed competition must be reopened
+before its results can be changed.
 
 The coach's own site does the turn of a season without an agent, on its
 **Season** tab: end the season, start the next from its tables, adjust the

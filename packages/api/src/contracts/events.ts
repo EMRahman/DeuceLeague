@@ -100,6 +100,7 @@ export const list = createRoute({
         description: "Carry on after this cursor, in the order asked for. Omit to start from the beginning, or from the latest event with `order=newest`.",
       }),
       order: z.enum(["oldest", "newest"]).default("oldest"),
+      match_id: z.uuid().optional().openapi({ description: "Only this match's audit history, including who settled it and the recorded reason." }),
       limit: z.coerce.number().int().min(1).max(500).default(100),
     }),
   },

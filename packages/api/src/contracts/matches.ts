@@ -115,13 +115,32 @@ export const NewClaim = z
 export const Settlement = z
   .object({
     ...ResultFields,
+    reason: z.enum(["no_response", "conflicting_entries", "incorrect_result", "unreported_result"]).optional().openapi({
+      description: "Why the coach decided the result. Recorded with the acting API key in the audit history; use a category rather than personal or medical details.",
+    }),
+    expected_version: z.string().regex(/^[a-f0-9]{64}$/).optional().openapi({
+      description: "The version returned by settlement-preview. Refuses a changed match, division ledger, entries or rules so the coach can review the effect again.",
+    }),
     override: z.boolean().optional().openapi({
       description:
-        "Required to replace a result the two players agreed between them. Correcting an earlier " +
-        "settlement of your own, or settling a match still open, reported or disputed, does not need it.",
+        "Required to replace any confirmed result, including an earlier coach settlement. An identical retry or a match still open, reported or disputed does not need it.",
     }),
   })
   .openapi("Settlement");
+
+export const SettlementPreview = z.object({
+  version: z.string(),
+  match: MatchDetail,
+  result: Result.omit({ claim_id: true }),
+  requires_override: z.boolean(),
+  effects: z.array(z.object({
+    side: SideIndex, entry_id: z.uuid().nullable(), label: z.string(),
+    points_before: z.number(), points_after: z.number(),
+    played_before: z.number().int(), played_after: z.number().int(),
+    minimum: z.number().int(),
+    withdrawn: z.boolean(),
+  })),
+}).openapi("SettlementPreview");
 
 // ─────────────────────────────────────────────────────────────── routes ──
 
@@ -219,8 +238,9 @@ export const settle = createRoute({
   description:
     "Enters the result directly: for a dispute the players cannot resolve, a match nobody reported, or a " +
     "correction to one already played. Every earlier claim is kept, marked superseded. Settling with the " +
-    "result already in the ledger changes nothing. Replacing a result the two players agreed needs " +
-    "`override: true`, so overruling them is deliberate. The deadline does not stop a settlement. A match that " +
+    "result already in the ledger changes nothing. Replacing any confirmed result needs " +
+    "`override: true`, so the correction is deliberate. An optional reason records why the coach decided, " +
+    "and expected_version checks the state reviewed in settlement-preview. The deadline does not stop a settlement. A match that " +
     "one side did not turn up to is a `walkover` with `retired_side` the absent side: the side that was there is " +
     "credited the points and a match played, and the other's row counts it as unplayed. `unplayed` credits " +
     "neither, and the response says who it leaves short of the competition's minimum.",
@@ -235,6 +255,21 @@ export const settle = createRoute({
     ...validationProblem,
     ...authProblems,
     ...notFoundProblem,
-    ...conflictProblem("`competition_not_active`, or `already_agreed` without `override`."),
+    ...conflictProblem("`competition_not_active`, `already_agreed` without `override`, or `settlement_changed` when the preview is out of date."),
+  },
+});
+
+export const previewSettlement = createRoute({
+  method: "post",
+  path: "/v1/matches/{id}/settlement-preview",
+  tags: ["Matches"],
+  summary: "Review a coach decision before saving it",
+  description: "Validates the proposed result and computes both sides' division points and played credit before and after it, including withdrawal rules and all-played bonuses. The minimum is capped at the entry's fixture count. Does not submit a claim or change the ledger. Pass version as expected_version when settling; a change to the decision inputs requires another preview.",
+  ...requires("league:write"),
+  request: { params: IdParam, body: { content: { "application/json": { schema: Settlement } }, required: true } },
+  responses: {
+    200: { description: "The proposed result and its effect.", content: { "application/json": { schema: SettlementPreview } } },
+    ...validationProblem, ...authProblems, ...notFoundProblem,
+    ...conflictProblem("`competition_not_active`."),
   },
 });
