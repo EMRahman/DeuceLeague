@@ -1,11 +1,12 @@
 # DeuceLeague
 
 Open-source tennis league software for a club. Players see their matches and
-tables, report scores and agree their opponents' results from their phones.
+tables and enter results independently from their phones. Matching entries
+confirm the result, while opposing submissions stay private.
 The coach hands out sign-in links and runs the league, with a coding agent for
 the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 
-![The players' website on a phone: the home page with scores to agree, a division table, and reporting a match.](docs/images/product-preview.png)
+![The players' website on a phone: the home page with results to enter, a division table, and independent result entry.](docs/images/product-preview.png)
 
 > **Not simulation-certified yet.** DeuceLeague is still under testing. The
 > automated tests pass, but a club's seasons have edge cases they do not reach,
@@ -25,10 +26,10 @@ the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 ## Next work
 
 The [next four work items](sims/2026-10-01-two-season-gpt/issues.md), agreed on
-2 October, are **planned, not implemented**:
+2 October, have item 1 implemented and verified; items 2–4 remain planned:
 
 1. Both sides enter results independently, with opposing submissions hidden
-   until confirmation. Matching entries confirm the result; later corrections
+   from players. Matching entries confirm the result; later corrections
    belong to the coach.
 2. Coach result controls, including overrides for disputed or unanswered injury
    and no-show reports.
