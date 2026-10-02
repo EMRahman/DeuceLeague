@@ -18,3 +18,4 @@ export * from "./events.js";
 export * from "./website.js";
 export * from "./setup.js";
 export * from "./sample.js";
+export * from "./player-placements.js";

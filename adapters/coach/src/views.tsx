@@ -1176,7 +1176,8 @@ export const Members: FC<{
       <>
         <h2>Waiting to be placed</h2>
         <p class="muted">
-          In no competition of a season under way or being prepared. Add them in the draft for next season, on the{" "}
+          New club members with no league entry yet. Members taking a break, leaving, or previously entered
+          are not newcomers. Consider these members in the draft for next season, on the{" "}
           <a href="/coach/season">Season</a> tab.
         </p>
         <div class="card">

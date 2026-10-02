@@ -26,7 +26,7 @@ the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 ## Next work
 
 The [next four work items](sims/2026-10-01-two-season-gpt/issues.md), agreed on
-2 October, have items 1–2 implemented; items 3–4 remain planned:
+2 October, have items 1–3 implemented (item 3 has a PR open); item 4 remains planned:
 
 1. Both sides enter results independently, with opposing submissions hidden
    from players. Matching entries confirm the result; later corrections

@@ -1,6 +1,6 @@
 import { raw } from "hono/html";
 import type { Child, FC, PropsWithChildren } from "hono/jsx";
-import type { Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
+import type { PlayerPlacements, Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
 import { AGE_GROUPS, GENDERS, PRIVACY_NOTICE, type JoinForm } from "./join.js";
@@ -402,7 +402,9 @@ export const Join: FC<{
 export const JoinSent: FC<{ frame: Frame; firstName: string }> = ({ frame, firstName }) => (
   <Layout title="Request sent" frame={frame}>
     <h1>Thank you, {firstName}</h1>
-    <p>Your request is with the coach. Once they have added you to the league, they will be in touch.</p>
+    <p>Your request has been received. The coach must approve it before you become a club member.</p>
+    <p>After approval, the coach will consider you for a division in next season's draft and be in touch about signing in.
+      Approval does not add you to the running season or guarantee a division place.</p>
     <p class="muted">
       Nothing heard in a couple of weeks? Ask at the club. A request nobody has answered is deleted after 30 days.
     </p>
@@ -708,6 +710,13 @@ const ordinal = (n: number) => {
   return `${n}${suffix}`;
 };
 
+const PlacementDates: FC<{ season: PlayerPlacements["next_season"] }> = ({ season }) => (
+  <p class="muted">
+    {season?.starts_on ? <>Starts {playedOn(season.starts_on)}{season.ends_on ? <> · Ends {playedOn(season.ends_on)}</> : " · End date not announced yet"}.</>
+      : <>The start date has not been announced yet{season?.ends_on ? <> · Ends {playedOn(season.ends_on)}</> : ""}.</>}
+  </p>
+);
+
 export const Home: FC<{
   frame: Frame;
   name: string;
@@ -728,6 +737,7 @@ export const Home: FC<{
   /** Those of them that what they said covers, and those entered after they said it, which it does not. */
   covered: string[];
   later: string[];
+  placementStatus: PlayerPlacements;
   /** On a break: out of every draft until they say they are back. */
   onBreak: boolean;
   /** Still in the club and not on a break: only they are offered a break or leaving. */
@@ -736,6 +746,33 @@ export const Home: FC<{
   <Layout title="Your matches" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
     {p.notice && <Notice ok messages={[p.notice]} />}
+    {p.active && !p.leaving && !p.placementStatus.has_entries && p.placementStatus.placements.length === 0 && p.entries.length === 0 && (
+      <section class="card">
+        <h2>You are a club member</h2>
+        <p>Your membership is approved. You are waiting for the coach to consider your placement
+          {p.placementStatus.next_season ? <> in {p.placementStatus.next_season.name}</> : " for next season"}.</p>
+        {p.placementStatus.next_season ? <PlacementDates season={p.placementStatus.next_season} />
+          : <p class="muted">Next season's name and dates have not been announced yet.</p>}
+        <p>You have no matches yet because approval does not add you to the running season.
+          A division place is not guaranteed until the coach assigns one.</p>
+        <p>You do not need to do anything now. The coach will be in touch when your place and fixtures are ready.</p>
+      </section>
+    )}
+    {p.placementStatus.placements.map((placement) => (
+      <section class="card">
+        <h2>{placement.provisional ? "Your provisional place" : "Your season is open"} · {placement.season.name}</h2>
+        <p><strong>{placement.competition_name} · {placement.division_name}</strong>
+          {placement.partner && <> · Partner: {placement.partner.display_name}</>}</p>
+        <PlacementDates season={placement.season} />
+        {placement.provisional ? <>
+          <p>This is a draft placement and may change. Play starts when the coach opens the season and competition.</p>
+          <p>{placement.fixtures_ready ? "Your fixtures have been prepared, but are not open to play yet." : "Your fixtures are still being prepared."}
+            {" "}You do not need to do anything now.</p>
+        </>
+          : placement.fixtures_ready ? <p>Your fixtures are ready to play. <a href={`/competitions/${placement.competition_id}#mine`}>See your competition and fixtures</a>.</p>
+          : <p>Your fixtures are still being prepared. The coach will be in touch when they are ready; you do not need to do anything now.</p>}
+      </section>
+    ))}
     {p.onBreak && (
       <section class="card">
         <h2>You are on a break</h2>
@@ -884,7 +921,9 @@ export const Home: FC<{
       </section>
     )}
     {p.weather && <WeatherBox {...p.weather} />}
-    {p.answer.length + p.toPlay.length + p.waiting.length + p.closed.length === 0 && (
+    {p.answer.length + p.toPlay.length + p.waiting.length + p.closed.length === 0 &&
+      (p.entries.length > 0 || !p.active || !!p.leaving ||
+        (p.placementStatus.has_entries && p.placementStatus.placements.length === 0)) && (
       <p class="muted">You have no matches outstanding.</p>
     )}
     {p.played.length > 0 && (

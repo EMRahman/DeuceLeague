@@ -82,7 +82,21 @@ configuration to the reference website, whose Worker fetches and publicly
 caches forecasts; the core stores neither forecasts nor player data with them.
 A club with no locations shows no weather.
 
-**Members.** List them — display names with `members:read`, the full record
+**Your placements.** `GET /v1/me/placements` takes only a player's session. It
+shows their own member-visible draft and open entries, with the season's name
+and dates, division and doubles partner. Draft placement is provisional until
+both season and competition open; `fixtures_ready` says whether their entry
+has fixtures. Other draft lineups and private competitions stay private. The
+response also names the earliest planning season, if one has been announced,
+and says whether this member has ever held an entry, to distinguish newcomers
+from returning or excluded players.
+
+**Members.** `GET /v1/members?never_entered=true` filters to people who have
+never held an entry, including historical or withdrawn entries, and requires
+`league:read` as well as `members:read`. The coach uses it to list newcomers
+awaiting placement, excluding members taking a break or leaving.
+
+List them — display names with `members:read`, the full record
 with `members:pii`. Create, edit and remove (a soft delete) with
 `members:write`. Finding a member by email, `GET /v1/members?email=`, needs
 `members:pii` too, since whether an address belongs to a member is itself

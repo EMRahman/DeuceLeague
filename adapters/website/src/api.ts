@@ -185,3 +185,15 @@ export type Standings = {
 };
 
 export type Member = { id: string; display_name: string; deleted_at: string | null };
+
+/** A player's own placements, including a limited view of their drafts. */
+export type PlayerPlacements = {
+  has_entries: boolean;
+  next_season: Pick<Season, "id" | "name" | "starts_on" | "ends_on"> | null;
+  placements: {
+    season: Pick<Season, "id" | "name" | "starts_on" | "ends_on">;
+    competition_id: string; competition_name: string; division_name: string;
+    partner: { id: string; display_name: string } | null;
+    provisional: boolean; fixtures_ready: boolean;
+  }[];
+};

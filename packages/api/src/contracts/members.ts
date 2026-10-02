@@ -96,6 +96,7 @@ export const list = createRoute({
       email: z.email().max(254).optional().openapi({
         description: "PII. The member with this email address, whatever its case. Needs `members:pii`.",
       }),
+      never_entered: Flag.optional().openapi({ description: "Only members who have never held a league entry, including withdrawn or historical entries. Needs `league:read`." }),
       include_removed: Flag.optional().openapi({ description: "Include members removed from the list." }),
     }),
   },

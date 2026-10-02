@@ -284,20 +284,11 @@ export function createCoachSite(options: CoachOptions) {
     return { requests: page.data, more: page.next_cursor !== null };
   }
 
-  /** Seasons this deep are not worked through: every competition costs a read. */
-  const WAITING_COMPETITIONS = 12;
-
-  /**
-   * Active members in none of the competitions under way or being drafted: they join at the next
-   * draft. Null when the club runs too many competitions to read cheaply, or the key cannot read the league.
-   */
-  async function waitingForPlacement(who: Coach, members: CoachMember[]): Promise<CoachMember[] | null> {
+  /** An indexed entry lookup excludes past participants, including opt-outs, without loading league history. */
+  async function waitingForPlacement(who: Coach): Promise<CoachMember[] | null> {
     if (!who.scopes.includes("league:read")) return null;
-    const open = (await all<CoachCompetition>("/v1/competitions", who.key)).filter((x) => x.state === "active" || x.state === "draft");
-    if (open.length > WAITING_COMPETITIONS) return null;
-    const entries = await Promise.all(open.map((x) => all<Entry>(`/v1/competitions/${x.id}/entries`, who.key)));
-    const placed = new Set(entries.flat().flatMap((e) => e.members.map((m) => m.id)));
-    return members.filter((m) => m.status === "active" && !placed.has(m.id));
+    const newcomers = await all<CoachMember>("/v1/members?status=active&never_entered=true", who.key);
+    return newcomers.filter((m) => !m.leaving_at);
   }
 
   app.get("/members", async (c) => {
@@ -310,7 +301,7 @@ export function createCoachSite(options: CoachOptions) {
     const present = listed.filter((m) => !m.deleted_at);
     const members = present.filter((m) => m.status !== "left");
     const left = present.filter((m) => m.status === "left").sort((a, b) => a.display_name.localeCompare(b.display_name));
-    const waiting = await waitingForPlacement(who, members);
+    const waiting = await waitingForPlacement(who);
     // Who still needs a link first, then by name.
     members.sort(
       (a, b) =>
