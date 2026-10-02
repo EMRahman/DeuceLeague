@@ -582,7 +582,7 @@
                 "items": {
                   "$ref": "#/components/schemas/Claim"
                 },
-                "description": "Every claim ever made about the match, oldest first."
+                "description": "For API keys: every submission and its history, oldest first. Player sessions see only their own side's submissions, including replacements. Opposing submissions and coach entries remain private; the final result is in result."
               },
               "waiting_on": {
                 "anyOf": [
@@ -602,14 +602,14 @@
                     "type": "null"
                   }
                 ],
-                "description": "When reported: the side whose answer is awaited."
+                "description": "When reported: the side that still needs to enter its result."
               },
               "differences": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 },
-                "description": "When disputed: what the two claims disagree on, e.g. \"set 2: side 0 says 6-4, side 1 says 6-3\".",
+                "description": "For API keys when disputed: what the two claims disagree on, e.g. \"set 2: side 0 says 6-4, side 1 says 6-3\". Always empty for player sessions.",
                 "example": [
                   "set 2: side 0 says 6-4, side 1 says 6-3"
                 ]
@@ -766,7 +766,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "Set when this side accepted the other's claim rather than reporting its own."
+            "description": "Historical acceptance reference. New submissions are entered independently and leave this null."
           },
           "submitted_at": {
             "type": "string",
@@ -930,21 +930,6 @@
         "required": [
           "outcome"
         ]
-      },
-      "Acceptance": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string",
-            "enum": [
-              "api",
-              "telegram",
-              "web",
-              "nl_parse"
-            ],
-            "description": "Defaults to `web` for a player's session, `api` for an API key."
-          }
-        }
       },
       "SettledMatch": {
         "allOf": [
@@ -5773,7 +5758,7 @@
         "tags": [
           "Matches"
         ],
-        "summary": "A match, with every claim made about it",
+        "summary": "A match, with submissions visible to the caller",
         "security": [
           {
             "apiKey": [
@@ -5849,7 +5834,7 @@
           "Matches"
         ],
         "summary": "Report a result for one side, or correct that side's report",
-        "description": "The score is checked against the competition's match format, then compared with the other side's claim: the same result puts it in the ledger, a different one makes the match `disputed`, and none leaves it `reported` until the other side answers — however long that takes. A side's new claim replaces its previous one, which is kept. Sending the same claim again changes nothing, so a retry is safe. Once a match is played, only the coach can change it, and once the season's results deadline has passed no new claim is taken. A player's session reports for its own side of its own matches, and nothing else.",
+        "description": "The score is checked against the competition's match format, then compared with the other side's independently entered claim. Matching outcomes, set scores (including the deciding match tiebreak) and affected sides put it in the ledger; a difference makes the match `disputed`, and no opposing entry leaves it `reported` until the other side answers — however long that takes. A side's new claim replaces its previous one, which is kept. Sending the same claim again changes nothing, so a retry is safe. Once a match is played, only the coach can change it, and once the season's results deadline has passed no new claim is taken. A player's session reports for its own side of its own matches, and nothing else. Scores use the named-side order, with side 0 first regardless of the submitting side. Players see only their own side's submissions and the waiting or mismatch status. On a mismatch, speak outside the app and enter the agreed result; opposing submissions and differences remain private.",
         "security": [
           {
             "apiKey": [
@@ -5948,119 +5933,6 @@
           },
           "409": {
             "description": "`already_played`, `competition_not_active`, or `deadline_passed`.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/matches/{id}/claims/{claim_id}/accept": {
-      "post": {
-        "tags": [
-          "Matches"
-        ],
-        "summary": "Accept the other side's claim",
-        "description": "The side that did not make the claim agrees to it instead of typing the score again, and the result enters the ledger. The claim is named, so nobody accepts a score they have not seen: if it has since been replaced, this is refused. Accepting again changes nothing. A player's session accepts only a claim made by the other side of its own match.",
-        "security": [
-          {
-            "apiKey": [
-              "results:write"
-            ]
-          },
-          {
-            "session": [
-              "results:write"
-            ]
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          },
-          {
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            },
-            "required": true,
-            "name": "claim_id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": false,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Acceptance"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Already accepted; nothing changed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MatchDetail"
-                }
-              }
-            }
-          },
-          "201": {
-            "description": "Accepted; the match is played.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MatchDetail"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "No credential, or one that is unknown, revoked or expired.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "The credential lacks a scope this needs, or is of a kind this does not take. For a player's session: `not_your_match` when they are not playing in it, `not_your_side` when the claim is the other side's to make.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Nothing with that id in this club.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Problem"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "`claim_not_live`: the claim was replaced or settled; or `competition_not_active`, or `deadline_passed`.",
             "content": {
               "application/problem+json": {
                 "schema": {

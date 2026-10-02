@@ -41,15 +41,14 @@ test("the built Worker runs protected setup and identity against D1, and reads t
   assert.equal(feed.headers.get("Cache-Control"), "no-store");
 });
 
-test("the bundled Worker runs player login, reporting, opponent acceptance and coach override on real D1", async (t) => {
+test("the bundled Worker runs player login, reporting, independent matching entry and coach override on real D1", async (t) => {
   const f = await playing(t, 2, false, true);
   const m = f.matches[0]!;
   const a = await f.sessionForSide(m, 0);
   const b = await f.sessionForSide(m, 1);
   const report = await f.send(`/v1/matches/${m}/claims`, a, "POST", completed);
   assert.equal(report.status, 201, JSON.stringify(report.body));
-  const claim = report.body.claims[0].id;
-  const accepted = await f.send(`/v1/matches/${m}/claims/${claim}/accept`, b, "POST");
+  const accepted = await f.send(`/v1/matches/${m}/claims`, b, "POST", completed);
   assert.equal(accepted.status, 201);
   assert.equal(accepted.body.status, "played");
   const correction = await f.send(`/v1/matches/${m}/settle`, f.admin, "POST", { outcome: "unplayed", override: true });

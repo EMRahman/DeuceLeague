@@ -32,7 +32,7 @@ operation.
 | Caller | Credential | Can do |
 |---|---|---|
 | A coach's tools, bots and scripts | API key: `Authorization: Bearer dl_…` | whatever the key's scopes allow |
-| A player | a session, `Bearer dls_…`, from a login link | read their league; report and accept results for their own matches only |
+| A player | a session, `Bearer dls_…`, from a login link | read their league; enter results for their own matches only |
 
 Nobody else. Every `/v1` route needs a credential: competitions, tables and
 results are shown only to someone who has authenticated, never to an anonymous
@@ -47,7 +47,7 @@ usually held by their coding agent. There is no separate user-account system.
 | Scope | Grants |
 |---|---|
 | `league:read` | seasons, competitions, divisions, standings, matches, progress, events |
-| `results:write` | report, accept and correct results |
+| `results:write` | enter and correct pending results |
 | `league:write` | create and edit competitions, entries, placements and fixtures; settle results; forecast court locations and units |
 | `members:read` | the member list, with display names and status; forecast configuration |
 | `members:write` | create and edit members, and mint their login links |
@@ -134,13 +134,13 @@ how players drift away. It ends only when they sign out (`DELETE /v1/session`),
 when the coach signs them out everywhere (`POST /v1/members/{id}/sign-out`) —
 for a lost phone — or when the member is removed. That is safe to leave open
 because a session can act only for that player's own matches, and a result
-still needs the other side to agree. Ending a session deletes it, as using a
+still needs an independent matching entry from the other side. Ending a session deletes it, as using a
 link does: nothing is kept that no longer works.
 
 A session does less than its scopes suggest. It reads seasons, and the
 competitions open to members once the coach has activated them; a private
 competition, or a draft holding next season's placements before the coach has
-decided them, answers as if it did not exist. It reports and accepts results
+decided them, answers as if it did not exist. It enters results
 for its own side of its own matches, without having to name the side. It
 cannot read the member list, the chase list or the event feed, or change
 anything else, beyond opting its own entries out of next season and saying who
@@ -257,9 +257,12 @@ re-run after a late entry: only the missing pairings are added.
 **Results** — the only way a score enters the ledger. A side reports, or
 corrects its own report; the score is checked against the competition's format
 and compared with the other side's, and the match moves to reported, disputed
-or played. A disputed match says exactly what differs, in words a player can
-act on. A side can accept the other's score instead of retyping it, naming the
-claim it accepts, so nobody agrees to a score they have not seen. The coach can
+or played. Both sides enter independently, with scores in named-side order
+(side 0 first). Pending submissions do not contribute points. Players see
+only their own side's submissions, waiting or mismatch status, and the final
+confirmed result. Opposing submissions, replacements and score differences
+remain private. On a mismatch, players speak outside the app and enter the
+agreed result. There is no acceptance action. The coach can
 settle any match (`league:write`), including one already played; the claims it
 replaces are kept, marked superseded. A player's session claims only for its
 own side, so it need not name the side; a key must. Sending the same claim
@@ -267,10 +270,8 @@ twice is harmless, so a bot that retries does no damage. Two claims on one
 match are judged one after the other, so both sides reporting at the same
 moment still agree.
 
-Players settle their own disputes: each can accept the other's score or report
-their own again, and the player who does so gives way. The coach is not asked
-to take a side in a match they did not watch, and the coach's site settles
-nothing; a match that stays stuck is settled through the API, which needs an
+Before confirmation, each side can amend its own pending entry. After
+confirmation, adjustments require coach settlement through the API, with an
 explicit override to replace what players agreed. `GET /v1/dispute-history`
 (`league:read` and `members:read`, an API key only) shows the coach who has been
 on a side of a disputed match, this season and earlier, and how each ended for
@@ -281,8 +282,7 @@ player's session cannot read it.
 
 Results are recorded while a competition is active, and until the season's
 results deadline. A complete competition is a record, so correcting it means
-reopening it first. The deadline is a cut-off: after it no new claim or
-acceptance is taken, and the coach settles what is left — or moves the
+reopening it first. The deadline is a cut-off: after it no new claim is taken, and the coach settles what is left — or moves the
 season's deadline, which reopens reporting. Closing reporting is not the same
 as agreeing a score: nothing enters the ledger because time passed.
 
@@ -382,7 +382,7 @@ API run together at the configured public origin.
 
 **The reference website** (`adapters/website`, MIT) is what players use out of
 the box: sign in with a link from the coach or, optionally, an emailed one,
-see their matches and tables, report and agree scores. It is an adapter like
+see their matches and tables, enter results independently. It is an adapter like
 any other — it reaches the league only through this API, with its own key for
 signing players in and each player's session for everything else — and it
 sends any emails, since the core does not. A club can restyle it or replace it.

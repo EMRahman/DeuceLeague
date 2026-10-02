@@ -12,7 +12,7 @@ import { AGE_GROUPS, GENDERS, PRIVACY_NOTICE, type JoinForm } from "./join.js";
  * A club restyling the site starts with STYLE and Layout.
  *
  * Written for a phone first. A player comes here a few times a month to do
- * one of four things — agree a score, report one, see where they stand, see
+ * enter a result, correct a pending entry, see where they stand, or see
  * who is left to play — so each is at most a tap or two from the home page.
  */
 
@@ -523,10 +523,8 @@ export type MyMatch = {
   note: string;
 };
 
-/** A score the opponent has put in, waiting for this player's answer. */
+/** A match needing this side's independent result or a correction. */
 export type ToAnswer = MyMatch & {
-  /** The opponent's claim, from this player's side: "4-6, 3-6". Null if there is none to accept. */
-  theirs: { claimId: string; says: string } | null;
   /** When both have reported and they differ, what this player said. */
   mine: string | null;
 };
@@ -783,31 +781,13 @@ export const Home: FC<{
                 <strong>{m.opponent}</strong> <span class="muted">· {m.competition}</span>
               </div>
               <div class="answer-row">
-                {m.theirs ? (
-                  <span>
-                    They say <strong>{m.theirs.says}</strong>
-                    {m.mine && (
-                      <span class="muted">
-                        {" "}
-                        · you said <strong>{m.mine}</strong>
-                      </span>
-                    )}
-                  </span>
-                ) : (
-                  <span class="muted">{m.note}</span>
-                )}
+                <span>
+                  {m.note}
+                  {m.mine && <span class="muted"> · you entered <strong>{m.mine}</strong></span>}
+                </span>
                 <span class="actions">
-                  {m.theirs && (
-                    <form method="post" action={`/matches/${m.id}/accept`}>
-                      <input type="hidden" name="claim_id" value={m.theirs.claimId} />
-                      <input type="hidden" name="back" value="home" />
-                      <button type="submit" class="small">
-                        Accept theirs
-                      </button>
-                    </form>
-                  )}
                   <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                    Change score
+                    Enter result
                   </a>
                 </span>
               </div>
@@ -859,7 +839,7 @@ export const Home: FC<{
                 <span>{m.mine ? <>You said <strong>{m.mine}</strong></> : <span class="muted">{m.note}</span>}</span>
                 <span class="actions">
                   <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                    Change score
+                    Enter result
                   </a>
                 </span>
               </div>
@@ -1416,7 +1396,7 @@ const ScoreForm: FC<{
     </div>
     <button type="submit">Send the score</button>
     <p class="muted" style="margin:.75rem 0 0">
-      It will count when {opponent} agrees it.
+      It will count when {opponent} independently enters a matching result.
     </p>
   </form>
 );
@@ -1442,7 +1422,6 @@ export const MatchPage: FC<{
   const theirs: Side = from === 0 ? 1 : 0;
   const live = (side: Side) => match.claims.find((c) => c.state === "pending" && c.side === side) ?? null;
   const mineLive = live(from);
-  const theirsLive = live(theirs);
   const say = (claim: Claim) => describe(claim, from, names);
   const readOnly = competition.state !== "active" || reportingClosed;
   const canAct = mine !== null && !readOnly && match.status !== "played";
@@ -1464,45 +1443,23 @@ export const MatchPage: FC<{
       </>
     );
   } else if (mine === null) {
-    status = <p class="muted">{match.status === "open" ? "Not played yet." : "Waiting for the players to agree."}</p>;
-  } else if (match.status === "disputed" && mineLive && theirsLive) {
+    status = <p class="muted">{match.status === "open" ? "Not played yet." : "Waiting for matching independent entries."}</p>;
+  } else {
     status = (
       <>
-        <p>
-          {readOnly
-            ? "The two reported scores do not match."
-            : "The two scores do not match. Accept theirs, or enter yours again if it was wrong."}
-        </p>
-        <div class="claims">
-          <div>
-            <div class="who">You said</div>
-            <div class="what">{say(mineLive)}</div>
-          </div>
-          <div>
-            <div class="who">{names[theirs]} said</div>
-            <div class="what">{say(theirsLive)}</div>
-          </div>
-        </div>
+        {match.status === "disputed" ? (
+          <p>The entries do not match. Speak outside the app and enter the agreed result. Ask the coach if you need help.</p>
+        ) : mineLive ? (
+          <p>Waiting for {names[theirs]} to enter their result independently.</p>
+        ) : match.status === "reported" ? (
+          <p>{names[theirs]} has entered a result. Enter yours independently.</p>
+        ) : (
+          <p>Agree what happened outside the app, then each side enters the full result independently.</p>
+        )}
+        {mineLive && <p>You entered <strong>{say(mineLive)}</strong>.</p>}
+        <p class="muted">Pending results count when both sides enter matching results. Opposing submissions stay private.</p>
       </>
     );
-  } else if (theirsLive) {
-    status = (
-      <p>
-        {names[theirs]} reported <strong>{say(theirsLive)}</strong>.
-        {readOnly && " It was not agreed before results closed."}
-        {!readOnly && " If that is right, accept it and it counts."}
-      </p>
-    );
-  } else if (mineLive) {
-    status = (
-      <p>
-        You reported <strong>{say(mineLive)}</strong>.
-        {readOnly && " It was not agreed before results closed."}
-        {!readOnly && ` Waiting for ${names[theirs]} to agree.`}
-      </p>
-    );
-  } else {
-    status = <p class="muted">No score yet.</p>;
   }
 
   return (
@@ -1521,12 +1478,7 @@ export const MatchPage: FC<{
       )}
       <Notice messages={messages} />
       {status}
-      {canAct && theirsLive && (
-        <form method="post" action={`/matches/${match.id}/accept`} style="margin-bottom:1.5rem">
-          <input type="hidden" name="claim_id" value={theirsLive.id} />
-          <button type="submit">Accept theirs: {say(theirsLive)}</button>
-        </form>
-      )}
+      {match.status === "played" && mine !== null && <p class="muted">Ask the coach if this result needs correcting.</p>}
       {canAct && (
         <ScoreForm
           matchId={match.id}
@@ -1535,10 +1487,8 @@ export const MatchPage: FC<{
           today={today}
           again={mineLive !== null}
           pair={competition.discipline === "doubles"}
-          // Start from what was just sent, else their own score, else the other side's: a
-          // score is changed by correcting it, not by typing it all again.
-          values={sent ?? (mineLive ? claimToForm(mineLive, from) : theirsLive ? claimToForm(theirsLive, from) : {})}
-          filledFrom={sent ? null : mineLive ? "your score" : theirsLive ? `${names[theirs]}'s score` : null}
+          values={sent ?? (mineLive ? claimToForm(mineLive, from) : {})}
+          filledFrom={sent ? null : mineLive ? "your score" : null}
         />
       )}
       {mine !== null && (competition.state !== "active" || reportingClosed) && match.status !== "played" && (

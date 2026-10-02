@@ -151,7 +151,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
           { type: "report", body: { outcome: "completed", score: score(winner), played_on: match.playedOn } });
         const other = (1 - reporter) as SideIndex;
         if (what === "played") match.act(sample, player(other), other, at(daysAgo - 1, 9), deadline,
-          { type: "accept", claimId: match.claims.at(-1)!.id, body: {} });
+          { type: "report", body: { outcome: "completed", score: score(winner), played_on: match.playedOn } });
         // The other side remembers one of the winner's sets differently: 6-3 rather than 6-4.
         const remembered = games.findIndex(([w, l]) => w === 6 && l <= 4);
         if (what === "disputed") match.act(sample, player(other), other, at(daysAgo - 1, 9), deadline,

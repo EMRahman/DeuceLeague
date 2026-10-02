@@ -5,11 +5,11 @@ deploy DeuceLeague to your own Cloudflare account with a sample club near the
 end of its season, play it as the coach and as two of its players, then end
 the season and start the next.
 
-![The players' website on a phone: the home page with scores to agree, a division table, and reporting a match.](../../docs/images/product-preview.png)
+![The players' website on a phone: the home page with results to enter, a division table, and reporting a match.](../../docs/images/product-preview.png)
 
 **What you get:** a club with 22 fictional players, singles and doubles in five
 divisions, 50 matches (all but five played; the rest open, disputed or waiting
-for agreement), tables with promotion and relegation, and a 14-day forecast for
+for matching independent entries), tables with promotion and relegation, and a 14-day forecast for
 two courts.
 
 **What you need:** a free Cloudflare account, a GitHub or GitLab account, and a
@@ -96,15 +96,17 @@ A link works once, within 72 hours.
 
 1. **As Alex:** look at the home page, the tables and the forecast. Open the
    match against Sample Bailey and report a score. It stays pending until
-   Bailey agrees.
-2. **As Bailey,** in the private window: agree Alex's score from the home page.
+   Bailey independently enters a matching result.
+2. **As Bailey,** in the private window: open the match from the home page and
+   enter the result, with Bailey's games first. Alex's submission stays private.
+   If the entries differ, speak outside the app and correct your own entry.
 3. **As either:** the match now shows as played, and the singles table has
    changed.
 4. **As Bailey,** open **Tables** and then **Sample doubles**. Under
    **Next season**, Sample Indy has asked Bailey to be their partner. Press
    **Agree**.
 
-That's the league: players report and agree, the tables follow, and the coach
+That's the league: both sides enter matching results, the tables follow, and the coach
 hands out links.
 
 ## 6. End the season and start the next

@@ -1,15 +1,14 @@
 import type { ClaimRecord, LedgerEntry, ResultContext, ResultMutation, ResultEvent } from "@deuceleague/db-d1";
 import { compareClaims, judgeClaims } from "@deuceleague/engine";
-import { validateResult, type SideIndex } from "@deuceleague/schema";
+import type { SideIndex } from "@deuceleague/schema";
 import type { z } from "@hono/zod-openapi";
-import type { Acceptance, NewClaim, Settlement } from "../contracts/matches.js";
+import type { NewClaim, Settlement } from "../contracts/matches.js";
 import { iso } from "../contracts/shared.js";
 import { problems } from "../problems.js";
 import { asClaim, checkResult, ledgerClaim, ledgerEntry, liveClaims } from "./model.js";
 
 export type ResultAction =
   | { type: "report"; body: z.infer<typeof NewClaim> }
-  | { type: "accept"; claimId: string; body: z.infer<typeof Acceptance> }
   | { type: "settle"; body: z.infer<typeof Settlement> };
 
 export function deadlinePassed(deadline: Date): never {
@@ -36,7 +35,7 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
     ...fields, id, clubId: match.clubId, matchId: match.id, submittedByMemberId: memberId,
     submittedAt: now, confirmedAt: fields.state === "confirmed" ? now : null,
   });
-  const announce = (how: "agreed" | "accepted" | "settled", entry: LedgerEntry, replaces: string | null): ResultEvent => ({
+  const announce = (how: "agreed" | "settled", entry: LedgerEntry, replaces: string | null): ResultEvent => ({
     type: "match.result.confirmed",
     payload: {
       claim_id: entry.claimId, how, competition_id: match.competitionId, division_id: match.divisionId,
@@ -82,35 +81,6 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
       status: ledger ? "played" : verdict.status === "disputed" ? "disputed" : "reported",
       ledger, events, enforceDeadline: true,
     };
-  }
-  if (action.type === "accept") {
-    const accepted = claims.find((c) => c.id === action.claimId);
-    if (!accepted) throw problems.notFound("claim on this match");
-    checkDeadline();
-    const side = accepted.sideIndex === 0 ? 1 : 0;
-    if (memberId !== null) {
-      if (ownSide === null) throw problems.notYourMatch();
-      if (ownSide !== side) throw problems.notYourSide("That claim is your own side's; a player accepts only the other side's.");
-    }
-    const already = claims.find((c) => c.acceptsSubmissionId === action.claimId && c.state === "confirmed");
-    if (already && match.acceptedSubmissionId === already.id) return null;
-    if (accepted.state !== "pending" || accepted.sideIndex === null) {
-      throw problems.conflict("claim_not_live", "That claim is no longer standing",
-        "It was replaced by its own side, or the match was settled. Look at the match again.");
-    }
-    const mine = liveClaims(claims)[side];
-    const claim = asClaim(accepted);
-    const created = newClaim({ sideIndex: side, ...claim, playedOn: accepted.playedOn, state: "confirmed",
-      acceptsSubmissionId: accepted.id, source: action.body.source ?? source, rawInput: null });
-    // Acceptance preserves the original rule: the report was checked when made;
-    // changing the format afterward does not ask the opponent for a new score.
-    const checked = validateResult(claim, competition.matchFormat);
-    const ledger = ledgerEntry(claim, checked, accepted.playedOn, id);
-    return { claim: created, supersede: mine ? [mine.id] : [], confirm: [accepted.id], status: "played", ledger,
-      events: [
-        { type: "match.claim.accepted", payload: { claim_id: id, side, accepts: accepted.id, replaces: mine?.id ?? null } },
-        announce("accepted", ledger, null),
-      ], enforceDeadline: true };
   }
   const { body } = action;
   const { claim, checked } = checkResult(body, competition.matchFormat);

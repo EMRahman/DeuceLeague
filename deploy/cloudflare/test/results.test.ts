@@ -59,23 +59,16 @@ test("tiebreak points do not cause disputes, while a changed played date replace
   assert.deepEqual(agreed.body.result.score, a);
 });
 
-test("acceptance names a live opponent claim, supersedes own report, and is idempotent", async (t) => {
-  const f = await playing(t, 3);
-  const [m, other] = f.matches;
-  const first = await f.report(m!, 0);
-  const old = first.body.claims[0].id;
-  const replaced = await f.report(m!, 0, { score: score([6, 4], [6, 2]) });
-  const live = replaced.body.claims[1].id;
-  assert.equal((await f.send(`/v1/matches/${m}/claims/${old}/accept`, f.admin, "POST")).body.code, "claim_not_live");
-  await f.report(m!, 1);
-  const accepted = await f.send(`/v1/matches/${m}/claims/${live}/accept`, f.admin, "POST", { source: "web" });
-  assert.equal(accepted.status, 201, JSON.stringify(accepted.body));
-  assert.deepEqual(accepted.body.claims.map((c: any) => c.state), ["superseded", "confirmed", "superseded", "confirmed"]);
-  assert.equal(accepted.body.claims.at(-1).accepts_claim_id, live);
-  assert.equal(accepted.body.result.claim_id, accepted.body.claims.at(-1).id);
-  assert.equal((await f.send(`/v1/matches/${m}/claims/${live}/accept`, f.admin, "POST")).status, 200);
-  assert.equal((await f.send(`/v1/matches/${other}/claims/${live}/accept`, f.admin, "POST")).status, 404);
-  assert.equal((await f.events("match.result.confirmed"))[0]!.payload.how, "accepted");
+test("the acceptance action is removed for API keys and player sessions", async (t) => {
+  const f = await playing(t);
+  const m = f.matches[0]!;
+  const claim = (await f.report(m, 0)).body.claims[0].id;
+  for (const token of [f.admin, await f.sessionForSide(m, 0), await f.sessionForSide(m, 1)]) {
+    const response = await f.send(`/v1/matches/${m}/claims/${claim}/accept`, token, "POST");
+    assert.ok([403, 404].includes(response.status));
+  }
+  assert.equal((await f.send(`/v1/matches/${m}`)).body.status, "reported");
+  assert.equal((await f.events("match.result.confirmed")).length, 0);
 });
 
 test("coach settlement requires deliberate override, retains history/date and retries safely", async (t) => {
@@ -136,10 +129,7 @@ test("players report only their own singles/doubles side and never receive raw i
   assert.equal(first.body.claims[0].side, 0);
   assert.equal(first.body.claims[0].source, "web");
   assert.equal(first.body.claims[0].raw_input, null);
-  const claim = first.body.claims[0].id;
-  assert.equal((await f.send(`/v1/matches/${m}/claims/${claim}/accept`, a, "POST")).body.code, "not_your_side");
-  assert.equal((await f.send(`/v1/matches/${m}/claims/${claim}/accept`, outsider, "POST")).body.code, "not_your_match");
-  const accepted = await f.send(`/v1/matches/${m}/claims/${claim}/accept`, b, "POST");
+  const accepted = await f.send(`/v1/matches/${m}/claims`, b, "POST", completed);
   assert.equal(accepted.status, 201);
   assert.ok(!JSON.stringify(accepted.body).includes("Private"));
   assert.match(accepted.body.sides[0].label, /^Player \d \/ Partner \d$/);
@@ -152,12 +142,11 @@ test("private/draft competitions are hidden from players; closed competitions re
   const f = await playing(t);
   const m = f.matches[0]!;
   const session = await f.sessionForSide(m, 0);
-  const claim = (await f.report(m, 1)).body.claims[0].id;
+  await f.report(m, 1);
   for (const [state, visibility] of [["active", "private"], ["draft", "members"]]) {
     await change(f.db, [f.db.prepare("UPDATE competition SET state = ?, visibility = ? WHERE id = ?").bind(state, visibility, f.ids.competition)]);
     for (const [path, method, body] of [
       [`/v1/matches/${m}`, "GET", undefined], [`/v1/matches/${m}/claims`, "POST", completed],
-      [`/v1/matches/${m}/claims/${claim}/accept`, "POST", undefined],
     ] as const) assert.equal((await f.send(path, session, method, body)).status, 404);
     assert.equal((await f.send("/v1/matches", session)).body.data.length, 0);
     assert.equal((await f.send(`/v1/matches/${m}`)).status, 200);
@@ -190,13 +179,12 @@ test("match pagination/filters cover a 12-player division without missing fixtur
   assert.equal((await f.send("/v1/matches?limit=201")).status, 400);
 });
 
-test("expired deadlines refuse reports/acceptances but allow coach settlement and reopening", async (t) => {
+test("expired deadlines refuse reports but allow coach settlement and reopening", async (t) => {
   const f = await playing(t, 3);
   const m = f.matches[0]!;
-  const claim = (await f.report(m, 0)).body.claims[0].id;
+  await f.report(m, 0);
   await change(f.db, [f.db.prepare("UPDATE season SET results_deadline_at = ?").bind(Date.now() - 1000)]);
   assert.equal((await f.report(m, 1)).body.code, "deadline_passed");
-  assert.equal((await f.send(`/v1/matches/${m}/claims/${claim}/accept`, f.admin, "POST")).body.code, "deadline_passed");
   assert.equal((await f.send(`/v1/matches/${m}/settle`, f.admin, "POST", completed)).status, 201);
   await change(f.db, [f.db.prepare("UPDATE season SET results_deadline_at = NULL")]);
   assert.equal((await f.report(f.matches[1]!, 0)).status, 201);
@@ -216,28 +204,30 @@ for (const agree of [true, false]) {
   });
 }
 
-test("two simultaneous acceptances confirm once and the retry returns 200", async (t) => {
+test("two simultaneous retries of the second side confirm once and the retry returns 200", async (t) => {
   const f = await playing(t);
   const m = f.matches[0]!;
-  const claim = (await f.report(m, 0)).body.claims[0].id;
-  const responses = await Promise.all([1, 2].map(() => f.send(`/v1/matches/${m}/claims/${claim}/accept`, f.admin, "POST")));
+  await f.report(m, 0);
+  const responses = await Promise.all([1, 2].map(() => f.report(m, 1)));
   assert.deepEqual(responses.map((r) => r.status).sort(), [200, 201]);
-  assert.equal((await f.events("match.claim.accepted")).length, 1);
+  assert.equal((await f.events("match.claim.reported")).length, 2);
   assert.equal((await f.events("match.result.confirmed")).length, 1);
 });
 
 for (const competitor of ["replacement", "settlement"] as const) {
-  test(`acceptance racing a ${competitor} never accepts an unseen replacement or silently overrides agreement`, async (t) => {
+  test(`independent entry racing a ${competitor} preserves claims and ledger agreement`, async (t) => {
     const f = await playing(t);
     const m = f.matches[0]!;
-    const claim = (await f.report(m, 0)).body.claims[0].id;
+    await f.report(m, 0);
     const changed = { outcome: "completed", score: score([6, 1], [6, 1]) };
     const responses = await Promise.all([
-      f.send(`/v1/matches/${m}/claims/${claim}/accept`, f.admin, "POST"),
+      f.report(m, 1),
       competitor === "replacement" ? f.report(m, 0, changed) : f.send(`/v1/matches/${m}/settle`, f.admin, "POST", changed),
     ]);
-    assert.deepEqual(responses.map((r) => r.status).sort(), [201, 409]);
-    assert.equal((await f.events("match.result.confirmed")).length, competitor === "settlement" || responses[0]!.status === 201 ? 1 : 0);
+    assert.ok(responses.every((r) => [201, 409].includes(r.status)));
+    const current = (await f.send(`/v1/matches/${m}`)).body;
+    if (competitor === "replacement" && responses.every((r) => r.status === 201)) assert.equal(current.status, "disputed");
+    assert.equal((await f.events("match.result.confirmed")).length, current.status === "played" ? 1 : 0);
   });
 }
 
@@ -275,15 +265,14 @@ test("a late audit failure rolls back claims, ledger, credential usage and revis
   assert.equal((await f.report(m, 1)).body.status, "played");
 });
 
-test("deadline crossing the commit boundary rolls back both reports and acceptances", async (t) => {
+test("deadline crossing the commit boundary rolls back a matching second submission", async (t) => {
   const f = await playing(t);
   const m = f.matches[0]!;
-  const claim = (await f.report(m, 0)).body.claims[0].id;
+  await f.report(m, 0);
   await change(f.db, [f.db.prepare("UPDATE season SET results_deadline_at = ?").bind(Date.now() + 400)]);
   const report = await prepareResult(f, m, f.admin, { type: "report", body: { side: 1, ...completed } });
-  const accept = await prepareResult(f, m, f.admin, { type: "accept", claimId: claim, body: {} });
   await setTimeout(450);
-  for (const { state, decision } of [report, accept]) await assert.rejects(commitResult(f.db, state, decision), ResultDeadlineError);
+  await assert.rejects(commitResult(f.db, report.state, report.decision), ResultDeadlineError);
   assert.equal(await f.db.prepare("SELECT revision FROM mutation_clock").first("revision"), report.state.identity.snapshot.revision);
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM result_submission").first("n"), 1);
   assert.equal((await f.events("match.result.confirmed")).length, 0);
@@ -375,4 +364,83 @@ test("credentials from another installation cannot read or change this club's re
   assert.equal((await a.send(`/v1/matches/${m}`)).status, 404);
   assert.equal((await a.report(m, 0)).status, 404);
   assert.equal((await b.send(`/v1/matches/${m}`)).body.status, "open");
+});
+
+test("opposing submissions and score differences stay private through reports, reads, lists and errors", async (t) => {
+  const f = await playing(t);
+  const m = f.matches[0]!;
+  const a = await f.sessionForSide(m, 0), b = await f.sessionForSide(m, 1);
+  const spectator = await f.session(await f.member("Spectator"));
+  const table = async () => (await f.send(`/v1/competitions/${f.ids.competition}/standings`, a)).body;
+  const before = await table();
+  await f.report(m, 0, {}, a);
+  assert.deepEqual(await table(), before, "one submission awards no points or played credit");
+  for (const token of [b, spectator]) {
+    const detail = (await f.send(`/v1/matches/${m}`, token)).body;
+    assert.deepEqual(detail.claims, []);
+    assert.deepEqual(detail.differences, []);
+    assert.equal(detail.result, null);
+  }
+  const mismatch = await f.report(m, 1, { score: score([6, 1], [6, 2]) }, b);
+  assert.equal(mismatch.body.status, "disputed");
+  assert.deepEqual(mismatch.body.claims.map((c: any) => c.side), [1]);
+  assert.deepEqual(mismatch.body.differences, []);
+  assert.deepEqual(await table(), before, "mismatching submissions award no points");
+  for (const [token, side] of [[a, 0], [b, 1], [spectator, null]] as const) {
+    const detail = (await f.send(`/v1/matches/${m}`, token)).body;
+    assert.ok(detail.claims.every((c: any) => c.side === side));
+    assert.deepEqual(detail.differences, []);
+    const list = (await f.send("/v1/matches?order=recent", token)).body;
+    assert.equal(list.data[0].result, null);
+    assert.ok(!("claims" in list.data[0]));
+    assert.equal((await f.send("/v1/events?order=newest", token)).status, 403);
+    assert.equal((await f.send("/v1/dispute-history", token)).status, 403);
+  }
+  const invalid = await f.report(m, 1, { score: score([7, 4], [6, 1]) }, b);
+  assert.equal(invalid.status, 400);
+  assert.ok(!JSON.stringify(invalid.body).includes("6-3"), "validation does not disclose the opponent's score");
+  const coach = (await f.send(`/v1/matches/${m}`)).body;
+  assert.equal(coach.claims.length, 2);
+  assert.ok(coach.differences.length > 0);
+  const fixed = await f.report(m, 1, {}, b);
+  assert.equal(fixed.body.status, "played");
+  assert.deepEqual(fixed.body.claims.map((c: any) => [c.side, c.state]), [[1, "superseded"], [1, "confirmed"]]);
+  const final = (await f.send(`/v1/matches/${m}`, spectator)).body;
+  assert.deepEqual(final.result.score, completed.score);
+  assert.deepEqual(final.claims, [], "historical mismatches stay private after confirmation");
+  assert.equal((await f.report(m, 1, { score: score([6, 2], [6, 2]) }, b)).body.code, "already_played");
+  const history = (await f.send(`/v1/matches/${m}`)).body.claims;
+  assert.deepEqual(history.map((c: any) => c.state), ["confirmed", "superseded", "confirmed"]);
+});
+
+test("two doubles teammates cannot confirm without the opposing side", async (t) => {
+  const f = await playing(t, 2, true);
+  const m = f.matches[0]!;
+  const first = await f.sessionForSide(m, 0), partner = await f.sessionForSide(m, 0, true);
+  await f.report(m, 0, {}, first);
+  assert.equal((await f.report(m, 0, {}, partner)).status, 200);
+  assert.equal((await f.report(m, 0, { score: score([6, 2], [6, 2]) }, partner)).body.status, "reported");
+  assert.equal((await f.events("match.result.confirmed")).length, 0);
+  assert.equal((await f.report(m, 1, { score: score([6, 2], [6, 2]) }, await f.sessionForSide(m, 1, true))).body.status, "played");
+});
+
+test("matching outcomes confirm with side 1 first; affected side and deciding tiebreak must agree", async (t) => {
+  const f = await playing(t, 4);
+  const outcomes = [
+    { outcome: "completed", score: score([6, 4], [3, 6], [10, 8]) },
+    { outcome: "retired", score: score([2, 1]), retired_side: 0 },
+    { outcome: "walkover", score: null, retired_side: 1 },
+    { outcome: "conceded", score: null, retired_side: 0 },
+  ];
+  for (const [i, result] of outcomes.entries()) {
+    const m = f.matches[i]!;
+    assert.equal((await f.report(m, 1, result)).body.status, "reported");
+    const changed = result.outcome === "completed" ? { score: score([6, 4], [3, 6], [10, 7]) } : { retired_side: 1 - result.retired_side! };
+    assert.equal((await f.report(m, 0, { ...result, ...changed })).body.status, "disputed");
+    assert.equal((await f.report(m, 0, result)).body.status, "played");
+  }
+  const m = f.matches[4]!;
+  await f.report(m, 0, { outcome: "walkover", score: null, retired_side: 1 });
+  assert.equal((await f.report(m, 1, { outcome: "conceded", score: null, retired_side: 1 })).body.status, "disputed");
+  assert.equal((await f.events("match.result.confirmed")).length, outcomes.length);
 });

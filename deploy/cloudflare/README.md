@@ -68,7 +68,7 @@ different division), two opt-outs, two newcomers, doubles players' choices for
 next season (an agreed new pair, one not playing, one waiting for an answer),
 and two court locations marked "(sample)". Its results are made by the same decision
 code a player's report goes through. Sample Alex and Sample Bailey's match
-against each other is open, for a trial to report and agree.
+against each other is open, for a trial of independent result entry.
 
 The sample commits with initialization, including a completion marker in the
 append-only event log. A failed commit rolls back everything; repeating a

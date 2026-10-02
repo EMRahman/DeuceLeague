@@ -90,13 +90,16 @@ export function ledgerEntry(claim: Claim, checked: ValidatedResult, playedOn: st
   };
 }
 
-
-export function matchDetail(match: MatchRecord, claims: ClaimRecord[], forPlayer: boolean): z.infer<typeof MatchDetail> {
+/** Undefined means an API key; null means a player watching another side's match.
+ * Opposing submissions stay private even after settlement: the ledger supplies the final result. */
+export function matchDetail(match: MatchRecord, claims: ClaimRecord[], playerSide: number | null | undefined): z.infer<typeof MatchDetail> {
+  const forPlayer = playerSide !== undefined;
+  const visibleClaims = forPlayer ? claims.filter((c) => playerSide !== null && c.sideIndex === playerSide) : claims;
   const [side0, side1] = liveClaims(claims);
   const verdict = match.status === "played" ? null : judgeClaims(side0 && asClaim(side0), side1 && asClaim(side1));
   return {
-    ...toMatch(match), claims: claims.map((claim) => toClaim(claim, forPlayer)),
+    ...toMatch(match), claims: visibleClaims.map((claim) => toClaim(claim, forPlayer)),
     waiting_on: verdict?.status === "reported" ? verdict.waitingOn : null,
-    differences: verdict?.status === "disputed" ? verdict.differences : [],
+    differences: !forPlayer && verdict?.status === "disputed" ? verdict.differences : [],
   };
 }

@@ -8,7 +8,7 @@ import type { OpenAPIHono } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { checkAccess } from "./access.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
-import { accept, get, list, report, settle, type ShortOfMinimum } from "./contracts/matches.js";
+import { get, list, report, settle, type ShortOfMinimum } from "./contracts/matches.js";
 import type { z } from "@hono/zod-openapi";
 import { towardMinimum } from "./league/progress.js";
 import { problems } from "./problems.js";
@@ -39,11 +39,11 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
       }, action, uuidv7()) : null;
       if (!decision) {
         await commitIdentity(db, state.identity, { type: "read" });
-        return { body: matchDetail(state.match, state.claims, memberId !== null), status: 200 as const };
+        return { body: matchDetail(state.match, state.claims, memberId !== null ? state.ownSide : undefined), status: 200 as const };
       }
       try {
         const result = await commitResult(db, state, decision);
-        return { body: matchDetail(result.match!, result.claims, memberId !== null), status: 201 as const };
+        return { body: matchDetail(result.match!, result.claims, memberId !== null ? state.ownSide : undefined), status: 201 as const };
       } catch (error) {
         if (error instanceof ResultDeadlineError && state.deadline) deadlinePassed(state.deadline);
         throw error;
@@ -70,11 +70,6 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
   });
   app.openapi(report, async (c) => {
     const result = await detail(c, c.req.valid("param").id, { type: "report", body: c.req.valid("json") });
-    return c.json(result.body, result.status);
-  });
-  app.openapi(accept, async (c) => {
-    const { id, claim_id } = c.req.valid("param");
-    const result = await detail(c, id, { type: "accept", claimId: claim_id, body: c.req.valid("json") ?? {} });
     return c.json(result.body, result.status);
   });
   /**

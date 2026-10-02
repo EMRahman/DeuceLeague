@@ -45,7 +45,7 @@ export const ClaimOut = z
     }),
     source: SubmissionSource,
     accepts_claim_id: z.uuid().nullable().openapi({
-      description: "Set when this side accepted the other's claim rather than reporting its own.",
+      description: "Historical acceptance reference. New submissions are entered independently and leave this null.",
     }),
     submitted_at: Timestamp,
     confirmed_at: Timestamp.nullable(),
@@ -56,10 +56,10 @@ export const ClaimOut = z
   .openapi("Claim");
 
 export const MatchDetail = Match.extend({
-  claims: z.array(ClaimOut).openapi({ description: "Every claim ever made about the match, oldest first." }),
-  waiting_on: SideIndex.nullable().meta({ description: "When reported: the side whose answer is awaited." }),
+  claims: z.array(ClaimOut).openapi({ description: "For API keys: every submission and its history, oldest first. Player sessions see only their own side's submissions, including replacements. Opposing submissions and coach entries remain private; the final result is in result." }),
+  waiting_on: SideIndex.nullable().meta({ description: "When reported: the side that still needs to enter its result." }),
   differences: z.array(z.string()).openapi({
-    description: 'When disputed: what the two claims disagree on, e.g. "set 2: side 0 says 6-4, side 1 says 6-3".',
+    description: 'For API keys when disputed: what the two claims disagree on, e.g. "set 2: side 0 says 6-4, side 1 says 6-3". Always empty for player sessions.',
     example: ["set 2: side 0 says 6-4, side 1 says 6-3"],
   }),
 }).openapi("MatchDetail");
@@ -111,10 +111,6 @@ export const NewClaim = z
     source: ClaimSource.optional().meta({ description: SOURCE_DEFAULT }),
   })
   .openapi("NewClaim");
-
-export const Acceptance = z
-  .object({ source: ClaimSource.optional().meta({ description: SOURCE_DEFAULT }) })
-  .openapi("Acceptance");
 
 export const Settlement = z
   .object({
@@ -177,7 +173,7 @@ export const get = createRoute({
   method: "get",
   path: "/v1/matches/{id}",
   tags: ["Matches"],
-  summary: "A match, with every claim made about it",
+  summary: "A match, with submissions visible to the caller",
   ...requires.orPlayer("league:read"),
   request: { params: IdParam },
   responses: { 200: { description: "The match.", ...matchDetail }, ...authProblems, ...notFoundProblem },
@@ -190,12 +186,15 @@ export const report = createRoute({
   summary: "Report a result for one side, or correct that side's report",
   description:
     "The score is checked against the competition's match format, then compared with the other side's " +
-    "claim: the same result puts it in the ledger, a different one makes the match `disputed`, and none " +
+    "independently entered claim. Matching outcomes, set scores (including the deciding match tiebreak) " +
+    "and affected sides put it in the ledger; a difference makes the match `disputed`, and no opposing entry " +
     "leaves it `reported` until the other side answers — however long that takes. A side's new claim " +
     "replaces its previous one, which is kept. Sending the same claim again changes nothing, so a retry " +
     "is safe. Once a match is played, only the coach can change it, and once the season's results deadline " +
     "has passed no new claim is taken. A player's session reports for its own side of its own matches, and " +
-    "nothing else.",
+    "nothing else. Scores use the named-side order, with side 0 first regardless of the submitting side. " +
+    "Players see only their own side's submissions and the waiting or mismatch status. On a mismatch, " +
+    "speak outside the app and enter the agreed result; opposing submissions and differences remain private.",
   ...requires.orPlayer("results:write"),
   request: {
     params: IdParam,
@@ -209,33 +208,6 @@ export const report = createRoute({
     ...playerRefusals,
     ...notFoundProblem,
     ...conflictProblem("`already_played`, `competition_not_active`, or `deadline_passed`."),
-  },
-});
-
-export const accept = createRoute({
-  method: "post",
-  path: "/v1/matches/{id}/claims/{claim_id}/accept",
-  tags: ["Matches"],
-  summary: "Accept the other side's claim",
-  description:
-    "The side that did not make the claim agrees to it instead of typing the score again, and the result " +
-    "enters the ledger. The claim is named, so nobody accepts a score they have not seen: if it has since " +
-    "been replaced, this is refused. Accepting again changes nothing. A player's session accepts only a claim " +
-    "made by the other side of its own match.",
-  ...requires.orPlayer("results:write"),
-  request: {
-    params: z.object({ id: z.uuid(), claim_id: z.uuid() }),
-    body: { content: { "application/json": { schema: Acceptance } }, required: false },
-  },
-  responses: {
-    201: { description: "Accepted; the match is played.", ...matchDetail },
-    200: { description: "Already accepted; nothing changed.", ...matchDetail },
-    ...authProblems,
-    ...playerRefusals,
-    ...notFoundProblem,
-    ...conflictProblem(
-      "`claim_not_live`: the claim was replaced or settled; or `competition_not_active`, or `deadline_passed`.",
-    ),
   },
 });
 

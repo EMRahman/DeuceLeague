@@ -263,7 +263,7 @@ test("erasure clears personal data, entry overrides and authored raw reports whi
   const member = (await f.send("/v1/me", player)).body.credential.member.id;
   await change(f.db, [f.db.prepare("UPDATE entry SET display_name = 'Private entry label'")]);
   const first = await f.send(`/v1/matches/${m}/claims`, player, "POST", { ...completed, raw_input: "Private authored text" });
-  await f.send(`/v1/matches/${m}/claims/${first.body.claims[0].id}/accept`, opponent, "POST");
+  await f.send(`/v1/matches/${m}/claims`, opponent, "POST", completed);
   const before = (await f.send(`/v1/matches/${m}`)).body.result;
   const adminOnly = await key(f, ["admin"]);
   const erased = await send(f, `/v1/members/${member}/erase`, "POST", undefined, adminOnly.key);

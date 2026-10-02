@@ -588,12 +588,10 @@ export function createWebsite(options: WebsiteOptions) {
         // Reported or disputed: the claims, and whose answer is awaited, are in the match's own detail.
         const detail = detailOf.get(m.id)!;
         const live = (side: Side) => detail.claims.find((cl) => cl.state === "pending" && cl.side === side);
-        const theirs = live(mine === 0 ? 1 : 0);
         const own = live(mine);
         if (m.status === "disputed" || detail.waiting_on === mine) {
           answer.push({
-            ...item(m.status === "disputed" ? "scores differ" : "agree the score"),
-            theirs: theirs ? { claimId: theirs.id, says: describe(theirs, mine, names) } : null,
+            ...item(m.status === "disputed" ? "entries do not match — speak outside the app and enter the agreed result" : "enter your result independently"),
             mine: m.status === "disputed" && own ? describe(own, mine, names) : null,
           });
         } else {
@@ -640,7 +638,7 @@ export function createWebsite(options: WebsiteOptions) {
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
         deadlines={deadlines}
-        notice={{ accepted: "Agreed. The result counts now.", leaving: "Done. The coach will see you are not playing next season.",
+        notice={{ leaving: "Done. The coach will see you are not playing next season.",
           staying: "Taken back. You are in the reckoning for next season again.",
           paused: "Done. You are on a break, and the coach will see it.",
           resumed: "Welcome back. Tell the coach if you want a place in the next season." }[c.req.query("done") ?? ""] ?? null}
@@ -833,8 +831,8 @@ export function createWebsite(options: WebsiteOptions) {
 
   /** What the match page says after the player has just done something there. */
   const DONE: Record<string, (opponent: string) => string> = {
-    sent: (opponent) => `Sent. Waiting for ${opponent} to agree it.`,
-    accepted: () => "Agreed. The result counts now.",
+    sent: () => "Your result is saved. It counts when both sides enter matching results.",
+    confirmed: () => "Both sides entered matching results. The result counts now.",
   };
 
   /** The match page, with whatever went wrong with the last thing the player sent. */
@@ -915,27 +913,11 @@ export function createWebsite(options: WebsiteOptions) {
     try {
       const after = await api<MatchDetail>("POST", `/v1/matches/${id}/claims`, p.session, { ...read.report, source: "web" });
       // The same score as the other side's: it counts at once.
-      return c.redirect(`/matches/${id}?done=${after.status === "played" ? "accepted" : "sent"}`, 303);
+      return c.redirect(`/matches/${id}?done=${after.status === "played" ? "confirmed" : "sent"}`, 303);
     } catch (error) {
       const { messages, status } = explain(error);
       return matchPage(c, p, id, messages, status, form);
     }
-  });
-
-  app.post("/matches/:id/accept", async (c) => {
-    const p = await player(c);
-    if (!p) return c.redirect("/", 303);
-    const id = c.req.param("id");
-    const form = await c.req.parseBody();
-    const claimId = String(form.claim_id ?? "");
-    try {
-      await api("POST", `/v1/matches/${id}/claims/${encodeURIComponent(claimId)}/accept`, p.session, { source: "web" });
-    } catch (error) {
-      const { messages, status } = explain(error);
-      return matchPage(c, p, id, messages, status);
-    }
-    // Accepted from the home page: back there, with the list one shorter.
-    return c.redirect(form.back === "home" ? "/?done=accepted" : `/matches/${id}?done=accepted`, 303);
   });
 
   // So a phone can put the league on its home screen.
