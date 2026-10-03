@@ -299,3 +299,33 @@ test("mismatching entries remain private on Home and match pages, and each side 
   assert.equal(coach.claims.length, 3);
   assert.equal(coach.claims.filter((c: any) => c.state === "superseded").length, 1);
 });
+
+test("a player sees their partner's and opponents' names and contacts to arrange a match, and nobody else's", async (t) => {
+  const f = await websiteFixture(t);
+  const p = await playingWebsite(f, true);
+  // Alex's number is written internationally, so it gets a WhatsApp link.
+  assert.equal((await f.api(`/v1/members/${p.members[1].id}`, f.admin, "PATCH", { phone: "+44 7700 900123" })).status, 200);
+  const outsider = await f.create("/v1/members", { display_name: "Zed", email: "zed@example.org", full_name: "Zed Outsider" });
+  void outsider;
+  const sam = await signIn(f, "sam@example.org");
+  const contacts = (await f.api("/v1/me/contacts", sam.session())).body.data as any[];
+  assert.deepEqual(contacts.map((c) => c.full_name).sort(), ["Private Alex", "Private Other", "Private Partner"]);
+  assert.equal(contacts.find((c) => c.full_name === "Private Alex").email, "alex@example.org");
+  assert.ok(!JSON.stringify(contacts).includes("Zed") && !JSON.stringify(contacts).includes("sam@example.org"));
+  assert.equal((await f.api("/v1/me/contacts", f.admin)).status, 403, "for a player's session only");
+  const page = await sam.get(`/matches/${p.match}`);
+  assert.equal(page.headers.get("cache-control"), "no-store");
+  const text = page.html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  assert.match(text, /Get in touch Private Partner · your partner .*partner@example\.org/);
+  assert.match(text, /Private Alex · opponent \+44 7700 900123 · WhatsApp · alex@example\.org/);
+  assert.match(page.html, /href="https:\/\/wa\.me\/447700900123"/);
+  assert.match(page.html, /href="mailto:other@example\.org"/);
+  assert.doesNotMatch(page.html, /Zed/);
+  // Someone who has left the club has their details withheld.
+  assert.equal((await f.api(`/v1/members/${p.members[3].id}`, f.admin, "PATCH", { status: "left" })).status, 200);
+  assert.ok(!JSON.stringify((await f.api("/v1/me/contacts", sam.session())).body).includes("Private Other"));
+  // Once the competition has ended, nobody's details are given.
+  assert.equal((await f.api(`/v1/competitions/${p.comp.id}`, f.admin, "PATCH", { state: "complete" })).status, 200);
+  assert.deepEqual((await f.api("/v1/me/contacts", sam.session())).body.data, []);
+  assert.doesNotMatch((await sam.get(`/matches/${p.match}`)).html, /Get in touch|alex@example\.org/);
+});

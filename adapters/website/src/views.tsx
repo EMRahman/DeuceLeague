@@ -432,15 +432,17 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     </p>
     <h2>Why</h2>
     <p>
-      To run the league you asked to join: to place you in a division, arrange your matches, let you sign in and
+      To run the league you asked to join: to place you in a division, arrange your matches, let your partner and
+      opponents reach you about them, let you sign in and
       report scores, and contact you about the league. We use email for sign-in links and telephone for WhatsApp league communications. Your gender decides which men's, women's or mixed
       competitions you can join, and your age group helps the coach plan fair draws. We send no marketing, and never sell or share your details
       for anyone else's use.
     </p>
     <h2>Who sees them</h2>
     <p>
-      The coach sees everything. Other players see only the name you play under, such as "Sam K.", and your
-      results. The site runs on Cloudflare, which stores the league's records for us. Our configured email provider processes your email address and sign-in email to send the link. WhatsApp processes communications sent through its service. When you ask to join,
+      The coach sees everything. Other players see the name you play under, such as "Sam K.", and your results.
+      While a competition is under way, your doubles partner and your opponents in it also see your full name, email
+      address and telephone number, so you can arrange your matches together; nobody else does. The site runs on Cloudflare, which stores the league's records for us. Our configured email provider processes your email address and sign-in email to send the link. WhatsApp processes communications sent through its service. When you ask to join,
       Cloudflare's Turnstile may check that a person, not a program, is sending the form, and we keep a scrambled
       form of your internet address for a day to limit how many submissions one source IP can send.
     </p>
@@ -1442,6 +1444,47 @@ const ScoreForm: FC<{
   </form>
 );
 
+/** Someone to arrange a match with, as `GET /v1/me/contacts` gives them. */
+export type Contact = {
+  member_id: string; display_name: string; full_name: string | null; email: string | null; phone: string | null;
+  entry_ids: string[];
+  /** Whether they are on the player's own side: a doubles partner. */
+  partner?: boolean;
+};
+
+/** A WhatsApp chat link, for a number written in international form; others are shown to dial. */
+const whatsapp = (phone: string) => (phone.trim().startsWith("+") ? `https://wa.me/${phone.replace(/\D/g, "")}` : null);
+
+/** The partner and opponents of a match, with their names and contacts, for arranging it outside the app. */
+const Contacts: FC<{ contacts: Contact[] }> = ({ contacts }) => (
+  <section class="card">
+    <h2>Get in touch</h2>
+    <ul class="list">
+      {contacts.map((c) => (
+        <li class="answer">
+          <strong>{c.full_name ?? c.display_name}</strong>
+          <span class="muted"> · {c.partner ? "your partner" : "opponent"}</span>
+          <br />
+          {c.phone && (
+            <>
+              <a href={`tel:${c.phone.replace(/[^0-9+]/g, "")}`}>{c.phone}</a>
+              {whatsapp(c.phone) && (
+                <>
+                  {" "}· <a href={whatsapp(c.phone)!}>WhatsApp</a>
+                </>
+              )}
+            </>
+          )}
+          {c.phone && c.email && " · "}
+          {c.email && <a href={`mailto:${c.email}`}>{c.email}</a>}
+          {!c.phone && !c.email && <span class="muted">No contact details: ask the coach.</span>}
+        </li>
+      ))}
+    </ul>
+    <p class="muted">Only the players in your matches see these, to arrange them.</p>
+  </section>
+);
+
 export const MatchPage: FC<{
   frame: Frame;
   match: MatchDetail;
@@ -1458,7 +1501,9 @@ export const MatchPage: FC<{
   done: string | null;
   /** What was just sent and refused, to put back in the form rather than make them retype it. */
   sent: Record<string, string> | null;
-}> = ({ frame, match, competition, reportingClosed, division, mine, names, earned, today, messages, done, sent }) => {
+  /** The partner and opponents in it, and how to reach them, while the match is the player's own to arrange. */
+  contacts?: Contact[];
+}> = ({ frame, match, competition, reportingClosed, division, mine, names, earned, today, messages, done, sent, contacts = [] }) => {
   const from: Side = mine ?? 0;
   const theirs: Side = from === 0 ? 1 : 0;
   const live = (side: Side) => match.claims.find((c) => c.state === "pending" && c.side === side) ?? null;
@@ -1520,6 +1565,7 @@ export const MatchPage: FC<{
       <Notice messages={messages} />
       {status}
       {match.status === "played" && mine !== null && <p class="muted">Ask the coach if this result needs correcting.</p>}
+      {contacts.length > 0 && match.status !== "played" && <Contacts contacts={contacts} />}
       {canAct && (
         <ScoreForm
           matchId={match.id}

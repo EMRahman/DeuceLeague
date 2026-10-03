@@ -36,6 +36,7 @@ import {
   type Frame,
   type MyMatch,
   type MyStanding,
+  type Contact,
   type NextSeason,
   type PartnerChoice,
   type ToAnswer,
@@ -862,11 +863,18 @@ export function createWebsite(options: WebsiteOptions) {
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
       myEntries(p, match.competition_id),
     ]);
-    const [standings, season] = await Promise.all([
+    const mine = sideIn(match, entries);
+    const [standings, season, contacts] = await Promise.all([
       api<Standings>("GET", `/v1/competitions/${match.competition_id}/standings`, p.session),
       api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session),
+      // Only a player in the match arranges it: their partner and opponents, and how to reach them.
+      mine === null ? Promise.resolve({ data: [] as Contact[] }) : api<{ data: Contact[] }>("GET", "/v1/me/contacts", p.session),
     ]);
-    const mine = sideIn(match, entries);
+    const own = match.sides.find((s) => s.side === mine)?.entry_id ?? null;
+    const sides = new Set(match.sides.map((s) => s.entry_id).filter((e) => e !== null));
+    const people = contacts.data.filter((x) => x.entry_ids.some((e) => sides.has(e)))
+      .map((x) => ({ ...x, partner: own !== null && x.entry_ids.includes(own) }))
+      .sort((a, b) => Number(b.partner) - Number(a.partner));
     const names = namesOf(match);
     const division = standings.divisions.find((d) => d.division_id === match.division_id);
     const myRow = division?.rows.find((r) => entries.some((e) => e.id === r.entry_id));
@@ -885,6 +893,7 @@ export function createWebsite(options: WebsiteOptions) {
         messages={messages}
         done={done && messages.length === 0 ? done(names[mine === 0 ? 1 : 0]) : null}
         sent={sent}
+        contacts={people}
       />,
       status,
     );

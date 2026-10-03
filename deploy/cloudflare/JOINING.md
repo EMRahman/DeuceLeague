@@ -9,7 +9,7 @@ The form asks for a first name, a surname, both an email address and a telephone
 age group (under 18, 18 to 34, 35 to 49, 50 to 64, 65 or over). It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
 and asks the person to tick that they have read it.
 
-Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-02`.
+Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-03`.
 
 Nobody is a member until you approve them. Until then, they are only a request.
 
@@ -128,8 +128,10 @@ and the Data Protection Act 2018. It says:
 - why: to run the league the person asked to join, including entering them in
   the right men's, women's or mixed competitions. That is a contract, so it
   needs no consent box;
-- who sees what (other players see only the name they play under and their
-  results), and that Cloudflare hosts it and runs Turnstile;
+- who sees what (other players see the name they play under and their results;
+  their doubles partner and opponents in a competition under way also see their
+  full name, email and telephone to arrange matches), and that Cloudflare hosts
+  it and runs Turnstile;
 - how long it keeps them;
 - the person's rights, and that they can complain to the
   [ICO](https://ico.org.uk/).

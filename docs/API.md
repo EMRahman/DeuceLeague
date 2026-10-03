@@ -91,6 +91,13 @@ response also names the earliest planning season, if one has been announced,
 and says whether this member has ever held an entry, to distinguish newcomers
 from returning or excluded players.
 
+**Your contacts.** `GET /v1/me/contacts` takes only a player's session. It
+lists their doubles partners and their opponents in competitions under way,
+with full name, email and telephone, so players can arrange their own matches.
+Nobody else's details are disclosed, nothing once a competition has ended, and
+nothing to or about a member who has left the club.
+The privacy notice says so.
+
 **Members.** `GET /v1/members?never_entered=true` filters to people who have
 never held an entry, including historical or withdrawn entries, and requires
 `league:read` as well as `members:read`. The coach uses it to list newcomers
@@ -159,7 +166,7 @@ for its own side of its own matches, without having to name the side. It
 cannot read the member list, the chase list or the event feed, or change
 anything else, beyond opting its own entries out of next season and saying who
 it wants as its doubles partner next season. Everything it
-sees names people by display name only. A
+sees names people by display name only, except `GET /v1/me/contacts` below. A
 route takes a session only by saying so — `requires.orPlayer` in the code, a
 `session` entry in the spec's security — and the API refuses a player
 anywhere else, even on a route that forgot to check.
