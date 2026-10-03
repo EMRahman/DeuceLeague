@@ -39,6 +39,8 @@ export type CoachMember = {
   invitation_at?: string | null;
   level: number | null;
   signed_in_at: string | null;
+  /** When they last signed in anywhere, signed out since or not. */
+  last_signed_in_at?: string | null;
   status: "active" | "paused" | "left";
   /** When they said they are not playing next season at all, if they did. */
   leaving_at: string | null;
@@ -1092,7 +1094,13 @@ export const EMAILED_MINUTES = 15;
 /** An emailed sign-in link that ran out before the member signed in with it. */
 const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === "accepted" && !!m.invitation_at
   && Date.parse(m.invitation_at) + EMAILED_MINUTES * 60_000 < now
-  && (!m.signed_in_at || Date.parse(m.signed_in_at) < Date.parse(m.invitation_at));
+  && !signedInSince(m, m.invitation_at);
+
+/** Whether they have signed in at all, or since a moment: signing out since does not undo it. */
+export const signedInSince = (m: CoachMember, since: string | null = null) => {
+  const last = m.last_signed_in_at ?? m.signed_in_at;
+  return !!last && (since === null || Date.parse(last) >= Date.parse(since));
+};
 
 export const Members: FC<{
   frame: Frame;

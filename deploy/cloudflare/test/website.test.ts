@@ -306,7 +306,6 @@ test("a player sees their partner's and opponents' names and contacts to arrange
   // Alex's number is written internationally, so it gets a WhatsApp link.
   assert.equal((await f.api(`/v1/members/${p.members[1].id}`, f.admin, "PATCH", { phone: "+44 7700 900123" })).status, 200);
   const outsider = await f.create("/v1/members", { display_name: "Zed", email: "zed@example.org", full_name: "Zed Outsider" });
-  void outsider;
   const sam = await signIn(f, "sam@example.org");
   const contacts = (await f.api("/v1/me/contacts", sam.session())).body.data as any[];
   assert.deepEqual(contacts.map((c) => c.full_name).sort(), ["Private Alex", "Private Other", "Private Partner"]);
@@ -321,6 +320,18 @@ test("a player sees their partner's and opponents' names and contacts to arrange
   assert.match(page.html, /href="https:\/\/wa\.me\/447700900123"/);
   assert.match(page.html, /href="mailto:other@example\.org"/);
   assert.doesNotMatch(page.html, /Zed/);
+  // A private competition's players are not disclosed, nor an opponent who has withdrawn.
+  const hidden = await f.create("/v1/competitions", { season_id: p.season.id, name: "Private ladder", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak", visibility: "private" });
+  const division = await f.create(`/v1/competitions/${hidden.id}/divisions`, {});
+  const zedEntry = await f.create(`/v1/competitions/${hidden.id}/entries`, { division_id: division.id, member_ids: [outsider.id] });
+  await f.create(`/v1/competitions/${hidden.id}/entries`, { division_id: division.id, member_ids: [p.members[0].id] });
+  void zedEntry;
+  assert.equal((await f.api(`/v1/divisions/${division.id}/fixtures`, f.admin, "POST")).status, 200);
+  assert.equal((await f.api(`/v1/competitions/${hidden.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  assert.ok(!JSON.stringify((await f.api("/v1/me/contacts", sam.session())).body).includes("Zed"));
+  assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
+  assert.ok(!JSON.stringify((await f.api("/v1/me/contacts", sam.session())).body).includes("Private Alex"));
   // Someone who has left the club has their details withheld.
   assert.equal((await f.api(`/v1/members/${p.members[3].id}`, f.admin, "PATCH", { status: "left" })).status, 200);
   assert.ok(!JSON.stringify((await f.api("/v1/me/contacts", sam.session())).body).includes("Private Other"));

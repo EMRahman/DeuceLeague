@@ -138,11 +138,16 @@ test("Members says when an emailed link ran out unused, and lists those placed b
   await f.db.prepare("UPDATE member SET invitation_at = invitation_at - 20 * 60000 WHERE id = ?").bind(sam.id).run();
   assert.match((await coach.get("/coach/members")).html, /Link sent, not used: it ran out 15 minutes after sending/);
   // Alex signs in; a newcomer with no place is not listed as placed.
-  await signIn(f, "alex@example.org");
+  const alexBrowser = await signIn(f, "alex@example.org");
   const newcomer = await f.create("/v1/members", { display_name: "Newcomer", email: "new@example.org" });
   const filtered = (await coach.get("/coach/members?show=unsigned")).html;
   assert.match(filtered, /Placed but never signed in \(1\)/);
   assert.match(filtered, new RegExp(`id="member-${sam.id}"`));
   assert.doesNotMatch(filtered, new RegExp(`id="member-${alex.id}"`));
   assert.doesNotMatch(filtered, new RegExp(`id="member-${newcomer.id}"`));
+  // Signing out does not make someone "never signed in".
+  assert.equal((await alexBrowser.post("/signout")).status, 303);
+  assert.equal((await f.api(`/v1/members/${alex.id}`, f.admin)).body.signed_in_at, null, "signed in nowhere now");
+  const after = (await coach.get("/coach/members?show=unsigned")).html;
+  assert.doesNotMatch(after, new RegExp(`id="member-${alex.id}"`));
 });

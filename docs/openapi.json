@@ -1959,6 +1959,14 @@
             "format": "date-time",
             "description": "When they signed in on the newest device where they are still signed in. Null when they are signed in nowhere, so they need a login link."
           },
+          "last_signed_in_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When they last signed in anywhere, from the audit history; signing out does not clear it. Null when they have never signed in."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -2064,6 +2072,7 @@
           "leaving_at",
           "deleted_at",
           "signed_in_at",
+          "last_signed_in_at",
           "created_at",
           "updated_at"
         ]

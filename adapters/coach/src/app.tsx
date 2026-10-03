@@ -32,6 +32,7 @@ import {
   Dashboard,
   Members,
   EMAILED_MINUTES,
+  signedInSince,
   Problem,
   Results,
   SignIn,
@@ -306,7 +307,7 @@ export function createCoachSite(options: CoachOptions) {
     // Placed but never signed in: in a competition under way or being drafted, read only when asked for.
     const unsigned = c.req.query("show") === "unsigned";
     const placed = unsigned ? await placedMembers(who.key) : null;
-    const members = present.filter((m) => m.status !== "left" && (!placed || (placed.has(m.id) && !m.signed_in_at)));
+    const members = present.filter((m) => m.status !== "left" && (!placed || (placed.has(m.id) && !signedInSince(m))));
     const left = present.filter((m) => m.status === "left").sort((a, b) => a.display_name.localeCompare(b.display_name));
     const waiting = await waitingForPlacement(who);
     // Who still needs a link first, then by name.

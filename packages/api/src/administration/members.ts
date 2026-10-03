@@ -20,6 +20,7 @@ export function toMember(m: MemberRecord, withPii: boolean): z.infer<typeof Memb
     leaving_at: iso(m.leavingAt),
     deleted_at: iso(m.deletedAt),
     signed_in_at: iso(m.signedInAt),
+    last_signed_in_at: iso(m.lastSignedInAt),
     created_at: iso(m.createdAt),
     updated_at: iso(m.updatedAt),
   };

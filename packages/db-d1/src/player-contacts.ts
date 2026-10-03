@@ -21,12 +21,14 @@ export async function readPlayerContacts(db: D1Database, hash: string) {
       mine AS (SELECT em.entry_id FROM me
         JOIN entry_member em ON em.member_id = me.member_id
         JOIN entry e ON e.id = em.entry_id AND e.club_id = me.club_id AND e.state = 'active'
-        JOIN competition c ON c.id = e.competition_id AND c.club_id = e.club_id AND c.state = 'active'),
+        JOIN competition c ON c.id = e.competition_id AND c.club_id = e.club_id AND c.state = 'active'
+          AND c.visibility = 'members'),
       theirs AS (SELECT entry_id FROM mine
         UNION SELECT other.entry_id FROM mine
           JOIN match_side s ON s.entry_id = mine.entry_id
           JOIN match_side other ON other.match_id = s.match_id AND other.side_index <> s.side_index
-          WHERE other.entry_id IS NOT NULL)
+          -- An opponent who has withdrawn has no match left to arrange.
+          JOIN entry oe ON oe.id = other.entry_id AND oe.state = 'active')
       -- CROSS JOIN keeps this order: from the few entries found, through each one's members by key.
       SELECT m.id, m.display_name, m.full_name, m.email, m.phone, em.entry_id
       FROM theirs CROSS JOIN entry_member em ON em.entry_id = theirs.entry_id
