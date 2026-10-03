@@ -14,12 +14,18 @@ export type PlayerPlacement = {
   provisional: boolean; fixtures_ready: boolean;
 };
 
-/** Only the signed-in member's lineup; draft competitors and private competitions stay private. */
+/**
+ * Only the signed-in member's lineup, once the coach has started their competition: drafts, other
+ * competitors and private competitions stay private.
+ */
 export async function readPlayerPlacements(db: D1Database, hash: string) {
   const identity = await readIdentity(db, hash, "session", null, [
+    // A place in a draft not yet started does not count: a newcomer placed there is still waiting.
     db.prepare(`SELECT EXISTS (SELECT 1 FROM entry_member em
       JOIN access_grant a ON a.member_id = em.member_id
-      WHERE a.token_hash = ? AND a.kind = 'session') AS has_entries`).bind(hash),
+      JOIN entry e ON e.id = em.entry_id AND e.club_id = a.club_id
+      JOIN competition c ON c.id = e.competition_id AND c.club_id = e.club_id
+      WHERE a.token_hash = ? AND a.kind = 'session' AND c.state <> 'draft') AS has_entries`).bind(hash),
     db.prepare(`SELECT id, name, starts_on, ends_on FROM season
       WHERE club_id = (SELECT id FROM club WHERE singleton = 1) AND state = 'planning'
       ORDER BY starts_on IS NULL, starts_on, id LIMIT 1`),
@@ -37,7 +43,7 @@ export async function readPlayerPlacements(db: D1Database, hash: string) {
       LEFT JOIN entry_member other ON other.entry_id = e.id AND other.member_id <> own.member_id
       LEFT JOIN member partner ON partner.id = other.member_id AND partner.deleted_at IS NULL
       WHERE a.token_hash = ? AND a.kind = 'session' AND e.state = 'active'
-        AND c.visibility = 'members' AND c.state IN ('draft', 'active')
+        AND c.visibility = 'members' AND c.state = 'active'
         AND s.state IN ('planning', 'active')
       ORDER BY s.starts_on, s.id, c.id`).bind(hash),
   ]);
