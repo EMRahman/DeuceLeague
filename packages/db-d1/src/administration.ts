@@ -223,6 +223,11 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       .bind(state.now, JSON.stringify({ ...mutation.changes,
         ...(mutation.changes.rating === undefined ? {} : { rating: rating(mutation.changes.rating) }) }), id, clubId),
       audit(db, state, "member.updated", "member", id, { changed: mutation.fields }));
+    // An email change invalidates every outstanding link, including a token minted just before mail delivery.
+    if (mutation.changes.email !== undefined) writes.unshift(db.prepare(`DELETE FROM access_grant
+      WHERE member_id = ? AND club_id = ? AND kind = 'login_link'
+        AND EXISTS (SELECT 1 FROM member WHERE id = ? AND club_id = ? AND email IS NOT ?)`)
+      .bind(id, clubId, id, clubId, mutation.changes.email));
     if (mutation.changes.status === "left" || mutation.changes.status === "paused") writes.push(leaveDrafts(db, clubId, id));
   } else if (mutation.type === "pause") {
     writes.push(db.prepare(`UPDATE member SET status = ?, updated_at = ?

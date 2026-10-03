@@ -16,7 +16,7 @@ export type CredentialRecord = {
   name: string | null; prefix: string | null; last_used_at: number | null;
 };
 export type ClubRecord = { id: string; slug: string; name: string; timezone: string };
-export type MemberIdentity = { id: string; display_name: string; deleted_at: number | null };
+export type MemberIdentity = { id: string; display_name: string; deleted_at: number | null; email?: string | null };
 export type IdentitySnapshot = {
   snapshot: Snapshot;
   hash: string;
@@ -48,8 +48,11 @@ export async function readIdentity(
   const snapshot = await readSnapshot(db, [
     credential,
     db.prepare("SELECT id, slug, name, timezone FROM club WHERE singleton = 1"),
-    db.prepare(`SELECT id, display_name, deleted_at FROM member
-      WHERE id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(memberId),
+    db.prepare(`SELECT id, display_name, deleted_at,
+      CASE WHEN EXISTS (SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ?
+        AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000)
+        AND s.value = 'members:pii') THEN email ELSE NULL END AS email
+      FROM member WHERE id = ? AND club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(hash, memberId),
     db.prepare(`SELECT count(*) AS n FROM access_grant WHERE member_id = ? AND kind = 'session'
       AND club_id = (SELECT id FROM club WHERE singleton = 1)`).bind(memberId),
     db.prepare("SELECT CAST(unixepoch('subsec') * 1000 AS INTEGER) AS now"),

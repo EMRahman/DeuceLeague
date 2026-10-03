@@ -375,6 +375,12 @@
       "LoginLinkOptions": {
         "type": "object",
         "properties": {
+          "expected_email": {
+            "type": "string",
+            "maxLength": 254,
+            "format": "email",
+            "description": "PII. Requires members:pii. Refuses minting if the current email differs from this delivery address; checked in the grant creation snapshot."
+          },
           "expires_in_minutes": {
             "type": "integer",
             "minimum": 1,
@@ -5849,7 +5855,7 @@
             }
           },
           "409": {
-            "description": "`member_removed`: a removed member cannot log in.",
+            "description": "`member_removed`: a removed member cannot log in. `contact_changed`: the expected email no longer matches.",
             "content": {
               "application/problem+json": {
                 "schema": {

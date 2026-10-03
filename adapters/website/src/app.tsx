@@ -371,7 +371,7 @@ export function createWebsite(options: WebsiteOptions) {
       for (const [address, at] of lastSent) if (now - at >= RESEND_MS) lastSent.delete(address);
     }
 
-    const { data } = await api<{ data: Member[] }>("GET", `/v1/members?email=${encodeURIComponent(email)}`, key!);
+    const { data } = await api<{ data: (Member & { email: string })[] }>("GET", `/v1/members?email=${encodeURIComponent(email)}`, key!);
     const member = data[0];
     if (!member) return answer();
 
@@ -379,7 +379,12 @@ export function createWebsite(options: WebsiteOptions) {
       "POST",
       `/v1/members/${member.id}/login-link`,
       key!,
-    );
+      { expected_email: member.email },
+    ).catch((error: unknown) => {
+      if (error instanceof ApiProblem && error.problem.code === "contact_changed") return null;
+      throw error;
+    });
+    if (!link) return answer();
     const url = new URL("/login", publicUrl);
     url.searchParams.set("token", link.token);
     const minutes = Math.round((Date.parse(link.expires_at) - now) / 60_000);

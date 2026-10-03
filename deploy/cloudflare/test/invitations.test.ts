@@ -85,3 +85,27 @@ test("the invitation migration retains legacy members without contacts", async (
   assert.equal(member.display_name, "Legacy"); assert.equal(member.email, null); assert.equal(member.phone, null);
   assert.equal(member.invitation_state, null); assert.equal(member.invitation_at, null);
 });
+
+test("email-bound minting refuses stale contacts and email changes revoke links while keeping sessions", async (t) => {
+  const f = await websiteFixture(t);
+  const member = await f.create("/v1/members", { display_name: "Alex", email: "old@example.org" });
+  const mint = (email: string, key = f.admin) => f.api(`/v1/members/${member.id}/login-link`, key, "POST", { expected_email: email });
+  const first = await mint("old@example.org"); assert.equal(first.status, 201);
+  const session = await f.api("/v1/session", first.body.token, "POST"); assert.equal(session.status, 201);
+  const outstanding = await mint("old@example.org"); assert.equal(outstanding.status, 201);
+  // Identical contacts preserve the existing link.
+  assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { email: "old@example.org" })).status, 200);
+  const unchanged = await f.api("/v1/session", outstanding.body.token, "POST"); assert.equal(unchanged.status, 201);
+  const beforeChange = await mint("old@example.org");
+  assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { email: "new@example.org" })).status, 200);
+  const stale = await mint("old@example.org"); assert.equal(stale.status, 409); assert.equal(stale.body.code, "contact_changed");
+  assert.equal((await f.api("/v1/session", beforeChange.body.token, "POST")).status, 401);
+  assert.equal((await f.api("/v1/me", session.body.token)).status, 200);
+  const plain = await f.create("/v1/api-keys", { name: "No contacts", scopes: ["members:write"] });
+  assert.equal((await mint("new@example.org", plain.key)).status, 403);
+  const fresh = await mint("new@example.org"); assert.equal(fresh.status, 201);
+  assert.equal((await f.api("/v1/session", fresh.body.token, "POST")).status, 201);
+  const afterClear = await mint("new@example.org");
+  assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { email: null })).status, 200);
+  assert.equal((await f.api("/v1/session", afterClear.body.token, "POST")).status, 401);
+});

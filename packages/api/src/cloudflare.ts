@@ -198,10 +198,15 @@ export function createCloudflareApp(options: Options) {
   app.use("/v1/join-requests/:id/approve", optionalBody);
   app.openapi(mint, async (c) => {
     const { id } = c.req.valid("param");
-    const minutes = (c.req.valid("json") ?? {}).expires_in_minutes ?? LOGIN_LINK_MINUTES;
-    return c.json(await run(c, (state) => {
+    const options = c.req.valid("json") ?? {};
+    const minutes = options.expires_in_minutes ?? LOGIN_LINK_MINUTES;
+    return c.json(await run(c, (state, auth) => {
+      if (options.expected_email !== undefined && !auth.scopes.has("members:pii")) throw problems.insufficientScope(["members:pii"]);
       if (!state.member) throw problems.notFound("member");
       if (state.member.deleted_at !== null) throw problems.conflict("member_removed", "A removed member cannot log in");
+      if (options.expected_email !== undefined && state.member.email !== options.expected_email) {
+        throw problems.conflict("contact_changed", "The member's email changed; refresh their record before sending a link");
+      }
       const link = generateLoginLink();
       const expiresAt = state.now + minutes * 60_000;
       return {

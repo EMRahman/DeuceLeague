@@ -895,7 +895,7 @@ export function createCoachSite(options: CoachOptions) {
     if (!member.email || member.status === "left") return { name: member.display_name, message: "No email sent. Complete the member's contact details on Members before inviting them." };
     let state: "accepted" | "failed" = "failed";
     try {
-      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: 15 });
+      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: 15, expected_email: member.email });
       const url = new URL("/login", publicUrl); url.searchParams.set("token", link.token);
       await options.mail({ to: member.email, subject: `${who.club.name}: your sign-in link`,
         text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for fifteen minutes. If it expires, request a new link on the league website.\n` });
