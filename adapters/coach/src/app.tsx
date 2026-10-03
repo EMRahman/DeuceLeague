@@ -1005,20 +1005,19 @@ export function createCoachSite(options: CoachOptions) {
       ...nextDates(now.ended.season, today(who.club.timezone)) } : null);
     // How the latest ended season closed: what it left disputed or entered by one side only stays findable.
     const last = seasons.filter((s) => s.state === "complete").sort(newestFirst)[0];
-    const closed = last ? { season: last, loose: await looseEnds(who.key, last.id,
-      competitions.filter((x) => x.season_id === last.id)) } : null;
+    const closed = last ? { season: last, loose: await looseEnds(who.key, last.id) } : null;
     return c.html(<SeasonPage frame={seasonFrame(who)} turnover={now} progress={progress} next={next} message={message}
       timezone={who.club.timezone} closed={closed} />, message ? 400 : 200);
   }
 
   /** A season's matches disputed or entered by one side only: disputes first, then those waiting longest. */
-  async function looseEnds(key: string, seasonId: string, known?: CoachCompetition[]): Promise<LooseEnd[]> {
-    const ids = new Set((known ?? await all<CoachCompetition>(`/v1/competitions?season_id=${seasonId}`, key)).map((x) => x.id));
-    if (ids.size === 0) return [];
+  async function looseEnds(key: string, seasonId: string): Promise<LooseEnd[]> {
+    const season = encodeURIComponent(seasonId);
     return [
-      ...(await all<LooseEnd>("/v1/matches?status=disputed", key)),
-      ...(await all<LooseEnd>("/v1/matches?status=reported", key)).sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at)),
-    ].filter((m) => ids.has(m.competition_id));
+      ...(await all<LooseEnd>(`/v1/matches?status=disputed&season_id=${season}`, key)),
+      ...(await all<LooseEnd>(`/v1/matches?status=reported&season_id=${season}`, key))
+        .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at)),
+    ];
   }
 
   app.get("/season", async (c) => {
@@ -1061,15 +1060,18 @@ export function createCoachSite(options: CoachOptions) {
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
     const blocked = await unstarted(who.key, season);
     if (blocked) return seasonPage(c, who, null, blocked);
-    // Results never agreed are left undecided only on purpose: the coach saw them listed and said so.
+    // Results never agreed are left undecided only on purpose: the coach saw each of them listed and said so.
+    // One entered or disputed since the page was shown was not, so the page is shown again with it.
     const form = await c.req.parseBody();
-    if (form.leave !== "yes") {
-      const [progress, loose] = await Promise.all([api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key),
-        looseEnds(who.key, season.id)]);
-      if (loose.length > 0) {
-        return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
-          message="Decide these results, or tick the box to leave them undecided, before ending the season." />, 400);
-      }
+    const shown = new Set(String(form.shown ?? "").split(",").filter(Boolean));
+    const loose = await looseEnds(who.key, season.id);
+    const unseen = loose.some((m) => !shown.has(m.id));
+    if (loose.length > 0 && (form.leave !== "yes" || unseen)) {
+      const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
+        message={form.leave === "yes" ? "Results have changed since this page was shown. Check the list again before ending the season."
+          : "Decide these results, or tick the box to leave them undecided, before ending the season."} />,
+        form.leave === "yes" ? 409 : 400);
     }
     const take = allowance();
     // Reporting closes first, so no score arrives while the competitions close.

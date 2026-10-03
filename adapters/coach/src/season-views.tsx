@@ -241,6 +241,7 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
         Nothing is deleted. A season ended by mistake can be reopened through the API, which moves it back a step.
       </p>
       <form method="post" action={`/coach/season/${season.id}/end`}>
+        <input type="hidden" name="shown" value={loose.map((m) => m.id).join(",")} />
         {loose.length > 0 && (
           <label class="choice">
             <input type="checkbox" name="leave" value="yes" required /> Leave{" "}

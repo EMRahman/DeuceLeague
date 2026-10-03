@@ -182,7 +182,8 @@ test("the coach marks a member as not playing next season, and the draft names w
   assert.match(dashboard, new RegExp(`opted out of next season:[^.]*${pair.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 
   const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes" }); if (r.status !== 307) break; }
+  const shown = /name="shown" value="([^"]*)"/.exec((await coach.get(`/coach/season/${season.id}/end`)).html)?.[1] ?? "";
+  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes", shown }); if (r.status !== 307) break; }
   for (let hop = 0; hop < 20; hop++) {
     const r = await coach.post("/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
     if (r.status !== 307) break;
@@ -301,7 +302,8 @@ test("the coach puts a member on a break, and the draft says so and what it mean
   const marked = (await coach.get("/coach/members")).html;
   assert.match(marked, /<span class="tag">On a break<\/span>/); assert.match(marked, new RegExp(`action="/coach/members/${away.id}/resume"`));
 
-  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes" }); if (r.status !== 307) break; }
+  const shown = /name="shown" value="([^"]*)"/.exec((await coach.get(`/coach/season/${season.id}/end`)).html)?.[1] ?? "";
+  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes", shown }); if (r.status !== 307) break; }
   for (let hop = 0; hop < 20; hop++) {
     const r = await coach.post("/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
     if (r.status !== 307) break;
