@@ -22,7 +22,8 @@ export function registerCloudflareEvents(app: OpenAPIHono<CloudflareEnv>, db: D1
       const names = auth.scopes.has("members:read");
       const named = events.map((e) => ({ ...e,
         actorName: e.actorType === "member" && !names ? null : e.actorName,
-        subjectName: e.subjectType === "member" && !names ? null : e.subjectName }));
+        subjectName: e.subjectType === "member" && !names ? null : e.subjectName,
+        partnerName: names ? e.partnerName : null }));
       return c.json({ data: named.map(toEvent), next_cursor: cursorOf(events.at(-1) ?? from) }, 200);
     });
   });

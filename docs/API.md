@@ -362,9 +362,11 @@ it backwards from the latest event instead, for showing people what happened,
 such as the coach's activity page; it promises nothing about events committed
 while paging. Each event names its actor and subject as they are called now —
 a key's name, a member's display name, a match as its two sides — in
-`actor_name` and `subject_name`. Names are looked up on reading, never stored in
-the log, so an erasure reaches them; a member's name needs `members:read`, as
-the member list does.
+`actor_name` and `subject_name`. An event whose payload names a competition or
+a partner by ID, such as a next-season choice, also carries `competition_name`
+and `partner_name`. Names are looked up on reading, never stored in the log, so
+an erasure reaches them; a member's name needs `members:read`, as the member
+list does.
 
 **Meta.** `/healthz` and `/openapi.json`.
 

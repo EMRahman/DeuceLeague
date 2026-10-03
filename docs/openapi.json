@@ -5601,6 +5601,22 @@
             "example": "Sam K. v Alex P.",
             "description": "What the subject is called now: a match as its two sides, an entry's label, a member's display name (with `members:read`), or the name of a season, competition, division, key, court or the club. Looked up on reading, like `actor_name`."
           },
+          "competition_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Mixed doubles",
+            "description": "The competition the payload's `competition_id` names, such as next season's choice is about. Looked up on reading; null when the payload names none, or it has been deleted."
+          },
+          "partner_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Priya S.",
+            "description": "The display name of the member the payload's `partner_id` names, with `members:read`. Looked up on reading, like `actor_name`; null without the scope or when the payload names none."
+          },
           "occurred_at": {
             "type": "string",
             "format": "date-time"
@@ -5621,6 +5637,8 @@
           "actor_id",
           "actor_name",
           "subject_name",
+          "competition_name",
+          "partner_name",
           "occurred_at",
           "payload"
         ]
