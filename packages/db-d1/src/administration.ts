@@ -228,6 +228,7 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       WHERE member_id = ? AND club_id = ? AND kind = 'login_link'
         AND EXISTS (SELECT 1 FROM member WHERE id = ? AND club_id = ? AND email IS NOT ?)`)
       .bind(id, clubId, id, clubId, mutation.changes.email));
+    if (mutation.changes.status === "left") writes.push(db.prepare("DELETE FROM access_grant WHERE member_id = ? AND club_id = ? AND kind = 'login_link'").bind(id, clubId));
     if (mutation.changes.status === "left" || mutation.changes.status === "paused") writes.push(leaveDrafts(db, clubId, id));
   } else if (mutation.type === "pause") {
     writes.push(db.prepare(`UPDATE member SET status = ?, updated_at = ?

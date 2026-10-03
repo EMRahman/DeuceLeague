@@ -379,7 +379,7 @@
             "type": "string",
             "maxLength": 254,
             "format": "email",
-            "description": "PII. Requires members:pii. Refuses minting if the current email differs from this delivery address; checked in the grant creation snapshot."
+            "description": "PII. Requires members:pii. Refuses minting if the member has left or the current email differs from this delivery address; checked in the grant creation snapshot."
           },
           "expires_in_minutes": {
             "type": "integer",
@@ -5855,7 +5855,7 @@
             }
           },
           "409": {
-            "description": "`member_removed`: a removed member cannot log in. `contact_changed`: the expected email no longer matches.",
+            "description": "`member_removed`: a removed member cannot log in. `contact_changed`: the expected email no longer matches. `member_left`: a departed member cannot receive an emailed invitation.",
             "content": {
               "application/problem+json": {
                 "schema": {

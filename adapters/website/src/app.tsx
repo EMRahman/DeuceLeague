@@ -381,7 +381,7 @@ export function createWebsite(options: WebsiteOptions) {
       key!,
       { expected_email: member.email },
     ).catch((error: unknown) => {
-      if (error instanceof ApiProblem && error.problem.code === "contact_changed") return null;
+      if (error instanceof ApiProblem && ["contact_changed", "member_left"].includes(error.problem.code)) return null;
       throw error;
     });
     if (!link) return answer();

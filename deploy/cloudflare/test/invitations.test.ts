@@ -109,3 +109,20 @@ test("email-bound minting refuses stale contacts and email changes revoke links 
   assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { email: null })).status, 200);
   assert.equal((await f.api("/v1/session", afterClear.body.token, "POST")).status, 401);
 });
+
+test("departed members cannot receive invitations and leaving invalidates outstanding links", async (t) => {
+  const f = await websiteFixture(t);
+  const member = await f.create("/v1/members", { display_name: "Alex", email: "alex@example.org" });
+  const mint = () => f.api(`/v1/members/${member.id}/login-link`, f.admin, "POST", { expected_email: "alex@example.org" });
+  const signedIn = await mint();
+  const session = await f.api("/v1/session", signedIn.body.token, "POST"); assert.equal(session.status, 201);
+  const pending = await mint(); assert.equal(pending.status, 201);
+  assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { status: "left" })).status, 200);
+  const refused = await mint(); assert.equal(refused.status, 409); assert.equal(refused.body.code, "member_left");
+  assert.equal((await f.api("/v1/session", pending.body.token, "POST")).status, 401);
+  assert.equal((await f.api("/v1/me", session.body.token)).status, 200);
+  const visitor = browser(f); assert.match((await visitor.post("/login", { email: "alex@example.org" })).html, /Check your email/);
+  assert.equal(f.outbox.length, 0);
+  assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { status: "active" })).status, 200);
+  assert.equal((await mint()).status, 201);
+});

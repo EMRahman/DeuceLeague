@@ -204,6 +204,9 @@ export function createCloudflareApp(options: Options) {
       if (options.expected_email !== undefined && !auth.scopes.has("members:pii")) throw problems.insufficientScope(["members:pii"]);
       if (!state.member) throw problems.notFound("member");
       if (state.member.deleted_at !== null) throw problems.conflict("member_removed", "A removed member cannot log in");
+      if (options.expected_email !== undefined && state.member.status === "left") {
+        throw problems.conflict("member_left", "A member who has left cannot receive a sign-in invitation");
+      }
       if (options.expected_email !== undefined && state.member.email !== options.expected_email) {
         throw problems.conflict("contact_changed", "The member's email changed; refresh their record before sending a link");
       }
