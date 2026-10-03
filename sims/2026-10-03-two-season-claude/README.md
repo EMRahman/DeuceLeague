@@ -11,6 +11,7 @@ players at seven checkpoints. No product source was changed.
 | [prompt.md](prompt.md) | The brief this run followed and how it differs from 1 October |
 | [report.md](report.md) | Outcomes, ranked pain points, bugs, verification and limits |
 | [comparison.md](comparison.md) | Results for the four work items and the earlier findings |
+| [issues.md](issues.md) | Twelve issue drafts (4 bugs, 8 stories) with proposals; not yet decided or filed |
 | [findings-raw.md](findings-raw.md) | The 31 checkpoint friction logs, unmerged, with harness faults annotated |
 | [request-log.jsonl](request-log.jsonl) | 3,706 sanitized requests: no credentials, cookies or login links |
 | [screenshots/](screenshots/) | Phone-width (390px) pages: coach dashboard, a draft, two player home pages |
