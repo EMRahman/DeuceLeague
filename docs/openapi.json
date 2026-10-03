@@ -220,7 +220,7 @@
         "properties": {
           "has_entries": {
             "type": "boolean",
-            "description": "Whether this member has ever held a league entry; returning or excluded players are not newcomers."
+            "description": "Whether this member has ever held an entry in a started competition, or one with a result entered; returning or excluded players are not newcomers, and a place in an unstarted draft does not count."
           },
           "next_season": {
             "type": [
@@ -5791,8 +5791,8 @@
         "tags": [
           "Me"
         ],
-        "summary": "Your provisional and open placements",
-        "description": "Only the signed-in player's active entries in member-visible draft or active competitions, with their division and partner. Draft placements are provisional until both season and competition are active. The earliest planning season supplies the next season's announced name and dates even before placement. No other draft entries or private competitions are disclosed. Fixtures ready means this entry has fixtures.",
+        "summary": "Your placements in started competitions",
+        "description": "Only the signed-in player's active entries in member-visible competitions the coach has started, with their division and partner. Next season's drafts stay private until the coach starts them. A placement is provisional while its season is not yet active. The earliest planning season supplies the next season's announced name and dates even before placement. No other draft entries or private competitions are disclosed. Fixtures ready means this entry has fixtures.",
         "security": [
           {
             "session": []

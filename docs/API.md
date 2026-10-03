@@ -83,13 +83,15 @@ caches forecasts; the core stores neither forecasts nor player data with them.
 A club with no locations shows no weather.
 
 **Your placements.** `GET /v1/me/placements` takes only a player's session. It
-shows their own member-visible draft and open entries, with the season's name
-and dates, division and doubles partner. Draft placement is provisional until
-both season and competition open; `fixtures_ready` says whether their entry
-has fixtures. Other draft lineups and private competitions stay private. The
+shows their own entries in member-visible competitions the coach has started,
+with the season's name and dates, division and doubles partner. Next season's
+drafts stay private, the player's own place included, until the coach starts
+the competition; a placement is provisional while its season is not yet
+active. `fixtures_ready` says whether their entry has fixtures. Other lineups
+and private competitions stay private. The
 response also names the earliest planning season, if one has been announced,
-and says whether this member has ever held an entry, to distinguish newcomers
-from returning or excluded players.
+and says whether this member has ever held an entry in a started competition,
+to distinguish newcomers from returning or excluded players.
 
 **Your contacts.** `GET /v1/me/contacts` takes only a player's session. It
 lists their doubles partners and their opponents in competitions under way,

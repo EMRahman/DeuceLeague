@@ -849,6 +849,19 @@ export function createWebsite(options: WebsiteOptions) {
     confirmed: () => "Both sides entered matching results. The result counts now.",
   };
 
+  /**
+   * A match by the ID in the address. One the API cannot find, or an ID that
+   * cannot be one, is a missing page rather than a fault.
+   */
+  async function readMatch<T>(id: string, session: string): Promise<T> {
+    try {
+      return await api<T>("GET", `/v1/matches/${encodeURIComponent(id)}`, session);
+    } catch (error) {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) throw new NoSuchMatch();
+      throw error;
+    }
+  }
+
   /** The match page, with whatever went wrong with the last thing the player sent. */
   async function matchPage(
     c: Context,
@@ -858,7 +871,7 @@ export function createWebsite(options: WebsiteOptions) {
     status: 200 | 400 | 409 = 200,
     sent: Record<string, string> | null = null,
   ) {
-    const match = await api<MatchDetail>("GET", `/v1/matches/${id}`, p.session);
+    const match = await readMatch<MatchDetail>(id, p.session);
     const [competition, entries] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
       myEntries(p, match.competition_id),
@@ -919,7 +932,7 @@ export function createWebsite(options: WebsiteOptions) {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
     const id = c.req.param("id");
-    const match = await api<Match>("GET", `/v1/matches/${id}`, p.session);
+    const match = await readMatch<Match>(id, p.session);
     const [competition, entries] = await Promise.all([
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
       myEntries(p, match.competition_id),
@@ -968,6 +981,10 @@ export function createWebsite(options: WebsiteOptions) {
 
   app.onError(async (error, c) => {
     const frame: Frame = { club: null, player: null };
+    if (error instanceof NoSuchMatch) {
+      return c.html(<Problem frame={frame} title="No such match"
+        detail="There is no match at this address. The link may be incomplete or mistyped." />, 404);
+    }
     if (error instanceof ApiProblem && error.problem.status === 404) {
       return c.html(<Problem frame={frame} title="Nothing here" detail="It may have been removed, or be private." />, 404);
     }
@@ -986,5 +1003,8 @@ export function createWebsite(options: WebsiteOptions) {
 
   return app;
 }
+
+/** The match in a page's address does not exist. */
+class NoSuchMatch extends Error {}
 
 export { isTelephone } from "./join.js";
