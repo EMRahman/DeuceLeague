@@ -93,11 +93,17 @@ test("a waiting newcomer is told when next season's places are decided, and wher
   const request = await f.create("/v1/join-requests", { first_name: "Ingrid", surname: "Olsen",
     email: "ingrid@example.org", phone: "07700 900124", privacy_notice: "uk-2026-10-01" });
   assert.equal((await f.api(`/v1/join-requests/${request.id}/approve`, f.admin, "POST", { display_name: "Ingrid O." })).status, 201);
-  const deadline = "2026-12-10T23:59:59Z";
+  // A deadline a month from whenever the test runs, written as the club's clock shows it.
+  const deadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
+  const timeZone = (await f.api("/v1/me", f.admin)).body.club.timezone;
+  const shown = new Date(deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone });
   assert.equal((await f.api(`/v1/seasons/${p.season.id}`, f.admin, "PATCH", { results_deadline_at: deadline })).status, 200);
   const ingrid = await signIn(f, "ingrid@example.org");
-  const home = (await ingrid.get("/")).html.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
-  assert.match(home, /Next season's places are decided after results close on 10 Dec\. New players usually start in the bottom division\./);
+  const text = async () => (await ingrid.get("/")).html.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
+  assert.match(await text(), new RegExp(`Next season's places are decided after results close on ${shown}\\. New players usually start in the bottom division\\.`));
+  // With no deadline still to come, the starting division is still said.
+  assert.equal((await f.api(`/v1/seasons/${p.season.id}`, f.admin, "PATCH", { results_deadline_at: null })).status, 200);
+  assert.match(await text(), /once this season's results close\. New players usually start in the bottom division\./);
   // A player already in the season is not told this.
   assert.doesNotMatch((await (await signIn(f, "sam@example.org")).get("/")).html, /New players usually start/);
 });

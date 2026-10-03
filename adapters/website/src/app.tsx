@@ -657,7 +657,7 @@ export function createWebsite(options: WebsiteOptions) {
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
         placementStatus={placementStatus}
-        resultsClose={resultsClose}
+        running={live.length > 0 ? { resultsClose } : null}
         deadlines={deadlines}
         notice={{ leaving: "Done. The coach will see you are not playing next season.",
           staying: "Taken back. You are in the reckoning for next season again.",
