@@ -21,6 +21,11 @@ async function expectedRows(f: WebsiteFixture, competitionId: string): Promise<s
 const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:write", "members:pii"];
 
 /** Sends a form, and sends it again each time the site answers 307, as a browser does. */
+/** The loose ends an end-season page listed, to confirm leaving exactly those. */
+async function shownOn(coach: ReturnType<typeof browser>, path: string) {
+  return /name="shown" value="([^"]*)"/.exec((await coach.get(path)).html)?.[1] ?? "";
+}
+
 async function send(coach: ReturnType<typeof browser>, path: string, form: Record<string, string> = {}) {
   for (let hop = 0; hop < 20; hop++) {
     const r = await coach.post(path, form);
@@ -384,7 +389,7 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   for (const name of ["Umi", "Val"]) assert.match(waiting, new RegExp(`Sample ${name}`));
   assert.doesNotMatch(waiting, /Sample Parker/, "Parker plays doubles");
 
-  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const drafts = (await f.api("/v1/competitions?state=draft", f.admin)).body.data as { id: string; discipline: string }[];
   const singles = drafts.find((x) => x.discipline === "singles")!; const doubles = drafts.find((x) => x.discipline === "doubles")!;
@@ -459,7 +464,7 @@ test("a draft shows the promotion and relegation places left empty, with a one-c
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
-  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const singles = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((x: { discipline: string }) => x.discipline === "singles");
   const divisions = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data as { id: string; ordinal: number }[];
@@ -556,14 +561,32 @@ test("the coach ends the sample season early and starts the next from its final 
 
   const confirm = await coach.get(`/coach/season/${season.id}/end`);
   assert.match(confirm.html, /End Sample season now\?/); assert.match(confirm.html, /Reporting closes now, before the deadline/);
-  assert.match(confirm.html, /<strong>5 matches<\/strong> without an agreed result will count as unplayed/);
+  // The results never agreed are listed, each linked to decide, apart from the matches nobody entered.
+  const loose = [...(await f.api("/v1/matches?status=disputed", f.admin)).body.data,
+    ...(await f.api("/v1/matches?status=reported", f.admin)).body.data] as { id: string }[];
+  assert.ok(loose.length > 0 && loose.length < 5, "the sample has some of each");
+  for (const m of loose) assert.match(confirm.html, new RegExp(`href="/coach/matches/${m.id}"`));
+  assert.match(confirm.html, new RegExp(`${loose.length} results? never agreed`));
+  assert.match(confirm.html, new RegExp(`<strong>${5 - loose.length} match(es)?</strong> nobody entered a result for will count as unplayed`));
+  assert.match(confirm.html, /name="leave" value="yes" required/);
   assert.match(confirm.html, /Sample singles: Sample Gray, Sample Morgan opted out of next season/);
-  const ended = await send(coach, `/coach/season/${season.id}/end`);
+  // Ending without saying to leave them undecided changes nothing.
+  const refused = await send(coach, `/coach/season/${season.id}/end`);
+  assert.equal(refused.status, 400); assert.match(refused.html, /tick the box to leave them undecided/);
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin)).body.state, "active");
+  // Saying to leave them, but not the ones shown, is refused too: the list is shown again.
+  const stale = await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: "" });
+  assert.equal(stale.status, 409); assert.match(stale.html, /Results have changed since this page was shown/);
+  const ended = await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   assert.equal(ended.status, 303); assert.equal(ended.location, "/coach/season");
   const after = (await f.api(`/v1/seasons/${season.id}`, f.admin)).body;
   assert.equal(after.state, "complete"); assert.ok(Date.parse(after.results_deadline_at) <= Date.now());
   assert.deepEqual((await competitions()).map((x) => x.state), ["complete", "complete"]);
   assert.equal((await send(coach, `/coach/season/${season.id}/end`)).status, 303, "ending it again changes nothing");
+  // Afterwards they stay findable from the Season page.
+  const closed = await coach.get("/coach/season");
+  assert.match(closed.html, /How Sample season closed/);
+  for (const m of loose) assert.match(closed.html, new RegExp(`href="/coach/matches/${m.id}"`));
 
   const start = await coach.get("/coach/season");
   assert.match(start.html, /Sample season has ended/); assert.match(start.html, /value="Sample season 2"/);

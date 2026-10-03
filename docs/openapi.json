@@ -6095,6 +6095,17 @@
           {
             "schema": {
               "type": "string",
+              "format": "uuid",
+              "description": "Matches of this season's competitions only."
+            },
+            "required": false,
+            "description": "Matches of this season's competitions only.",
+            "name": "season_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "format": "uuid"
             },
             "required": false,

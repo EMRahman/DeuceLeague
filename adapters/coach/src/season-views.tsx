@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import { deadlineLine, type Season } from "@deuceleague/website";
+import { deadlineLine, type Match, type Season } from "@deuceleague/website";
 import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PlacedEntry, type Turnover, type Unplaced } from "./season.js";
 import { Layout, type CoachCompetition, type Frame, type SeasonProgress } from "./views.js";
 
@@ -29,6 +29,27 @@ const Notice: FC<{ message: string | null }> = ({ message }) =>
 
 export type NextForm = { from: string; name: string; starts_on: string; ends_on: string };
 
+/** A match whose sides never agreed a result, nor the coach decided one: disputed, or entered by one side only. */
+export type LooseEnd = Match & { updated_at: string };
+
+/** Each loose end on a line, linked to its match page, where the coach can decide it while the season runs. */
+const LooseEnds: FC<{ matches: LooseEnd[] }> = ({ matches }) => (
+  <ul class="list">
+    {matches.map((m) => {
+      const names = [0, 1].map((side) => m.sides.find((s) => s.side === side)?.label ?? `Side ${side + 1}`);
+      return (
+        <li class="answer">
+          <a href={`/coach/matches/${m.id}`}>{names.join(" v ")}</a>
+          <span class="muted">
+            {" "}· {[m.competition_name, m.division_name].filter(Boolean).join(" · ")} ·{" "}
+            {m.status === "disputed" ? "the sides entered different results" : "only one side entered a result"}
+          </span>
+        </li>
+      );
+    })}
+  </ul>
+);
+
 export const SeasonPage: FC<{
   frame: Frame;
   turnover: Turnover;
@@ -38,7 +59,9 @@ export const SeasonPage: FC<{
   next: NextForm | null;
   message: string | null;
   timezone: string;
-}> = ({ frame, turnover, progress, next, message, timezone }) => {
+  /** The latest ended season, and its matches left disputed or entered by one side only. */
+  closed: { season: Season; loose: LooseEnd[] } | null;
+}> = ({ frame, turnover, progress, next, message, timezone, closed }) => {
   const { running, ended, preparing } = turnover;
   return (
     <Layout title="Season" frame={frame}>
@@ -119,6 +142,23 @@ export const SeasonPage: FC<{
         </div>
       )}
 
+      {closed && (
+        <div class="card">
+          <h2>How {closed.season.name} closed</h2>
+          {closed.loose.length === 0 ? (
+            <p class="muted">Every result was agreed by both sides or decided by you.</p>
+          ) : (
+            <>
+              <p>
+                {plural(closed.loose.length, "match", "matches")} ended without an agreed result and count as unplayed.
+                Its competitions are a record now: reopen one through the API to change a result.
+              </p>
+              <LooseEnds matches={closed.loose} />
+            </>
+          )}
+        </div>
+      )}
+
       {preparing.map(({ season, drafts }) => (
         <div class="card">
           <div class="titleline">
@@ -153,18 +193,42 @@ export const SeasonPage: FC<{
   );
 };
 
-export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgress }> = ({ frame, season, progress }) => {
+export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgress; loose: LooseEnd[]; message?: string | null }> = ({
+  frame,
+  season,
+  progress,
+  loose,
+  message = null,
+}) => {
   const competitions = progress.competitions.filter((x) => x.state === "active");
   const outstanding = competitions.reduce((n, x) => n + x.outstanding, 0);
+  const unentered = Math.max(0, outstanding - loose.length);
   const early = season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now();
   return (
     <Layout title={`End ${season.name}`} frame={frame}>
       <h1>End {season.name} now?</h1>
+      <Notice message={message} />
+      {loose.length > 0 && (
+        <div class="card">
+          <h2>{plural(loose.length, "result")} never agreed</h2>
+          <p>
+            These will count as unplayed unless you decide them first. Open one to see both sides' entries and decide
+            it.
+          </p>
+          <LooseEnds matches={loose} />
+        </div>
+      )}
       <ul class="plain">
         {early && <li>Reporting closes now, before the deadline. Players can no longer report or agree scores.</li>}
-        {outstanding > 0 && (
+        {unentered > 0 && (
           <li>
-            <strong>{plural(outstanding, "match", "matches")}</strong> without an agreed result will count as unplayed.
+            <strong>{plural(unentered, "match", "matches")}</strong> nobody entered a result for will count as unplayed.
+          </li>
+        )}
+        {loose.length > 0 && (
+          <li>
+            <strong>{plural(loose.length, "match", "matches")}</strong> above, disputed or entered by one side only,
+            will count as unplayed too.
           </li>
         )}
         <li>The tables become final, and {competitions.map((x) => x.name).join(" and ")} become a record.</li>
@@ -180,6 +244,14 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
         Nothing is deleted. A season ended by mistake can be reopened through the API, which moves it back a step.
       </p>
       <form method="post" action={`/coach/season/${season.id}/end`}>
+        <input type="hidden" name="shown" value={loose.map((m) => m.id).join(",")} />
+        {loose.length > 0 && (
+          <label class="choice">
+            <input type="checkbox" name="leave" value="yes" required /> Leave{" "}
+            {loose.length === 1 ? "this result" : `these ${loose.length} results`} undecided: {loose.length === 1 ? "it counts" : "they count"} as
+            unplayed.
+          </label>
+        )}
         <button type="submit">End {season.name}</button>
       </form>
       <p class="after">
