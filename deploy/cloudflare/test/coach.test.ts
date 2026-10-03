@@ -503,6 +503,29 @@ test("a draft shows the promotion and relegation places left empty, with a one-c
   assert.match(moved, new RegExp(`${drew.label} Moved by coach · moved by coach from \\d\\w\\w in Division 1`));
 });
 
+test("a vacancy's note says so once the entry that held the place is back where it was, and offers no move", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
+  const singles = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((x: { discipline: string }) => x.discipline === "singles");
+  const divisions = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data as { id: string; ordinal: number }[];
+  const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const before = await coach.get(`/coach/season/drafts/${singles.id}`);
+  assert.match(text(before.html), /Gray\) is not carried over/);
+  assert.match(before.html, /class="small quiet" type="submit">\s*Suggestion: relegate Sample \w+/);
+  // The coach puts Gray back in Division 1, where Gray played.
+  const gray = ((await f.api(`/v1/competitions/${singles.previous_competition_id}/entries`, f.admin)).body.data as
+    { id: string; label: string; members: { id: string }[] }[]).find((e) => e.label === "Sample Gray")!;
+  assert.equal((await coach.post(`/coach/season/drafts/${singles.id}/entries`, { previous_entry_id: gray.id,
+    member: gray.members[0]!.id, division_id: divisions[0]!.id })).status, 303);
+  const after = await coach.get(`/coach/season/drafts/${singles.id}`);
+  assert.match(text(after.html), /Sample Gray is back in Division 1; Division 2 receives one fewer this season\./);
+  assert.doesNotMatch(text(after.html), /Gray\) is not carried over/);
+  assert.doesNotMatch(after.html, /Suggestion: relegate/);
+});
+
 test("a season with a competition not yet started cannot be ended from the Season tab", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);

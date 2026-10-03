@@ -334,16 +334,18 @@ export const Draft: FC<{
           {!empty &&
             view.vacancies
               .filter((v) => v.to.id === d.id)
-              .map(({ vacancy, to, fill }) => (
+              .map(({ vacancy, to, fill, back }) => (
                 <div class="notice">
-                  {vacancy.explanation}
+                  {back
+                    ? `${vacancy.label} ${vacancy.label.includes(" / ") ? "are" : "is"} back in ${back.name}; ${to.name} receives one fewer this season.`
+                    : vacancy.explanation}
                   {fill && (
                     <form method="post" action={`/coach/season/entries/${fill.id}/move`}>
                       <input type="hidden" name="draft" value={fill.competition_id} />
                       <input type="hidden" name="division_id" value={to.id} />
                       <input type="hidden" name="reason" value={vacancy.kind === "promotion" ? "promoted" : "relegated"} />
-                      <button class="small" type="submit">
-                        {vacancy.kind === "promotion" ? "Promote" : "Relegate"} {fill.label}
+                      <button class="small quiet" type="submit">
+                        Suggestion: {vacancy.kind === "promotion" ? "promote" : "relegate"} {fill.label}
                       </button>
                     </form>
                   )}
