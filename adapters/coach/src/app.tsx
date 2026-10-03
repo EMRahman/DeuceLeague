@@ -60,6 +60,8 @@ export type CoachOptions = {
   /** The courts' forecast, as the players' home page shows it; none without courts. */
   weather?: Weather;
   mail?: (message: { to: string; subject: string; text: string }) => Promise<void>;
+  /** Where a page fault is noted: one structural line, never the error itself. */
+  log?: (line: string) => void;
 };
 
 /** Where the coach's key lives: in a cookie only the server can read, sent only to /coach. */
@@ -178,6 +180,7 @@ function today(timezone: string): string {
 export function createCoachSite(options: CoachOptions) {
   const { api } = options;
   const publicUrl = new URL(options.publicUrl);
+  const log = options.log ?? console.log;
   const secure = publicUrl.protocol === "https:";
 
   const app = new Hono().basePath("/coach");
@@ -508,8 +511,12 @@ export function createCoachSite(options: CoachOptions) {
     return c.html(<CoachMatches frame={frameOf(who, "results")} matches={page.data} status={status} after={after} next={page.next_cursor} />);
   });
 
+  /** The match and its competition. A match the API cannot find, or an ID that cannot be one, is a missing page. */
   async function matchInputs(who: Coach, id: string) {
-    const match = await api<MatchDetail>("GET", `/v1/matches/${encodeURIComponent(id)}`, who.key);
+    const match = await api<MatchDetail>("GET", `/v1/matches/${encodeURIComponent(id)}`, who.key).catch((error) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) throw new NoSuchMatch();
+      throw error;
+    });
     const competition = await api<CoachCompetition>("GET", `/v1/competitions/${match.competition_id}`, who.key);
     return { match, competition };
   }
@@ -1244,5 +1251,25 @@ export function createCoachSite(options: CoachOptions) {
     return c.redirect("/coach", 303);
   });
 
+  // ─────────────────────────────────────────────────────────────── errors ──
+
+  app.notFound(async (c) => c.html(<Problem frame={frameOf(await coach(c).catch(() => null))} title="Nothing here"
+    detail="There is no such page." back={{ href: "/coach", label: "Back to the dashboard" }} />, 404));
+
+  app.onError(async (error, c) => {
+    if (error instanceof NoSuchMatch) {
+      return c.html(<Problem frame={frameOf(await coach(c).catch(() => null), "results")} title="No such match"
+        detail="There is no match at this address. The link may be incomplete or mistyped."
+        back={{ href: "/coach/results", label: "Back to results" }} />, 404);
+    }
+    // API errors can contain addresses or input. Keep logs structural.
+    log(`error ${c.req.method} ${c.req.path}`);
+    return c.html(<Problem frame={frameOf(null)} title="Something went wrong" detail="Please try again in a moment."
+      back={{ href: "/coach", label: "Back to the dashboard" }} />, 500);
+  });
+
   return app;
 }
+
+/** The match in a page's address does not exist. */
+class NoSuchMatch extends Error {}
