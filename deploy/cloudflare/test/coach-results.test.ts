@@ -279,3 +279,24 @@ test("Results and the match page write every score side-0-first, offer each entr
   assert.doesNotMatch(text((await coach.get("/coach/results")).html), /same score reversed/);
   assert.doesNotMatch(text((await coach.get(`/coach/matches/${p.match}`)).html), /same score reversed/);
 });
+
+test("an unknown or malformed match ID is a missing page for the coach and the player", async t => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
+  const player = await signIn(f, "sam@example.org");
+  const unknown = "01a1016b-aa86-7d22-8000-000000000000";
+  for (const id of ["01a1016b-aa86-7d22-0000", "not-an-id", unknown]) {
+    for (const [who, path, back] of [[coach, `/coach/matches/${id}`, "/coach/results"], [player, `/matches/${id}`, "/"]] as const) {
+      const page = await who.get(path);
+      assert.equal(page.status, 404, `${path} answers 404`);
+      assert.equal(page.headers.get("cache-control"), "no-store");
+      assert.match(page.html, /No such match/);
+      assert.ok(page.html.includes(`href="${back}"`), `${path} links back`);
+    }
+  }
+  const posted = await coach.post(`/coach/matches/not-an-id/preview`, { outcome: "unplayed", reason: "no_response" });
+  assert.equal(posted.status, 404);
+  assert.equal((await player.post(`/matches/${unknown}/report`, { outcome: "completed" })).status, 404);
+  assert.equal((await coach.get(`/coach/matches/${p.match}`)).status, 200, "a real match still opens");
+  assert.equal((await coach.get("/coach/no-such-page")).status, 404);
+});
