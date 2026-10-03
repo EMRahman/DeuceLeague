@@ -128,3 +128,5 @@ MIT-licensed.
 
 The Cloudflare Worker mounts it at `/coach`, next to the players' website. See
 the [Cloudflare deployment guide](../../deploy/cloudflare/README.md#coachs-site).
+
+With a configured email provider, Members can email sign-in links individually, on approval, or to up to five selected members per request. The latest provider acceptance or failed attempt is shown separately from sign-in status. Acceptance does not confirm inbox delivery. The missing-contact list and Save contacts form let the coach complete legacy records without removing members. New join requests require both email and telephone.

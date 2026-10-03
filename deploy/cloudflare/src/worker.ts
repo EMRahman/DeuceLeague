@@ -14,7 +14,7 @@ type WeatherConfiguration = {
 };
 
 /** How many join requests one connection may send a day. */
-const JOINS_PER_CONNECTION = 3;
+const JOINS_PER_CONNECTION = 50;
 
 async function keyedHash(secret: string, value: string) {
   const bytes = new TextEncoder();
@@ -78,15 +78,16 @@ export default {
       ctx.waitUntil(work.catch(() => {}));
       return work;
     };
+    const mail = config.mail ? (config.mail.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.mail.from)
+      : resendMailer(env.RESEND_API_KEY!, config.mail.from)) : undefined;
     if (url.pathname === "/coach" || url.pathname.startsWith("/coach/")) {
-      return createCoachSite({ api: client, publicUrl: config.origin, weather }).fetch(request);
+      return createCoachSite({ api: client, publicUrl: config.origin, weather, ...(mail ? { mail } : {}) }).fetch(request);
     }
     const { join } = config;
     const website = createWebsite({
       api: client,
       key: config.key, publicUrl: config.origin,
-      ...(config.mail ? { mail: config.mail.provider === "cloudflare" ? cloudflareMailer(env.EMAIL!, config.mail.from)
-        : resendMailer(env.RESEND_API_KEY!, config.mail.from) } : {}),
+      ...(mail ? { mail } : {}),
       claimLogin: async (email) => claimWebsiteLogin(env.DB, await recipientHash(config.key, email)),
       ...(join ? { join: {
         claim: async (address: string | null) => claimWebsiteJoin(env.DB, address ? await connectionHash(config.key, address) : null,

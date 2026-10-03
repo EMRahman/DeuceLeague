@@ -8,7 +8,7 @@ export const JoinRequest = z
     id: z.uuid(),
     first_name: z.string().openapi({ description: pii("As they typed it.") }),
     surname: z.string().openapi({ description: pii("As they typed it.") }),
-    email: z.string().nullable().openapi({ description: pii("An email address, a phone number, or both.") }),
+    email: z.string().nullable().openapi({ description: pii("Required for new requests; older requests may have no email.") }),
     phone: z.string().nullable().openapi({ description: pii("As they typed it.") }),
     gender: Gender.nullable().openapi({ description: pii("As they chose it on the form; null if the request did not carry one.") }),
     age_group: AgeGroup.nullable().openapi({ description: pii("The band they chose on the form, or null if they left it blank.") }),
@@ -29,13 +29,13 @@ export const NewJoinRequest = z
   .object({
     first_name: z.string().trim().min(1).max(60),
     surname: z.string().trim().min(1).max(60),
-    email: z.email().max(254).nullable().optional(),
+    email: z.email().max(254).openapi({ description: "Required email address for sign-in links." }),
     phone: z
       .string()
       .trim()
       .regex(/^\+?[0-9][0-9 ()-]{5,23}$/, "A phone number has digits, and may start with +")
-      .nullable()
-      .optional(),
+      .refine((value) => { const digits = value.replace(/\D/g, "").length; return digits >= 7 && digits <= 15; }, "A telephone number needs 7 to 15 digits")
+      .openapi({ description: "Required telephone number for WhatsApp league communications; 7 to 15 digits with optional punctuation." }),
     gender: Gender.nullable().optional().openapi({ description: "The club's own form always sends one. Copied to the member on approval." }),
     age_group: AgeGroup.nullable().optional().openapi({ description: "Optional. Copied to the member on approval." }),
     privacy_notice: z.string().trim().min(1).max(40).openapi({
@@ -43,7 +43,6 @@ export const NewJoinRequest = z
       description: "Which privacy notice the person read and agreed to. The form that showed it names it.",
     }),
   })
-  .refine((r) => r.email || r.phone, { path: ["email"], message: "Give an email address, a phone number, or both" })
   .openapi("NewJoinRequest");
 
 export const Approval = z

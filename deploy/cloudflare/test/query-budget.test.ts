@@ -120,7 +120,7 @@ test("sample browser installation stays within its SQL statement budget and reta
 
   // Someone asking to join with a member's email, as the coach's pages show them.
   assert.equal((await api("POST", "/v1/join-requests", env.WEBSITE_API_KEY, { first_name: "Owner", surname: "Again",
-    email: "OWNER@example.org", privacy_notice: "uk-2026-09-30" })).status, 201);
+    email: "OWNER@example.org", phone: "07700 900123", privacy_notice: "uk-2026-09-30" })).status, 201);
 
   // The coach's pages, each read in full on every visit.
   async function coachPage(path: string, label = "Sample") {
@@ -195,6 +195,19 @@ test("sample browser installation stays within its SQL statement budget and reta
   }
   await coachForm(`/coach/season/${drafts[0]!.season_id}/start`);
   assert.equal((await json("GET", "/v1/competitions?state=draft")).data.length, 0, "every draft started");
+
+  const invitee = await json("POST", "/v1/members", { display_name: "Invitee", email: "invitee@example.org", phone: "07700 900123" });
+  const owner = (await json("GET", "/v1/members?email=owner@example.org")).data[0];
+  const extraInvitees = [];
+  for (let i = 0; i < 3; i++) extraInvitees.push(await json("POST", "/v1/members", { display_name: `Extra invitee ${i}`, email: `extra${i}@example.org` }));
+  counted.reset();
+  const invited = await worker.fetch(new Request(env.PUBLIC_URL + "/coach/members/invite", {
+    method: "POST", headers: { cookie: `deuceleague_coach=${admin}`, origin: env.PUBLIC_URL, "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams([owner, invitee, ...extraInvitees].map((m) => ["member", m.id])),
+  }), { ...env, MAIL_PROVIDER: "cloudflare", EMAIL: { async send() { return { messageId: "test-message" }; } } } as any, ctx);
+  assert.equal(invited.status, 200); assert.match(await invited.text(), /Email accepted for sending/);
+  t.diagnostic(`Five-member invitation batch: ${counted.calls()} D1 calls, ${counted.count()} statements`);
+  assert.ok(counted.calls() <= 50, "bounded invitation batch stays within Workers Free allowance");
 
   // A club's history grows every season, and D1 bills each row read. So no read the
   // pages above made may read a whole table, or build a temporary index by reading one,

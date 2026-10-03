@@ -114,7 +114,7 @@ which fields changed, never the values, because the log cannot be erased.
 
 **Join requests.** Someone asking to join from a club's public form,
 `POST /v1/join-requests` (`members:write` and `members:pii`): first name,
-surname, an email address or phone number or both, a gender and an optional age
+surname, both a valid email address and telephone number, a gender and an optional age
 group (a band, never a birth date), and the name of the privacy notice they
 agreed to. A request is not a member. It waits in its own table
 until the coach approves it, `POST /v1/join-requests/{id}/approve`, which adds
@@ -414,3 +414,5 @@ see their matches and tables, enter results independently. It is an adapter like
 any other — it reaches the league only through this API, with its own key for
 signing players in and each player's session for everything else — and it
 sends any emails, since the core does not. A club can restyle it or replace it.
+
+Coach email adapters record provider acceptance or failure with `POST /v1/members/{id}/invitation`, including the email used so a changed contact is refused. This records an outcome; it sends no email and confirms no inbox delivery. `invitation_state` and `invitation_at` appear only with `members:pii`, and clear when an email is changed or a member erased.

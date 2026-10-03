@@ -351,14 +351,14 @@ export const Join: FC<{
         <label for="surname">Surname</label>
         <input id="surname" name="surname" autocomplete="family-name" maxlength={60} required value={values.surname} />
       </div>
-      <p class="muted">An email address, a phone number, or both.</p>
+      <p class="muted">Both are required: email for sign-in links and telephone for WhatsApp league communications.</p>
       <div class="field">
         <label for="email">Email address</label>
-        <input id="email" name="email" type="email" autocomplete="email" maxlength={254} value={values.email} />
+        <input id="email" name="email" type="email" autocomplete="email" maxlength={254} value={values.email} required />
       </div>
       <div class="field">
         <label for="phone">Phone number</label>
-        <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength={24} value={values.phone} />
+        <input id="phone" name="phone" type="tel" autocomplete="tel" maxlength={24} value={values.phone} required />
       </div>
       <div class="field">
         <label for="gender">Gender</label>
@@ -427,22 +427,22 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     </p>
     <h2>What we keep</h2>
     <p>
-      Your name, the email address or phone number you give us, your gender, your age group if you gave one, the
+      Your name, your email address and telephone number, your gender, your age group if you gave one, the
       playing level the coach gives you, which competitions you play in, and your results.
     </p>
     <h2>Why</h2>
     <p>
       To run the league you asked to join: to place you in a division, arrange your matches, let you sign in and
-      report scores, and contact you about the league. Your gender decides which men's, women's or mixed
+      report scores, and contact you about the league. We use email for sign-in links and telephone for WhatsApp league communications. Your gender decides which men's, women's or mixed
       competitions you can join, and your age group helps the coach plan fair draws. We send no marketing, and never sell or share your details
       for anyone else's use.
     </p>
     <h2>Who sees them</h2>
     <p>
       The coach sees everything. Other players see only the name you play under, such as "Sam K.", and your
-      results. The site runs on Cloudflare, which stores the league's records for us. When you ask to join,
+      results. The site runs on Cloudflare, which stores the league's records for us. Our configured email provider processes your email address and sign-in email to send the link. WhatsApp processes communications sent through its service. When you ask to join,
       Cloudflare's Turnstile may check that a person, not a program, is sending the form, and we keep a scrambled
-      form of your internet address for a day to limit how many requests one connection can send.
+      form of your internet address for a day to limit how many submissions one source IP can send.
     </p>
     <h2>How long</h2>
     <p>

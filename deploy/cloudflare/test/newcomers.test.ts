@@ -5,7 +5,7 @@ import { browser, playingWebsite, signIn, websiteFixture } from "./website-helpe
 test("an approved newcomer sees waiting, announced dates, provisional doubles placement and open fixtures", async (t) => {
   const f = await websiteFixture(t);
   const request = await f.create("/v1/join-requests", { first_name: "Robin", surname: "Hale",
-    email: "robin@example.org", privacy_notice: "uk-2026-10-01" });
+    email: "robin@example.org", phone: "07700 900123", privacy_notice: "uk-2026-10-01" });
   const approved = await f.api(`/v1/join-requests/${request.id}/approve`, f.admin, "POST", { display_name: "Robin H." });
   assert.equal(approved.status, 201, JSON.stringify(approved.body));
   const member = approved.body;

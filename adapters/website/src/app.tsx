@@ -85,7 +85,7 @@ export type JoinOptions = {
    * Reserve one of today's join requests for this connection (its address, or
    * null if unknown); false once the club's or the connection's limit is reached.
    */
-  claim: (connection: string | null) => Promise<boolean>;
+  claim: (connection: string | null) => Promise<true | "club" | "ip">;
   /** Cloudflare Turnstile, when the club has set it up: the widget's site key, and a check of its answer. */
   turnstile?: { siteKey: string; verify: (token: string, connection: string | null) => Promise<boolean> };
 };
@@ -371,7 +371,7 @@ export function createWebsite(options: WebsiteOptions) {
       for (const [address, at] of lastSent) if (now - at >= RESEND_MS) lastSent.delete(address);
     }
 
-    const { data } = await api<{ data: Member[] }>("GET", `/v1/members?email=${encodeURIComponent(email)}`, key!);
+    const { data } = await api<{ data: (Member & { email: string })[] }>("GET", `/v1/members?email=${encodeURIComponent(email)}`, key!);
     const member = data[0];
     if (!member) return answer();
 
@@ -379,7 +379,12 @@ export function createWebsite(options: WebsiteOptions) {
       "POST",
       `/v1/members/${member.id}/login-link`,
       key!,
-    );
+      { expected_email: member.email },
+    ).catch((error: unknown) => {
+      if (error instanceof ApiProblem && ["contact_changed", "member_left"].includes(error.problem.code)) return null;
+      throw error;
+    });
+    if (!link) return answer();
     const url = new URL("/login", publicUrl);
     url.searchParams.set("token", link.token);
     const minutes = Math.round((Date.parse(link.expires_at) - now) / 60_000);
@@ -468,8 +473,13 @@ export function createWebsite(options: WebsiteOptions) {
         return again(["The check that you are a person did not finish. Wait for it to tick, then send again."], 400);
       }
     }
-    if (!(await join.claim(connection))) {
-      return again(["The club cannot take more requests today. Please try again tomorrow."], 429);
+    const allowance = await join.claim(connection);
+    if (allowance !== true) {
+      const retry = Math.ceil((86_400_000 - Date.now() % 86_400_000) / 1000);
+      c.header("Retry-After", String(retry));
+      return again([allowance === "ip"
+        ? "This internet address has used its 50 join submissions today. Try again after midnight UTC."
+        : "The club cannot take more requests today. Try again after midnight UTC."], 429);
     }
     try {
       await api("POST", "/v1/join-requests", key!, {
@@ -967,3 +977,5 @@ export function createWebsite(options: WebsiteOptions) {
 
   return app;
 }
+
+export { isTelephone } from "./join.js";

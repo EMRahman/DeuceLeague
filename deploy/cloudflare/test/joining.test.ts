@@ -33,9 +33,11 @@ test("a join request waits apart from members until the coach approves it, as a 
   assert.equal((await send(f, "/v1/join-requests", "POST", { ...sam, privacy_notice: "" }, form)).status, 400);
   const again = await send(f, "/v1/join-requests", "POST", { ...sam, email: "SAM.KERR@example.org" }, form);
   assert.equal(again.status, 409); assert.equal(again.body.code, "already_requested");
-  // With only a phone, two requests cannot be told apart, so both wait.
-  assert.equal((await send(f, "/v1/join-requests", "POST", { ...sam, email: null }, form)).status, 201);
-  assert.equal((await send(f, "/v1/join-requests", "POST", { ...sam, email: null }, form)).status, 201);
+  for (const bad of [{ email: null }, { phone: null }, { email: "" }, { phone: "" }, { phone: "1     " }, { phone: "1234567890123456" }]) {
+    assert.equal((await send(f, "/v1/join-requests", "POST", { ...sam, ...bad }, form)).status, 400);
+  }
+  await send(f, "/v1/join-requests", "POST", { ...sam, email: "second@example.org" }, form);
+  await send(f, "/v1/join-requests", "POST", { ...sam, email: "third@example.org" }, form);
 
   // Everything in a request is personal.
   const plain = await key(f, ["members:read", "members:write"]);
@@ -84,7 +86,7 @@ test("a join request waits apart from members until the coach approves it, as a 
     method: "POST", headers: { Authorization: `Bearer ${f.admin}`, "Content-Type": "application/json" } });
   assert.equal(response.status, 201);
   const member = await response.json() as { display_name: string; level: number | null; email: string | null };
-  assert.equal(member.display_name, "Sam K."); assert.equal(member.level, null); assert.equal(member.email, null);
+  assert.equal(member.display_name, "Sam K."); assert.equal(member.level, null); assert.equal(member.email, listed[1].email);
   assert.equal((await send(f, `/v1/join-requests/${listed[2].id}/approve`, "POST", { display_name: "Sammy" })).body.display_name, "Sammy");
 });
 
@@ -176,7 +178,7 @@ function started(f: WebsiteFixture, ago = 5_000) {
   return `${at}.${createHmac("sha256", f.websiteKey).update(`join-form:${at}`).digest("hex")}`;
 }
 const person = (f: WebsiteFixture, fields: Record<string, string> = {}) => ({
-  started: started(f), website: "", first_name: "Robin", surname: "Hale", email: "robin@example.org", phone: "", gender: "female",
+  started: started(f), website: "", first_name: "Robin", surname: "Hale", email: "robin@example.org", phone: "07700 900123", gender: "female",
   age_group: "35_49", privacy: "yes", ...fields,
 });
 const waiting = (f: WebsiteFixture) => f.db.prepare("SELECT count(*) AS n FROM join_request").first<number>("n");
@@ -199,7 +201,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   // No Turnstile set up: no script, and the page's policy allows none.
   assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-01/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-02/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
 
   // A program is thanked, and nothing is kept: a filled-in hidden field, a made-up time, or a form sent too fast.
@@ -212,7 +214,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   // A person's mistakes are shown back to them, with what they typed.
   const wrong = await join(f, person(f, { email: "", phone: "", privacy: "", surname: "Hale<script>" }));
   assert.equal(wrong.status, 400);
-  assert.match(wrong.html, /Give an email address, a phone number, or both/); assert.match(wrong.html, /Tick the box/);
+  assert.match(wrong.html, /Enter your email address for sign-in links/); assert.match(wrong.html, /Tick the box/);
   assert.match(wrong.html, /value="Hale&lt;script&gt;"/);
   const noGender = await join(f, person(f, { gender: "" }));
   assert.equal(noGender.status, 400); assert.match(noGender.html, /Choose your gender/);
@@ -224,7 +226,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal(await waiting(f), 0);
 
   assert.match((await join(f, person(f))).html, /Thank you, Robin/);
-  assert.match((await join(f, person(f, { first_name: "Alex", surname: "Moss", email: "", phone: "+44 7700 900456", gender: "male", age_group: "" }))).html, /Thank you, Alex/);
+  assert.match((await join(f, person(f, { first_name: "Alex", surname: "Moss", email: "alex@example.org", phone: "+44 7700 900456", gender: "male", age_group: "" }))).html, /Thank you, Alex/);
   // Asking twice is answered the same, so the form tells nobody who has asked.
   const confirmation = await join(f, person(f, { email: "ROBIN@example.org" }));
   assert.match(confirmation.html, /Thank you, Robin/);
@@ -233,7 +235,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-01", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-02", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -282,9 +284,9 @@ test("the join form turns away programs and mistakes, and the coach approves the
 test("the coach's pages read one page of requests however many wait, and a long name still fits", async (t) => {
   const f = await websiteFixture(t);
   const long = "L".repeat(59);
-  await f.create("/v1/join-requests", { first_name: long, surname: "Hale", email: "long@example.org", privacy_notice: "uk-2026-09-30" });
+  await f.create("/v1/join-requests", { first_name: long, surname: "Hale", email: "long@example.org", phone: "07700 900123", privacy_notice: "uk-2026-09-30" });
   for (let i = 0; i < 25; i++) {
-    await f.create("/v1/join-requests", { first_name: `P${i}`, surname: "Q", email: `p${i}@example.org`, privacy_notice: "uk-2026-09-30" });
+    await f.create("/v1/join-requests", { first_name: `P${i}`, surname: "Q", email: `p${i}@example.org`, phone: "07700 900123", privacy_notice: "uk-2026-09-30" });
   }
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   assert.match((await coach.get("/coach")).html, /More than 25 people are asking to join/);
@@ -300,19 +302,23 @@ test("the coach's pages read one page of requests however many wait, and a long 
 
 test("the join form keeps to its daily limits, stores no address, and can be turned off", async (t) => {
   const f = await websiteFixture(t);
-  for (let i = 0; i < 3; i++) assert.equal((await join(f, person(f, { email: `a${i}@example.org` }), "203.0.113.9")).status, 200);
-  const fourth = await join(f, person(f, { email: "a3@example.org" }), "203.0.113.9");
-  assert.equal(fourth.status, 429); assert.match(fourth.html, /cannot take more requests today/);
+  for (let i = 0; i < 50; i++) assert.equal((await join(f, person(f, { email: `a${i}@example.org` }), "203.0.113.9")).status, 200);
+  const fourth = await join(f, person(f, { email: "a50@example.org" }), "203.0.113.9");
+  assert.equal(fourth.status, 429); assert.match(fourth.html, /50 join submissions today/);
   assert.equal((await join(f, person(f, { email: "b@example.org" }), "198.51.100.7")).status, 200);
   const buckets = (await f.db.prepare("SELECT bucket, count FROM website_join_limit").all<{ bucket: string; count: number }>()).results;
-  assert.deepEqual(buckets.map((b) => b.count).sort(), [1, 3, 4]);
+  assert.deepEqual(buckets.map((b) => b.count).sort(), [1, 50, 51]);
   for (const { bucket } of buckets) assert.match(bucket, /^(club|[0-9a-f]{64})$/);
 
-  await f.configure({ SIGNUPS_PER_DAY: "5" });
+  await f.configure({ SIGNUPS_PER_DAY: "52" });
   assert.equal((await join(f, person(f, { email: "c@example.org" }))).status, 200);
   assert.equal((await join(f, person(f, { email: "d@example.org" }))).status, 429);
-  assert.equal(await waiting(f), 5);
+  assert.equal(await waiting(f), 52);
 
+  // UTC daily rollover resets both buckets without retaining an address.
+  await f.db.prepare("UPDATE website_join_limit SET day = day - 1").run();
+  assert.equal((await join(f, person(f, { email: "nextday@example.org" }), "203.0.113.9")).status, 200);
+  assert.equal(await f.db.prepare("SELECT count FROM website_join_limit WHERE bucket = 'club'").first("count"), 1);
   await f.configure({ SIGNUPS_PER_DAY: "0" });
   assert.equal((await f.request("/join")).status, 404);
   assert.doesNotMatch(await (await f.request("/")).text(), /\/join/);

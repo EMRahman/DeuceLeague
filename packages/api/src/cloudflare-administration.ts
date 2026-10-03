@@ -154,6 +154,16 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       return toMember(record, holdsPii(auth));
     }), 201);
   });
+  app.openapi(members.invitation, async (c) => {
+    const { id } = c.req.valid("param"); const body = c.req.valid("json");
+    return c.json(await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s, auth) => {
+      const member = s.rows[0];
+      if (!member) throw problems.notFound("member");
+      if (member.deletedAt || member.status === "left") throw problems.conflict("member_removed", "The member is no longer on the club's list");
+      if (member.email !== body.email) throw problems.conflict("contact_changed", "The member's email has changed; refresh their record before sending again");
+      return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "invitation", state: body.state }), holdsPii(auth));
+    }), 200);
+  });
   app.openapi(members.patch, async (c) => {
     const { id } = c.req.valid("param"); const body = c.req.valid("json");
     return c.json(await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s, auth) => {

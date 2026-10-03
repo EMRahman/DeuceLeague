@@ -35,6 +35,8 @@ export type CoachMember = {
   display_name: string;
   email?: string | null;
   phone?: string | null;
+  invitation_state?: "accepted" | "failed" | null;
+  invitation_at?: string | null;
   level: number | null;
   signed_in_at: string | null;
   status: "active" | "paused" | "left";
@@ -1098,8 +1100,9 @@ export const Members: FC<{
   /** What the last approval or decline did. */
   done: string | null;
   addedId: string | null;
+  emailConfigured: boolean;
   timezone: string;
-}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone }) => (
+}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
     {done && (
@@ -1110,7 +1113,7 @@ export const Members: FC<{
             {" "}
             They will be placed in a division at the start of next season, from the draft on the{" "}
             <a href="/coach/season">Season</a> tab; a running season is not changed. Make them a sign-in link below, or
-            they can sign in with their email if they gave one.
+            email them an invitation from their member record below.
           </>
         )}
       </div>
@@ -1157,6 +1160,7 @@ export const Members: FC<{
                   <button class="small" type="submit">
                     Approve
                   </button>
+                  {emailConfigured && <button class="small" type="submit" name="invite" value="yes">Approve and email sign-in link</button>}
                 </form>
                 <form method="post" action={`/coach/join-requests/${r.id}/decline`}>
                   <button class="quiet small" type="submit">
@@ -1172,6 +1176,13 @@ export const Members: FC<{
         )}
       </>
     )}
+    {members.some((m) => m.email !== undefined && (!m.email || !m.phone)) && <div class="notice">
+      <h2>Contact details to complete</h2>
+      <p>Existing members stay on the list. Add their missing email for sign-in links and telephone for WhatsApp league communications.</p>
+      <ul>{members.filter((m) => m.email !== undefined && (!m.email || !m.phone)).map((m) => <li>
+        <a href={`#member-${m.id}`}>{m.display_name}</a>: {[!m.email ? "email" : "", !m.phone ? "telephone" : ""].filter(Boolean).join(" and ")} missing
+      </li>)}</ul>
+    </div>}
     {waiting && waiting.length > 0 && (
       <>
         <h2>Waiting to be placed</h2>
@@ -1193,6 +1204,12 @@ export const Members: FC<{
       </>
     )}
     <h2>On the club's list</h2>
+    <p>{emailConfigured ? "Email sign-in invitations individually or select up to five members per batch. Emailed links work once, for fifteen minutes. Provider acceptance does not confirm inbox delivery."
+      : "Email is not configured. Ask your club administrator to set up sign-in email to send invitations. You can still hand over sign-in links."}</p>
+    {emailConfigured && <form id="invitations" method="post" action="/coach/members/invite">
+      <button type="submit">Email selected members (up to 5)</button>
+    </form>}
+
     <p>
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
       once, within 72 hours. Once signed in, a player stays signed in on that phone.
@@ -1215,6 +1232,7 @@ export const Members: FC<{
                   {m.display_name}
                   {m.level !== null && <span class="tag level">Level {m.level}</span>}
                   {m.status === "paused" && <span class="tag">On a break</span>}
+                  {emailConfigured && m.email && <label><input type="checkbox" name="member" value={m.id} form="invitations" /> Select for email</label>}
                   {m.email && <span class="muted"> · {m.email}</span>}
                   {m.phone && <span class="muted"> · {m.phone}</span>}
                   <br />
@@ -1230,6 +1248,20 @@ export const Members: FC<{
                   </button>
                 </form>
               </div>
+              {m.invitation_state && <p class={m.invitation_state === "failed" ? "deadline" : "muted"}>
+                {m.invitation_state === "accepted" ? "Email accepted for sending; inbox delivery not confirmed" : "Email attempt failed; check contacts and provider, then retry"}
+                {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
+              </p>}
+              {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
+                <button class="small" type="submit">Email sign-in link</button>
+              </form>}
+              {m.email !== undefined && <form class="approve" method="post" action={`/coach/members/${m.id}/contacts`}>
+                <div class="field"><label for={`email-${m.id}`}>Email for sign-in links</label>
+                  <input id={`email-${m.id}`} type="email" name="email" value={m.email ?? ""} maxlength={254} required /></div>
+                <div class="field"><label for={`phone-${m.id}`}>Telephone for WhatsApp</label>
+                  <input id={`phone-${m.id}`} type="tel" name="phone" value={m.phone ?? ""} maxlength={24} required /></div>
+                <button class="quiet small" type="submit">Save contacts</button>
+              </form>}
               <form class="level" method="post" action={`/coach/members/${m.id}/level`}>
                 <label class="muted" for={`level-${m.id}`}>
                   Level
@@ -1497,5 +1529,14 @@ export const Problem: FC<{ frame: Frame; title: string; detail: string; back?: {
     <p>
       <a href={back.href}>{back.label}</a>
     </p>
+  </Layout>
+);
+
+export const InvitationResults: FC<{ frame: Frame; results: { name: string; message: string }[]; added?: string }> = ({ frame, results, added }) => (
+  <Layout title="Sign-in invitations" frame={frame}>
+    <h1>Sign-in invitations</h1>
+    {added && <p>{added} is now a member, waiting for next season's placement. Approval succeeded even if the email failed.</p>}
+    <ul>{results.map((r) => <li><strong>{r.name}</strong>: {r.message}</li>)}</ul>
+    <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>
   </Layout>
 );

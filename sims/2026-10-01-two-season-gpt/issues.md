@@ -4,7 +4,7 @@ Decisions made on 2 October 2026 after reviewing the
 [30 September simulation](../2026-09-30-two-season-club/report.md) and the
 [1 October simulation](report.md).
 
-These are the next four work items. Items 1–3 are implemented (item 3 has a PR open); item 4 remains planned.
+These are the next four work items. All four items are implemented. The [2 October local scripted rerun](../2026-10-02-email-joining/report.md) records verification and its runtime, browser and email-delivery limits.
 They supersede conflicting proposals in the earlier simulation issue drafts,
 including showing opponents' pending scores and accepting another side's
 submission. The reports remain records of the behaviour tested at the time.
@@ -14,7 +14,7 @@ submission. The reports remain records of the behaviour tested at the time.
 - [x] 1. Both sides enter results independently; matching submissions confirm them.
 - [x] 2. Give the coach result controls, including injury and no-show overrides.
 - [x] 3. Explain newcomers' approval and placement status.
-- [ ] 4. Send sign-in links by email, require email and telephone at sign-up,
+- [x] 4. Send sign-in links by email, require email and telephone at sign-up,
   and allow 50 join submissions per IP per day.
 
 Implement items 1 and 2 together so players have a coach correction route when
@@ -166,7 +166,7 @@ place. See [newcomer findings](findings-raw.md#beginner-cp1).
 
 ## 4. Email invitations, required contacts and shared-IP joining
 
-**Status:** Planned. **Areas:** coach Members, email delivery, join form and
+**Status:** Implemented. **Areas:** coach Members, email delivery, join form and
 contracts, contact validation, join rate limit and joining documentation.
 
 **Why:** The coach had to find phone-only members and make links individually.
@@ -197,25 +197,20 @@ over clubhouse Wi-Fi.
 
 ### Acceptance
 
-- [ ] The join form and join-request API reject a missing or invalid email or
+- [x] The join form and join-request API reject a missing or invalid email or
   telephone number, and approval preserves both supplied values.
-- [ ] With email configured, the coach can send an individual invitation and
+- [x] With email configured, the coach can send an individual invitation and
   invitations to selected members without copying links into another app.
-- [ ] Email failures and absent provider configuration produce actionable coach
+- [x] Email failures and absent provider configuration produce actionable coach
   feedback. One-use link behaviour and credential-safe logging are preserved.
-- [ ] The coach can distinguish an invitation accepted for sending, a failed
+- [x] The coach can distinguish an invitation accepted for sending, a failed
   attempt and a member who has signed in.
-- [ ] Fifty valid join submissions from one IP are allowed within a day when
+- [x] Fifty valid join submissions from one IP are allowed within a day when
   the club-wide quota has capacity; the fifty-first is refused. A different IP
   has its own allowance, and the allowance resets on the daily boundary.
-- [ ] The existing club-wide cap still applies. Required-contact guidance and
+- [x] The existing club-wide cap still applies. Required-contact guidance and
   the published join limits match the implemented behaviour.
 
 ## Verification when this work is implemented
 
-Update the affected API contracts and regenerate both OpenAPI artifacts when
-the contracts or routes change. Run the repository checks, then repeat the
-club simulation with independent score entry and coach settlement. Include
-real-phone checks, newcomer onboarding, an email invitation test and a group
-joining from one IP. These planned items do not establish launch readiness
-until their behaviour has been implemented and verified.
+The contracts and both OpenAPI artifacts were updated. The 2 October local scripted rerun checks independent entry, coach settlement, newcomer onboarding, simulated email acceptance/failure and shared-IP joining. Typecheck, the dry run and SQLite-backed tests pass; the canonical Miniflare runtime is sandbox-blocked. Real-phone checks and actual email deliverability remain unverified, so this does not establish launch readiness.

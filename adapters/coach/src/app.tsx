@@ -6,6 +6,7 @@ import {
   breakdowns,
   deadlineLine,
   GENDERS,
+  isTelephone,
   newestFirst,
   within,
   WEATHER_GRACE_MS,
@@ -40,6 +41,7 @@ import {
   type DisputeRow,
   type CoachCompetition,
   type CoachMember,
+  InvitationResults,
   type FeedEvent,
   type JoinRequest,
   type Frame,
@@ -57,6 +59,7 @@ export type CoachOptions = {
   publicUrl: string;
   /** The courts' forecast, as the players' home page shows it; none without courts. */
   weather?: Weather;
+  mail?: (message: { to: string; subject: string; text: string }) => Promise<void>;
 };
 
 /** Where the coach's key lives: in a cookie only the server can read, sent only to /coach. */
@@ -314,7 +317,7 @@ export function createCoachSite(options: CoachOptions) {
       <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
         requests={requests?.requests ?? null}
         moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
-        timezone={who.club.timezone} />,
+        timezone={who.club.timezone} emailConfigured={!!options.mail} />,
     );
   });
 
@@ -330,6 +333,8 @@ export function createCoachSite(options: CoachOptions) {
         gender: choiceOf(form.gender, GENDERS),
         age_group: choiceOf(form.age_group, AGE_GROUPS),
       });
+      if (form.invite === "yes") return c.html(<InvitationResults frame={frameOf(who, "members")}
+        added={member.display_name} results={[await invite(who, member.id)]} />);
       return c.redirect(`/coach/members?added=${member.id}`, 303);
     } catch (error) {
       if (!(error instanceof ApiProblem)) throw error;
@@ -878,6 +883,55 @@ export function createCoachSite(options: CoachOptions) {
       return weatherPage(c, who, null, { court: null, name: "", coordinates: "", message: refusal(error) });
     }
     return c.redirect("/coach/weather?done=units#units", 303);
+  });
+
+  // Five members per request keeps lookup, link creation and outcome recording within Workers Free's query budget.
+  async function invite(who: Coach, id: string): Promise<{ name: string; message: string }> {
+    if (!who.scopes.includes("members:pii")) return { name: "Invitation", message: "This key needs members:pii to send invitations." };
+    if (!options.mail) return { name: "Invitation", message: "Email is not configured. Ask your club administrator to set up sign-in email, then retry. You can also make a sign-in link on Members." };
+    let member: CoachMember;
+    try { member = await api<CoachMember>("GET", `/v1/members/${encodeURIComponent(id)}`, who.key); }
+    catch { return { name: "Invitation", message: "Member could not be read. Return to Members, refresh and retry." }; }
+    if (!member.email || member.status === "left") return { name: member.display_name, message: "No email sent. Complete the member's contact details on Members before inviting them." };
+    let state: "accepted" | "failed" = "failed";
+    try {
+      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: 15, expected_email: member.email });
+      const url = new URL("/login", publicUrl); url.searchParams.set("token", link.token);
+      await options.mail({ to: member.email, subject: `${who.club.name}: your sign-in link`,
+        text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for fifteen minutes. If it expires, request a new link on the league website.\n` });
+      state = "accepted";
+    } catch { /* Neither credentials nor provider errors may reach logs or the page. */ }
+    const message = state === "accepted" ? "Email accepted for sending. Inbox delivery is not confirmed."
+      : "Email attempt failed. Check the email address and provider configuration, then retry. No successful invitation is recorded.";
+    try { await api("POST", `/v1/members/${encodeURIComponent(id)}/invitation`, who.key, { state, email: member.email }); }
+    catch { return { name: member.display_name, message: message + " The outcome could not be saved; the status on Members may be out of date. Refresh before retrying." }; }
+    return { name: member.display_name, message };
+  }
+
+  app.post("/members/invite", async (c) => {
+    const who = await coach(c); if (!who) return c.redirect("/coach", 303);
+    const form = await c.req.parseBody({ all: true });
+    const selected = form.member;
+    const ids = [...new Set((Array.isArray(selected) ? selected : selected ? [selected] : []).map(String))];
+    if (!ids.length || ids.length > 5 || ids.some((id) => !/^[0-9a-f-]{36}$/.test(id))) return c.html(
+      <Problem frame={frameOf(who, "members")} title="Choose members" detail="Select one to five members per batch, then send their invitations." />, 400);
+    const results = [];
+    for (const id of ids) results.push(await invite(who, id));
+    return c.html(<InvitationResults frame={frameOf(who, "members")} results={results} />);
+  });
+  app.post("/members/:id/invite", async (c) => {
+    const who = await coach(c); if (!who) return c.redirect("/coach", 303);
+    return c.html(<InvitationResults frame={frameOf(who, "members")} results={[await invite(who, c.req.param("id"))]} />);
+  });
+  app.post("/members/:id/contacts", async (c) => {
+    const who = await coach(c); if (!who) return c.redirect("/coach", 303);
+    const form = await c.req.parseBody();
+    const email = String(form.email ?? "").trim(), phone = String(form.phone ?? "").trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !isTelephone(phone)) return c.html(
+      <Problem frame={frameOf(who, "members")} title="Contacts not saved" detail="Enter a valid email address and telephone number. Return to Members to correct them." />, 400);
+    try { await api("PATCH", `/v1/members/${encodeURIComponent(c.req.param("id"))}`, who.key, { email, phone }); }
+    catch { return c.html(<Problem frame={frameOf(who, "members")} title="Contacts not saved" detail="Check your permission and that another member does not already use this email. Return to Members to correct it." />, 400); }
+    return c.redirect(`/coach/members#member-${c.req.param("id")}`, 303);
   });
 
   app.post("/members/:id/sign-in-link", async (c) => {

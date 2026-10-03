@@ -15,6 +15,7 @@ export const MAX_LOGIN_LINK_MINUTES = 72 * 60;
 
 const LoginLinkOptions = z
   .object({
+    expected_email: z.email().max(254).optional().openapi({ description: "PII. Requires members:pii. Refuses minting if the member has left or the current email differs from this delivery address; checked in the grant creation snapshot." }),
     expires_in_minutes: z
       .number()
       .int()
@@ -87,7 +88,7 @@ export const mint = createRoute({
     ...validationProblem,
     ...authProblems,
     ...notFoundProblem,
-    ...conflictProblem("`member_removed`: a removed member cannot log in."),
+    ...conflictProblem("`member_removed`: a removed member cannot log in. `contact_changed`: the expected email no longer matches. `member_left`: a departed member cannot receive an emailed invitation."),
   },
 });
 
