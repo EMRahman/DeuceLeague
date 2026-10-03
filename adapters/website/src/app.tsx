@@ -645,11 +645,19 @@ export function createWebsite(options: WebsiteOptions) {
       ? new Intl.DateTimeFormat("en-CA", { timeZone: p.me.club.timezone }).format(new Date(onlyDeadline))
       : null;
 
+    // When the season under way stops taking results, for a newcomer waiting on next season: the earliest, if
+    // more than one runs.
+    const closing = live.map((s) => s.season.results_deadline_at)
+      .filter((d): d is string => !!d && Date.parse(d) > now.getTime()).sort()[0];
+    const resultsClose = closing
+      ? new Date(closing).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: p.me.club.timezone }) : null;
+
     return c.html(
       <Home
         frame={frameOf(p, "matches")}
         name={p.me.credential.member.display_name}
         placementStatus={placementStatus}
+        running={live.length > 0 ? { resultsClose } : null}
         deadlines={deadlines}
         notice={{ leaving: "Done. The coach will see you are not playing next season.",
           staying: "Taken back. You are in the reckoning for next season again.",
