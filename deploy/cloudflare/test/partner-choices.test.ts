@@ -127,3 +127,23 @@ test("the coach sees next season's pairs on one page, matching what players said
   for (const c of choices) assert.ok(page.includes(c.member_name), `${c.member_name} is shown`);
   assert.match(page, /Keeping their partner \(\d+\)/);
 });
+
+test("next season's pairs count leaving only for entries it covers, and an agreed pair only while both can play", async () => {
+  const { pairsView } = await import("../../../adapters/coach/dist/season.js");
+  const member = (id: string) => ({ id, display_name: id });
+  const entry = (id: string, a: string, b: string, created_at = "2026-09-01T00:00:00Z") =>
+    ({ id, competition_id: "c", division_id: "d", label: `${a} / ${b}`, members: [member(a), member(b)], state: "active", opted_out_at: null, created_at }) as any;
+  const club = (leaving: Record<string, string> = {}) => ["A", "B", "C", "D"].map((id) => ({ id, display_name: id, level: null, leaving_at: leaving[id] ?? null }));
+  // A said they are leaving before this entry was made: it does not cover it, so the pair keeps together.
+  let view = pairsView([entry("e1", "A", "B", "2026-09-10T00:00:00Z")], [], club({ A: "2026-09-05T00:00:00Z" }), new Set(), "Mixed");
+  assert.deepEqual(view.keeping, ["A / B"]);
+  view = pairsView([entry("e1", "A", "B", "2026-09-01T00:00:00Z")], [], club({ A: "2026-09-05T00:00:00Z" }), new Set(), "Mixed");
+  assert.deepEqual(view.out, [{ name: "A", why: "is leaving the league" }]);
+  // A agreed with C, but C has since gone on a break: A is looking again, not in an agreed pair.
+  const agreed = [{ member_id: "A", choice: "new_partner", partner_id: "C", partner_name: "C", agreed: true },
+    { member_id: "C", choice: "new_partner", partner_id: "A", partner_name: "A", agreed: true }] as any;
+  view = pairsView([entry("e1", "A", "B"), entry("e2", "C", "D")], agreed, club(), new Set(["C"]), "Mixed");
+  assert.deepEqual(view.agreed, []);
+  assert.deepEqual(view.seeking, [{ name: "A", asked: null }]);
+  assert.ok(view.out.some((o) => o.name === "C"));
+});

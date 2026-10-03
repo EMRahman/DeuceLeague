@@ -353,9 +353,16 @@ export function pairsView(entries: Entry[], choices: PartnerChoice[],
   const said = new Map(choices.map((c) => [c.member_id, c]));
   const club = new Map(inClub.map((m) => [m.id, m]));
   const view: PairsView = { agreed: [], seeking: [], partnerless: [], out: [], keeping: [] };
-  // Why a player will not be in it, whatever their partner says; null if nothing stops them.
-  const gone = (id: string) => onBreak.has(id) ? "is on a break" : !club.has(id) ? "is no longer on the club's list"
-    : club.get(id)!.leaving_at ? "is leaving the league" : said.get(id)?.choice === "leaving" ? `is not playing ${competition}` : null;
+  // Why a player will not be in it, whatever their partner says; null if nothing stops them. Saying they are
+  // leaving the league covers the entries they held when they said it, not one made after.
+  const createdOf = new Map(entries.flatMap((e) => e.members.map((m) => [m.id, e.created_at] as const)));
+  const gone = (id: string) => {
+    const leaving = club.get(id)?.leaving_at;
+    const created = createdOf.get(id);
+    return onBreak.has(id) ? "is on a break" : !club.has(id) ? "is no longer on the club's list"
+      : leaving && (!created || Date.parse(created) <= Date.parse(leaving)) ? "is leaving the league"
+      : said.get(id)?.choice === "leaving" ? `is not playing ${competition}` : null;
+  };
   const named = new Set<string>();
   for (const entry of [...entries].sort((a, b) => a.label.localeCompare(b.label))) {
     if (entry.state === "withdrawn") {
@@ -376,10 +383,13 @@ export function pairsView(entries: Entry[], choices: PartnerChoice[],
       if (why) {
         if (!entry.opted_out_at) view.out.push({ name: m.display_name, why });
       } else if (entry.opted_out_at && c?.choice !== "new_partner") continue;
-      else if (c?.choice === "new_partner" && c.agreed && c.partner_id) {
+      // An agreed pair holds only while the partner can still play; else this player needs someone new.
+      else if (c?.choice === "new_partner" && c.agreed && c.partner_id && gone(c.partner_id) === null) {
         if (!named.has(m.id)) view.agreed.push([m.display_name, c.partner_name ?? "someone"]);
         named.add(m.id); named.add(c.partner_id);
-      } else if (c?.choice === "new_partner") view.seeking.push({ name: m.display_name, asked: c.partner_name });
+      } else if (c?.choice === "new_partner") {
+        view.seeking.push({ name: m.display_name, asked: c.partner_id && gone(c.partner_id) === null ? c.partner_name : null });
+      }
       else if (partner) {
         const theirs = gone(partner.id);
         const pc = said.get(partner.id);

@@ -1121,14 +1121,16 @@ export function createCoachSite(options: CoachOptions) {
     detail="That competition has started, or is not next season's. Players' places change only before they have played."
     back={backToSeason} />, 404);
 
-  // What each doubles player said about next season: the season under way's, or else the one just ended's.
+  // What each doubles player said about next season: every season under way's, or else the one just ended's.
   app.get("/pairs", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const seasons = (await all<Season>("/v1/seasons", who.key)).sort(newestFirst);
-    const season = seasons.find((s) => s.state === "active") ?? seasons.find((s) => s.state === "complete") ?? null;
-    const doubles = season ? (await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}`, who.key))
-      .filter((x) => x.discipline === "doubles" && x.state !== "draft") : [];
+    const running = seasons.filter((s) => s.state === "active");
+    const shown = running.length > 0 ? running : seasons.filter((s) => s.state === "complete").slice(0, 1);
+    const doubles = (await Promise.all(shown.map((s) => all<CoachCompetition>(`/v1/competitions?season_id=${s.id}`, who.key))))
+      .flat().filter((x) => x.discipline === "doubles" && x.state !== "draft");
+    const season = shown.length === 1 ? shown[0]! : null;
     const [members, onBreak] = doubles.length === 0 ? [[], []] : await Promise.all([
       all<ActiveMember>("/v1/members?status=active", who.key),
       all<ActiveMember>("/v1/members?status=paused", who.key),
