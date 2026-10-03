@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import { deadlineLine, type Season } from "@deuceleague/website";
 import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PlacedEntry, type Turnover, type Unplaced } from "./season.js";
-import { Layout, type CoachCompetition, type Frame, type SeasonProgress } from "./views.js";
+import { Layout, notPlaying, type CoachCompetition, type Frame, type SeasonProgress } from "./views.js";
 
 /** The Season tab's pages: ending a season, starting the next from its tables, and adjusting the drafts. */
 
@@ -171,7 +171,7 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
         {competitions.map((x) =>
           x.opted_out.length > 0 ? (
             <li>
-              {x.name}: {x.opted_out.map((e) => e.label).join(", ")} opted out of next season.
+              {x.name}: {x.opted_out.map(notPlaying).join(", ")} opted out of next season.
             </li>
           ) : null,
         )}

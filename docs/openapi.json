@@ -1381,7 +1381,8 @@
               "no_response",
               "conflicting_entries",
               "incorrect_result",
-              "unreported_result"
+              "unreported_result",
+              "injury_or_withdrawal"
             ],
             "description": "Why the coach decided the result. Recorded with the acting API key in the audit history; use a category rather than personal or medical details."
           },
@@ -4910,11 +4911,19 @@
                           },
                           "label": {
                             "type": "string"
+                          },
+                          "said_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Who said so, by display name: the players leaving, on a break or not playing it, else the player who opted the entry out. Null when the coach did."
                           }
                         },
                         "required": [
                           "entry_id",
-                          "label"
+                          "label",
+                          "said_by"
                         ]
                       },
                       "description": "Entries whose players said they are not playing in the next competition."

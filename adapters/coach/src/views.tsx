@@ -159,7 +159,7 @@ export type SeasonProgress = {
     name: string;
     discipline: Competition["discipline"];
     state: Competition["state"];
-    opted_out: { entry_id: string; label: string }[];
+    opted_out: { entry_id: string; label: string; said_by: string | null }[];
   })[];
 };
 
@@ -544,6 +544,10 @@ const ProgressRow: FC<{
 function standing(match: MatchDetail, side: Side) {
   return match.claims.findLast((x) => x.side === side && x.state === "pending");
 }
+
+/** An entry not playing next season, with who said so when that is not the whole entry: "Tom F. / Dan O. (Tom F. said so)". */
+export const notPlaying = (e: { label: string; said_by: string | null }) =>
+  e.said_by && e.said_by !== e.label ? `${e.label} (${e.said_by} said so)` : e.label;
 
 /** Where a match is played: "Men's singles · Division 2". */
 const where = (m: Match) => [m.competition_name, m.division_name].filter(Boolean).join(" · ");
@@ -1105,6 +1109,11 @@ export const Members: FC<{
 }> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
+    {left.length > 0 && (
+      <p class="jump">
+        <a href="#former">Former members ({left.length})</a>
+      </p>
+    )}
     {done && (
       <div class="notice ok" role="status">
         {done}
@@ -1292,7 +1301,9 @@ export const Members: FC<{
                   <button class="quiet small" type="submit">
                     Take a break
                   </button>
-                  <span class="muted"> Out of every draft until they are back. This season carries on as it is.</span>
+                  <span class="muted">
+                    {" "}Out of every draft until they are back. Their matches this season stay, and still count.
+                  </span>
                 </form>
               )}
               {m.leaving_at ? (
@@ -1308,15 +1319,17 @@ export const Members: FC<{
                   <button class="quiet small" type="submit">
                     Not playing next season
                   </button>
-                  <span class="muted"> Out of every draft, singles and doubles. This season carries on as it is.</span>
+                  <span class="muted">
+                    {" "}Out of next season's drafts, singles and doubles. Their matches this season stay, and still count.
+                  </span>
                 </form>
               )}
-              <form method="post" action={`/coach/members/${m.id}/left`}>
-                <button class="quiet small" type="submit">
-                  Left the club
-                </button>
-                <span class="muted"> Their results stay. They are not placed next season.</span>
-              </form>
+              <p>
+                <a class="button small quiet" href={`/coach/members/${m.id}/left`}>
+                  Left the club…
+                </a>
+                <span class="muted"> Asks first. Their results stay; they are not placed again, nor sent new sign-in links.</span>
+              </p>
             </li>
           ))}
         </ul>
@@ -1324,7 +1337,7 @@ export const Members: FC<{
     )}
     {left.length > 0 && (
       <>
-        <h2>Left the club</h2>
+        <h2 id="former">Former members ({left.length})</h2>
         <p class="muted">
           Their scores stay in past tables. They are left out of next season's draft and cannot be entered in a
           competition. If one comes back, put them back in the club.
@@ -1538,5 +1551,29 @@ export const InvitationResults: FC<{ frame: Frame; results: { name: string; mess
     {added && <p>{added} is now a member, waiting for next season's placement. Approval succeeded even if the email failed.</p>}
     <ul>{results.map((r) => <li><strong>{r.name}</strong>: {r.message}</li>)}</ul>
     <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>
+  </Layout>
+);
+
+/** Leaving the club, asked first: what it does to this season, next season and signing in. */
+export const ConfirmLeft: FC<{ frame: Frame; member: CoachMember }> = ({ frame, member }) => (
+  <Layout title={`${member.display_name} has left the club?`} frame={frame}>
+    <h1>{member.display_name} has left the club?</h1>
+    <ul class="plain">
+      <li>Their matches this season stay as they are: results already in still count, and you can still decide the rest.</li>
+      <li>They are taken out of next season's drafts and cannot be entered in a competition.</li>
+      <li>Any sign-in link not yet used stops working, and you cannot make them another.</li>
+      <li>They move to Former members at the foot of Members, where you can bring them back.</li>
+    </ul>
+    <p class="muted">
+      Away for a while, or just not playing next season? Use Take a break or Not playing next season instead: they stay
+      on the club's list.
+    </p>
+    <form method="post" action={`/coach/members/${member.id}/left`}>
+      <input type="hidden" name="confirm" value="yes" />
+      <button type="submit">Yes, {member.display_name} has left</button>
+    </form>
+    <p class="after">
+      <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+    </p>
   </Layout>
 );

@@ -31,6 +31,8 @@ import {
   LatestResults,
   Dashboard,
   Members,
+  ConfirmLeft,
+  notPlaying,
   Problem,
   Results,
   SignIn,
@@ -269,7 +271,7 @@ export function createCoachSite(options: CoachOptions) {
           .filter((x) => x.state === "active")
           .map((x) => ({
             progress: x,
-            optedOut: x.opted_out.map((e) => e.label),
+            optedOut: x.opted_out.map(notPlaying),
             next: competitions.find((n) => n.previous_competition_id === x.competition_id) ?? null,
           })),
       });
@@ -315,7 +317,9 @@ export function createCoachSite(options: CoachOptions) {
     );
     // Ids only in the address: a name there would reach the browser's history.
     const added = members.find((m) => m.id === c.req.query("added"));
-    const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted." : null;
+    const gone = left.find((m) => m.id === c.req.query("left"));
+    const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted."
+      : gone ? `${gone.display_name} has left the club. They are under Former members, where you can bring them back.` : null;
     return c.html(
       <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
         requests={requests?.requests ?? null}
@@ -430,12 +434,28 @@ export function createCoachSite(options: CoachOptions) {
     });
   }
 
+  // Leaving the club is asked first, saying what it does: it is the one change here that takes away sign-in.
+  app.get("/members/:id/left", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const member = await api<CoachMember & { deleted_at?: string | null }>("GET",
+      `/v1/members/${encodeURIComponent(c.req.param("id"))}`, who.key).catch((error: unknown) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+      throw error;
+    });
+    if (!member || member.deleted_at || member.status === "left") return c.redirect("/coach/members#former", 303);
+    return c.html(<ConfirmLeft frame={frameOf(who, "members")} member={member} />);
+  });
+
   /** Leaving the club, and coming back. Results stay either way; the status decides who the next draft places. */
   for (const [action, status] of [["left", "left"], ["back", "active"]] as const) {
     app.post(`/members/:id/${action}`, async (c) => {
       const who = await coach(c);
       if (!who) return c.redirect("/coach", 303);
       const id = c.req.param("id");
+      if (action === "left" && (await c.req.parseBody()).confirm !== "yes") {
+        return c.redirect(`/coach/members/${encodeURIComponent(id)}/left`, 303);
+      }
       try {
         await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { status });
       } catch (error) {
@@ -443,7 +463,7 @@ export function createCoachSite(options: CoachOptions) {
         return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
           detail="That member is not on the club's list any more." />, 404);
       }
-      return c.redirect(`/coach/members#member-${id}`, 303);
+      return c.redirect(action === "left" ? `/coach/members?left=${encodeURIComponent(id)}#member-${id}` : `/coach/members#member-${id}`, 303);
     });
   }
 
