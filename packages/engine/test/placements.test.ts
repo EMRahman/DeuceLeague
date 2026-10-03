@@ -65,7 +65,7 @@ test("someone who played too few for promotion is held, told why, and leaves the
   const d2: DivisionStandings = {
     ordinal: 2,
     name: "Division 2",
-    standings: [row("b1", 1, 1), row("b2", 2), row("b3", 3), row("b4", 4)],
+    standings: [row("b1", 1, 1), row("b2", 2), row("b3", 3), row("b4", 4), row("b5", 5), row("b6", 6)],
   };
   const plan = planPlacements([division(1, ["a1", "a2", "a3"]), d2], movement, divisions(2));
   const s = byId(plan.suggestions);
@@ -201,7 +201,7 @@ test("a pair breaking up is left out, told why, and leaves their place empty", (
   assert.deepEqual([s.a3?.to, s.a4?.reason, s.a2?.reason], [null, "relegated", "held"], "and a2 does not go down in a3's");
 });
 
-test("a 4th of 4 is never promoted because the three above left: their places are left empty, with a suggested fill", () => {
+test("a 4th of 4 is never promoted because the three above left, nor suggested for their places: they are left empty", () => {
   const plan = planPlacements(
     [division(1, ["a1", "a2", "a3"]), division(2, ["b1", "b2", "b3", "b4"])],
     movement,
@@ -210,8 +210,31 @@ test("a 4th of 4 is never promoted because the three above left: their places ar
   );
   const s = byId(plan.suggestions);
   assert.deepEqual(["b1", "b2", "b3", "b4"].map((id) => s[id]?.reason), [null, null, null, "held"]);
-  assert.deepEqual(plan.vacancies.map((v) => [v.entryId, v.fill?.entryId ?? null]), [["b1", "b4"], ["b2", null]]);
-  assert.match(plan.vacancies[1]!.explanation, /Nobody else in Division 2 can take it\.$/);
+  assert.deepEqual(plan.vacancies.map((v) => [v.entryId, v.fill?.entryId ?? null]), [["b1", null], ["b2", null]]);
+  assert.match(plan.vacancies[0]!.explanation, /No suggestion: the next eligible entry, 4th in Division 2, finished too low\.$/);
+});
+
+test("a vacancy is never filled from the wrong half of the table", () => {
+  const rules = { promote: 1, relegate: 1, minMatchesForPromotion: 0 };
+  // Four in Division 1: the 4th and 3rd are both short, so only the top half is left to send down.
+  let plan = planPlacements([division(1, ["a1", "a2", "a3", "a4"]), division(2, ["b1", "b2"])], rules, divisions(2),
+    new Set(), new Map([["a3", { played: 1, target: 3 }], ["a4", { played: 1, target: 3 }]]));
+  assert.deepEqual(plan.vacancies.map((v) => [v.kind, v.entryId, v.fill?.entryId ?? null]), [["relegation", "a4", null]]);
+  assert.match(plan.vacancies[0]!.explanation, /No suggestion: the next eligible entry, 2nd in Division 1, finished too high\.$/);
+  assert.equal(byId(plan.suggestions).a2?.reason, "held");
+  // With only the 4th short, the 3rd is in the bottom half and is suggested.
+  plan = planPlacements([division(1, ["a1", "a2", "a3", "a4"]), division(2, ["b1", "b2"])], rules, divisions(2),
+    new Set(), new Map([["a4", { played: 1, target: 3 }]]));
+  assert.deepEqual(plan.vacancies.map((v) => v.fill?.entryId ?? null), ["a3"]);
+  // Going up, the same: the 2nd of four may fill the 1st's place; the 3rd may not.
+  plan = planPlacements([division(1, ["a1", "a2"]), division(2, ["b1", "b2", "b3", "b4"])], rules, divisions(2), new Set(["b1"]));
+  assert.deepEqual(plan.vacancies.map((v) => v.fill?.entryId ?? null), ["b2"]);
+  plan = planPlacements([division(1, ["a1", "a2"]), division(2, ["b1", "b2", "b3", "b4"])], rules, divisions(2), new Set(["b1", "b2"]));
+  assert.deepEqual(plan.vacancies.map((v) => v.fill?.entryId ?? null), [null]);
+  // The middle of an odd-sized division may go either way.
+  plan = planPlacements([division(1, ["a1", "a2", "a3", "a4", "a5"]), division(2, ["b1", "b2"])], rules, divisions(2),
+    new Set(["a4", "a5"]));
+  assert.deepEqual(plan.vacancies.map((v) => v.fill?.entryId ?? null), ["a3"]);
 });
 
 test("no entry is promoted from outside the top places or relegated from outside the bottom ones, whoever is left out", () => {

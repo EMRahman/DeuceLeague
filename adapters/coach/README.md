@@ -102,7 +102,9 @@ MIT-licensed.
     season's entries not carried over, with why, to add back; and the members
     not in the draft, to add, or in doubles to pair. It reads the engine's plan
     (`GET /v1/competitions/{id}/placements`) to show each promotion or
-    relegation place left empty, with a one-click suggested fill, and flags a
+    relegation place left empty, with a one-click suggested fill (never from
+    the wrong half of the table), says so instead once the coach has put the
+    entry that held the place back where it was, and flags a
     division too small for its minimum. In doubles it reads what
     players said about next season's partners
     (`GET /v1/competitions/{id}/partner-choices`): pairs who agreed wait to be
