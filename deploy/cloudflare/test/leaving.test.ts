@@ -362,3 +362,16 @@ test("the break is offered to anyone active, with or without a place in a compet
   const stale = await sam.post("/pause");
   assert.equal(stale.status, 303); assert.equal(stale.location, "/");
 });
+
+test("an opt-out is credited to whoever made the latest one, and to nobody when the coach did", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const entry = p.entries[0].id;
+  const saidBy = async () => ((await f.api(`/v1/seasons/${p.season.id}/progress`, f.admin)).body.competitions[0].opted_out as any[])
+    .find((e) => e.entry_id === entry)?.said_by;
+  assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, sam.session(), "POST")).status, 200);
+  assert.equal(await saidBy(), "Sam");
+  assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, sam.session(), "DELETE")).status, 200);
+  assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, f.admin, "POST")).status, 200);
+  assert.equal(await saidBy(), null, "the coach's newer opt-out is not the player's");
+});

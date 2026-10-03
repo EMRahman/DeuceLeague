@@ -144,10 +144,11 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
           WHERE em.entry_id = e.id AND ((m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at) OR m.status = 'paused'
             OR EXISTS (SELECT 1 FROM partner_choice pc WHERE pc.member_id = em.member_id
               AND pc.competition_id = e.competition_id AND pc.choice = 'leaving'))),
-        CASE WHEN e.opted_out_at IS NOT NULL THEN (SELECT m.display_name FROM event ev INDEXED BY event_subject_ix
-          JOIN member m ON m.id = ev.actor_id
-          WHERE ev.club_id = e.club_id AND ev.subject_type = 'entry' AND ev.subject_id = e.id
-            AND ev.type = 'entry.opt_out.recorded' AND ev.actor_type = 'member' ORDER BY ev.id DESC LIMIT 1) END) AS said_by,
+        CASE WHEN e.opted_out_at IS NOT NULL THEN (SELECT CASE WHEN latest.actor_type = 'member'
+            THEN (SELECT display_name FROM member WHERE id = latest.actor_id) END
+          FROM (SELECT ev.actor_type, ev.actor_id FROM event ev INDEXED BY event_subject_ix
+            WHERE ev.club_id = e.club_id AND ev.subject_type = 'entry' AND ev.subject_id = e.id
+              AND ev.type = 'entry.opt_out.recorded' ORDER BY ev.id DESC LIMIT 1) latest) END) AS said_by,
       (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e
       JOIN competition c ON c.id = e.competition_id
       WHERE c.season_id = ? AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id)
