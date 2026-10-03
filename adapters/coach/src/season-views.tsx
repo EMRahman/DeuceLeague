@@ -66,14 +66,14 @@ export const SeasonPage: FC<{
               {outstanding === 0 ? "Every match has a result." : `${plural(outstanding, "match", "matches")} still to be played or agreed.`}
             </p>
             {drafts.length > 0 && (
-              <form class="notice" method="post" action={`/coach/season/${season.id}/start`}>
+              <div class="notice">
                 <p>
                   {drafts.map((x) => x.name).join(" and ")} {drafts.length === 1 ? "has" : "have"} not started yet.
                 </p>
-                <button class="small" type="submit">
-                  Start {drafts.length === 1 ? "it" : "them"}
-                </button>
-              </form>
+                <a class="button small" href={`/coach/season/${season.id}/start`}>
+                  Start {drafts.length === 1 ? "it" : "them"}…
+                </a>
+              </div>
             )}
             <p class="muted">
               Ending the season makes the tables final, so next season can be started from them: promotion and
@@ -88,9 +88,9 @@ export const SeasonPage: FC<{
 
       {ended && next && (
         <div class="card">
-          <h2>Start next season</h2>
+          <h2>Prepare next season</h2>
           <p>
-            {ended.season.name} has ended. Starting next season makes{" "}
+            {ended.season.name} has ended. Preparing next season makes{" "}
             {ended.competitions.map((x) => x.name).join(" and ")} again as drafts, filled from the final tables:
             promoted, relegated or held by each competition's rules. Anyone who opted out, or played fewer matches than
             the minimum, is left out; you can add them back.
@@ -111,7 +111,8 @@ export const SeasonPage: FC<{
               <input id="ends_on" name="ends_on" type="date" value={next.ends_on} required />
               <p class="muted">Results close at the end of the last day.</p>
             </div>
-            <button type="submit">Start next season</button>
+            <p class="muted">This only prepares the drafts for you to adjust. Nothing starts until you start it.</p>
+            <button type="submit">Prepare next season's drafts</button>
           </form>
         </div>
       )}
@@ -136,13 +137,15 @@ export const SeasonPage: FC<{
             </ul>
           )}
           {drafts.length > 0 && (
-            <form method="post" action={`/coach/season/${season.id}/start`} class="after">
+            <div class="after">
               <p class="muted">
                 Starting it draws up every division's matches and opens the season to players. Adjust the drafts first:
                 after this, a player can only be moved before they have played.
               </p>
-              <button type="submit">Start {season.name}</button>
-            </form>
+              <a class="button" href={`/coach/season/${season.id}/start`}>
+                Start {season.name}…
+              </a>
+            </div>
           )}
         </div>
       ))}
@@ -532,4 +535,26 @@ const PlayerSelect: FC<{ id: string; name: string; players: Unplaced[]; category
       </option>
     ))}
   </select>
+);
+
+/** What starting a season does, asked before it is done: players get their fixtures at once. */
+export const StartSeason: FC<{ frame: Frame; season: Season; drafts: CoachCompetition[] }> = ({ frame, season, drafts }) => (
+  <Layout title={`Start ${season.name}`} frame={frame}>
+    <h1>Start {season.name} now?</h1>
+    <ul class="plain">
+      <li>
+        Every division of {drafts.map((x) => x.name).join(" and ")} gets its matches drawn up, and players see their
+        competition, division and fixtures straight away.
+      </li>
+      {season.state === "planning" && <li>{season.name} opens{dates(season) && `, ${dates(season)}`}.</li>}
+      <li>After this, a player can only be moved before they have played.</li>
+    </ul>
+    <form method="post" action={`/coach/season/${season.id}/start`}>
+      <input type="hidden" name="confirm" value="yes" />
+      <button type="submit">Start {season.name}</button>
+    </form>
+    <p class="after">
+      <a href="/coach/season">Not yet: back to Season</a>
+    </p>
+  </Layout>
 );

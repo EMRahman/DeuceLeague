@@ -122,7 +122,7 @@ match** lets you browse every match, including confirmed results.
 1. **As the coach,** open **Season** and press **End season now**. It says
    what ending early does: the matches without an agreed result count as
    unplayed, and the tables become final. End it.
-2. Press **Start next season**. Its competitions are made again as drafts,
+2. Press **Prepare next season's drafts**. Its competitions are made again as drafts,
    filled from the final tables: the top two of each division promoted, the
    bottom two relegated, the rest held. Sample Gray and Sample Morgan opted
    out, so they are left out; so is anyone who played fewer than the 4 matches
@@ -133,7 +133,7 @@ match** lets you browse every match, including confirmed results.
    (Harper and Parker, and Indy and Bailey) wait to be added. Sample Taylor
    said they are not playing. Pair Umi and Val, and anyone else without a
    partner.
-4. Press **Start Sample season 2**. Every division gets its matches, and the
+4. Press **Start Sample season 2…**, then confirm. Every division gets its matches, and the
    players see the new tables.
 
 ## Next
