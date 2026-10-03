@@ -238,7 +238,8 @@ test("a doubles player answers a request to partner them next season, and sees w
   const bailey = await as("Bailey");
   const asked = text((await bailey.get(page)).html);
   assert.match(asked, /Sample Indy has asked you to be their partner next season\. Agreeing ends your pair with Sample Quinn\./);
-  assert.match(asked, /You are down to play with Sample Quinn again next season\./);
+  // The sample's doubles follows on from nothing, so the pair has not played together before: no "again".
+  assert.match(asked, /You are down to play with Sample Quinn next season\./);
   const agreed = await bailey.post(`${page}/partner`, { choice: "new_partner", partner_id: id("Indy") });
   assert.equal(agreed.status, 303); assert.equal(agreed.location, `${page}?saved=1#next-season`);
   const now = text((await bailey.get(page)).html);
@@ -300,7 +301,7 @@ test("mismatching entries remain private on Home and match pages, and each side 
   assert.equal(coach.claims.filter((c: any) => c.state === "superseded").length, 1);
 });
 
-test("a player finds next season's choices from home, sees each saved, and \"again\" only for a pair that has played", async (t) => {
+test("a player finds next season's choices from home, sees each saved, and \"again\" only for a pair from last season", async (t) => {
   const f = await websiteFixture(t);
   const p = await playingWebsite(f, true);
   const sam = await signIn(f, "sam@example.org");
@@ -320,10 +321,23 @@ test("a player finds next season's choices from home, sees each saved, and \"aga
   assert.equal(saved.location, `/competitions/${p.comp.id}?saved=1#next-season`);
   page = text((await sam.get(saved.location!)).html);
   assert.match(page, /Saved\. You are down to play with Partner next season\./);
-  // Once they have played together, keeping the pair is playing together again.
+  // Playing together this season does not make it "again": they are new to each other this season.
   const score = { sets: [{ games: [6, 4] }, { games: [6, 3] }] };
   for (const side of [0, 1]) assert.equal((await f.api(`/v1/matches/${p.match}/claims`, f.admin, "POST",
     { side, outcome: "completed", score })).status, 201);
+  assert.doesNotMatch(text((await sam.get(`/competitions/${p.comp.id}`)).html), /again/);
+  // A pair that also played together in the competition this one follows on from is playing together again.
+  const earlier = await f.create("/v1/seasons", { name: "Spring", starts_on: "2025-01-01", ends_on: "2025-06-30" });
+  const before = await f.create("/v1/competitions", { season_id: earlier.id, name: "Club league", discipline: "doubles",
+    match_format: "best_of_3_champions_tiebreak" });
+  const division = await f.create(`/v1/competitions/${before.id}/divisions`, {});
+  await f.create(`/v1/competitions/${before.id}/entries`, { division_id: division.id, member_ids: [p.members[0].id, p.members[2].id] });
+  assert.equal((await f.api(`/v1/seasons/${earlier.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  assert.equal((await f.api(`/v1/competitions/${before.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  assert.equal((await f.api(`/v1/competitions/${before.id}`, f.admin, "PATCH", { state: "complete" })).status, 200);
+  assert.equal((await f.api(`/v1/seasons/${earlier.id}`, f.admin, "PATCH", { state: "complete" })).status, 200);
+  const linked = await f.api(`/v1/competitions/${p.comp.id}`, f.admin, "PATCH", { previous_competition_id: before.id });
+  assert.equal(linked.status, 200, JSON.stringify(linked.body));
   assert.match(text((await sam.get(`/competitions/${p.comp.id}`)).html), /You are down to play with Partner again next season\./);
   assert.match(text((await sam.get("/")).html), /Club league : playing with Partner again/);
   // Asking for a new partner shows on home too.

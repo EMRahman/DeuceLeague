@@ -1217,7 +1217,7 @@ export type PartnerChoice = {
 /** What a doubles player sees of next season: their choice, their partner's, who is asking them, and whom they could ask. */
 export type NextSeason = {
   partner: { id: string; name: string } | null;
-  /** They have played together this season, so keeping the pair is playing together again. */
+  /** They played together in the competition before this one, so keeping the pair is playing together again. */
   together: boolean;
   mine: PartnerChoice | null;
   partners: PartnerChoice | null;

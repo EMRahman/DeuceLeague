@@ -617,11 +617,11 @@ export function createWebsite(options: WebsiteOptions) {
     // What they have said about next season in each competition under way: in doubles, what the partner
     // choices say, which a session reads for itself, its partner and anyone asking it.
     const choices: NextChoice[] = await Promise.all(tables.filter(({ competition }) => competition.state === "active")
-      .map(async ({ competition, entry, table }) => {
+      .map(async ({ competition, entry }) => {
         const doubles = competition.discipline === "doubles" && !entry.opted_out_at;
         const said = doubles ? (await api<{ data: PartnerChoice[] }>("GET",
           `/v1/competitions/${competition.id}/partner-choices`, p.session)).data : null;
-        const together = table.divisions.some((d) => d.rows.some((r) => r.entry_id === entry.id && r.played > 0));
+        const together = doubles && await pairedBefore(p, competition, entry);
         return { competitionId: competition.id, competition: competition.name,
           line: nextChoiceLine(entry, memberId, said, together) };
       }));
@@ -727,8 +727,7 @@ export function createWebsite(options: WebsiteOptions) {
     const registered = await registrations(p, here?.competitions ?? []);
     const entry = registered.find((r) => r.competition.id === id)?.entry;
     const season = here?.season ?? (await api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session));
-    // Whether the pair has played together yet: only then is keeping it playing together "again".
-    const together = !!entry && standings.divisions.some((d) => d.rows.some((r) => r.entry_id === entry.id && r.played > 0));
+    const together = !!entry && competition.discipline === "doubles" && await pairedBefore(p, competition, entry);
     const next = entry && competition.discipline === "doubles" && competition.state === "active"
       ? await nextSeason(p, id, entry, together) : null;
     return c.html(
@@ -755,6 +754,23 @@ export function createWebsite(options: WebsiteOptions) {
       />,
     );
   });
+
+  /**
+   * Whether a pair also played together in the competition this one follows on from: only then is keeping
+   * it next season playing together "again". A previous competition the player cannot see counts as not.
+   */
+  async function pairedBefore(p: Player, competition: Competition, entry: Entry): Promise<boolean> {
+    const previous = competition.previous_competition_id;
+    if (!previous || entry.members.length < 2) return false;
+    const pair = (e: Entry) => e.members.map((m) => m.id).sort().join(",");
+    try {
+      const { data } = await api<{ data: Entry[] }>("GET", `/v1/competitions/${encodeURIComponent(previous)}/entries`, p.session);
+      return data.some((e) => pair(e) === pair(entry));
+    } catch (error) {
+      if (error instanceof ApiProblem && [403, 404].includes(error.problem.status)) return false;
+      throw error;
+    }
+  }
 
   /** A doubles player's next season: their say, their partner's, who is asking them, and whom they could ask. */
   async function nextSeason(p: Player, competitionId: string, entry: Entry, together: boolean): Promise<NextSeason> {
