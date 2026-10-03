@@ -528,7 +528,8 @@ export function createCoachSite(options: CoachOptions) {
       `/v1/events?match_id=${inputs.match.id}&order=newest&limit=50${after ? `&after=${encodeURIComponent(after)}` : ""}`, who.key);
     return c.html(<CoachMatch frame={frameOf(who, "results")} {...inputs} timezone={who.club.timezone}
       events={history.data} historyAfter={after} historyNext={history.data.length === 50 ? history.next_cursor : null}
-      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"} />, status);
+      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"}
+      {...(!values && c.req.query("use") ? { use: c.req.query("use")! } : {})} />, status);
   }
 
   app.get("/matches/:id", async (c) => {
