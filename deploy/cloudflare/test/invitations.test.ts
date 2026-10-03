@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { fixture, change } from "./helpers.ts";
-import { browser, websiteFixture, linkFor } from "./website-helpers.ts";
+import { browser, websiteFixture, linkFor, playingWebsite, signIn } from "./website-helpers.ts";
 
 test("coach invitations persist provider outcomes separately from sign-ins, support selected members and protect PII", async (t) => {
   const f = await websiteFixture(t);
@@ -125,4 +125,29 @@ test("departed members cannot receive invitations and leaving invalidates outsta
   assert.equal(f.outbox.length, 0);
   assert.equal((await f.api(`/v1/members/${member.id}`, f.admin, "PATCH", { status: "active" })).status, 200);
   assert.equal((await mint()).status, 201);
+});
+
+test("Members says when an emailed link ran out unused, and lists those placed but never signed in", async (t) => {
+  const f = await websiteFixture(t);
+  const p = await playingWebsite(f);
+  const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
+  const [sam, alex] = p.members;
+  assert.equal((await coach.post(`/coach/members/${sam.id}/invite`)).status, 200);
+  assert.doesNotMatch((await coach.get("/coach/members")).html, /Link sent, not used/, "not while it still works");
+  // Twenty minutes on, unused.
+  await f.db.prepare("UPDATE member SET invitation_at = invitation_at - 20 * 60000 WHERE id = ?").bind(sam.id).run();
+  assert.match((await coach.get("/coach/members")).html, /Link sent, not used: it ran out 15 minutes after sending/);
+  // Alex signs in; a newcomer with no place is not listed as placed.
+  const alexBrowser = await signIn(f, "alex@example.org");
+  const newcomer = await f.create("/v1/members", { display_name: "Newcomer", email: "new@example.org" });
+  const filtered = (await coach.get("/coach/members?show=unsigned")).html;
+  assert.match(filtered, /Placed but never signed in \(1\)/);
+  assert.match(filtered, new RegExp(`id="member-${sam.id}"`));
+  assert.doesNotMatch(filtered, new RegExp(`id="member-${alex.id}"`));
+  assert.doesNotMatch(filtered, new RegExp(`id="member-${newcomer.id}"`));
+  // Signing out does not make someone "never signed in".
+  assert.equal((await alexBrowser.post("/signout")).status, 303);
+  assert.equal((await f.api(`/v1/members/${alex.id}`, f.admin)).body.signed_in_at, null, "signed in nowhere now");
+  const after = (await coach.get("/coach/members?show=unsigned")).html;
+  assert.doesNotMatch(after, new RegExp(`id="member-${alex.id}"`));
 });

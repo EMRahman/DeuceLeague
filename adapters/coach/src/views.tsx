@@ -39,6 +39,8 @@ export type CoachMember = {
   invitation_at?: string | null;
   level: number | null;
   signed_in_at: string | null;
+  /** When they last signed in anywhere, signed out since or not. */
+  last_signed_in_at?: string | null;
   status: "active" | "paused" | "left";
   /** When they said they are not playing next season at all, if they did. */
   leaving_at: string | null;
@@ -1086,6 +1088,20 @@ export const Chase: FC<{
   );
 };
 
+/** How long an emailed sign-in link works. */
+export const EMAILED_MINUTES = 15;
+
+/** An emailed sign-in link that ran out before the member signed in with it. */
+const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === "accepted" && !!m.invitation_at
+  && Date.parse(m.invitation_at) + EMAILED_MINUTES * 60_000 < now
+  && !signedInSince(m, m.invitation_at);
+
+/** Whether they have signed in at all, or since a moment: signing out since does not undo it. */
+export const signedInSince = (m: CoachMember, since: string | null = null) => {
+  const last = m.last_signed_in_at ?? m.signed_in_at;
+  return !!last && (since === null || Date.parse(last) >= Date.parse(since));
+};
+
 export const Members: FC<{
   frame: Frame;
   members: CoachMember[];
@@ -1102,7 +1118,9 @@ export const Members: FC<{
   addedId: string | null;
   emailConfigured: boolean;
   timezone: string;
-}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured }) => (
+  /** Showing only those placed in a competition who have never signed in. */
+  unsigned?: boolean;
+}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured, unsigned = false }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
     {done && (
@@ -1214,14 +1232,22 @@ export const Members: FC<{
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
       once, within 72 hours. Once signed in, a player stays signed in on that phone.
     </p>
-    {members.length > 0 && (
-      <p class="muted">
-        {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
-        listed first. Levels run from 10, a beginner, to 1, a national player.
+    {unsigned ? (
+      <p>
+        <strong>Placed but never signed in ({members.length}).</strong> In a competition under way or being drafted, and
+        never signed in. <a href="/coach/members">Show everyone</a>
       </p>
+    ) : (
+      members.length > 0 && (
+        <p class="muted">
+          {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
+          listed first. Levels run from 10, a beginner, to 1, a national player.{" "}
+          <a href="/coach/members?show=unsigned">Show only those placed but never signed in</a>
+        </p>
+      )
     )}
     {members.length === 0 ? (
-      <p class="muted">The club has no members yet.</p>
+      <p class="muted">{unsigned ? "Everyone placed has signed in." : "The club has no members yet."}</p>
     ) : (
       <div class="card">
         <ul class="list">
@@ -1251,6 +1277,10 @@ export const Members: FC<{
               {m.invitation_state && <p class={m.invitation_state === "failed" ? "deadline" : "muted"}>
                 {m.invitation_state === "accepted" ? "Email accepted for sending; inbox delivery not confirmed" : "Email attempt failed; check contacts and provider, then retry"}
                 {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
+              </p>}
+              {unusedLink(m) && <p class="deadline">
+                Link sent, not used: it ran out {EMAILED_MINUTES} minutes after sending. Email another, or make a sign-in
+                link to send another way.
               </p>}
               {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
                 <button class="small" type="submit">Email sign-in link</button>

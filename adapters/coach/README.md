@@ -76,7 +76,11 @@ MIT-licensed.
   addresses those with an email; the site itself sends nothing.
 - **Members** (`/coach/members`). Each member with the date and time they
   signed in, on the club's clock (`signed_in_at`: their newest device still
-  signed in), those not signed in yet first, and how many are signed in. Each
+  signed in), those not signed in yet first, and how many are signed in. An
+  emailed link that ran out before the member signed in says "Link sent, not
+  used", and **Show only those placed but never signed in**
+  (`/coach/members?show=unsigned`) narrows the list to members in a
+  competition under way or being drafted who have never signed in. Each
   has a level from 10 (a beginner) to 1 (a national player) that the coach can
   change. Above them, with `members:pii`, **Asking to join** lists the requests
   from the players' `/join` form (`GET /v1/join-requests`), each with **Approve**,

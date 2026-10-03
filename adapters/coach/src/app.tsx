@@ -31,6 +31,8 @@ import {
   LatestResults,
   Dashboard,
   Members,
+  EMAILED_MINUTES,
+  signedInSince,
   Problem,
   Results,
   SignIn,
@@ -305,7 +307,10 @@ export function createCoachSite(options: CoachOptions) {
       joinRequests(who),
     ]);
     const present = listed.filter((m) => !m.deleted_at);
-    const members = present.filter((m) => m.status !== "left");
+    // Placed but never signed in: in a competition under way or being drafted, read only when asked for.
+    const unsigned = c.req.query("show") === "unsigned";
+    const placed = unsigned ? await placedMembers(who.key) : null;
+    const members = present.filter((m) => m.status !== "left" && (!placed || (placed.has(m.id) && !signedInSince(m))));
     const left = present.filter((m) => m.status === "left").sort((a, b) => a.display_name.localeCompare(b.display_name));
     const waiting = await waitingForPlacement(who);
     // Who still needs a link first, then by name.
@@ -320,9 +325,17 @@ export function createCoachSite(options: CoachOptions) {
       <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
         requests={requests?.requests ?? null}
         moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
-        timezone={who.club.timezone} emailConfigured={!!options.mail} />,
+        timezone={who.club.timezone} emailConfigured={!!options.mail} unsigned={unsigned} />,
     );
   });
+
+  /** Everyone with a place in a competition under way or being drafted. */
+  async function placedMembers(key: string): Promise<Set<string>> {
+    const current = (await all<CoachCompetition>("/v1/competitions", key)).filter((x) => x.state === "active" || x.state === "draft");
+    const entries = await Promise.all(current.map((x) =>
+      api<{ data: Entry[] }>("GET", `/v1/competitions/${x.id}/entries?state=active`, key)));
+    return new Set(entries.flatMap((e) => e.data.flatMap((entry) => entry.members.map((m) => m.id))));
+  }
 
   app.post("/join-requests/:id/approve", async (c) => {
     const who = await coach(c);
@@ -902,7 +915,7 @@ export function createCoachSite(options: CoachOptions) {
     if (!member.email || member.status === "left") return { name: member.display_name, message: "No email sent. Complete the member's contact details on Members before inviting them." };
     let state: "accepted" | "failed" = "failed";
     try {
-      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: 15, expected_email: member.email });
+      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: EMAILED_MINUTES, expected_email: member.email });
       const url = new URL("/login", publicUrl); url.searchParams.set("token", link.token);
       await options.mail({ to: member.email, subject: `${who.club.name}: your sign-in link`,
         text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for fifteen minutes. If it expires, request a new link on the league website.\n` });
