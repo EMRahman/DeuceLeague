@@ -19,9 +19,9 @@ import {
   type Entry,
   type Weather,
 } from "@deuceleague/website";
-import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry,
+import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
-import { Draft, EndSeason, SeasonPage, type NextForm } from "./season-views.js";
+import { Draft, EndSeason, Pairs, SeasonPage, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
@@ -1120,6 +1120,29 @@ export function createCoachSite(options: CoachOptions) {
   const notADraft = (c: Context, who: Coach) => c.html(<Problem frame={seasonFrame(who)} title="Not a draft"
     detail="That competition has started, or is not next season's. Players' places change only before they have played."
     back={backToSeason} />, 404);
+
+  // What each doubles player said about next season: the season under way's, or else the one just ended's.
+  app.get("/pairs", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const seasons = (await all<Season>("/v1/seasons", who.key)).sort(newestFirst);
+    const season = seasons.find((s) => s.state === "active") ?? seasons.find((s) => s.state === "complete") ?? null;
+    const doubles = season ? (await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}`, who.key))
+      .filter((x) => x.discipline === "doubles" && x.state !== "draft") : [];
+    const [members, onBreak] = doubles.length === 0 ? [[], []] : await Promise.all([
+      all<ActiveMember>("/v1/members?status=active", who.key),
+      all<ActiveMember>("/v1/members?status=paused", who.key),
+    ]);
+    const paused = new Set(onBreak.map((m) => m.id));
+    const competitions = await Promise.all(doubles.map(async (competition) => {
+      const [entries, choices] = await Promise.all([
+        api<{ data: Entry[] }>("GET", `/v1/competitions/${competition.id}/entries`, who.key),
+        api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competition.id}/partner-choices`, who.key),
+      ]);
+      return { competition, view: pairsView(entries.data, choices.data, members, paused, competition.name) };
+    }));
+    return c.html(<Pairs frame={seasonFrame(who)} season={season} competitions={competitions} />);
+  });
 
   app.get("/season/drafts/:id", async (c) => {
     const who = await coach(c);

@@ -88,6 +88,12 @@ MIT-licensed.
   Each member also has **Not playing next season** (`POST /v1/members/{id}/leave`),
   for a player leaving the league altogether: out of every draft, singles and
   doubles, while this season carries on as it is, and **Take it back**.
+- **Next season's pairs** (`/coach/pairs`), linked from each doubles
+  competition on the dashboard and from its draft. For the season under way, or
+  else the one just ended, each doubles competition's players by what they said
+  (`GET /v1/competitions/{id}/partner-choices`): new pairs agreed, players
+  looking for a partner (including those whose partner is not staying), those
+  not playing, and the pairs keeping their partner.
 - **Season** (`/coach/season`). The turn of a season, in four steps, each an
   existing API route:
   - **End season now**, after a page saying what ending early does: moves the

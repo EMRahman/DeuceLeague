@@ -604,7 +604,7 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.match(said, /Sample Sage \/ Sample Taylor Sample Taylor is not playing next season/);
   assert.match(said, /New pairs waiting .* Sample Harper \/ Sample Parker Add to/);
   assert.match(said, /Players without a pair .* Sample Indy Asked Sample Bailey, who has not agreed yet/);
-  assert.match(said, /Sample Val Not in doubles last season/);
+  assert.match(said, /Sample Val Not in Sample doubles last season/);
   assert.match(said, /Not playing next season Sample Taylor/);
   const doublesDivisions = (await f.api(`/v1/competitions/${doubles.id}/divisions`, f.admin)).body.data as { id: string }[];
   assert.equal((await coach.post(`/coach/season/drafts/${doubles.id}/entries`,
