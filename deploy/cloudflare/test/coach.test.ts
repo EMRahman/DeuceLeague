@@ -544,6 +544,7 @@ test("the coach ends the sample season early and starts the next from its final 
 
   const start = await coach.get("/coach/season");
   assert.match(start.html, /Sample season has ended/); assert.match(start.html, /value="Sample season 2"/);
+  assert.match(start.html, /<h2>Prepare next season<\/h2>/); assert.match(start.html, /Prepare next season&#39;s drafts<\/button>/);
   const form = { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" };
   assert.match((await coach.post("/coach/season/next", { ...form, ends_on: "2026-09-01" })).html, /the last on or after the first/);
   const next = await send(coach, "/coach/season/next", form);
@@ -558,7 +559,7 @@ test("the coach ends the sample season early and starts the next from its final 
   const singles = drafts.find((x) => x.discipline === "singles")!; const doubles = drafts.find((x) => x.discipline === "doubles")!;
 
   const preparing = await coach.get("/coach/season");
-  assert.match(preparing.html, /Being prepared/); assert.doesNotMatch(preparing.html, /Start next season<\/h2>/);
+  assert.match(preparing.html, /Being prepared/); assert.doesNotMatch(preparing.html, /Prepare next season<\/h2>/);
   assert.match(preparing.html, new RegExp(`href="/coach/season/drafts/${singles.id}"`));
 
   // The singles draft: placed from the tables, with who was left out and who else could play.
@@ -618,8 +619,15 @@ test("the coach ends the sample season early and starts the next from its final 
     { member: id("Gray"), partner: id("Gray"), division_id: doublesDivisions[0]!.id });
   assert.equal(itself.status, 400); assert.match(itself.html, /A pair needs two different players/);
 
-  // Starting it draws the matches and opens the season and its competitions.
-  const started = await send(coach, `/coach/season/${planned[0].id}/start`);
+  // Starting it is asked first, saying players get their fixtures; a start not confirmed goes to that page.
+  assert.match((await coach.get("/coach/season")).html, new RegExp(`href="/coach/season/${planned[0].id}/start"`));
+  const ask = await coach.get(`/coach/season/${planned[0].id}/start`);
+  assert.match(ask.html, /Start Sample season 2 now\?/); assert.match(ask.html, /players see their\s+competition, division and fixtures/);
+  const unconfirmed = await coach.post(`/coach/season/${planned[0].id}/start`);
+  assert.equal(unconfirmed.status, 303); assert.equal(unconfirmed.location, `/coach/season/${planned[0].id}/start`);
+  assert.equal((await f.api(`/v1/seasons/${planned[0].id}`, f.admin)).body.state, "planning");
+  // Confirmed, it draws the matches and opens the season and its competitions.
+  const started = await send(coach, `/coach/season/${planned[0].id}/start`, { confirm: "yes" });
   assert.equal(started.status, 303); assert.equal(started.location, "/coach");
   assert.equal((await f.api(`/v1/seasons/${planned[0].id}`, f.admin)).body.state, "active");
   for (const x of drafts) {
@@ -633,4 +641,15 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.equal(late.status, 404); assert.match(late.html, /Not a draft/);
   assert.ok(!(await entries(singles.id)).some((e) => e.label === "Sample Val"));
   assert.match((await coach.get("/coach")).html, /<h1>Sample season 2<\/h1>/);
+});
+
+test("next season's suggested name follows the seasons of the year, and its dates follow the last", async () => {
+  const { nextName, nextDates } = await import("../../../adapters/coach/dist/season.js");
+  assert.deepEqual(["Autumn 2026", "Winter 2026–27", "Winter 2026/27", "Spring 2027", "Summer 2027", "Fall 2026", "summer 2027",
+    "Sample season", "Sample season 2", "Club Summer 2027 league"].map(nextName),
+  ["Winter 2026–27", "Spring 2027", "Spring 2027", "Summer 2027", "Autumn 2027", "Winter 2026–27", "autumn 2027",
+    "Sample season 2", "Sample season 3", "Club Autumn 2027 league"]);
+  const season = (starts_on: string, ends_on: string) => ({ starts_on, ends_on }) as any;
+  assert.deepEqual(nextDates(season("2026-09-01", "2026-12-10"), "2026-10-03"), { starts_on: "2026-12-11", ends_on: "2027-03-21" });
+  assert.deepEqual(nextDates(season("2026-01-01", "2026-03-10"), "2026-10-03"), { starts_on: "2026-10-03", ends_on: "2026-12-10" });
 });

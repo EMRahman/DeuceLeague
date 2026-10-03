@@ -93,7 +93,8 @@ MIT-licensed.
   - **End season now**, after a page saying what ending early does: moves the
     results deadline to now if it is later, completes each active
     competition, then completes the season.
-  - **Start next season**, once one has ended: a planning season with the
+  - **Prepare next season's drafts**, once one has ended, suggesting the next
+    of spring, summer, autumn and winter as its name: a planning season with the
     coach's name and dates (results close at the end of the last day), each
     ended competition made again as a draft naming it as previous, and each
     draft filled from the final tables (`POST /v1/competitions/{id}/placements`).
@@ -107,7 +108,8 @@ MIT-licensed.
     players said about next season's partners
     (`GET /v1/competitions/{id}/partner-choices`): pairs who agreed wait to be
     added, and anyone not playing is listed apart.
-  - **Start** the season: activates it, then draws each division's matches
+  - **Start** the season, after a page asking first since players get their
+    fixtures at once: activates it, then draws each division's matches
     (`POST /v1/divisions/{id}/fixtures`) and activates each draft.
 
   Each step checks where things are first, so a form sent again finishes the
