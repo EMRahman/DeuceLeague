@@ -20,6 +20,7 @@ import {
   type Season,
   type Side,
 } from "@deuceleague/website";
+import { MIRRORED, mirrored } from "./results.js";
 
 /**
  * The coach's pages: plain server-rendered HTML with no scripts, in the
@@ -601,6 +602,7 @@ export const Results: FC<{
             ))}
           </div>
           <p class="muted">Both written with {names[0]}'s games first.</p>
+          {mirrored(claims[0], claims[1]) && <p>{MIRRORED}</p>}
           {m.differences.length > 0 && (
             <ul class="plain">
               {m.differences.map((d) => (
@@ -634,10 +636,12 @@ export const Results: FC<{
                 <br />
                 {claim ? (
                   <span>
-                    {names[claim.side ?? 0]} reported {describe(claim, claim.side ?? 0, names)}.{" "}
+                    {names[claim.side ?? 0]} entered: {describe(claim, 0, names)}.{" "}
                     <span class="deadline">
                       {names[waiting]} has not answered in {daysSince(Date.parse(claim.submitted_at))}.
                     </span>
+                    <br />
+                    <span class="muted">Written with {names[0]}'s games first.</span>
                   </span>
                 ) : (
                   <span>Waiting on {names[waiting]}.</span>

@@ -1,7 +1,7 @@
 import type { FC } from "hono/jsx";
 import { claimToForm, describe, formatHint, playedOn, setRows, type Competition, type Match, type MatchDetail } from "@deuceleague/website";
 import { Layout, type FeedEvent, type Frame } from "./views.js";
-import { REASONS, type SettlementPreview } from "./results.js";
+import { MIRRORED, mirrored, REASONS, type SettlementPreview } from "./results.js";
 
 const namesOf = (m: Match): [string, string] => [0, 1].map(side => m.sides.find(s => s.side === side)?.label ?? `Side ${side + 1}`) as [string, string];
 const where = (m: Match) => [m.competition_name, m.division_name].filter(Boolean).join(" · ");
@@ -37,20 +37,27 @@ export const CoachMatches: FC<{
   </Layout>
 );
 
-const Entries: FC<{ match: MatchDetail; timezone: string }> = ({ match, timezone }) => {
+/** The entry each side stands by now: its newest one still pending. */
+const pending = (match: MatchDetail, side: 0 | 1) => match.claims.findLast(c => c.side === side && c.state === "pending");
+
+/** The current entries; offering each as the start of a decision only where one can be made. */
+const Entries: FC<{ match: MatchDetail; timezone: string; deciding?: boolean }> = ({ match, timezone, deciding = false }) => {
   const names = namesOf(match);
+  const claims = ([0, 1] as const).map(side => pending(match, side));
   return <section class="card">
     <h2>{match.result ? "Confirmed result" : "Current entries"}</h2>
     {match.result ? <p>{describe(match.result, 0, names)}{match.result.winning_side !== null && ` · Winner: ${names[match.result.winning_side]}`}</p> : (
       <div class="claims">{([0, 1] as const).map(side => {
-        const claim = match.claims.findLast(c => c.side === side && c.state === "pending");
+        const claim = claims[side];
         return <div><strong>{names[side]}</strong>
           <p>{claim ? describe(claim, 0, names) : "No result entered yet."}</p>
           {claim && <span class="muted">Entered {at(claim.submitted_at, timezone)}</span>}
+          {claim && deciding && <p><a href={`/coach/matches/${match.id}?use=${claim.id}#decide`}>Use {names[side]}'s entry</a></p>}
         </div>;
       })}</div>
     )}
     <p class="muted">Scores are written with {names[0]}'s games first. Both sides' submissions are visible to the coach.</p>
+    {!match.result && mirrored(claims[0], claims[1]) && <p>{MIRRORED}</p>}
   </section>;
 };
 
@@ -60,7 +67,7 @@ const DecisionForm: FC<{ match: MatchDetail; competition: Competition; values: R
     ["completed", "Played to completion"], ["retired", "Retirement during play"],
     ["conceded", "Injury before play"], ["walkover", "No-show"], ["unplayed", "Not played — neither side credited"],
   ];
-  return <form class="card report" method="post" action={`/coach/matches/${match.id}/preview`}>
+  return <form class="card report" id="decide" method="post" action={`/coach/matches/${match.id}/preview`}>
     <h2>{match.result ? "Correct the result" : "Decide the result"}</h2>
     <fieldset><legend>How did it end?</legend><div class="choices">
       {outcomes.map(([value, label]) => <label><input type="radio" name="outcome" value={value} checked={(values.outcome ?? "completed") === value} />{label}</label>)}
@@ -94,15 +101,20 @@ export const CoachMatch: FC<{
   frame: Frame; match: MatchDetail; competition: Competition; timezone: string;
   events: FeedEvent[]; historyAfter: string | undefined; historyNext: string | null;
   values?: Record<string, string>; errors?: string[]; saved?: boolean;
-}> = ({ frame, match, competition, timezone, events, historyAfter, historyNext, values, errors, saved }) => {
+  /** A pending entry to start the decision from; the coach still reviews it and gives a reason. */
+  use?: string;
+}> = ({ frame, match, competition, timezone, events, historyAfter, historyNext, values, errors, saved, use }) => {
   const names = namesOf(match);
-  const initial = match.result ? { ...claimToForm(match.result, 0), outcome: match.result.outcome } : {};
+  const chosen = use ? match.claims.find(c => c.id === use && c.side !== null && c.state === "pending") : undefined;
+  const initial = chosen ? { ...claimToForm(chosen, 0), outcome: chosen.outcome }
+    : match.result ? { ...claimToForm(match.result, 0), outcome: match.result.outcome } : {};
   return <Layout title={names.join(" v ")} frame={frame}>
     <p><a href="/coach/results">Results to sort out</a> · <a href="/coach/matches">Find a match</a></p>
     <h1>{names.join(" v ")}</h1><p class="muted">{where(match)}</p>
     {saved && <p class="notice">Decision saved. The result and standings are updated.</p>}
     {errors?.length ? <div role="alert" class="notice"><ul>{errors.map(e => <li>{e}</li>)}</ul></div> : null}
-    <Entries match={match} timezone={timezone} />
+    <Entries match={match} timezone={timezone} deciding={competition.state === "active"} />
+    {chosen && <p class="notice">The form below holds {names[chosen.side!]}'s entry. Check it, choose a reason, and review before saving.</p>}
     {competition.state === "active" ? <DecisionForm match={match} competition={competition} values={values ?? initial} /> :
       <p class="notice">This competition is {competition.state}. Reopen it before changing a result.</p>}
     <h2>Submission history</h2>
