@@ -95,7 +95,10 @@ export const SeasonPage: FC<{
             promoted, relegated or held by each competition's rules. Anyone who opted out, or played fewer matches than
             the minimum, is left out; you can add them back.
           </p>
-          <p class="muted">Players see nothing of next season until you start it.</p>
+          <p class="muted">
+            Players see nothing of next season, their own place included, until you start it. Then they see their
+            competition, division and fixtures.
+          </p>
           <form method="post" action="/coach/season/next">
             <input type="hidden" name="from" value={next.from} />
             <div class="field">
