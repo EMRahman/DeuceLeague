@@ -121,7 +121,9 @@ match** lets you browse every match, including confirmed results.
 
 1. **As the coach,** open **Season** and press **End season now**. It says
    what ending early does: the matches without an agreed result count as
-   unplayed, and the tables become final. End it.
+   unplayed, and the tables become final. It lists the sample's disputed and
+   one-sided results, each linked to decide it. Tick the box to leave them
+   undecided, and end it. The Season page then shows how the season closed.
 2. Press **Start next season**. Its competitions are made again as drafts,
    filled from the final tables: the top two of each division promoted, the
    bottom two relegated, the rest held. Sample Gray and Sample Morgan opted

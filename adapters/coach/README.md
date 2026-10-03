@@ -90,9 +90,12 @@ MIT-licensed.
   doubles, while this season carries on as it is, and **Take it back**.
 - **Season** (`/coach/season`). The turn of a season, in four steps, each an
   existing API route:
-  - **End season now**, after a page saying what ending early does: moves the
+  - **End season now**, after a page saying what ending early does and
+    listing each result never agreed (disputed, or entered by one side only),
+    linked to decide it; leaving any undecided needs a tick. It moves the
     results deadline to now if it is later, completes each active
-    competition, then completes the season.
+    competition, then completes the season. Afterwards the Season page says
+    how the season closed, listing the matches it left undecided.
   - **Start next season**, once one has ended: a planning season with the
     coach's name and dates (results close at the end of the last day), each
     ended competition made again as a draft naming it as previous, and each

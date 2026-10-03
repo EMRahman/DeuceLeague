@@ -186,7 +186,7 @@ test("sample browser installation stays within its SQL statement budget and reta
     }
     throw new Error(`${path} never finished`);
   }
-  assert.ok(await coachForm(`/coach/season/${season.id}/end`) > 1, "twelve competitions take more than one request to end");
+  assert.ok(await coachForm(`/coach/season/${season.id}/end`, { leave: "yes" }) > 1, "twelve competitions take more than one request to end");
   await coachForm("/coach/season/next", { from: season.id, name: "Next season", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const drafts = (await json("GET", "/v1/competitions?state=draft")).data as { id: string; season_id: string; discipline: string }[];
   assert.equal(drafts.length, 12);
