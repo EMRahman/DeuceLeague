@@ -220,7 +220,7 @@
         "properties": {
           "has_entries": {
             "type": "boolean",
-            "description": "Whether this member has ever held an entry in a started competition; returning or excluded players are not newcomers, and a place in an unstarted draft does not count."
+            "description": "Whether this member has ever held an entry in a started competition, or one with a result entered; returning or excluded players are not newcomers, and a place in an unstarted draft does not count."
           },
           "next_season": {
             "type": [

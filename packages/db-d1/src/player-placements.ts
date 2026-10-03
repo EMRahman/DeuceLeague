@@ -20,12 +20,15 @@ export type PlayerPlacement = {
  */
 export async function readPlayerPlacements(db: D1Database, hash: string) {
   const identity = await readIdentity(db, hash, "session", null, [
-    // A place in a draft not yet started does not count: a newcomer placed there is still waiting.
+    // A place in a draft not yet started does not count: a newcomer placed there is still waiting. A
+    // competition the coach moved back to draft after play still counts, through the matches it played.
     db.prepare(`SELECT EXISTS (SELECT 1 FROM entry_member em
       JOIN access_grant a ON a.member_id = em.member_id
       JOIN entry e ON e.id = em.entry_id AND e.club_id = a.club_id
       JOIN competition c ON c.id = e.competition_id AND c.club_id = e.club_id
-      WHERE a.token_hash = ? AND a.kind = 'session' AND c.state <> 'draft') AS has_entries`).bind(hash),
+      WHERE a.token_hash = ? AND a.kind = 'session' AND (c.state <> 'draft'
+        OR EXISTS (SELECT 1 FROM match_side ms JOIN match m ON m.id = ms.match_id
+          WHERE ms.entry_id = e.id AND m.status <> 'open'))) AS has_entries`).bind(hash),
     db.prepare(`SELECT id, name, starts_on, ends_on FROM season
       WHERE club_id = (SELECT id FROM club WHERE singleton = 1) AND state = 'planning'
       ORDER BY starts_on IS NULL, starts_on, id LIMIT 1`),

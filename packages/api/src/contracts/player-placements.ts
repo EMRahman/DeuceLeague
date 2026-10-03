@@ -13,7 +13,7 @@ export const playerPlacements = createRoute({
   ...requires.player(),
   responses: {
     200: { description: "Your placements and the next announced season, if any.", content: { "application/json": { schema: z.object({
-      has_entries: z.boolean().openapi({ description: "Whether this member has ever held an entry in a started competition; returning or excluded players are not newcomers, and a place in an unstarted draft does not count." }),
+      has_entries: z.boolean().openapi({ description: "Whether this member has ever held an entry in a started competition, or one with a result entered; returning or excluded players are not newcomers, and a place in an unstarted draft does not count." }),
       next_season: Season.nullable(),
       placements: z.array(z.object({ season: Season, competition_id: z.uuid(), competition_name: z.string(),
         division_name: z.string(), partner: z.object({ id: z.uuid(), display_name: z.string() }).nullable(),

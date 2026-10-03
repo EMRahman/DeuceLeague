@@ -88,3 +88,13 @@ test("coach newcomers exclude breaks, leavers and previous participants who opte
   const waiting = home.split("Waiting to be placed")[1]!.split("On the club&#39;s list")[0]!;
   assert.match(waiting, /New arrival/); assert.doesNotMatch(waiting, /Opted out|On break|Leaving|Left club|Sam|Alex/);
 });
+
+test("a competition moved back to draft after play still counts as one the player has been in", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const score = { sets: [{ games: [6, 4] }, { games: [6, 3] }] };
+  assert.equal((await f.api(`/v1/matches/${p.match}/claims`, f.admin, "POST", { side: 0, outcome: "completed", score })).status, 201);
+  assert.equal((await f.api(`/v1/competitions/${p.comp.id}`, f.admin, "PATCH", { state: "draft" })).status, 200);
+  assert.equal((await f.api("/v1/me/placements", sam.session())).body.has_entries, true);
+  assert.doesNotMatch((await sam.get("/")).html, /Your membership is approved/);
+});
