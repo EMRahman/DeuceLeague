@@ -138,6 +138,16 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
           WHERE em.entry_id = e.id AND ((m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at) OR m.status = 'paused'))
         OR EXISTS (SELECT 1 FROM entry_member em JOIN partner_choice pc ON pc.member_id = em.member_id
           WHERE em.entry_id = e.id AND pc.competition_id = e.competition_id AND pc.choice = 'leaving')) AS not_playing,
+      -- Who said so: the players leaving, on a break or not playing it, else the player who opted the entry
+      -- out (the latest opt-out, found through the entry's own history); null when the coach did.
+      coalesce((SELECT group_concat(m.display_name, ' and ') FROM entry_member em JOIN member m ON m.id = em.member_id
+          WHERE em.entry_id = e.id AND ((m.leaving_at IS NOT NULL AND e.created_at <= m.leaving_at) OR m.status = 'paused'
+            OR EXISTS (SELECT 1 FROM partner_choice pc WHERE pc.member_id = em.member_id
+              AND pc.competition_id = e.competition_id AND pc.choice = 'leaving'))),
+        CASE WHEN e.opted_out_at IS NOT NULL THEN (SELECT m.display_name FROM event ev INDEXED BY event_subject_ix
+          JOIN member m ON m.id = ev.actor_id
+          WHERE ev.club_id = e.club_id AND ev.subject_type = 'entry' AND ev.subject_id = e.id
+            AND ev.type = 'entry.opt_out.recorded' AND ev.actor_type = 'member' ORDER BY ev.id DESC LIMIT 1) END) AS said_by,
       (SELECT label FROM entry_label WHERE entry_id = e.id) AS label FROM entry e
       JOIN competition c ON c.id = e.competition_id
       WHERE c.season_id = ? AND EXISTS (SELECT 1 FROM entry_member em WHERE em.entry_id = e.id)
@@ -160,7 +170,8 @@ export async function readSeasonProgress(db: D1Database, hash: string, kind: Cre
       matchFormat: JSON.parse(String(c.match_format)) as MatchFormat })),
     divisions: divisions!.map((d) => ({ id: String(d.id), competitionId: String(d.competition_id), ordinal: Number(d.ordinal), name: String(d.name) })),
     entries: entries!.map((e) => ({ id: String(e.id), competitionId: String(e.competition_id), divisionId: String(e.division_id),
-      state: String(e.state), optedOut: Boolean(e.not_playing), label: String(e.label) })),
+      state: String(e.state), optedOut: Boolean(e.not_playing), label: String(e.label),
+      saidBy: e.said_by === null ? null : String(e.said_by) })),
     // Each match as the ledger holds it, for counting who has played how many.
     matches: ledgerRecords(identity.extraResults[4]!).map((m, i) => ({ ...m, competitionId: String(matches![i]!.competition_id) })),
     timezone: String(club![0]!.timezone),

@@ -104,7 +104,7 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
           return { ...competitionProgress(x, s.divisions.filter((d) => d.competitionId === x.id), entries,
             s.matches.filter((m) => m.competitionId === x.id), s.season!.deadline, s.timezone, now),
           name: x.name, discipline: x.discipline as "singles" | "doubles", state: x.state as "draft" | "active" | "complete" | "archived",
-          opted_out: entries.filter((e) => e.optedOut).map((e) => ({ entry_id: e.id, label: e.label })) };
+          opted_out: entries.filter((e) => e.optedOut).map((e) => ({ entry_id: e.id, label: e.label, said_by: e.saidBy })) };
         }) };
     }), 200);
   });

@@ -115,7 +115,7 @@ export const NewClaim = z
 export const Settlement = z
   .object({
     ...ResultFields,
-    reason: z.enum(["no_response", "conflicting_entries", "incorrect_result", "unreported_result"]).optional().openapi({
+    reason: z.enum(["no_response", "conflicting_entries", "incorrect_result", "unreported_result", "injury_or_withdrawal"]).optional().openapi({
       description: "Why the coach decided the result. Recorded with the acting API key in the audit history; use a category rather than personal or medical details.",
     }),
     expected_version: z.string().regex(/^[a-f0-9]{64}$/).optional().openapi({

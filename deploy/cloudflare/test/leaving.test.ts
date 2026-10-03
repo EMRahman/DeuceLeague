@@ -180,6 +180,8 @@ test("the coach marks a member as not playing next season, and the draft names w
   const dashboard = (await coach.get("/coach")).html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   assert.match(dashboard, new RegExp(`opted out of next season:[^.]*${singles.find((e) => e.members[0]!.id === leaver.id)!.label}`));
   assert.match(dashboard, new RegExp(`opted out of next season:[^.]*${pair.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  // A pair names the one who said it, so it does not read as both.
+  assert.match(dashboard, new RegExp(`${pair.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\(${gone.display_name} said so\\)`));
 
   const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`); if (r.status !== 307) break; }

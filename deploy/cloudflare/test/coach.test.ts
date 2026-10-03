@@ -405,7 +405,7 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   assert.match(mixed, /<label for="member">Woman<\/label>/); assert.match(mixed, /<label for="partner">Man<\/label>/);
 
   // Someone who has left is offered nowhere, and cannot be entered.
-  assert.equal((await coach.post(`/coach/members/${id("Val")}/left`)).status, 303);
+  assert.equal((await coach.post(`/coach/members/${id("Val")}/left`, { confirm: "yes" })).status, 303);
   assert.doesNotMatch(text((await coach.get(`/coach/season/drafts/${singles.id}`)).html, "Not in Sample singles last season"), /Sample Val/);
   const division = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data[0].id;
   assert.equal((await f.api(`/v1/competitions/${singles.id}/entries`, f.admin, "POST", { division_id: division, member_ids: [id("Val")] })).status, 400);
