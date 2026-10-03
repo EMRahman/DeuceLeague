@@ -184,6 +184,9 @@ export type FeedEvent = {
   subject_name: string | null;
   occurred_at: string;
   payload: Record<string, unknown>;
+  /** The competition and partner the payload names by ID, as they are called now. */
+  competition_name: string | null;
+  partner_name: string | null;
 };
 
 /** A match as a list returns it, with when it last changed. */
@@ -760,13 +763,23 @@ const NOUNS: Record<string, string> = {
 };
 
 /** An event as a sentence: who did what, to what. */
-function sentence(e: FeedEvent): string {
+export function sentence(e: FeedEvent): string {
   const actor =
     e.actor_name ?? { api_key: "A key", member: "A player", system: "DeuceLeague" }[e.actor_type] ?? "Someone";
   const subject = e.subject_name ?? "someone";
   const [kind, ...rest] = e.type.split(".");
   const action = rest.join(".");
-  const state = e.payload.state as { from: string; to: string } | undefined;
+  // Only a change of state is a move; an invitation's state, say, is one word.
+  const raw = e.payload.state as { from?: unknown; to?: unknown } | string | undefined;
+  const state = raw && typeof raw === "object" && typeof raw.from === "string" && typeof raw.to === "string"
+    ? { from: raw.from, to: raw.to } : undefined;
+  // Next season's choices are made per competition, so each line says which.
+  const competition = e.competition_name ?? "their competition";
+  const doubles = e.competition_name ?? "doubles";
+  const partner = e.partner_name ?? "someone";
+  // A player opting out themselves, or the coach or a partner doing it for them.
+  const opted = (how: string) =>
+    e.actor_name === e.subject_name ? `${subject} opted ${how}` : `${actor} opted ${subject} ${how}`;
   switch (e.type) {
     case "match.claim.reported":
       return `${actor} reported a score for ${subject}`;
@@ -778,6 +791,9 @@ function sentence(e: FeedEvent): string {
       return e.payload.how === "settled" ? `${actor} settled ${subject}` : `The result of ${subject} is agreed`;
     case "member.login_link.created":
       return `${actor} made a sign-in link for ${subject}`;
+    case "member.invitation.recorded":
+      return raw === "failed" ? `${actor} could not email a sign-in link to ${subject}`
+        : `${actor} emailed a sign-in link to ${subject}`;
     case "member.signed_in":
       return `${subject} signed in`;
     case "member.signed_out":
@@ -786,6 +802,14 @@ function sentence(e: FeedEvent): string {
       return `${actor} signed ${subject} out everywhere`;
     case "member.created":
       return e.payload.join_request_id ? `${actor} approved ${subject}'s request to join` : `${actor} added ${subject}`;
+    case "member.leaving.recorded":
+      return `${subject} is not playing next season`;
+    case "member.leaving.cleared":
+      return `${subject} is playing next season again`;
+    case "member.paused":
+      return `${subject} is taking a break`;
+    case "member.resumed":
+      return `${subject} is back from a break`;
     case "join_request.received":
       return "Someone asked to join the league";
     case "join_request.declined":
@@ -801,19 +825,19 @@ function sentence(e: FeedEvent): string {
     case "api_key.recovered":
       return `A new administrator key, ${subject}, was made with the recovery tool`;
     case "entry.opt_out.recorded":
-      return `${subject} opted out of next season`;
+      return opted(`out of ${competition} next season`);
     case "entry.opt_out.cleared":
-      return `${subject} opted back in to next season`;
+      return opted(`back in to ${competition} next season`);
     case "partner_choice.recorded":
-      if (e.payload.choice === "leaving") return `${subject} is not playing doubles next season`;
-      if (e.payload.agreed) return `${subject} agreed a new doubles partner for next season`;
+      if (e.payload.choice === "leaving") return `${subject} is not playing ${doubles} next season`;
+      if (e.payload.agreed) return `${subject} agreed to play ${doubles} with ${partner} next season`;
       return e.payload.partner_id
-        ? `${subject} asked someone to be their doubles partner next season`
-        : `${subject} is looking for a new doubles partner for next season`;
+        ? `${subject} asked ${partner} to play ${doubles} with them next season`
+        : `${subject} is looking for a new partner in ${doubles} next season`;
     case "partner_choice.cleared":
-      return `${subject} is keeping their doubles partner next season`;
+      return `${subject} is keeping their partner in ${doubles} next season`;
     case "partner_choice.declined":
-      return `${actor} said no to partnering ${subject} next season`;
+      return `${actor} said no to playing ${doubles} with ${subject} next season`;
     case "division.fixtures_generated":
       return `${actor} drew up the fixtures for ${subject}`;
     case "competition.placements_filled":

@@ -81,14 +81,14 @@ test("Wrangler migrations support renamed fresh installs, preserve initialized d
     const response = await app.request("/setup", { method: "POST", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
       body: JSON.stringify({ slug: "renamed-club", name: "Renamed club", sample: true }) });
     assert.equal(response.status, 201); key = (await response.json() as any).api_key;
-    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 16);
+    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 17);
   } finally { await proxy.dispose(); }
   await migrate(); proxy = await open();
   try {
     const app = createCloudflareApp({ db: proxy.env.DB, log: () => {} });
     assert.equal((await app.request("/v1/me", { headers: { authorization: `Bearer ${key}` } })).status, 200);
     assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM match").first("n"), 50);
-    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 16);
+    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 17);
   } finally { await proxy.dispose(); }
   // Only this disposable test directory gets an intentionally invalid migration.
   config.d1_databases[0].migrations_dir = dir;
@@ -98,6 +98,6 @@ test("Wrangler migrations support renamed fresh installs, preserve initialized d
   proxy = await open();
   try {
     assert.equal(await proxy.env.DB.prepare("SELECT name FROM club").first("name"), "Renamed club");
-    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 16);
+    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 17);
   } finally { await proxy.dispose(); }
 });
