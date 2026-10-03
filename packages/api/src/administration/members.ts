@@ -29,6 +29,8 @@ export function toMember(m: MemberRecord, withPii: boolean): z.infer<typeof Memb
     full_name: m.fullName ?? null,
     email: m.email ?? null,
     phone: m.phone ?? null,
+    invitation_state: m.invitationState ?? null,
+    invitation_at: m.invitationAt == null ? null : new Date(m.invitationAt).toISOString(),
     date_of_birth: m.dateOfBirth ?? null,
     gender: (m.gender ?? null) as Gender | null,
     age_group: (m.ageGroup ?? null) as AgeGroup | null,

@@ -35,7 +35,7 @@ acknowledgement if its coach chooses, while keeping match actions first.
   (`POST /v1/session`) — a button, because mail scanners open links before
   people do. The answer is the same whether or not the address is a member's.
 - **Joining.** `/join` lets anyone ask to join the club: first name, surname,
-  an email address or phone number or both, and a tick for the UK privacy
+  both email for sign-in links and telephone for WhatsApp league communications, and a tick for the UK privacy
   notice at `/privacy`. The request goes to the coach
   (`POST /v1/join-requests`, with the website's key), who approves or declines it on the
   coach's site. A hidden field, a signed form time, optional Cloudflare

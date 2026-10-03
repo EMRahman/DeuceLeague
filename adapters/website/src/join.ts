@@ -3,7 +3,7 @@
  * coach. The form is open to the internet, so each layer turns away a
  * different kind of junk — a hidden field only bots fill in, a signed time
  * that a person cannot beat, an optional Turnstile check, and a daily limit
- * the Worker keeps per connection and for the club.
+ * the Worker keeps per source IP and for the club.
  */
 
 /**
@@ -11,7 +11,7 @@
  * GDPR; a club elsewhere, or one that changes the notice's words, gives it a
  * new name here, so each member's record says which one they agreed to.
  */
-export const PRIVACY_NOTICE = "uk-2026-10-01";
+export const PRIVACY_NOTICE = "uk-2026-10-02";
 
 /** Quicker than this, the form was not filled in by a person. */
 export const MIN_FILL_MS = 3_000;
@@ -32,6 +32,10 @@ export const ageGroupLabel = (value: string | null | undefined) => AGE_GROUPS.fi
 export type JoinForm = {
   first_name: string; surname: string; email: string; phone: string; gender: string; age_group: string; privacy: boolean;
 };
+
+/** Phone punctuation is allowed, but the number must contain 7–15 digits. */
+export const isTelephone = (value: string) => /^\+?[0-9][0-9 ()-]{5,23}$/.test(value)
+  && value.replace(/\D/g, "").length >= 7 && value.replace(/\D/g, "").length <= 15;
 
 const bytes = new TextEncoder();
 const hex = (buffer: ArrayBuffer) => Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -70,12 +74,13 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
   if (!values.first_name) problems.push("Enter your first name.");
   if (!values.surname) problems.push("Enter your surname.");
   if (values.first_name.length > 60 || values.surname.length > 60) problems.push("Names can be up to 60 letters long.");
-  if (!values.email && !values.phone) problems.push("Give an email address, a phone number, or both, so the coach can reach you.");
+  if (!values.email) problems.push("Enter your email address for sign-in links.");
+  if (!values.phone) problems.push("Enter your telephone number for WhatsApp league communications.");
   if (values.email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email) || values.email.length > 254)) {
     problems.push("That does not look like an email address.");
   }
-  if (values.phone && !/^\+?[0-9][0-9 ()-]{5,23}$/.test(values.phone)) {
-    problems.push("A phone number has digits, and may start with +, such as 07700 900123 or +44 7700 900123.");
+  if (values.phone && !isTelephone(values.phone)) {
+    problems.push("A phone number has 7 to 15 digits, and may start with +, such as 07700 900123 or +44 7700 900123.");
   }
   if (!GENDERS.some(([v]) => v === values.gender)) problems.push("Choose your gender, or say you would rather not.");
   if (values.age_group && !AGE_GROUPS.some(([v]) => v === values.age_group)) problems.push("Choose one of the age groups, or leave it blank.");

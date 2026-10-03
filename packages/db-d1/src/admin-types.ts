@@ -14,6 +14,7 @@ export type ApiKeyRecord = {
 };
 export type PersonalFields = {
   fullName: string | null; email: string | null; phone: string | null;
+  invitationState: "accepted" | "failed" | null; invitationAt: number | null;
   dateOfBirth: string | null; gender: string | null; ageGroup: string | null; notes: string | null;
 };
 export type MemberRecord = {
@@ -28,4 +29,4 @@ export type MemberRecord = {
 export type MemberChanges = Partial<{
   displayName: string; status: string; rating: string | null; ratingSystem: string | null; level: number | null;
   joinedOn: string | null;
-} & PersonalFields>;
+} & Omit<PersonalFields, "invitationState" | "invitationAt">>;

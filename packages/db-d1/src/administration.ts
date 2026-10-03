@@ -67,7 +67,7 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
       (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
         AND g.kind = 'session') AS signed_in_at,
       CASE WHEN permission.pii THEN json_object('fullName', m.full_name, 'email', m.email, 'phone', m.phone,
-        'dateOfBirth', m.date_of_birth, 'gender', m.gender, 'ageGroup', m.age_group, 'notes', m.notes) ELSE NULL END AS personal_json
+        'dateOfBirth', m.date_of_birth, 'gender', m.gender, 'ageGroup', m.age_group, 'notes', m.notes, 'invitationState', m.invitation_state, 'invitationAt', m.invitation_at) ELSE NULL END AS personal_json
     FROM member m, q, permission WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
       AND (json_extract(q.filter, '$.id') IS NULL OR m.id = json_extract(q.filter, '$.id'))
       AND (json_extract(q.filter, '$.after') IS NULL OR m.id > json_extract(q.filter, '$.after'))
@@ -165,6 +165,7 @@ export type MemberMutation =
       /** The join request this member came from, deleted as they are added. */
       joinRequest?: { id: string; privacyNotice: string } }
   | { type: "patch"; changes: MemberChanges; fields: string[] }
+  | { type: "invitation"; state: "accepted" | "failed" }
   | { type: "remove" }
   | { type: "erase" }
   /** Saying they are not playing next season at all, or taking it back. Saying it twice keeps the first time. */
@@ -197,6 +198,10 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
     if (mutation.joinRequest) {
       writes.push(db.prepare("DELETE FROM join_request WHERE id = ? AND club_id = ?").bind(mutation.joinRequest.id, clubId));
     }
+  } else if (mutation.type === "invitation") {
+    writes.push(db.prepare(`UPDATE member SET invitation_state = ?, invitation_at = ?
+      WHERE id = ? AND club_id = ? AND deleted_at IS NULL`).bind(mutation.state, state.now, id, clubId),
+      audit(db, state, "member.invitation.recorded", "member", id, { state: mutation.state }));
   } else if (mutation.type === "patch") {
     writes.push(db.prepare(`UPDATE member SET
       display_name = CASE WHEN json_type(input.changes, '$.displayName') IS NULL THEN display_name ELSE json_extract(input.changes, '$.displayName') END,
@@ -212,6 +217,8 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       gender = CASE WHEN json_type(input.changes, '$.gender') IS NULL THEN gender ELSE json_extract(input.changes, '$.gender') END,
       age_group = CASE WHEN json_type(input.changes, '$.ageGroup') IS NULL THEN age_group ELSE json_extract(input.changes, '$.ageGroup') END,
       notes = CASE WHEN json_type(input.changes, '$.notes') IS NULL THEN notes ELSE json_extract(input.changes, '$.notes') END,
+      invitation_state = CASE WHEN json_type(input.changes, '$.email') IS NULL OR email IS json_extract(input.changes, '$.email') THEN invitation_state ELSE NULL END,
+      invitation_at = CASE WHEN json_type(input.changes, '$.email') IS NULL OR email IS json_extract(input.changes, '$.email') THEN invitation_at ELSE NULL END,
       updated_at = ? FROM (SELECT ? AS changes) input WHERE id = ? AND club_id = ? AND deleted_at IS NULL`)
       .bind(state.now, JSON.stringify({ ...mutation.changes,
         ...(mutation.changes.rating === undefined ? {} : { rating: rating(mutation.changes.rating) }) }), id, clubId),
@@ -236,7 +243,7 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
       WHERE id = ? AND club_id = ?`).bind(state.now, state.now, id, clubId));
     else writes.push(
       db.prepare(`UPDATE member SET display_name = 'Erased member', full_name = NULL, email = NULL, phone = NULL,
-        date_of_birth = NULL, gender = NULL, age_group = NULL, notes = NULL, leaving_at = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
+        date_of_birth = NULL, gender = NULL, age_group = NULL, notes = NULL, invitation_state = NULL, invitation_at = NULL, leaving_at = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
         status = 'left', deleted_at = coalesce(deleted_at, ?), updated_at = ? WHERE id = ? AND club_id = ?`)
         .bind(state.now, state.now, id, clubId),
       db.prepare(`UPDATE entry SET display_name = NULL, updated_at = ? WHERE club_id = ? AND display_name IS NOT NULL

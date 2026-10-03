@@ -85,7 +85,7 @@ export type JoinOptions = {
    * Reserve one of today's join requests for this connection (its address, or
    * null if unknown); false once the club's or the connection's limit is reached.
    */
-  claim: (connection: string | null) => Promise<boolean>;
+  claim: (connection: string | null) => Promise<true | "club" | "ip">;
   /** Cloudflare Turnstile, when the club has set it up: the widget's site key, and a check of its answer. */
   turnstile?: { siteKey: string; verify: (token: string, connection: string | null) => Promise<boolean> };
 };
@@ -468,8 +468,13 @@ export function createWebsite(options: WebsiteOptions) {
         return again(["The check that you are a person did not finish. Wait for it to tick, then send again."], 400);
       }
     }
-    if (!(await join.claim(connection))) {
-      return again(["The club cannot take more requests today. Please try again tomorrow."], 429);
+    const allowance = await join.claim(connection);
+    if (allowance !== true) {
+      const retry = Math.ceil((86_400_000 - Date.now() % 86_400_000) / 1000);
+      c.header("Retry-After", String(retry));
+      return again([allowance === "ip"
+        ? "This internet address has used its 50 join submissions today. Try again after midnight UTC."
+        : "The club cannot take more requests today. Try again after midnight UTC."], 429);
     }
     try {
       await api("POST", "/v1/join-requests", key!, {
@@ -967,3 +972,5 @@ export function createWebsite(options: WebsiteOptions) {
 
   return app;
 }
+
+export { isTelephone } from "./join.js";

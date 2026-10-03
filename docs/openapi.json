@@ -1918,6 +1918,26 @@
             ],
             "description": "PII. Unique within the club. Present only for a credential holding `members:pii`."
           },
+          "invitation_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "accepted",
+              "failed",
+              null
+            ],
+            "description": "PII. Latest coach invitation outcome. Accepted means provider acceptance, not inbox delivery. Present only for a credential holding `members:pii`."
+          },
+          "invitation_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "PII. When the latest invitation outcome was recorded. Present only for a credential holding `members:pii`."
+          },
           "phone": {
             "type": [
               "string",
@@ -2279,7 +2299,7 @@
               "string",
               "null"
             ],
-            "description": "PII. An email address, a phone number, or both. Present only for a credential holding `members:pii`."
+            "description": "PII. Required for new requests; older requests may have no email. Present only for a credential holding `members:pii`."
           },
           "phone": {
             "type": [
@@ -2381,19 +2401,15 @@
             "maxLength": 60
           },
           "email": {
-            "type": [
-              "string",
-              "null"
-            ],
+            "type": "string",
             "maxLength": 254,
-            "format": "email"
+            "format": "email",
+            "description": "Required email address for sign-in links."
           },
           "phone": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "pattern": "^\\+?[0-9][0-9 ()-]{5,23}$"
+            "type": "string",
+            "pattern": "^\\+?[0-9][0-9 ()-]{5,23}$",
+            "description": "Required telephone number for WhatsApp league communications; 7 to 15 digits with optional punctuation."
           },
           "gender": {
             "type": [
@@ -2435,6 +2451,8 @@
         "required": [
           "first_name",
           "surname",
+          "email",
+          "phone",
           "privacy_notice"
         ]
       },
@@ -7733,6 +7751,116 @@
         "responses": {
           "204": {
             "description": "Removed."
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{id}/invitation": {
+      "post": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "Record a sign-in invitation outcome",
+        "description": "The sending adapter records provider acceptance or failure. This does not send email or confirm inbox delivery.",
+        "security": [
+          {
+            "apiKey": [
+              "members:write",
+              "members:pii"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "accepted",
+                      "failed"
+                    ]
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email"
+                  }
+                },
+                "required": [
+                  "state",
+                  "email"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Outcome recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
           },
           "401": {
             "description": "No credential, or one that is unknown, revoked or expired.",

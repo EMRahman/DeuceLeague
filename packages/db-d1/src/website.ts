@@ -25,7 +25,7 @@ export async function claimWebsiteLogin(db: D1Database, recipientHash: string): 
  * slip past the limit; one that then fails still counts, as a login does.
  */
 export async function claimWebsiteJoin(db: D1Database, connectionHash: string | null,
-  limits: { perDay: number; perConnection: number }): Promise<boolean> {
+  limits: { perDay: number; perConnection: number }): Promise<true | "club" | "ip"> {
   if (connectionHash !== null && !/^[a-f0-9]{64}$/.test(connectionHash)) throw new Error("Invalid connection key");
   return retryMutation(async () => {
     const snapshot = await readSnapshot(db, [
@@ -35,8 +35,8 @@ export async function claimWebsiteJoin(db: D1Database, connectionHash: string | 
     ]);
     const day = Number((snapshot.results[0]!.results[0] as { day: number }).day);
     const counts = new Map((snapshot.results[1]!.results as { bucket: string; count: number }[]).map((r) => [r.bucket, r.count]));
-    if ((counts.get("club") ?? 0) >= limits.perDay) return false;
-    if (connectionHash !== null && (counts.get(connectionHash) ?? 0) >= limits.perConnection) return false;
+    if ((counts.get("club") ?? 0) >= limits.perDay) return "club";
+    if (connectionHash !== null && (counts.get(connectionHash) ?? 0) >= limits.perConnection) return "ip";
     const count = (bucket: string) => db.prepare(`INSERT INTO website_join_limit (bucket, day, count) VALUES (?, ?, 1)
       ON CONFLICT(bucket) DO UPDATE SET count = CASE WHEN website_join_limit.day = excluded.day
         THEN website_join_limit.count + 1 ELSE 1 END, day = excluded.day`).bind(bucket, day);

@@ -45,6 +45,8 @@ export const Member = z
     updated_at: Timestamp,
     full_name: z.string().nullable().optional().openapi({ description: pii("Their full name.") }),
     email: z.string().nullable().optional().openapi({ description: pii("Unique within the club.") }),
+    invitation_state: z.enum(["accepted", "failed"]).nullable().optional().openapi({ description: pii("Latest coach invitation outcome. Accepted means provider acceptance, not inbox delivery.") }),
+    invitation_at: Timestamp.nullable().optional().openapi({ description: pii("When the latest invitation outcome was recorded.") }),
     phone: z.string().nullable().optional().openapi({ description: pii("As they gave it.") }),
     date_of_birth: z.iso.date().nullable().optional().openapi({ description: pii("For junior eligibility.") }),
     gender: Gender.nullable()
@@ -265,4 +267,16 @@ export const erase = createRoute({
   ...requires("admin"),
   request: { params: IdParam },
   responses: { 200: { description: "What is left of the member.", ...one }, ...authProblems, ...notFoundProblem },
+});
+
+/** Adapters send mail; the core records the outcome without storing a link or provider error. */
+export const invitation = createRoute({
+  method: "post", path: "/v1/members/{id}/invitation", tags: ["Members"],
+  summary: "Record a sign-in invitation outcome",
+  description: "The sending adapter records provider acceptance or failure. This does not send email or confirm inbox delivery.",
+  ...requires("members:write", "members:pii"),
+  request: { params: IdParam, body: { required: true, content: { "application/json": {
+    schema: z.object({ state: z.enum(["accepted", "failed"]), email: z.email().max(254) }),
+  } } } },
+  responses: { 200: { description: "Outcome recorded.", ...one }, ...authProblems, ...notFoundProblem, ...conflictProblem, ...validationProblem },
 });
