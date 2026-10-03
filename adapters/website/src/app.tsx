@@ -36,6 +36,8 @@ import {
   type Frame,
   type MyMatch,
   type MyStanding,
+  nextChoiceLine,
+  type NextChoice,
   type NextSeason,
   type PartnerChoice,
   type ToAnswer,
@@ -612,6 +614,18 @@ export function createWebsite(options: WebsiteOptions) {
       }
     }
 
+    // What they have said about next season in each competition under way: in doubles, what the partner
+    // choices say, which a session reads for itself, its partner and anyone asking it.
+    const choices: NextChoice[] = await Promise.all(tables.filter(({ competition }) => competition.state === "active")
+      .map(async ({ competition, entry, table }) => {
+        const doubles = competition.discipline === "doubles" && !entry.opted_out_at;
+        const said = doubles ? (await api<{ data: PartnerChoice[] }>("GET",
+          `/v1/competitions/${competition.id}/partner-choices`, p.session)).data : null;
+        const together = table.divisions.some((d) => d.rows.some((r) => r.entry_id === entry.id && r.played > 0));
+        return { competitionId: competition.id, competition: competition.name,
+          line: nextChoiceLine(entry, memberId, said, together) };
+      }));
+
     // Where the player stands in each competition they are in.
     const standings: MyStanding[] = [];
     for (const { competition, entry, table } of tables) {
@@ -659,6 +673,7 @@ export function createWebsite(options: WebsiteOptions) {
         onBreak={p.me.credential.member.status === "paused"}
         active={p.me.credential.member.status === "active"}
         entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
+        choices={choices}
         // What they said covers the entries they held when they said it; one made after is still in the reckoning.
         covered={registered.filter((r) => r.entry && covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
         later={registered.filter((r) => r.entry && !covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
@@ -712,7 +727,10 @@ export function createWebsite(options: WebsiteOptions) {
     const registered = await registrations(p, here?.competitions ?? []);
     const entry = registered.find((r) => r.competition.id === id)?.entry;
     const season = here?.season ?? (await api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session));
-    const next = entry && competition.discipline === "doubles" && competition.state === "active" ? await nextSeason(p, id, entry) : null;
+    // Whether the pair has played together yet: only then is keeping it playing together "again".
+    const together = !!entry && standings.divisions.some((d) => d.rows.some((r) => r.entry_id === entry.id && r.played > 0));
+    const next = entry && competition.discipline === "doubles" && competition.state === "active"
+      ? await nextSeason(p, id, entry, together) : null;
     return c.html(
       <CompetitionPage
         frame={frameOf(p, "tables")}
@@ -733,12 +751,13 @@ export function createWebsite(options: WebsiteOptions) {
           leaving: covers(leavingAt, entry), onBreak: p.me.credential.member.status === "paused" } : null}
         breakdowns={breakdowns(standings, matches)}
         next={next}
+        saved={c.req.query("saved") === "1"}
       />,
     );
   });
 
   /** A doubles player's next season: their say, their partner's, who is asking them, and whom they could ask. */
-  async function nextSeason(p: Player, competitionId: string, entry: Entry): Promise<NextSeason> {
+  async function nextSeason(p: Player, competitionId: string, entry: Entry, together: boolean): Promise<NextSeason> {
     const me = p.me.credential.member.id;
     const [{ data: choices }, { data: entries }] = await Promise.all([
       api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competitionId}/partner-choices`, p.session),
@@ -747,6 +766,7 @@ export function createWebsite(options: WebsiteOptions) {
     const partner = entry.members.find((m) => m.id !== me);
     return {
       partner: partner ? { id: partner.id, name: partner.display_name } : null,
+      together,
       mine: choices.find((x) => x.member_id === me) ?? null,
       partners: choices.find((x) => x.member_id === partner?.id) ?? null,
       asking: choices.filter((x) => x.partner_id === me && !x.agreed),
@@ -778,7 +798,7 @@ export function createWebsite(options: WebsiteOptions) {
     } catch (error) {
       return partnerRefused(c, p, error);
     }
-    return c.redirect(`/competitions/${id}`, 303);
+    return c.redirect(`/competitions/${id}?saved=1#next-season`, 303);
   });
 
   app.post("/competitions/:id/partner/:member/decline", async (c) => {
@@ -791,7 +811,7 @@ export function createWebsite(options: WebsiteOptions) {
     } catch (error) {
       return partnerRefused(c, p, error);
     }
-    return c.redirect(`/competitions/${id}`, 303);
+    return c.redirect(`/competitions/${id}?saved=1#next-season`, 303);
   });
 
   /** Whether what a player said about leaving altogether covers this entry: they held it when they said so. */
@@ -838,7 +858,7 @@ export function createWebsite(options: WebsiteOptions) {
       const p = await player(c);
       if (!p) return c.redirect("/", 303);
       const entry = await api<Entry>(method, `/v1/entries/${c.req.param("id")}/opt-out`, p.session);
-      return c.redirect(`/competitions/${entry.competition_id}`, 303);
+      return c.redirect(`/competitions/${entry.competition_id}?saved=1#next-season`, 303);
     });
   }
 
