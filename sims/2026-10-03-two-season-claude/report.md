@@ -254,7 +254,7 @@ There was one server error, five slow responses and some expected 4xx. All
 
 The 4xx responses were all expected:
 
-- 26 404s from the coach's agent guessing API paths;
+- 24 404s from the coach's agent guessing API paths;
 - 6 404s from Priya guessing site addresses;
 - one 403 from the agent reading `/v1/club` without `admin`;
 - one 400 coach form validation.
