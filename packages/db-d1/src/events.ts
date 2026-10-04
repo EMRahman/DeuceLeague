@@ -15,8 +15,10 @@ function decimal(value: string): bigint {
 }
 const padded = (value: string) => decimal(value).toString().padStart(20, "0");
 
-/** An event as the feed reads it, with who did it and what to, named as they are now. */
-export type FeedRecord = HistoryEvent & { actorName: string | null; subjectName: string | null };
+/** An event as the feed reads it, with who did it, what to, and what its payload names, named as they are now. */
+export type FeedRecord = HistoryEvent & {
+  actorName: string | null; subjectName: string | null; competitionName: string | null; partnerName: string | null;
+};
 
 /** Authentication and feed contents share one database snapshot. All event
  * inserts (including bulk writes) allocate their position in the same commit.
@@ -30,13 +32,15 @@ export async function readEventFeed(db: D1Database, hash: string, kind: Credenti
   const from = after ?? (newest ? { txId: MAX.toString(), id: MAX.toString() } : { txId: "0", id: "0" });
   const read = newest
     ? db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
-      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name,
+      n.competition_name, n.partner_name
       FROM event_position p JOIN event e ON e.id = p.local_id JOIN event_name n ON n.event_id = e.id
       WHERE p.club_id = (SELECT id FROM club WHERE singleton = 1)
         AND (p.tx_id, p.event_id) < (?, ?)
       ORDER BY p.tx_id DESC, p.event_id DESC LIMIT ?`)
     : db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
-      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name,
+      n.competition_name, n.partner_name
       FROM event_position p JOIN event e ON e.id = p.local_id JOIN event_name n ON n.event_id = e.id
       WHERE p.club_id = (SELECT id FROM club WHERE singleton = 1)
         AND (p.tx_id, p.event_id) > (?, ?)
@@ -44,12 +48,14 @@ export async function readEventFeed(db: D1Database, hash: string, kind: Credenti
   // Start at the indexed match history rather than filtering the club's whole event feed.
   const matchRead = newest
     ? db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
-      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name,
+      n.competition_name, n.partner_name
       FROM event e INDEXED BY event_subject_ix JOIN event_position p ON p.local_id = e.id JOIN event_name n ON n.event_id = e.id
       WHERE e.club_id = (SELECT id FROM club WHERE singleton = 1) AND e.subject_type = 'match' AND e.subject_id = ?
         AND (p.tx_id, p.event_id) < (?, ?) ORDER BY p.tx_id DESC, p.event_id DESC LIMIT ?`)
     : db.prepare(`SELECT ltrim(p.tx_id, '0') AS tx_id, ltrim(p.event_id, '0') AS event_id,
-      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name
+      e.type, e.subject_type, e.subject_id, e.actor_type, e.actor_id, e.occurred_at, e.payload, n.actor_name, n.subject_name,
+      n.competition_name, n.partner_name
       FROM event e INDEXED BY event_subject_ix JOIN event_position p ON p.local_id = e.id JOIN event_name n ON n.event_id = e.id
       WHERE e.club_id = (SELECT id FROM club WHERE singleton = 1) AND e.subject_type = 'match' AND e.subject_id = ?
         AND (p.tx_id, p.event_id) > (?, ?) ORDER BY p.tx_id, p.event_id LIMIT ?`);
@@ -62,6 +68,7 @@ export async function readEventFeed(db: D1Database, hash: string, kind: Credenti
     actorType: r.actor_type as HistoryEvent["actorType"], actorId: r.actor_id as string | null,
     occurredAt: new Date(r.occurred_at as number), payload: JSON.parse(r.payload as string) as Record<string, unknown>,
     actorName: r.actor_name as string | null, subjectName: r.subject_name as string | null,
+    competitionName: r.competition_name as string | null, partnerName: r.partner_name as string | null,
   }));
   return { identity, events, from };
 }

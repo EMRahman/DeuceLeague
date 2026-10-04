@@ -45,7 +45,11 @@ export type Vacancy = {
   entryId: string;
   label: string;
   because: string;
-  /** Who to suggest instead: the best carried entry not moving, for a promotion; the worst, for a relegation. */
+  /**
+   * Who to suggest instead: the best carried entry not moving, for a promotion; the worst, for a relegation.
+   * Never one from the wrong half of the table: nobody in the top half is suggested to go down, nor anyone in
+   * the bottom half to go up. The middle entry of an odd-sized division may go either way.
+   */
   fill: { entryId: string; label: string; place: string } | null;
   explanation: string;
 };
@@ -118,14 +122,21 @@ export function planPlacements(
     }
 
     // Who to suggest for each empty place: the best entry that is carried over, is not moving and could go
-    // up, for a promotion; the worst that is carried over and not moving, for a relegation.
+    // up, for a promotion; the worst that is carried over and not moving, for a relegation. Only from the
+    // half of the table the place belongs to: a vacancy is no reason to send down someone who finished in
+    // the top half, or up someone who finished in the bottom half.
     const suggested = new Set<string>();
     const staying = (r: StandingsRow) => !notCarried(r.entryId) && !promoted.has(r.entryId) && !relegated.has(r.entryId)
       && !suggested.has(r.entryId);
+    const half = (r: StandingsRow, kind: Vacancy["kind"]) => {
+      const i = inTable.indexOf(r);
+      return kind === "promotion" ? i < Math.ceil(inTable.length / 2) : i >= Math.floor(inTable.length / 2);
+    };
     for (const { kind, row, because, held } of [...open.filter((o) => o.kind === "promotion"), ...open.filter((o) => o.kind === "relegation")]) {
-      const pick = kind === "promotion"
+      const eligible = kind === "promotion"
         ? inTable.find((r) => r.standing === "ranked" && r.played >= movement.minMatchesForPromotion && staying(r))
         : [...inTable].reverse().find(staying);
+      const pick = eligible && half(eligible, kind) ? eligible : undefined;
       if (pick) suggested.add(pick.entryId);
       const to = kind === "promotion" ? up : down;
       const fill = pick ? { entryId: pick.entryId, label: pick.label, place: describePlace(pick, division.name) } : null;
@@ -133,7 +144,10 @@ export function planPlacements(
         kind, from: division.ordinal, to, entryId: row.entryId, label: row.label, because, fill,
         explanation: `A ${kind} place ${kind === "promotion" ? "into" : "down to"} ${nameOf(to)} is unfilled: ` +
           `${describePlace(row, division.name)} (${row.label}) is ${held ? "held back" : "not carried over"} (${because}). ` +
-          (fill ? `Suggested instead: ${fill.place}, ${fill.label}.` : `Nobody else in ${division.name} can take it.`),
+          (fill ? `Suggested instead: ${fill.place}, ${fill.label}.`
+            : eligible ? `No suggestion: the next eligible entry, ${describePlace(eligible, division.name)}, finished too ` +
+              `${kind === "promotion" ? "low" : "high"}.`
+            : `Nobody else in ${division.name} can take it.`),
       });
     }
 

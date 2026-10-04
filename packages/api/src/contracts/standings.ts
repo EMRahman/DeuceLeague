@@ -134,7 +134,9 @@ export const SeasonProgress = z
         discipline: Discipline,
         state: CompetitionState,
         opted_out: z
-          .array(z.object({ entry_id: z.uuid(), label: z.string() }))
+          .array(z.object({ entry_id: z.uuid(), label: z.string(),
+            said_by: z.string().nullable().openapi({ description: "Who said so, by display name: the players leaving, " +
+              "on a break or not playing it, else the player who opted the entry out. Null when the coach did." }) }))
           .openapi({ description: "Entries whose players said they are not playing in the next competition." }),
       }),
     ),

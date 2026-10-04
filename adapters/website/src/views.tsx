@@ -736,6 +736,8 @@ export const Home: FC<{
   leaving: string | null;
   /** The competitions they are in now, which saying so would leave. */
   entries: string[];
+  /** What they have said about next season in each competition they are in now, in a few words. */
+  choices: NextChoice[];
   /** Those of them that what they said covers, and those entered after they said it, which it does not. */
   covered: string[];
   later: string[];
@@ -898,6 +900,23 @@ export const Home: FC<{
     {!p.leaving && p.active && (
       <section class="card">
         <h2>Next season</h2>
+        {p.choices.length > 0 && (
+          <>
+            <p>If you do nothing, you stay in for next season.</p>
+            <ul class="list">
+              {p.choices.map((x) => (
+                <li class="answer">
+                  <div class="answer-row">
+                    <span>
+                      <strong>{x.competition}</strong>: {x.line}
+                    </span>
+                    <a href={`/competitions/${x.competitionId}#next-season`}>change</a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         {p.entries.length > 0 && (
           <>
             <p class="muted">
@@ -1200,25 +1219,34 @@ export type PartnerChoice = {
 /** What a doubles player sees of next season: their choice, their partner's, who is asking them, and whom they could ask. */
 export type NextSeason = {
   partner: { id: string; name: string } | null;
+  /** They played together in the competition before this one, so keeping the pair is playing together again. */
+  together: boolean;
   mine: PartnerChoice | null;
   partners: PartnerChoice | null;
   asking: PartnerChoice[];
   players: { id: string; name: string }[];
 };
 
-export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & TablesProps> = ({ frame, next, ...tables }) => {
+export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null; saved?: boolean } & TablesProps> = ({
+  frame,
+  next,
+  saved = false,
+  ...tables
+}) => {
   const { competition, past, mine } = tables;
   return (
     <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
       <CompetitionTables {...tables} />
 
       {mine && next && !mine.optedOut && !mine.leaving && !mine.onBreak && competition.state === "active" && (
-        <Partners competitionId={competition.id} next={next} />
+        <Partners competitionId={competition.id} next={next} saved={saved} />
       )}
 
       {mine && (mine.leaving || mine.onBreak || !(next && !mine.optedOut)) && competition.state === "active" && (
-        <section>
+        <section id="next-season">
           <h2>Next season</h2>
+          {saved && <Notice ok messages={[mine.optedOut ? "Saved. The coach will leave you out of the next one."
+            : "Saved. You stay in for next season."]} />}
           {mine.onBreak ? (
             <p>
               You are on a break, so you are not in the draft for next season, and will not be until you say you are
@@ -1253,11 +1281,34 @@ export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & Ta
   );
 };
 
+/** A competition the player is in now, and what they have said about playing it next season. */
+export type NextChoice = { competitionId: string; competition: string; line: string };
+
+/**
+ * What a player has said about next season in one competition, in a few words for their home page: whether
+ * they are playing, and in doubles with whom. Saying nothing keeps them in, with the same partner.
+ */
+export function nextChoiceLine(entry: { opted_out_at: string | null; members: { id: string; display_name: string }[] },
+  me: string, choices: PartnerChoice[] | null, together: boolean): string {
+  if (entry.opted_out_at) return "not playing (you opted out)";
+  if (!choices) return "playing";
+  const partner = entry.members.find((m) => m.id !== me);
+  const mine = choices.find((c) => c.member_id === me);
+  const theirs = choices.find((c) => c.member_id === partner?.id);
+  if (mine?.choice === "leaving") return "not playing";
+  if (mine?.choice === "new_partner") {
+    return !mine.partner_id ? "playing with a new partner the coach finds"
+      : mine.agreed ? `playing with ${mine.partner_name}` : `asked ${mine.partner_name}, waiting for them to agree`;
+  }
+  if (partner && theirs) return `${partner.display_name} is not staying with you: choose what you want`;
+  return partner ? `playing with ${partner.display_name}${together ? " again" : ""}` : "playing";
+}
+
 /** Where a doubles player stands for next season, in a sentence. */
 function standing(next: NextSeason): string {
   const { mine, partner } = next;
   const with_ = partner?.name ?? "your partner";
-  if (!mine) return `You are down to play with ${with_} again.`;
+  if (!mine) return `You are down to play with ${with_}${next.together ? " again" : ""} next season.`;
   if (mine.choice === "leaving") return "You have told the coach you are not playing next season.";
   if (!mine.partner_id) return "You want a new partner. The coach will find you one, or ask someone below.";
   return mine.agreed
@@ -1276,13 +1327,13 @@ function partnersSay(next: NextSeason): string | null {
     : `${name} has asked for a new partner. Ask someone else, or leave it to the coach.`;
 }
 
-const Partners: FC<{ competitionId: string; next: NextSeason }> = ({ competitionId, next }) => {
+const Partners: FC<{ competitionId: string; next: NextSeason; saved: boolean }> = ({ competitionId, next, saved }) => {
   const choice = next.mine?.choice ?? "keep";
   const heads = partnersSay(next);
   return (
-    <section>
+    <section id="next-season">
       <h2>Next season</h2>
-      <p>{standing(next)}</p>
+      {saved ? <Notice ok messages={[`Saved. ${standing(next)}`]} /> : <p>{standing(next)}</p>}
       {heads && <p class="deadline">{heads}</p>}
       {next.asking.map((a) => (
         <div class="card">
@@ -1312,7 +1363,7 @@ const Partners: FC<{ competitionId: string; next: NextSeason }> = ({ competition
           <div class="choices">
             <label>
               <input type="radio" name="choice" value="keep" checked={choice === "keep"} />
-              Play with {next.partner?.name ?? "my partner"} again
+              Play with {next.partner?.name ?? "my partner"}{next.together ? " again" : ""}
             </label>
             <label>
               <input type="radio" name="choice" value="new_partner" checked={choice === "new_partner"} />

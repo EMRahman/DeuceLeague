@@ -124,6 +124,9 @@ test("sample browser installation stays within its SQL statement budget and reta
 
   // The coach's pages, each read in full on every visit.
   async function coachPage(path: string, label = "Sample") {
+    // A key's last use is written at most once a minute: mark it used now, uncounted, so a slow run crossing
+    // that minute does not add the write to one page's count and not another's.
+    await raw.prepare("UPDATE api_key SET last_used_at = ?").bind(Date.now()).run();
     counted.reset();
     const page = await worker.fetch(new Request(env.PUBLIC_URL + path, { headers: { cookie: `deuceleague_coach=${admin}` } }), env, ctx);
     assert.equal(page.status, 200, path); await page.text();
@@ -186,14 +189,17 @@ test("sample browser installation stays within its SQL statement budget and reta
     }
     throw new Error(`${path} never finished`);
   }
-  assert.ok(await coachForm(`/coach/season/${season.id}/end`) > 1, "twelve competitions take more than one request to end");
+  const endPage = await (await worker.fetch(new Request(env.PUBLIC_URL + `/coach/season/${season.id}/end`,
+    { headers: { cookie: `deuceleague_coach=${admin}` } }), env, ctx)).text();
+  const shown = /name="shown" value="([^"]*)"/.exec(endPage)?.[1] ?? "";
+  assert.ok(await coachForm(`/coach/season/${season.id}/end`, { leave: "yes", shown }) > 1, "twelve competitions take more than one request to end");
   await coachForm("/coach/season/next", { from: season.id, name: "Next season", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const drafts = (await json("GET", "/v1/competitions?state=draft")).data as { id: string; season_id: string; discipline: string }[];
   assert.equal(drafts.length, 12);
   for (const discipline of ["singles", "doubles"]) {
     await coachPage(`/coach/season/drafts/${drafts.find((d) => d.discipline === discipline)!.id}`, "Twelve-competition");
   }
-  await coachForm(`/coach/season/${drafts[0]!.season_id}/start`);
+  await coachForm(`/coach/season/${drafts[0]!.season_id}/start`, { confirm: "yes" });
   assert.equal((await json("GET", "/v1/competitions?state=draft")).data.length, 0, "every draft started");
 
   const invitee = await json("POST", "/v1/members", { display_name: "Invitee", email: "invitee@example.org", phone: "07700 900123" });
