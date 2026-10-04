@@ -377,3 +377,44 @@ test("an opt-out is credited to whoever made the latest one, and to nobody when 
   assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, f.admin, "POST")).status, 200);
   assert.equal(await saidBy(), null, "the coach's newer opt-out is not the player's");
 });
+
+test("a former member is erased from Members with the administrator key, and their matches stay under \"Erased member\"", async (t) => {
+  const f = await websiteFixture(t);
+  const p = await playingWebsite(f);
+  const alex = p.members[1].id as string;
+  const sam = await signIn(f, "sam@example.org");
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  // Only a former member can be erased from here.
+  const active = await coach.get(`/coach/members/${alex}/erase`);
+  assert.equal(active.status, 303); assert.equal(active.location, "/coach/members#former");
+  assert.equal((await coach.post(`/coach/members/${alex}/erase`, { confirm: "yes", key: f.admin })).status, 303);
+  assert.equal((await f.api(`/v1/members/${alex}`, f.admin)).body.display_name, "Alex");
+  assert.equal((await coach.post(`/coach/members/${alex}/left`, { confirm: "yes" })).status, 303);
+  assert.match((await coach.get("/coach/members")).html, new RegExp(`href="/coach/members/${alex}/erase"`));
+  // Asked first, saying what it does; a post not confirmed changes nothing.
+  const ask = await coach.get(`/coach/members/${alex}/erase`);
+  assert.equal(ask.status, 200); assert.match(ask.html, /Erase Alex\?/); assert.match(ask.html, /cannot be undone/);
+  assert.match(ask.html, /Their matches and scores stay/); assert.match(ask.html, /name="key" type="password"/);
+  const unconfirmed = await coach.post(`/coach/members/${alex}/erase`, { key: f.admin });
+  assert.equal(unconfirmed.status, 303); assert.equal(unconfirmed.location, `/coach/members/${alex}/erase`);
+  // Only the administrator key erases: not this browser's own key, nor anything else.
+  const notKey = await coach.post(`/coach/members/${alex}/erase`, { confirm: "yes", key: "password" });
+  assert.equal(notKey.status, 400); assert.match(notKey.html, /not an API key/);
+  const wrong = await coach.post(`/coach/members/${alex}/erase`, { confirm: "yes", key: "dl_not_a_real_key" });
+  assert.equal(wrong.status, 401); assert.match(wrong.html, /not accepted/);
+  const own = await coach.post(`/coach/members/${alex}/erase`, { confirm: "yes", key: coach.session() });
+  assert.equal(own.status, 403); assert.match(own.html, /cannot erase members/);
+  assert.equal((await f.api(`/v1/members/${alex}`, f.admin)).body.display_name, "Alex");
+  // With it, their personal data goes and they leave Former members; their match stays, under "Erased member".
+  const erased = await coach.post(`/coach/members/${alex}/erase`, { confirm: "yes", key: f.admin });
+  assert.equal(erased.status, 303); assert.equal(erased.location, "/coach/members?erased=1#former");
+  const after = (await coach.get(erased.location!)).html;
+  assert.match(after, /Erased\. Their personal data is deleted/); assert.doesNotMatch(after, /id="former"/);
+  assert.deepEqual(await f.db.prepare("SELECT display_name, email, full_name, notes FROM member WHERE id = ?").bind(alex).first(),
+    { display_name: "Erased member", email: null, full_name: null, notes: null });
+  assert.equal(await events(f, "member.erased"), 1);
+  const match = await sam.get(`/matches/${p.match}`);
+  assert.equal(match.status, 200); assert.match(match.html, /Erased member/); assert.doesNotMatch(match.html, /Alex/);
+  // Erased once: the page is not offered again.
+  assert.equal((await coach.get(`/coach/members/${alex}/erase`)).location, "/coach/members#former");
+});
