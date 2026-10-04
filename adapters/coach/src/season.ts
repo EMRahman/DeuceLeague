@@ -340,3 +340,74 @@ export function draftView(
     pairs,
   };
 }
+
+/** What a doubles competition's players have said about next season, pair by pair, for the coach to answer them. */
+export type PairsView = {
+  /** New pairs both players agreed, each once. */
+  agreed: [string, string][];
+  /** Players wanting a new partner: the one they asked, if anyone, and whether they are waiting on an answer. */
+  seeking: { name: string; asked: string | null }[];
+  /** Players whose partner is not staying with them, and who has said nothing themselves. */
+  partnerless: { name: string; partner: string; why: string }[];
+  /** Players not in it next season, with why. */
+  out: { name: string; why: string }[];
+  /** This season's pairs where nobody has said anything: they stay together. */
+  keeping: string[];
+};
+
+/**
+ * Each player of this season's doubles competition by what they have said about next season: the same
+ * reckoning filling the draft makes, so the coach can answer "has my partner said she's staying?" before then.
+ */
+export function pairsView(entries: Entry[], choices: PartnerChoice[],
+  inClub: ActiveMember[], onBreak: ReadonlySet<string>, competition: string): PairsView {
+  const said = new Map(choices.map((c) => [c.member_id, c]));
+  const club = new Map(inClub.map((m) => [m.id, m]));
+  const view: PairsView = { agreed: [], seeking: [], partnerless: [], out: [], keeping: [] };
+  // Why a player will not be in it, whatever their partner says; null if nothing stops them. Saying they are
+  // leaving the league covers the entries they held when they said it, not one made after.
+  const createdOf = new Map(entries.flatMap((e) => e.members.map((m) => [m.id, e.created_at] as const)));
+  const gone = (id: string) => {
+    const leaving = club.get(id)?.leaving_at;
+    const created = createdOf.get(id);
+    return onBreak.has(id) ? "is on a break" : !club.has(id) ? "is no longer on the club's list"
+      : leaving && (!created || Date.parse(created) <= Date.parse(leaving)) ? "is leaving the league"
+      : said.get(id)?.choice === "leaving" ? `is not playing ${competition}` : null;
+  };
+  const named = new Set<string>();
+  for (const entry of [...entries].sort((a, b) => a.label.localeCompare(b.label))) {
+    if (entry.state === "withdrawn") {
+      view.out.push({ name: entry.label, why: "withdrew this season" });
+      continue;
+    }
+    // An opted-out pair is not playing together, though either player may have found someone new.
+    if (entry.opted_out_at) view.out.push({ name: entry.label, why: "opted out of next season" });
+    const changes = (id: string) => gone(id) !== null || said.get(id)?.choice === "new_partner";
+    if (!entry.opted_out_at && entry.members.every((m) => !changes(m.id))) {
+      view.keeping.push(entry.label);
+      continue;
+    }
+    for (const m of entry.members) {
+      const c = said.get(m.id);
+      const why = gone(m.id);
+      const partner = entry.members.find((p) => p.id !== m.id);
+      if (why) {
+        if (!entry.opted_out_at) view.out.push({ name: m.display_name, why });
+      } else if (entry.opted_out_at && c?.choice !== "new_partner") continue;
+      // An agreed pair holds only while the partner can still play; else this player needs someone new.
+      else if (c?.choice === "new_partner" && c.agreed && c.partner_id && gone(c.partner_id) === null) {
+        if (!named.has(m.id)) view.agreed.push([m.display_name, c.partner_name ?? "someone"]);
+        named.add(m.id); named.add(c.partner_id);
+      } else if (c?.choice === "new_partner") {
+        view.seeking.push({ name: m.display_name, asked: c.partner_id && gone(c.partner_id) === null ? c.partner_name : null });
+      }
+      else if (partner) {
+        const theirs = gone(partner.id);
+        const pc = said.get(partner.id);
+        view.partnerless.push({ name: m.display_name, partner: partner.display_name, why: theirs
+          ?? (pc?.agreed ? `agreed to play with ${pc.partner_name ?? "someone else"}` : "wants a new partner") });
+      }
+    }
+  }
+  return view;
+}

@@ -481,6 +481,12 @@ export const Dashboard: FC<{
                     </>
                   )}{" "}
                   {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
+                  {progress.discipline === "doubles" && (
+                    <>
+                      {" "}
+                      <a href={`/coach/pairs#competition-${progress.competition_id}`}>Next season's pairs</a>
+                    </>
+                  )}
                 </p>
               </div>
             );
