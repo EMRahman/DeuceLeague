@@ -5,6 +5,7 @@ export const REASONS = [
   { value: "conflicting_entries", label: "The sides entered different results" },
   { value: "incorrect_result", label: "The confirmed result is incorrect" },
   { value: "unreported_result", label: "Neither side has entered the result" },
+  { value: "injury_or_withdrawal", label: "Injury or withdrawal" },
 ] as const;
 
 export type CoachSettlement = ReportForm & { reason: typeof REASONS[number]["value"] };

@@ -243,6 +243,18 @@ test("the website corrects a player-confirmed result while preserving both origi
   assert.match(text((await coach.get(path)).html), /Decision history.*Coach website.*Both sides confirmed the result/);
 });
 
+test("the coach can give injury or withdrawal as the reason for a decision", async t => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
+  assert.match((await coach.get(`/coach/matches/${p.match}`)).html, /<option value="injury_or_withdrawal">Injury or withdrawal<\/option>/);
+  const body = { outcome: "conceded", retired_side: 1, reason: "injury_or_withdrawal" };
+  const preview = await f.api(`/v1/matches/${p.match}/settlement-preview`, f.admin, "POST", body);
+  assert.equal(preview.status, 200, JSON.stringify(preview.body));
+  const settled = await f.api(`/v1/matches/${p.match}/settle`, f.admin, "POST", { ...body, expected_version: preview.body.version });
+  assert.equal(settled.status, 201, JSON.stringify(settled.body));
+  assert.match(text((await coach.get(`/coach/matches/${p.match}`)).html), /Injury or withdrawal/);
+});
+
 test("Results and the match page write every score side-0-first, offer each entry as a decision and spot a reversed score", async t => {
   const f = await websiteFixture(t); const p = await playingWebsite(f);
   const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
