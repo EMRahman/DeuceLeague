@@ -31,6 +31,7 @@ import {
   LatestResults,
   Dashboard,
   Members,
+  ConfirmClearContacts,
   ConfirmErase,
   ConfirmLeft,
   EMAILED_MINUTES,
@@ -816,7 +817,8 @@ export function createCoachSite(options: CoachOptions) {
         && (within === null || (x.days_remaining !== null && x.days_remaining <= within))));
     }
     return c.html(
-      <Chase frame={frameOf(who, "chase")} rows={data} within={within} choices={WITHIN} progress={progress} />,
+      <Chase frame={frameOf(who, "chase")} rows={data} within={within} choices={WITHIN} progress={progress}
+        contacts={who.scopes.includes("members:pii")} />,
     );
   });
 
@@ -1010,15 +1012,30 @@ export function createCoachSite(options: CoachOptions) {
     const who = await coach(c); if (!who) return c.redirect("/coach", 303);
     return c.html(<InvitationResults frame={frameOf(who, "members")} results={[await invite(who, c.req.param("id"))]} />);
   });
+  /** Either contact on its own: many members have only one. An emptied field clears it, once the coach confirms. */
   app.post("/members/:id/contacts", async (c) => {
     const who = await coach(c); if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
     const form = await c.req.parseBody();
     const email = String(form.email ?? "").trim(), phone = String(form.phone ?? "").trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !isTelephone(phone)) return c.html(
-      <Problem frame={frameOf(who, "members")} title="Contacts not saved" detail="Enter a valid email address and telephone number. Return to Members to correct them." />, 400);
-    try { await api("PATCH", `/v1/members/${encodeURIComponent(c.req.param("id"))}`, who.key, { email, phone }); }
+    const wrong = [
+      ...(email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) ? ["That is not a valid email address."] : []),
+      ...(phone && !isTelephone(phone) ? ["A telephone number has 7 to 15 digits, and may start with +, such as 07700 900123."] : []),
+    ];
+    if (wrong.length) return c.html(<Problem frame={frameOf(who, "members")} title="Contacts not saved"
+      detail={`${wrong.join(" ")} Return to Members to correct it.`} back={{ href: `/coach/members#member-${id}`, label: "Back to members" }} />, 400);
+    if ((!email || !phone) && form.confirm !== "yes") {
+      const member = await api<CoachMember>("GET", `/v1/members/${encodeURIComponent(id)}`, who.key).catch((error: unknown) => {
+        if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+        throw error;
+      });
+      if (!member) return c.html(<Problem frame={frameOf(who, "members")} title="Contacts not saved" detail="That member is not on the club's list any more." />, 404);
+      const clearing = [...(!email && member.email ? ["email address"] : []), ...(!phone && member.phone ? ["telephone number"] : [])];
+      if (clearing.length) return c.html(<ConfirmClearContacts frame={frameOf(who, "members")} member={member} email={email} phone={phone} clearing={clearing} />);
+    }
+    try { await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { email: email || null, phone: phone || null }); }
     catch { return c.html(<Problem frame={frameOf(who, "members")} title="Contacts not saved" detail="Check your permission and that another member does not already use this email. Return to Members to correct it." />, 400); }
-    return c.redirect(`/coach/members#member-${c.req.param("id")}`, 303);
+    return c.redirect(`/coach/members#member-${id}`, 303);
   });
 
   app.post("/members/:id/sign-in-link", async (c) => {

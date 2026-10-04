@@ -163,6 +163,9 @@ export const ChaseEntry = z
     email: z.string().nullable().optional().openapi({
       description: "PII. Present only for a credential holding `members:pii`.",
     }),
+    phone: z.string().nullable().optional().openapi({
+      description: "PII. Present only for a credential holding `members:pii`.",
+    }),
     outstanding_matches: z.number().int().openapi({ description: "Always needs_playing + awaiting_you + awaiting_them." }),
     needs_playing: z.number().int().openapi({ description: "Nobody has reported a result: go and arrange it." }),
     awaiting_you: z.number().int().openapi({
@@ -255,8 +258,8 @@ export const chase = createRoute({
     "running season is listed: a finished season's matches cannot be settled, so nothing would clear them. A " +
     "match against a withdrawn entry, or one whose members have all left the club, is outstanding for no one " +
     "until the entry returns. " +
-    "`within_days` is the whole reminder workflow: 30 a month out, 14 a fortnight later. Emails appear only " +
-    "for a credential holding `members:pii`. What gets sent, and to whom, is the coach's decision — the " +
+    "`within_days` is the whole reminder workflow: 30 a month out, 14 a fortnight later. Emails and phone " +
+    "numbers appear only for a credential holding `members:pii`. What gets sent, and to whom, is the coach's decision — the " +
     "core sends nothing.",
   ...requires("members:read"),
   request: {

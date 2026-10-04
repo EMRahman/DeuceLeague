@@ -66,6 +66,7 @@ export function toChase(r: ChaseRow, minimum: { played: number; target: number }
     member_id: r.memberId,
     display_name: r.displayName,
     ...(r.email === undefined ? {} : { email: r.email }),
+    ...(r.phone === undefined ? {} : { phone: r.phone }),
     outstanding_matches: r.outstandingMatches,
     needs_playing: r.needsPlaying,
     awaiting_you: r.awaitingYou,

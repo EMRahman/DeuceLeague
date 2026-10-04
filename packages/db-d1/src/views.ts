@@ -32,7 +32,7 @@ export async function readLeagueViews(db: D1Database, hash: string, kind: Creden
   return { ...snapshot, ledger: ledgerRecords(snapshot.extraResults[0]!), timezone: String((snapshot.extraResults[1]!.results[0] as Row).timezone) };
 }
 
-/** No email leaves D1 without the requesting live key's PII scope in this snapshot.
+/** No email or phone leaves D1 without the requesting live key's PII scope in this snapshot.
  * Aggregate only outstanding matches; duplicates in waiting_on are intentional.
  * Only the running season's competitions that are not closed appear: a finished season's loose ends
  * cannot be settled, so nothing would ever clear them. They are found from their outstanding matches
@@ -65,7 +65,7 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
         AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000) AND s.value = 'members:pii') AS pii
     ) SELECT sides.competition_id, sides.competition_name, sides.division_id, sides.division_name, sides.ordinal,
       sides.results_deadline_at, sides.timezone, mb.id AS member_id, mb.display_name,
-      CASE WHEN permission.pii THEN json_object('email', mb.email) ELSE NULL END AS personal_json,
+      CASE WHEN permission.pii THEN json_object('email', mb.email, 'phone', mb.phone) ELSE NULL END AS personal_json,
       count(*) AS outstanding_matches,
       sum(NOT claimed AND NOT opponent_claimed) AS needs_playing,
       sum(opponent_claimed) AS awaiting_you,
@@ -103,7 +103,7 @@ export async function readChase(db: D1Database, hash: string, kind: CredentialKi
     competitionId: String(r.competition_id), competitionName: String(r.competition_name),
     divisionId: r.division_id as string, divisionName: r.division_name as string, divisionOrdinal: Number(r.ordinal ?? 0),
     memberId: String(r.member_id), displayName: String(r.display_name),
-    ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as { email: string | null }),
+    ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as { email: string | null; phone: string | null }),
     outstandingMatches: Number(r.outstanding_matches), needsPlaying: Number(r.needs_playing), awaitingYou: Number(r.awaiting_you), awaitingThem: Number(r.awaiting_them),
     deadline: r.results_deadline_at === null ? null : new Date(Number(r.results_deadline_at)), timezone: String(r.timezone),
     waitingOn: JSON.parse(String(r.waiting_on)) as string[],

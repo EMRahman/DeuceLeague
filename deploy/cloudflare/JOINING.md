@@ -38,7 +38,7 @@ page shows the oldest 25 requests at a time; deciding them brings on the next.
 
 ## Existing members and invitations
 
-Existing members stay on the list even if contacts are missing. **Contact details to complete** links to each affected member. Use **Save contacts** to add a valid email and telephone; personal details require `members:pii`.
+Existing members stay on the list even if contacts are missing. **Contact details to complete** links to each affected member. Use **Save contacts** to add an email address, a telephone number or both. Emptying a field clears it after you confirm. Personal details require `members:pii`.
 
 With email configured, use **Email sign-in link**, or select one to five members and **Email selected members**. Batches are bounded to keep each request within the Worker query allowance. Members shows the latest accepted or failed email attempt separately from who has signed in. Provider acceptance does not confirm inbox delivery. On failure, check contacts and provider configuration before retrying; a manual link remains available.
 
