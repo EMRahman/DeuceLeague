@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import { deadlineLine, type Match, type Season } from "@deuceleague/website";
-import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PlacedEntry, type Turnover, type Unplaced } from "./season.js";
+import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PairsView, type PlacedEntry, type Turnover,
+  type Unplaced } from "./season.js";
 import { Layout, type CoachCompetition, type Frame, type SeasonProgress } from "./views.js";
 
 /** The Season tab's pages: ending a season, starting the next from its tables, and adjusting the drafts. */
@@ -373,6 +374,7 @@ export const Draft: FC<{
     <Layout title={`${draft.name}, ${season.name}`} frame={frame}>
       <p class="muted">
         <a href="/coach/season">Season</a> · {season.name} · draft
+        {doubles && <> · <a href={`/coach/pairs#competition-${previous.id}`}>What players said about partners</a></>}
       </p>
       <h1>{draft.name}</h1>
       {empty ? (
@@ -497,22 +499,24 @@ export const Draft: FC<{
       )}
 
       {!empty && doubles && (
-        <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} category={draft.category} />
+        <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} category={draft.category}
+          previous={previous.name} />
       )}
     </Layout>
   );
 };
 
 /** Why someone has no pair in the draft, in a few words: what they said, else what became of their pair. */
-const note = (u: Unplaced) =>
-  u.said ?? (u.last ? `Was in ${u.last.entry.label} · ${u.last.why}` : "Not in doubles last season");
+const note = (u: Unplaced, previous: string) =>
+  u.said ?? (u.last ? `Was in ${u.last.entry.label} · ${u.last.why}` : `Not in ${previous} last season`);
 
-const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number; category: string }> = ({
+const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number; category: string; previous: string }> = ({
   draft,
   view,
   divisions,
   bottom,
   category,
+  previous,
 }) => {
   const paired = new Set(view.pairs.flat().map((u) => u.id));
   const free = view.unplaced.filter((u) => !u.out && !paired.has(u.id));
@@ -558,7 +562,7 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
                 <Level level={u.level} />
                 {genderUnclear(u, category) && <span class="tag">Gender not recorded</span>}
                 <br />
-                <span class="muted">{note(u)}</span>
+                <span class="muted">{note(u, previous)}</span>
               </li>
             ))}
           </ul>
@@ -633,5 +637,59 @@ export const StartSeason: FC<{ frame: Frame; season: Season; drafts: CoachCompet
     <p class="after">
       <a href="/coach/season">Not yet: back to Season</a>
     </p>
+  </Layout>
+);
+
+/** Every doubles competition's players by what they said about next season: who is with whom, who needs whom. */
+export const Pairs: FC<{ frame: Frame; season: Season | null; competitions: { competition: CoachCompetition; view: PairsView }[] }> = ({
+  frame,
+  season,
+  competitions,
+}) => (
+  <Layout title="Next season's pairs" frame={frame}>
+    <h1>Next season's pairs</h1>
+    <p class="muted">
+      What each doubles player{season ? ` in ${season.name}` : ""} has said about next season. Nobody saying anything
+      means keeping their partner. Filling next season's draft follows the same: agreed new pairs wait for you to place
+      them, and those without a partner are listed for you to pair.
+    </p>
+    {competitions.length === 0 && <p>No doubles competition is running.</p>}
+    {competitions.length > 1 && (
+      <p class="jump">
+        {competitions.map(({ competition }) => <a href={`#competition-${competition.id}`}>{competition.name}</a>)}
+      </p>
+    )}
+    {competitions.map(({ competition, view }) => (
+      <section class="card" id={`competition-${competition.id}`}>
+        <h2>{competition.name}</h2>
+        <h3>New pairs agreed ({view.agreed.length})</h3>
+        {view.agreed.length === 0 ? <p class="muted">None yet.</p> : (
+          <ul class="list">{view.agreed.map(([a, b]) => <li class="answer">{a} and {b}</li>)}</ul>
+        )}
+        <h3>Looking for a partner ({view.seeking.length + view.partnerless.length})</h3>
+        {view.seeking.length + view.partnerless.length === 0 ? <p class="muted">Nobody.</p> : (
+          <ul class="list">
+            {view.seeking.map((s) => (
+              <li class="answer">
+                {s.name} <span class="muted">· {s.asked ? `asked ${s.asked}, who has not agreed yet` : "wants you to find a partner"}</span>
+              </li>
+            ))}
+            {view.partnerless.map((p) => (
+              <li class="answer">
+                {p.name} <span class="muted">· has said nothing, but {p.partner} {p.why}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h3>Not playing next season ({view.out.length})</h3>
+        {view.out.length === 0 ? <p class="muted">Nobody.</p> : (
+          <ul class="list">{view.out.map((o) => <li class="answer">{o.name} <span class="muted">· {o.why}</span></li>)}</ul>
+        )}
+        <h3>Keeping their partner ({view.keeping.length})</h3>
+        {view.keeping.length === 0 ? <p class="muted">None.</p> : (
+          <ul class="list">{view.keeping.map((k) => <li class="answer">{k}</li>)}</ul>
+        )}
+      </section>
+    ))}
   </Layout>
 );
