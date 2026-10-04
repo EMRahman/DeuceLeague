@@ -19,7 +19,8 @@ export function settlementVersion(state: ResultSnapshot): string {
 export function settlementPreview(state: ResultSnapshot, body: z.infer<typeof Settlement>, id: string): z.infer<typeof SettlementPreview> {
   const { match, competition, standings } = state;
   if (!match || !competition || !standings) throw new Error("Settlement review requires a match and standings");
-  const decision = decideResult({ ...state, match, competition, memberId: null, now: new Date(state.identity.now) },
+  const decision = decideResult({ ...state, match, competition, memberId: null, now: new Date(state.identity.now),
+    timezone: state.identity.club?.timezone ?? "UTC" },
     { type: "settle", body: { ...body, override: true } }, id);
   const detail = matchDetail(match, state.claims, undefined);
   const result = decision?.ledger ? {

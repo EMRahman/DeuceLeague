@@ -23,6 +23,8 @@ export type ResultContext = {
   ownSide: number | null;
   memberId: string | null;
   now: Date;
+  /** The club's IANA zone: whose calendar says which day is today. */
+  timezone: string;
 };
 export type LedgerEntry = {
   outcome: string; score: Score | null; winningSide: number | null;

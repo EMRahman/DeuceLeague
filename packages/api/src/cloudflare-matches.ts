@@ -38,6 +38,7 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
       const decision = action ? decideResult({
         match: state.match, claims: state.claims, competition: state.competition,
         deadline: state.deadline, ownSide: state.ownSide, memberId, now: new Date(state.identity.now),
+        timezone: state.identity.club?.timezone ?? "UTC",
       }, action, uuidv7()) : null;
       if (!decision) {
         await commitIdentity(db, state.identity, { type: "read" });

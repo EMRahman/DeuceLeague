@@ -16,12 +16,10 @@ export function deadlinePassed(deadline: Date): never {
     `Results were taken until ${iso(deadline)}. The coach can settle this match, or move the season's deadline.`);
 }
 
-const DAY = 86_400_000;
-
-/** A match cannot have been played after today. Tomorrow in UTC is already today somewhere, so no club is refused its own date. */
-function checkPlayedOn(playedOn: string | undefined, now: Date) {
-  const latest = new Date(now.getTime() + DAY).toISOString().slice(0, 10);
-  if (playedOn !== undefined && playedOn > latest) {
+/** A match cannot have been played after today on the club's calendar. */
+function checkPlayedOn(playedOn: string | undefined, now: Date, timezone: string) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now);
+  if (playedOn !== undefined && playedOn > today) {
     throw problems.validation([{ path: "played_on", message: "cannot be after today" }]);
   }
 }
@@ -34,7 +32,7 @@ export function visibleToPlayer(competition: ResultContext["competition"]): bool
  * id; the result describes all changes and events, or null for an exact retry.
  * A D1 conflict reruns this function with fresh state, never just its writes. */
 export function decideResult(state: ResultContext, action: ResultAction, id: string): ResultMutation | null {
-  const { match, competition, claims, memberId, ownSide, deadline, now } = state;
+  const { match, competition, claims, memberId, ownSide, deadline, now, timezone } = state;
   if (memberId !== null && !visibleToPlayer(competition)) throw problems.notFound("match");
   if (competition.state !== "active") {
     throw problems.conflict("competition_not_active", `The competition is ${competition.state}`,
@@ -68,7 +66,7 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
       side = ownSide as SideIndex;
     }
     checkDeadline();
-    checkPlayedOn(body.played_on, now);
+    checkPlayedOn(body.played_on, now, timezone);
     const { claim, checked } = checkResult(body, competition.matchFormat);
     if (match.status === "played") {
       if (compareClaims(ledgerClaim(match), claim).length === 0) return null;
@@ -94,7 +92,7 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
     };
   }
   const { body } = action;
-  checkPlayedOn(body.played_on, now);
+  checkPlayedOn(body.played_on, now, timezone);
   const { claim, checked } = checkResult(body, competition.matchFormat);
   const playedOn = body.played_on ?? match.playedOn;
   if (match.status === "played" && compareClaims(ledgerClaim(match), claim).length === 0 && playedOn === match.playedOn) return null;

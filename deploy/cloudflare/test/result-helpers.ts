@@ -61,6 +61,7 @@ export async function prepareResult(f: Awaited<ReturnType<typeof playing>>, matc
   const decision = decideResult({
     match: state.match, competition: state.competition, claims: state.claims, deadline: state.deadline,
     ownSide: state.ownSide, memberId: state.identity.credential.member_id, now: new Date(state.identity.now),
+    timezone: state.identity.club!.timezone,
   }, action, randomUUID());
   assert.ok(decision);
   return { state, decision };
