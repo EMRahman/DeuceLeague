@@ -76,7 +76,11 @@ MIT-licensed.
   addresses those with an email; the site itself sends nothing.
 - **Members** (`/coach/members`). Each member with the date and time they
   signed in, on the club's clock (`signed_in_at`: their newest device still
-  signed in), those not signed in yet first, and how many are signed in. Each
+  signed in), those not signed in yet first, and how many are signed in. An
+  emailed link that ran out before the member signed in says "Link sent, not
+  used", and **Show only those placed but never signed in**
+  (`/coach/members?show=unsigned`) narrows the list to members in a
+  competition under way or being drafted who have never signed in. Each
   has a level from 10 (a beginner) to 1 (a national player) that the coach can
   change. Above them, with `members:pii`, **Asking to join** lists the requests
   from the players' `/join` form (`GET /v1/join-requests`), each with **Approve**,
@@ -88,12 +92,22 @@ MIT-licensed.
   Each member also has **Not playing next season** (`POST /v1/members/{id}/leave`),
   for a player leaving the league altogether: out of every draft, singles and
   doubles, while this season carries on as it is, and **Take it back**.
+- **Next season's pairs** (`/coach/pairs`), linked from each doubles
+  competition on the dashboard and from its draft. For the season under way, or
+  else the one just ended, each doubles competition's players by what they said
+  (`GET /v1/competitions/{id}/partner-choices`): new pairs agreed, players
+  looking for a partner (including those whose partner is not staying), those
+  not playing, and the pairs keeping their partner.
 - **Season** (`/coach/season`). The turn of a season, in four steps, each an
   existing API route:
-  - **End season now**, after a page saying what ending early does: moves the
+  - **End season now**, after a page saying what ending early does and
+    listing each result never agreed (disputed, or entered by one side only),
+    linked to decide it; leaving any undecided needs a tick. It moves the
     results deadline to now if it is later, completes each active
-    competition, then completes the season.
-  - **Start next season**, once one has ended: a planning season with the
+    competition, then completes the season. Afterwards the Season page says
+    how the season closed, listing the matches it left undecided.
+  - **Prepare next season's drafts**, once one has ended, suggesting the next
+    of spring, summer, autumn and winter as its name: a planning season with the
     coach's name and dates (results close at the end of the last day), each
     ended competition made again as a draft naming it as previous, and each
     draft filled from the final tables (`POST /v1/competitions/{id}/placements`).
@@ -102,12 +116,15 @@ MIT-licensed.
     season's entries not carried over, with why, to add back; and the members
     not in the draft, to add, or in doubles to pair. It reads the engine's plan
     (`GET /v1/competitions/{id}/placements`) to show each promotion or
-    relegation place left empty, with a one-click suggested fill, and flags a
+    relegation place left empty, with a one-click suggested fill (never from
+    the wrong half of the table), says so instead once the coach has put the
+    entry that held the place back where it was, and flags a
     division too small for its minimum. In doubles it reads what
     players said about next season's partners
     (`GET /v1/competitions/{id}/partner-choices`): pairs who agreed wait to be
     added, and anyone not playing is listed apart.
-  - **Start** the season: activates it, then draws each division's matches
+  - **Start** the season, after a page asking first since players get their
+    fixtures at once: activates it, then draws each division's matches
     (`POST /v1/divisions/{id}/fixtures`) and activates each draft.
 
   Each step checks where things are first, so a form sent again finishes the

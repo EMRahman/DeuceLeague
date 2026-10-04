@@ -11,7 +11,7 @@
  * GDPR; a club elsewhere, or one that changes the notice's words, gives it a
  * new name here, so each member's record says which one they agreed to.
  */
-export const PRIVACY_NOTICE = "uk-2026-10-02";
+export const PRIVACY_NOTICE = "uk-2026-10-03";
 
 /** Quicker than this, the form was not filled in by a person. */
 export const MIN_FILL_MS = 3_000;

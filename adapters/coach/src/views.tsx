@@ -20,6 +20,7 @@ import {
   type Season,
   type Side,
 } from "@deuceleague/website";
+import { MIRRORED, mirrored } from "./results.js";
 
 /**
  * The coach's pages: plain server-rendered HTML with no scripts, in the
@@ -39,6 +40,8 @@ export type CoachMember = {
   invitation_at?: string | null;
   level: number | null;
   signed_in_at: string | null;
+  /** When they last signed in anywhere, signed out since or not. */
+  last_signed_in_at?: string | null;
   status: "active" | "paused" | "left";
   /** When they said they are not playing next season at all, if they did. */
   leaving_at: string | null;
@@ -159,7 +162,7 @@ export type SeasonProgress = {
     name: string;
     discipline: Competition["discipline"];
     state: Competition["state"];
-    opted_out: { entry_id: string; label: string }[];
+    opted_out: { entry_id: string; label: string; said_by: string | null }[];
   })[];
 };
 
@@ -184,6 +187,9 @@ export type FeedEvent = {
   subject_name: string | null;
   occurred_at: string;
   payload: Record<string, unknown>;
+  /** The competition and partner the payload names by ID, as they are called now. */
+  competition_name: string | null;
+  partner_name: string | null;
 };
 
 /** A match as a list returns it, with when it last changed. */
@@ -477,6 +483,12 @@ export const Dashboard: FC<{
                     </>
                   )}{" "}
                   {next ? `Next season's ${next.name} is drafted (${next.state}).` : "Next season is not drafted yet."}
+                  {progress.discipline === "doubles" && (
+                    <>
+                      {" "}
+                      <a href={`/coach/pairs#competition-${progress.competition_id}`}>Next season's pairs</a>
+                    </>
+                  )}
                 </p>
               </div>
             );
@@ -545,6 +557,10 @@ function standing(match: MatchDetail, side: Side) {
   return match.claims.findLast((x) => x.side === side && x.state === "pending");
 }
 
+/** An entry not playing next season, with who said so when that is not the whole entry: "Tom F. / Dan O. (Tom F. said so)". */
+export const notPlaying = (e: { label: string; said_by: string | null }) =>
+  e.said_by && e.said_by !== e.label ? `${e.label} (${e.said_by} said so)` : e.label;
+
 /** Where a match is played: "Men's singles · Division 2". */
 const where = (m: Match) => [m.competition_name, m.division_name].filter(Boolean).join(" · ");
 
@@ -601,6 +617,7 @@ export const Results: FC<{
             ))}
           </div>
           <p class="muted">Both written with {names[0]}'s games first.</p>
+          {mirrored(claims[0], claims[1]) && <p>{MIRRORED}</p>}
           {m.differences.length > 0 && (
             <ul class="plain">
               {m.differences.map((d) => (
@@ -634,10 +651,12 @@ export const Results: FC<{
                 <br />
                 {claim ? (
                   <span>
-                    {names[claim.side ?? 0]} reported {describe(claim, claim.side ?? 0, names)}.{" "}
+                    {names[claim.side ?? 0]} entered: {describe(claim, 0, names)}.{" "}
                     <span class="deadline">
                       {names[waiting]} has not answered in {daysSince(Date.parse(claim.submitted_at))}.
                     </span>
+                    <br />
+                    <span class="muted">Written with {names[0]}'s games first.</span>
                   </span>
                 ) : (
                   <span>Waiting on {names[waiting]}.</span>
@@ -760,13 +779,23 @@ const NOUNS: Record<string, string> = {
 };
 
 /** An event as a sentence: who did what, to what. */
-function sentence(e: FeedEvent): string {
+export function sentence(e: FeedEvent): string {
   const actor =
     e.actor_name ?? { api_key: "A key", member: "A player", system: "DeuceLeague" }[e.actor_type] ?? "Someone";
   const subject = e.subject_name ?? "someone";
   const [kind, ...rest] = e.type.split(".");
   const action = rest.join(".");
-  const state = e.payload.state as { from: string; to: string } | undefined;
+  // Only a change of state is a move; an invitation's state, say, is one word.
+  const raw = e.payload.state as { from?: unknown; to?: unknown } | string | undefined;
+  const state = raw && typeof raw === "object" && typeof raw.from === "string" && typeof raw.to === "string"
+    ? { from: raw.from, to: raw.to } : undefined;
+  // Next season's choices are made per competition, so each line says which.
+  const competition = e.competition_name ?? "their competition";
+  const doubles = e.competition_name ?? "doubles";
+  const partner = e.partner_name ?? "someone";
+  // A player opting out themselves, or the coach or a partner doing it for them.
+  const opted = (how: string) =>
+    e.actor_name === e.subject_name ? `${subject} opted ${how}` : `${actor} opted ${subject} ${how}`;
   switch (e.type) {
     case "match.claim.reported":
       return `${actor} reported a score for ${subject}`;
@@ -778,6 +807,9 @@ function sentence(e: FeedEvent): string {
       return e.payload.how === "settled" ? `${actor} settled ${subject}` : `The result of ${subject} is agreed`;
     case "member.login_link.created":
       return `${actor} made a sign-in link for ${subject}`;
+    case "member.invitation.recorded":
+      return raw === "failed" ? `${actor} could not email a sign-in link to ${subject}`
+        : `${actor} emailed a sign-in link to ${subject}`;
     case "member.signed_in":
       return `${subject} signed in`;
     case "member.signed_out":
@@ -786,6 +818,14 @@ function sentence(e: FeedEvent): string {
       return `${actor} signed ${subject} out everywhere`;
     case "member.created":
       return e.payload.join_request_id ? `${actor} approved ${subject}'s request to join` : `${actor} added ${subject}`;
+    case "member.leaving.recorded":
+      return `${subject} is not playing next season`;
+    case "member.leaving.cleared":
+      return `${subject} is playing next season again`;
+    case "member.paused":
+      return `${subject} is taking a break`;
+    case "member.resumed":
+      return `${subject} is back from a break`;
     case "join_request.received":
       return "Someone asked to join the league";
     case "join_request.declined":
@@ -801,19 +841,19 @@ function sentence(e: FeedEvent): string {
     case "api_key.recovered":
       return `A new administrator key, ${subject}, was made with the recovery tool`;
     case "entry.opt_out.recorded":
-      return `${subject} opted out of next season`;
+      return opted(`out of ${competition} next season`);
     case "entry.opt_out.cleared":
-      return `${subject} opted back in to next season`;
+      return opted(`back in to ${competition} next season`);
     case "partner_choice.recorded":
-      if (e.payload.choice === "leaving") return `${subject} is not playing doubles next season`;
-      if (e.payload.agreed) return `${subject} agreed a new doubles partner for next season`;
+      if (e.payload.choice === "leaving") return `${subject} is not playing ${doubles} next season`;
+      if (e.payload.agreed) return `${subject} agreed to play ${doubles} with ${partner} next season`;
       return e.payload.partner_id
-        ? `${subject} asked someone to be their doubles partner next season`
-        : `${subject} is looking for a new doubles partner for next season`;
+        ? `${subject} asked ${partner} to play ${doubles} with them next season`
+        : `${subject} is looking for a new partner in ${doubles} next season`;
     case "partner_choice.cleared":
-      return `${subject} is keeping their doubles partner next season`;
+      return `${subject} is keeping their partner in ${doubles} next season`;
     case "partner_choice.declined":
-      return `${actor} said no to partnering ${subject} next season`;
+      return `${actor} said no to playing ${doubles} with ${subject} next season`;
     case "division.fixtures_generated":
       return `${actor} drew up the fixtures for ${subject}`;
     case "competition.placements_filled":
@@ -1086,6 +1126,20 @@ export const Chase: FC<{
   );
 };
 
+/** How long an emailed sign-in link works. */
+export const EMAILED_MINUTES = 15;
+
+/** An emailed sign-in link that ran out before the member signed in with it. */
+const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === "accepted" && !!m.invitation_at
+  && Date.parse(m.invitation_at) + EMAILED_MINUTES * 60_000 < now
+  && !signedInSince(m, m.invitation_at);
+
+/** Whether they have signed in at all, or since a moment: signing out since does not undo it. */
+export const signedInSince = (m: CoachMember, since: string | null = null) => {
+  const last = m.last_signed_in_at ?? m.signed_in_at;
+  return !!last && (since === null || Date.parse(last) >= Date.parse(since));
+};
+
 export const Members: FC<{
   frame: Frame;
   members: CoachMember[];
@@ -1102,9 +1156,16 @@ export const Members: FC<{
   addedId: string | null;
   emailConfigured: boolean;
   timezone: string;
-}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured }) => (
+  /** Showing only those placed in a competition who have never signed in. */
+  unsigned?: boolean;
+}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured, unsigned = false }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
+    {left.length > 0 && (
+      <p class="jump">
+        <a href="#former">Former members ({left.length})</a>
+      </p>
+    )}
     {done && (
       <div class="notice ok" role="status">
         {done}
@@ -1214,14 +1275,22 @@ export const Members: FC<{
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
       once, within 72 hours. Once signed in, a player stays signed in on that phone.
     </p>
-    {members.length > 0 && (
-      <p class="muted">
-        {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
-        listed first. Levels run from 10, a beginner, to 1, a national player.
+    {unsigned ? (
+      <p>
+        <strong>Placed but never signed in ({members.length}).</strong> In a competition under way or being drafted, and
+        never signed in. <a href="/coach/members">Show everyone</a>
       </p>
+    ) : (
+      members.length > 0 && (
+        <p class="muted">
+          {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
+          listed first. Levels run from 10, a beginner, to 1, a national player.{" "}
+          <a href="/coach/members?show=unsigned">Show only those placed but never signed in</a>
+        </p>
+      )
     )}
     {members.length === 0 ? (
-      <p class="muted">The club has no members yet.</p>
+      <p class="muted">{unsigned ? "Everyone placed has signed in." : "The club has no members yet."}</p>
     ) : (
       <div class="card">
         <ul class="list">
@@ -1251,6 +1320,10 @@ export const Members: FC<{
               {m.invitation_state && <p class={m.invitation_state === "failed" ? "deadline" : "muted"}>
                 {m.invitation_state === "accepted" ? "Email accepted for sending; inbox delivery not confirmed" : "Email attempt failed; check contacts and provider, then retry"}
                 {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
+              </p>}
+              {unusedLink(m) && <p class="deadline">
+                Link sent, not used: it ran out {EMAILED_MINUTES} minutes after sending. Email another, or make a sign-in
+                link to send another way.
               </p>}
               {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
                 <button class="small" type="submit">Email sign-in link</button>
@@ -1292,7 +1365,9 @@ export const Members: FC<{
                   <button class="quiet small" type="submit">
                     Take a break
                   </button>
-                  <span class="muted"> Out of every draft until they are back. This season carries on as it is.</span>
+                  <span class="muted">
+                    {" "}Out of every draft until they are back. Their matches this season stay, and still count.
+                  </span>
                 </form>
               )}
               {m.leaving_at ? (
@@ -1308,15 +1383,17 @@ export const Members: FC<{
                   <button class="quiet small" type="submit">
                     Not playing next season
                   </button>
-                  <span class="muted"> Out of every draft, singles and doubles. This season carries on as it is.</span>
+                  <span class="muted">
+                    {" "}Out of next season's drafts, singles and doubles. Their matches this season stay, and still count.
+                  </span>
                 </form>
               )}
-              <form method="post" action={`/coach/members/${m.id}/left`}>
-                <button class="quiet small" type="submit">
-                  Left the club
-                </button>
-                <span class="muted"> Their results stay. They are not placed next season.</span>
-              </form>
+              <p>
+                <a class="button small quiet" href={`/coach/members/${m.id}/left`}>
+                  Left the club…
+                </a>
+                <span class="muted"> Asks first. Their results stay; they are not placed again, nor sent new sign-in links.</span>
+              </p>
             </li>
           ))}
         </ul>
@@ -1324,7 +1401,7 @@ export const Members: FC<{
     )}
     {left.length > 0 && (
       <>
-        <h2>Left the club</h2>
+        <h2 id="former">Former members ({left.length})</h2>
         <p class="muted">
           Their scores stay in past tables. They are left out of next season's draft and cannot be entered in a
           competition. If one comes back, put them back in the club.
@@ -1538,5 +1615,29 @@ export const InvitationResults: FC<{ frame: Frame; results: { name: string; mess
     {added && <p>{added} is now a member, waiting for next season's placement. Approval succeeded even if the email failed.</p>}
     <ul>{results.map((r) => <li><strong>{r.name}</strong>: {r.message}</li>)}</ul>
     <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>
+  </Layout>
+);
+
+/** Leaving the club, asked first: what it does to this season, next season and signing in. */
+export const ConfirmLeft: FC<{ frame: Frame; member: CoachMember }> = ({ frame, member }) => (
+  <Layout title={`${member.display_name} has left the club?`} frame={frame}>
+    <h1>{member.display_name} has left the club?</h1>
+    <ul class="plain">
+      <li>Their matches this season stay as they are: results already in still count, and you can still decide the rest.</li>
+      <li>They are taken out of next season's drafts and cannot be entered in a competition.</li>
+      <li>Any sign-in link not yet used stops working, and you cannot make them another.</li>
+      <li>They move to Former members at the foot of Members, where you can bring them back.</li>
+    </ul>
+    <p class="muted">
+      Away for a while, or just not playing next season? Use Take a break or Not playing next season instead: they stay
+      on the club's list.
+    </p>
+    <form method="post" action={`/coach/members/${member.id}/left`}>
+      <input type="hidden" name="confirm" value="yes" />
+      <button type="submit">Yes, {member.display_name} has left</button>
+    </form>
+    <p class="after">
+      <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+    </p>
   </Layout>
 );

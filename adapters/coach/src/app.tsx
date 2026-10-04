@@ -19,9 +19,9 @@ import {
   type Entry,
   type Weather,
 } from "@deuceleague/website";
-import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry,
+import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
-import { Draft, EndSeason, SeasonPage, type NextForm } from "./season-views.js";
+import { Draft, EndSeason, Pairs, SeasonPage, StartSeason, type LooseEnd, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
@@ -31,6 +31,10 @@ import {
   LatestResults,
   Dashboard,
   Members,
+  ConfirmLeft,
+  EMAILED_MINUTES,
+  notPlaying,
+  signedInSince,
   Problem,
   Results,
   SignIn,
@@ -269,7 +273,7 @@ export function createCoachSite(options: CoachOptions) {
           .filter((x) => x.state === "active")
           .map((x) => ({
             progress: x,
-            optedOut: x.opted_out.map((e) => e.label),
+            optedOut: x.opted_out.map(notPlaying),
             next: competitions.find((n) => n.previous_competition_id === x.competition_id) ?? null,
           })),
       });
@@ -305,7 +309,10 @@ export function createCoachSite(options: CoachOptions) {
       joinRequests(who),
     ]);
     const present = listed.filter((m) => !m.deleted_at);
-    const members = present.filter((m) => m.status !== "left");
+    // Placed but never signed in: in a competition under way or being drafted, read only when asked for.
+    const unsigned = c.req.query("show") === "unsigned";
+    const placed = unsigned ? await placedMembers(who.key) : null;
+    const members = present.filter((m) => m.status !== "left" && (!placed || (placed.has(m.id) && !signedInSince(m))));
     const left = present.filter((m) => m.status === "left").sort((a, b) => a.display_name.localeCompare(b.display_name));
     const waiting = await waitingForPlacement(who);
     // Who still needs a link first, then by name.
@@ -315,14 +322,24 @@ export function createCoachSite(options: CoachOptions) {
     );
     // Ids only in the address: a name there would reach the browser's history.
     const added = members.find((m) => m.id === c.req.query("added"));
-    const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted." : null;
+    const gone = left.find((m) => m.id === c.req.query("left"));
+    const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted."
+      : gone ? `${gone.display_name} has left the club. They are under Former members, where you can bring them back.` : null;
     return c.html(
       <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
         requests={requests?.requests ?? null}
         moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
-        timezone={who.club.timezone} emailConfigured={!!options.mail} />,
+        timezone={who.club.timezone} emailConfigured={!!options.mail} unsigned={unsigned} />,
     );
   });
+
+  /** Everyone with a place in a competition under way or being drafted. */
+  async function placedMembers(key: string): Promise<Set<string>> {
+    const current = (await all<CoachCompetition>("/v1/competitions", key)).filter((x) => x.state === "active" || x.state === "draft");
+    const entries = await Promise.all(current.map((x) =>
+      api<{ data: Entry[] }>("GET", `/v1/competitions/${x.id}/entries?state=active`, key)));
+    return new Set(entries.flatMap((e) => e.data.flatMap((entry) => entry.members.map((m) => m.id))));
+  }
 
   app.post("/join-requests/:id/approve", async (c) => {
     const who = await coach(c);
@@ -430,12 +447,28 @@ export function createCoachSite(options: CoachOptions) {
     });
   }
 
+  // Leaving the club is asked first, saying what it does: it is the one change here that takes away sign-in.
+  app.get("/members/:id/left", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const member = await api<CoachMember & { deleted_at?: string | null }>("GET",
+      `/v1/members/${encodeURIComponent(c.req.param("id"))}`, who.key).catch((error: unknown) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+      throw error;
+    });
+    if (!member || member.deleted_at || member.status === "left") return c.redirect("/coach/members#former", 303);
+    return c.html(<ConfirmLeft frame={frameOf(who, "members")} member={member} />);
+  });
+
   /** Leaving the club, and coming back. Results stay either way; the status decides who the next draft places. */
   for (const [action, status] of [["left", "left"], ["back", "active"]] as const) {
     app.post(`/members/:id/${action}`, async (c) => {
       const who = await coach(c);
       if (!who) return c.redirect("/coach", 303);
       const id = c.req.param("id");
+      if (action === "left" && (await c.req.parseBody()).confirm !== "yes") {
+        return c.redirect(`/coach/members/${encodeURIComponent(id)}/left`, 303);
+      }
       try {
         await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { status });
       } catch (error) {
@@ -443,7 +476,7 @@ export function createCoachSite(options: CoachOptions) {
         return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
           detail="That member is not on the club's list any more." />, 404);
       }
-      return c.redirect(`/coach/members#member-${id}`, 303);
+      return c.redirect(action === "left" ? `/coach/members?left=${encodeURIComponent(id)}#member-${id}` : `/coach/members#member-${id}`, 303);
     });
   }
 
@@ -528,7 +561,8 @@ export function createCoachSite(options: CoachOptions) {
       `/v1/events?match_id=${inputs.match.id}&order=newest&limit=50${after ? `&after=${encodeURIComponent(after)}` : ""}`, who.key);
     return c.html(<CoachMatch frame={frameOf(who, "results")} {...inputs} timezone={who.club.timezone}
       events={history.data} historyAfter={after} historyNext={history.data.length === 50 ? history.next_cursor : null}
-      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"} />, status);
+      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"}
+      {...(!values && c.req.query("use") ? { use: c.req.query("use")! } : {})} />, status);
   }
 
   app.get("/matches/:id", async (c) => {
@@ -902,7 +936,7 @@ export function createCoachSite(options: CoachOptions) {
     if (!member.email || member.status === "left") return { name: member.display_name, message: "No email sent. Complete the member's contact details on Members before inviting them." };
     let state: "accepted" | "failed" = "failed";
     try {
-      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: 15, expected_email: member.email });
+      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: EMAILED_MINUTES, expected_email: member.email });
       const url = new URL("/login", publicUrl); url.searchParams.set("token", link.token);
       await options.mail({ to: member.email, subject: `${who.club.name}: your sign-in link`,
         text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for fifteen minutes. If it expires, request a new link on the league website.\n` });
@@ -1010,8 +1044,21 @@ export function createCoachSite(options: CoachOptions) {
     }
     const next = sent ?? (now.ended ? { from: now.ended.season.id, name: nextName(now.ended.season.name),
       ...nextDates(now.ended.season, today(who.club.timezone)) } : null);
+    // How the latest ended season closed: what it left disputed or entered by one side only stays findable.
+    const last = seasons.filter((s) => s.state === "complete").sort(newestFirst)[0];
+    const closed = last ? { season: last, loose: await looseEnds(who.key, last.id) } : null;
     return c.html(<SeasonPage frame={seasonFrame(who)} turnover={now} progress={progress} next={next} message={message}
-      timezone={who.club.timezone} />, message ? 400 : 200);
+      timezone={who.club.timezone} closed={closed} />, message ? 400 : 200);
+  }
+
+  /** A season's matches disputed or entered by one side only: disputes first, then those waiting longest. */
+  async function looseEnds(key: string, seasonId: string): Promise<LooseEnd[]> {
+    const season = encodeURIComponent(seasonId);
+    return [
+      ...(await all<LooseEnd>(`/v1/matches?status=disputed&season_id=${season}`, key)),
+      ...(await all<LooseEnd>(`/v1/matches?status=reported&season_id=${season}`, key))
+        .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at)),
+    ];
   }
 
   app.get("/season", async (c) => {
@@ -1042,8 +1089,9 @@ export function createCoachSite(options: CoachOptions) {
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
     const blocked = await unstarted(who.key, season);
     if (blocked) return seasonPage(c, who, null, blocked);
-    const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
-    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} />);
+    const [progress, loose] = await Promise.all([api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key),
+      looseEnds(who.key, season.id)]);
+    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose} />);
   });
 
   app.post("/season/:id/end", async (c) => {
@@ -1053,6 +1101,19 @@ export function createCoachSite(options: CoachOptions) {
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
     const blocked = await unstarted(who.key, season);
     if (blocked) return seasonPage(c, who, null, blocked);
+    // Results never agreed are left undecided only on purpose: the coach saw each of them listed and said so.
+    // One entered or disputed since the page was shown was not, so the page is shown again with it.
+    const form = await c.req.parseBody();
+    const shown = new Set(String(form.shown ?? "").split(",").filter(Boolean));
+    const loose = await looseEnds(who.key, season.id);
+    const unseen = loose.some((m) => !shown.has(m.id));
+    if (loose.length > 0 && (form.leave !== "yes" || unseen)) {
+      const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
+        message={form.leave === "yes" ? "Results have changed since this page was shown. Check the list again before ending the season."
+          : "Decide these results, or tick the box to leave them undecided, before ending the season."} />,
+        form.leave === "yes" ? 409 : 400);
+    }
     const take = allowance();
     // Reporting closes first, so no score arrives while the competitions close.
     if (season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now()) {
@@ -1127,6 +1188,31 @@ export function createCoachSite(options: CoachOptions) {
   const notADraft = (c: Context, who: Coach) => c.html(<Problem frame={seasonFrame(who)} title="Not a draft"
     detail="That competition has started, or is not next season's. Players' places change only before they have played."
     back={backToSeason} />, 404);
+
+  // What each doubles player said about next season: every season under way's, or else the one just ended's.
+  app.get("/pairs", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const seasons = (await all<Season>("/v1/seasons", who.key)).sort(newestFirst);
+    const running = seasons.filter((s) => s.state === "active");
+    const shown = running.length > 0 ? running : seasons.filter((s) => s.state === "complete").slice(0, 1);
+    const doubles = (await Promise.all(shown.map((s) => all<CoachCompetition>(`/v1/competitions?season_id=${s.id}`, who.key))))
+      .flat().filter((x) => x.discipline === "doubles" && x.state !== "draft");
+    const season = shown.length === 1 ? shown[0]! : null;
+    const [members, onBreak] = doubles.length === 0 ? [[], []] : await Promise.all([
+      all<ActiveMember>("/v1/members?status=active", who.key),
+      all<ActiveMember>("/v1/members?status=paused", who.key),
+    ]);
+    const paused = new Set(onBreak.map((m) => m.id));
+    const competitions = await Promise.all(doubles.map(async (competition) => {
+      const [entries, choices] = await Promise.all([
+        api<{ data: Entry[] }>("GET", `/v1/competitions/${competition.id}/entries`, who.key),
+        api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competition.id}/partner-choices`, who.key),
+      ]);
+      return { competition, view: pairsView(entries.data, choices.data, members, paused, competition.name) };
+    }));
+    return c.html(<Pairs frame={seasonFrame(who)} season={season} competitions={competitions} />);
+  });
 
   app.get("/season/drafts/:id", async (c) => {
     const who = await coach(c);
@@ -1228,11 +1314,23 @@ export function createCoachSite(options: CoachOptions) {
     });
   }
 
+  // Starting is asked first, on its own page: players get their fixtures the moment it is done.
+  app.get("/season/:id/start", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const season = await seasonOf(who.key, c.req.param("id"));
+    if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    const drafts = await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=draft`, who.key);
+    if (drafts.length === 0) return c.redirect("/coach/season", 303);
+    return c.html(<StartSeason frame={seasonFrame(who)} season={season} drafts={drafts} />);
+  });
+
   app.post("/season/:id/start", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const season = await seasonOf(who.key, c.req.param("id"));
     if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    if ((await c.req.parseBody()).confirm !== "yes") return c.redirect(`/coach/season/${season.id}/start`, 303);
     const take = allowance();
     // The season opens first, since only then can its competitions. Each draft then gets its
     // matches and opens: once open it is done, so a form sent again carries on with the next.

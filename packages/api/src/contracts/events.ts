@@ -6,7 +6,7 @@ export type FeedPosition = { txId: string; id: string };
 export type FeedEvent = FeedPosition & {
   type: string; subjectType: string; subjectId: string | null;
   actorType: string; actorId: string | null; occurredAt: Date; payload: unknown;
-  actorName: string | null; subjectName: string | null;
+  actorName: string | null; subjectName: string | null; competitionName: string | null; partnerName: string | null;
 };
 
 /**
@@ -48,6 +48,16 @@ const Event = z
         "(with `members:read`), or the name of a season, competition, division, key, court or the club. " +
         "Looked up on reading, like `actor_name`.",
     }),
+    competition_name: z.string().nullable().openapi({
+      example: "Mixed doubles",
+      description: "The competition the payload's `competition_id` names, such as next season's choice is about. " +
+        "Looked up on reading; null when the payload names none, or it has been deleted.",
+    }),
+    partner_name: z.string().nullable().openapi({
+      example: "Priya S.",
+      description: "The display name of the member the payload's `partner_id` names, with `members:read`. " +
+        "Looked up on reading, like `actor_name`; null without the scope or when the payload names none.",
+    }),
     occurred_at: Timestamp,
     payload: z.record(z.string(), z.unknown()).openapi({
       description: "Ids, names and what changed — never personal data, since the log cannot be erased.",
@@ -79,6 +89,8 @@ export function toEvent(e: FeedEvent): z.infer<typeof Event> {
     payload: e.payload as Record<string, unknown>,
     actor_name: e.actorName,
     subject_name: e.subjectName,
+    competition_name: e.competitionName,
+    partner_name: e.partnerName,
   };
 }
 

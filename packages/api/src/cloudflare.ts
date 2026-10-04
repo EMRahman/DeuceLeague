@@ -1,4 +1,5 @@
-import { readPlayerPlacements } from "@deuceleague/db-d1";
+import { readPlayerContacts, readPlayerPlacements } from "@deuceleague/db-d1";
+import { playerContacts } from "./contracts/player-contacts.js";
 import { playerPlacements } from "./contracts/player-placements.js";
 import { health } from "./contracts/health.js";
 import { installationSample } from "./installation-sample.js";
@@ -181,6 +182,13 @@ export function createCloudflareApp(options: Options) {
     checkAccess(authFor(state.identity), { session: [] });
     await commitIdentity(db, state.identity, { type: "read" });
     return { has_entries: state.has_entries, next_season: state.next_season, placements: state.placements };
+  }), 200));
+
+  app.openapi(playerContacts, async (c) => c.json(await retryMutation(async () => {
+    const state = await readPlayerContacts(db, c.get("identity").hash);
+    checkAccess(authFor(state.identity), { session: [] });
+    await commitIdentity(db, state.identity, { type: "read" });
+    return { data: state.contacts };
   }), 200));
 
   // `curl -X POST -H "Content-Type: application/json"` with no data sends an empty

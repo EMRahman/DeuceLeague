@@ -36,6 +36,9 @@ import {
   type Frame,
   type MyMatch,
   type MyStanding,
+  type Contact,
+  nextChoiceLine,
+  type NextChoice,
   type NextSeason,
   type PartnerChoice,
   type ToAnswer,
@@ -612,6 +615,18 @@ export function createWebsite(options: WebsiteOptions) {
       }
     }
 
+    // What they have said about next season in each competition under way: in doubles, what the partner
+    // choices say, which a session reads for itself, its partner and anyone asking it.
+    const choices: NextChoice[] = await Promise.all(tables.filter(({ competition }) => competition.state === "active")
+      .map(async ({ competition, entry }) => {
+        const doubles = competition.discipline === "doubles" && !entry.opted_out_at;
+        const said = doubles ? (await api<{ data: PartnerChoice[] }>("GET",
+          `/v1/competitions/${competition.id}/partner-choices`, p.session)).data : null;
+        const together = doubles && await pairedBefore(p, competition, entry);
+        return { competitionId: competition.id, competition: competition.name,
+          line: nextChoiceLine(entry, memberId, said, together) };
+      }));
+
     // Where the player stands in each competition they are in.
     const standings: MyStanding[] = [];
     for (const { competition, entry, table } of tables) {
@@ -667,6 +682,7 @@ export function createWebsite(options: WebsiteOptions) {
         onBreak={p.me.credential.member.status === "paused"}
         active={p.me.credential.member.status === "active"}
         entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
+        choices={choices}
         // What they said covers the entries they held when they said it; one made after is still in the reckoning.
         covered={registered.filter((r) => r.entry && covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
         later={registered.filter((r) => r.entry && !covers(p.me.credential.member.leaving_at, r.entry)).map((r) => r.competition.name)}
@@ -720,7 +736,9 @@ export function createWebsite(options: WebsiteOptions) {
     const registered = await registrations(p, here?.competitions ?? []);
     const entry = registered.find((r) => r.competition.id === id)?.entry;
     const season = here?.season ?? (await api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session));
-    const next = entry && competition.discipline === "doubles" && competition.state === "active" ? await nextSeason(p, id, entry) : null;
+    const together = !!entry && competition.discipline === "doubles" && await pairedBefore(p, competition, entry);
+    const next = entry && competition.discipline === "doubles" && competition.state === "active"
+      ? await nextSeason(p, id, entry, together) : null;
     return c.html(
       <CompetitionPage
         frame={frameOf(p, "tables")}
@@ -741,12 +759,30 @@ export function createWebsite(options: WebsiteOptions) {
           leaving: covers(leavingAt, entry), onBreak: p.me.credential.member.status === "paused" } : null}
         breakdowns={breakdowns(standings, matches)}
         next={next}
+        saved={c.req.query("saved") === "1"}
       />,
     );
   });
 
+  /**
+   * Whether a pair also played together in the competition this one follows on from: only then is keeping
+   * it next season playing together "again". A previous competition the player cannot see counts as not.
+   */
+  async function pairedBefore(p: Player, competition: Competition, entry: Entry): Promise<boolean> {
+    const previous = competition.previous_competition_id;
+    if (!previous || entry.members.length < 2) return false;
+    const pair = (e: Entry) => e.members.map((m) => m.id).sort().join(",");
+    try {
+      const { data } = await api<{ data: Entry[] }>("GET", `/v1/competitions/${encodeURIComponent(previous)}/entries`, p.session);
+      return data.some((e) => pair(e) === pair(entry));
+    } catch (error) {
+      if (error instanceof ApiProblem && [403, 404].includes(error.problem.status)) return false;
+      throw error;
+    }
+  }
+
   /** A doubles player's next season: their say, their partner's, who is asking them, and whom they could ask. */
-  async function nextSeason(p: Player, competitionId: string, entry: Entry): Promise<NextSeason> {
+  async function nextSeason(p: Player, competitionId: string, entry: Entry, together: boolean): Promise<NextSeason> {
     const me = p.me.credential.member.id;
     const [{ data: choices }, { data: entries }] = await Promise.all([
       api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competitionId}/partner-choices`, p.session),
@@ -755,6 +791,7 @@ export function createWebsite(options: WebsiteOptions) {
     const partner = entry.members.find((m) => m.id !== me);
     return {
       partner: partner ? { id: partner.id, name: partner.display_name } : null,
+      together,
       mine: choices.find((x) => x.member_id === me) ?? null,
       partners: choices.find((x) => x.member_id === partner?.id) ?? null,
       asking: choices.filter((x) => x.partner_id === me && !x.agreed),
@@ -786,7 +823,7 @@ export function createWebsite(options: WebsiteOptions) {
     } catch (error) {
       return partnerRefused(c, p, error);
     }
-    return c.redirect(`/competitions/${id}`, 303);
+    return c.redirect(`/competitions/${id}?saved=1#next-season`, 303);
   });
 
   app.post("/competitions/:id/partner/:member/decline", async (c) => {
@@ -799,7 +836,7 @@ export function createWebsite(options: WebsiteOptions) {
     } catch (error) {
       return partnerRefused(c, p, error);
     }
-    return c.redirect(`/competitions/${id}`, 303);
+    return c.redirect(`/competitions/${id}?saved=1#next-season`, 303);
   });
 
   /** Whether what a player said about leaving altogether covers this entry: they held it when they said so. */
@@ -846,7 +883,7 @@ export function createWebsite(options: WebsiteOptions) {
       const p = await player(c);
       if (!p) return c.redirect("/", 303);
       const entry = await api<Entry>(method, `/v1/entries/${c.req.param("id")}/opt-out`, p.session);
-      return c.redirect(`/competitions/${entry.competition_id}`, 303);
+      return c.redirect(`/competitions/${entry.competition_id}?saved=1#next-season`, 303);
     });
   }
 
@@ -883,11 +920,18 @@ export function createWebsite(options: WebsiteOptions) {
       api<Competition>("GET", `/v1/competitions/${match.competition_id}`, p.session),
       myEntries(p, match.competition_id),
     ]);
-    const [standings, season] = await Promise.all([
+    const mine = sideIn(match, entries);
+    const [standings, season, contacts] = await Promise.all([
       api<Standings>("GET", `/v1/competitions/${match.competition_id}/standings`, p.session),
       api<Season>("GET", `/v1/seasons/${competition.season_id}`, p.session),
+      // Only a player in the match arranges it: their partner and opponents, and how to reach them.
+      mine === null ? Promise.resolve({ data: [] as Contact[] }) : api<{ data: Contact[] }>("GET", "/v1/me/contacts", p.session),
     ]);
-    const mine = sideIn(match, entries);
+    const own = match.sides.find((s) => s.side === mine)?.entry_id ?? null;
+    const sides = new Set(match.sides.map((s) => s.entry_id).filter((e) => e !== null));
+    const people = contacts.data.filter((x) => x.entry_ids.some((e) => sides.has(e)))
+      .map((x) => ({ ...x, partner: own !== null && x.entry_ids.includes(own) }))
+      .sort((a, b) => Number(b.partner) - Number(a.partner));
     const names = namesOf(match);
     const division = standings.divisions.find((d) => d.division_id === match.division_id);
     const myRow = division?.rows.find((r) => entries.some((e) => e.id === r.entry_id));
@@ -906,6 +950,7 @@ export function createWebsite(options: WebsiteOptions) {
         messages={messages}
         done={done && messages.length === 0 ? done(names[mine === 0 ? 1 : 0]) : null}
         sent={sent}
+        contacts={people}
       />,
       status,
     );

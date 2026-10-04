@@ -21,6 +21,11 @@ async function expectedRows(f: WebsiteFixture, competitionId: string): Promise<s
 const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:write", "members:pii"];
 
 /** Sends a form, and sends it again each time the site answers 307, as a browser does. */
+/** The loose ends an end-season page listed, to confirm leaving exactly those. */
+async function shownOn(coach: ReturnType<typeof browser>, path: string) {
+  return /name="shown" value="([^"]*)"/.exec((await coach.get(path)).html)?.[1] ?? "";
+}
+
 async function send(coach: ReturnType<typeof browser>, path: string, form: Record<string, string> = {}) {
   for (let hop = 0; hop < 20; hop++) {
     const r = await coach.post(path, form);
@@ -384,7 +389,7 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   for (const name of ["Umi", "Val"]) assert.match(waiting, new RegExp(`Sample ${name}`));
   assert.doesNotMatch(waiting, /Sample Parker/, "Parker plays doubles");
 
-  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const drafts = (await f.api("/v1/competitions?state=draft", f.admin)).body.data as { id: string; discipline: string }[];
   const singles = drafts.find((x) => x.discipline === "singles")!; const doubles = drafts.find((x) => x.discipline === "doubles")!;
@@ -405,7 +410,7 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   assert.match(mixed, /<label for="member">Woman<\/label>/); assert.match(mixed, /<label for="partner">Man<\/label>/);
 
   // Someone who has left is offered nowhere, and cannot be entered.
-  assert.equal((await coach.post(`/coach/members/${id("Val")}/left`)).status, 303);
+  assert.equal((await coach.post(`/coach/members/${id("Val")}/left`, { confirm: "yes" })).status, 303);
   assert.doesNotMatch(text((await coach.get(`/coach/season/drafts/${singles.id}`)).html, "Not in Sample singles last season"), /Sample Val/);
   const division = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data[0].id;
   assert.equal((await f.api(`/v1/competitions/${singles.id}/entries`, f.admin, "POST", { division_id: division, member_ids: [id("Val")] })).status, 400);
@@ -459,7 +464,7 @@ test("a draft shows the promotion and relegation places left empty, with a one-c
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
-  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const singles = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((x: { discipline: string }) => x.discipline === "singles");
   const divisions = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data as { id: string; ordinal: number }[];
@@ -503,6 +508,29 @@ test("a draft shows the promotion and relegation places left empty, with a one-c
   assert.match(moved, new RegExp(`${drew.label} Moved by coach · moved by coach from \\d\\w\\w in Division 1`));
 });
 
+test("a vacancy's note says so once the entry that held the place is back where it was, and offers no move", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
+  await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
+  await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
+  const singles = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((x: { discipline: string }) => x.discipline === "singles");
+  const divisions = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data as { id: string; ordinal: number }[];
+  const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const before = await coach.get(`/coach/season/drafts/${singles.id}`);
+  assert.match(text(before.html), /Gray\) is not carried over/);
+  assert.match(before.html, /class="small quiet" type="submit">\s*Suggestion: relegate Sample \w+/);
+  // The coach puts Gray back in Division 1, where Gray played.
+  const gray = ((await f.api(`/v1/competitions/${singles.previous_competition_id}/entries`, f.admin)).body.data as
+    { id: string; label: string; members: { id: string }[] }[]).find((e) => e.label === "Sample Gray")!;
+  assert.equal((await coach.post(`/coach/season/drafts/${singles.id}/entries`, { previous_entry_id: gray.id,
+    member: gray.members[0]!.id, division_id: divisions[0]!.id })).status, 303);
+  const after = await coach.get(`/coach/season/drafts/${singles.id}`);
+  assert.match(text(after.html), /Sample Gray is back in Division 1; Division 2 receives one fewer this season\./);
+  assert.doesNotMatch(text(after.html), /Gray\) is not carried over/);
+  assert.doesNotMatch(after.html, /Suggestion: relegate/);
+});
+
 test("a season with a competition not yet started cannot be ended from the Season tab", async (t) => {
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -533,17 +561,36 @@ test("the coach ends the sample season early and starts the next from its final 
 
   const confirm = await coach.get(`/coach/season/${season.id}/end`);
   assert.match(confirm.html, /End Sample season now\?/); assert.match(confirm.html, /Reporting closes now, before the deadline/);
-  assert.match(confirm.html, /<strong>5 matches<\/strong> without an agreed result will count as unplayed/);
+  // The results never agreed are listed, each linked to decide, apart from the matches nobody entered.
+  const loose = [...(await f.api("/v1/matches?status=disputed", f.admin)).body.data,
+    ...(await f.api("/v1/matches?status=reported", f.admin)).body.data] as { id: string }[];
+  assert.ok(loose.length > 0 && loose.length < 5, "the sample has some of each");
+  for (const m of loose) assert.match(confirm.html, new RegExp(`href="/coach/matches/${m.id}"`));
+  assert.match(confirm.html, new RegExp(`${loose.length} results? never agreed`));
+  assert.match(confirm.html, new RegExp(`<strong>${5 - loose.length} match(es)?</strong> nobody entered a result for will count as unplayed`));
+  assert.match(confirm.html, /name="leave" value="yes" required/);
   assert.match(confirm.html, /Sample singles: Sample Gray, Sample Morgan opted out of next season/);
-  const ended = await send(coach, `/coach/season/${season.id}/end`);
+  // Ending without saying to leave them undecided changes nothing.
+  const refused = await send(coach, `/coach/season/${season.id}/end`);
+  assert.equal(refused.status, 400); assert.match(refused.html, /tick the box to leave them undecided/);
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin)).body.state, "active");
+  // Saying to leave them, but not the ones shown, is refused too: the list is shown again.
+  const stale = await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: "" });
+  assert.equal(stale.status, 409); assert.match(stale.html, /Results have changed since this page was shown/);
+  const ended = await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   assert.equal(ended.status, 303); assert.equal(ended.location, "/coach/season");
   const after = (await f.api(`/v1/seasons/${season.id}`, f.admin)).body;
   assert.equal(after.state, "complete"); assert.ok(Date.parse(after.results_deadline_at) <= Date.now());
   assert.deepEqual((await competitions()).map((x) => x.state), ["complete", "complete"]);
   assert.equal((await send(coach, `/coach/season/${season.id}/end`)).status, 303, "ending it again changes nothing");
+  // Afterwards they stay findable from the Season page.
+  const closed = await coach.get("/coach/season");
+  assert.match(closed.html, /How Sample season closed/);
+  for (const m of loose) assert.match(closed.html, new RegExp(`href="/coach/matches/${m.id}"`));
 
   const start = await coach.get("/coach/season");
   assert.match(start.html, /Sample season has ended/); assert.match(start.html, /value="Sample season 2"/);
+  assert.match(start.html, /<h2>Prepare next season<\/h2>/); assert.match(start.html, /Prepare next season&#39;s drafts<\/button>/);
   const form = { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" };
   assert.match((await coach.post("/coach/season/next", { ...form, ends_on: "2026-09-01" })).html, /the last on or after the first/);
   const next = await send(coach, "/coach/season/next", form);
@@ -558,7 +605,7 @@ test("the coach ends the sample season early and starts the next from its final 
   const singles = drafts.find((x) => x.discipline === "singles")!; const doubles = drafts.find((x) => x.discipline === "doubles")!;
 
   const preparing = await coach.get("/coach/season");
-  assert.match(preparing.html, /Being prepared/); assert.doesNotMatch(preparing.html, /Start next season<\/h2>/);
+  assert.match(preparing.html, /Being prepared/); assert.doesNotMatch(preparing.html, /Prepare next season<\/h2>/);
   assert.match(preparing.html, new RegExp(`href="/coach/season/drafts/${singles.id}"`));
 
   // The singles draft: placed from the tables, with who was left out and who else could play.
@@ -604,7 +651,7 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.match(said, /Sample Sage \/ Sample Taylor Sample Taylor is not playing next season/);
   assert.match(said, /New pairs waiting .* Sample Harper \/ Sample Parker Add to/);
   assert.match(said, /Players without a pair .* Sample Indy Asked Sample Bailey, who has not agreed yet/);
-  assert.match(said, /Sample Val Not in doubles last season/);
+  assert.match(said, /Sample Val Not in Sample doubles last season/);
   assert.match(said, /Not playing next season Sample Taylor/);
   const doublesDivisions = (await f.api(`/v1/competitions/${doubles.id}/divisions`, f.admin)).body.data as { id: string }[];
   assert.equal((await coach.post(`/coach/season/drafts/${doubles.id}/entries`,
@@ -618,8 +665,15 @@ test("the coach ends the sample season early and starts the next from its final 
     { member: id("Gray"), partner: id("Gray"), division_id: doublesDivisions[0]!.id });
   assert.equal(itself.status, 400); assert.match(itself.html, /A pair needs two different players/);
 
-  // Starting it draws the matches and opens the season and its competitions.
-  const started = await send(coach, `/coach/season/${planned[0].id}/start`);
+  // Starting it is asked first, saying players get their fixtures; a start not confirmed goes to that page.
+  assert.match((await coach.get("/coach/season")).html, new RegExp(`href="/coach/season/${planned[0].id}/start"`));
+  const ask = await coach.get(`/coach/season/${planned[0].id}/start`);
+  assert.match(ask.html, /Start Sample season 2 now\?/); assert.match(ask.html, /players see their\s+competition, division and fixtures/);
+  const unconfirmed = await coach.post(`/coach/season/${planned[0].id}/start`);
+  assert.equal(unconfirmed.status, 303); assert.equal(unconfirmed.location, `/coach/season/${planned[0].id}/start`);
+  assert.equal((await f.api(`/v1/seasons/${planned[0].id}`, f.admin)).body.state, "planning");
+  // Confirmed, it draws the matches and opens the season and its competitions.
+  const started = await send(coach, `/coach/season/${planned[0].id}/start`, { confirm: "yes" });
   assert.equal(started.status, 303); assert.equal(started.location, "/coach");
   assert.equal((await f.api(`/v1/seasons/${planned[0].id}`, f.admin)).body.state, "active");
   for (const x of drafts) {
@@ -633,4 +687,15 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.equal(late.status, 404); assert.match(late.html, /Not a draft/);
   assert.ok(!(await entries(singles.id)).some((e) => e.label === "Sample Val"));
   assert.match((await coach.get("/coach")).html, /<h1>Sample season 2<\/h1>/);
+});
+
+test("next season's suggested name follows the seasons of the year, and its dates follow the last", async () => {
+  const { nextName, nextDates } = await import("../../../adapters/coach/dist/season.js");
+  assert.deepEqual(["Autumn 2026", "Winter 2026–27", "Winter 2026/27", "Spring 2027", "Summer 2027", "Fall 2026", "summer 2027",
+    "Sample season", "Sample season 2", "Club Summer 2027 league"].map(nextName),
+  ["Winter 2026–27", "Spring 2027", "Spring 2027", "Summer 2027", "Autumn 2027", "Winter 2026–27", "autumn 2027",
+    "Sample season 2", "Sample season 3", "Club Autumn 2027 league"]);
+  const season = (starts_on: string, ends_on: string) => ({ starts_on, ends_on }) as any;
+  assert.deepEqual(nextDates(season("2026-09-01", "2026-12-10"), "2026-10-03"), { starts_on: "2026-12-11", ends_on: "2027-03-21" });
+  assert.deepEqual(nextDates(season("2026-01-01", "2026-03-10"), "2026-10-03"), { starts_on: "2026-10-03", ends_on: "2026-12-10" });
 });

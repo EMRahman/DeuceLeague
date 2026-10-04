@@ -348,6 +348,63 @@
           "placements"
         ]
       },
+      "PlayerContacts": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "member_id": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "display_name": {
+                  "type": "string"
+                },
+                "full_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "email": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phone": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "entry_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "description": "Their entries you partner or play against."
+                }
+              },
+              "required": [
+                "member_id",
+                "display_name",
+                "full_name",
+                "email",
+                "phone",
+                "entry_ids"
+              ]
+            }
+          }
+        },
+        "required": [
+          "data"
+        ]
+      },
       "LoginLink": {
         "type": "object",
         "properties": {
@@ -1381,7 +1438,8 @@
               "no_response",
               "conflicting_entries",
               "incorrect_result",
-              "unreported_result"
+              "unreported_result",
+              "injury_or_withdrawal"
             ],
             "description": "Why the coach decided the result. Recorded with the acting API key in the audit history; use a category rather than personal or medical details."
           },
@@ -1902,6 +1960,14 @@
             "format": "date-time",
             "description": "When they signed in on the newest device where they are still signed in. Null when they are signed in nowhere, so they need a login link."
           },
+          "last_signed_in_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When they last signed in anywhere, from the audit history; signing out does not clear it. Null when they have never signed in."
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -2007,6 +2073,7 @@
           "leaving_at",
           "deleted_at",
           "signed_in_at",
+          "last_signed_in_at",
           "created_at",
           "updated_at"
         ]
@@ -4910,11 +4977,19 @@
                           },
                           "label": {
                             "type": "string"
+                          },
+                          "said_by": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "Who said so, by display name: the players leaving, on a break or not playing it, else the player who opted the entry out. Null when the coach did."
                           }
                         },
                         "required": [
                           "entry_id",
-                          "label"
+                          "label",
+                          "said_by"
                         ]
                       },
                       "description": "Entries whose players said they are not playing in the next competition."
@@ -5299,7 +5374,7 @@
                     "label",
                     "place"
                   ],
-                  "description": "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a promotion; the worst, for a relegation. Null when nobody qualifies. The coach decides."
+                  "description": "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a promotion; the worst, for a relegation, but never from the top half of the division for a relegation or the bottom half for a promotion. Null when nobody qualifies. The coach decides."
                 },
                 "explanation": {
                   "type": "string"
@@ -5466,7 +5541,7 @@
                     "label",
                     "place"
                   ],
-                  "description": "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a promotion; the worst, for a relegation. Null when nobody qualifies. The coach decides."
+                  "description": "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a promotion; the worst, for a relegation, but never from the top half of the division for a relegation or the bottom half for a promotion. Null when nobody qualifies. The coach decides."
                 },
                 "explanation": {
                   "type": "string"
@@ -5601,6 +5676,22 @@
             "example": "Sam K. v Alex P.",
             "description": "What the subject is called now: a match as its two sides, an entry's label, a member's display name (with `members:read`), or the name of a season, competition, division, key, court or the club. Looked up on reading, like `actor_name`."
           },
+          "competition_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Mixed doubles",
+            "description": "The competition the payload's `competition_id` names, such as next season's choice is about. Looked up on reading; null when the payload names none, or it has been deleted."
+          },
+          "partner_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Priya S.",
+            "description": "The display name of the member the payload's `partner_id` names, with `members:read`. Looked up on reading, like `actor_name`; null without the scope or when the payload names none."
+          },
           "occurred_at": {
             "type": "string",
             "format": "date-time"
@@ -5621,6 +5712,8 @@
           "actor_id",
           "actor_name",
           "subject_name",
+          "competition_name",
+          "partner_name",
           "occurred_at",
           "payload"
         ]
@@ -5739,6 +5832,52 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PlayerPlacements"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/contacts": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Who you play with and against, and how to reach them",
+        "description": "Only for a player's session: their doubles partners and their opponents in competitions under way, with full name, email and telephone, so they can arrange their matches. Nobody else's details, nothing once the competition has ended, and nothing to or about a member who has left the club.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your partners and opponents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerContacts"
                 }
               }
             }
@@ -6072,6 +6211,17 @@
             },
             "required": false,
             "name": "competition_id",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Matches of this season's competitions only."
+            },
+            "required": false,
+            "description": "Matches of this season's competitions only.",
+            "name": "season_id",
             "in": "query"
           },
           {

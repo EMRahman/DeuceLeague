@@ -201,7 +201,8 @@ test("the join form turns away programs and mistakes, and the coach approves the
   // No Turnstile set up: no script, and the page's policy allows none.
   assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-02/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-03/);
+  assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
 
   // A program is thanked, and nothing is kept: a filled-in hidden field, a made-up time, or a form sent too fast.
@@ -235,7 +236,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-02", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-03", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -261,14 +262,23 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.deepEqual(((b) => [b.gender, b.age_group])((await f.api(`/v1/members/${memberId}`, f.admin)).body), ["other", "50_64"]);
   assert.equal((await coach.post(`/coach/members/${memberId}/details`, { gender: "female", age_group: "" })).status, 303);
   assert.deepEqual(((b) => [b.gender, b.age_group])((await f.api(`/v1/members/${memberId}`, f.admin)).body), ["female", null]);
-  // Leaving the club moves them to their own list; coming back puts them where they were.
-  assert.equal((await coach.post(`/coach/members/${memberId}/left`)).status, 303);
+  // Leaving the club is asked first, saying what it does; a post not confirmed changes nothing.
+  assert.match((await coach.get("/coach/members")).html, new RegExp(`href="/coach/members/${memberId}/left"`));
+  const ask = await coach.get(`/coach/members/${memberId}/left`);
+  assert.equal(ask.status, 200); assert.match(ask.html, /has left the club\?/); assert.match(ask.html, /matches this season stay as they are/);
+  const unconfirmed = await coach.post(`/coach/members/${memberId}/left`);
+  assert.equal(unconfirmed.status, 303); assert.equal(unconfirmed.location, `/coach/members/${memberId}/left`);
+  assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.status, "active");
+  // Confirmed, it moves them to Former members, said so; coming back puts them where they were.
+  const left = await coach.post(`/coach/members/${memberId}/left`, { confirm: "yes" });
+  assert.equal(left.status, 303);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.status, "left");
-  const gone = (await coach.get("/coach/members")).html;
-  assert.match(gone, /<h2>Left the club<\/h2>/); assert.doesNotMatch(gone, /Waiting to be placed/);
+  const gone = (await coach.get(left.location!)).html;
+  assert.match(gone, /<h2 id="former">Former members \(1\)<\/h2>/); assert.doesNotMatch(gone, /Waiting to be placed/);
+  assert.match(gone, /has left the club\. They are under Former members/); assert.match(gone, /href="#former">Former members \(1\)/);
   assert.equal((await coach.post(`/coach/members/${memberId}/back`)).status, 303);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.status, "active");
-  assert.doesNotMatch((await coach.get("/coach/members")).html, /<h2>Left the club<\/h2>/);
+  assert.doesNotMatch((await coach.get("/coach/members")).html, /Former members/);
   assert.equal((await coach.post(`/coach/members/${memberId}/level`, { level: "3" })).status, 303);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.level, 3);
   assert.equal((await coach.post(`/coach/members/${memberId}/level`, { level: "" })).status, 303);

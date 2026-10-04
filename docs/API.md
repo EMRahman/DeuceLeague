@@ -93,6 +93,13 @@ response also names the earliest planning season, if one has been announced,
 and says whether this member has ever held an entry in a started competition,
 to distinguish newcomers from returning or excluded players.
 
+**Your contacts.** `GET /v1/me/contacts` takes only a player's session. It
+lists their doubles partners and their opponents in competitions under way,
+with full name, email and telephone, so players can arrange their own matches.
+Nobody else's details are disclosed, nothing once a competition has ended, and
+nothing to or about a member who has left the club.
+The privacy notice says so.
+
 **Members.** `GET /v1/members?never_entered=true` filters to people who have
 never held an entry, including historical or withdrawn entries, and requires
 `league:read` as well as `members:read`. The coach uses it to list newcomers
@@ -161,7 +168,7 @@ for its own side of its own matches, without having to name the side. It
 cannot read the member list, the chase list or the event feed, or change
 anything else, beyond opting its own entries out of next season and saying who
 it wants as its doubles partner next season. Everything it
-sees names people by display name only. A
+sees names people by display name only, except `GET /v1/me/contacts` below. A
 route takes a session only by saying so — `requires.orPlayer` in the code, a
 `session` entry in the spec's security — and the API refuses a player
 anywhere else, even on a route that forgot to check.
@@ -251,7 +258,9 @@ has left the club, and anyone held back from promotion for too few matches.
 Their promotion or relegation place stays empty: the entry below does not take
 it, and the response lists each as a `vacancy` with who the engine would
 suggest instead (the best carried entry not moving, for a promotion; the worst,
-for a relegation). `GET /v1/competitions/{id}/placements` gives the same plan
+for a relegation). It never suggests sending down an entry from the top half of
+its division, or up one from the bottom half; the middle of an odd-sized
+division may go either way. Without such an entry, `fill` is null. `GET /v1/competitions/{id}/placements` gives the same plan
 without writing anything, before or after the draft is filled; so, once the previous
 competition's tables are final, is anyone who played fewer matches than it
 expected of them (its `minMatchesToPlay`, or all their fixtures if fewer),
@@ -362,9 +371,11 @@ it backwards from the latest event instead, for showing people what happened,
 such as the coach's activity page; it promises nothing about events committed
 while paging. Each event names its actor and subject as they are called now —
 a key's name, a member's display name, a match as its two sides — in
-`actor_name` and `subject_name`. Names are looked up on reading, never stored in
-the log, so an erasure reaches them; a member's name needs `members:read`, as
-the member list does.
+`actor_name` and `subject_name`. An event whose payload names a competition or
+a partner by ID, such as a next-season choice, also carries `competition_name`
+and `partner_name`. Names are looked up on reading, never stored in the log, so
+an erasure reaches them; a member's name needs `members:read`, as the member
+list does.
 
 **Meta.** `/healthz` and `/openapi.json`.
 

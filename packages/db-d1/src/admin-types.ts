@@ -24,6 +24,8 @@ export type MemberRecord = {
   leavingAt: Date | null;
   /** The newest session still signed in; null when signed in nowhere. */
   signedInAt: Date | null;
+  /** The latest sign-in ever, from the audit history: unlike signedInAt, signing out does not clear it. */
+  lastSignedInAt: Date | null;
   createdAt: Date; updatedAt: Date;
 } & Partial<PersonalFields>;
 export type MemberChanges = Partial<{

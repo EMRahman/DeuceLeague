@@ -180,9 +180,12 @@ test("the coach marks a member as not playing next season, and the draft names w
   const dashboard = (await coach.get("/coach")).html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   assert.match(dashboard, new RegExp(`opted out of next season:[^.]*${singles.find((e) => e.members[0]!.id === leaver.id)!.label}`));
   assert.match(dashboard, new RegExp(`opted out of next season:[^.]*${pair.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  // A pair names the one who said it, so it does not read as both.
+  assert.match(dashboard, new RegExp(`${pair.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\(${gone.display_name} said so\\)`));
 
   const text = (html: string) => html.replace(/<form[\s\S]*?<\/form>/g, " ").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`); if (r.status !== 307) break; }
+  const shown = /name="shown" value="([^"]*)"/.exec((await coach.get(`/coach/season/${season.id}/end`)).html)?.[1] ?? "";
+  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes", shown }); if (r.status !== 307) break; }
   for (let hop = 0; hop < 20; hop++) {
     const r = await coach.post("/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
     if (r.status !== 307) break;
@@ -301,7 +304,8 @@ test("the coach puts a member on a break, and the draft says so and what it mean
   const marked = (await coach.get("/coach/members")).html;
   assert.match(marked, /<span class="tag">On a break<\/span>/); assert.match(marked, new RegExp(`action="/coach/members/${away.id}/resume"`));
 
-  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`); if (r.status !== 307) break; }
+  const shown = /name="shown" value="([^"]*)"/.exec((await coach.get(`/coach/season/${season.id}/end`)).html)?.[1] ?? "";
+  for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes", shown }); if (r.status !== 307) break; }
   for (let hop = 0; hop < 20; hop++) {
     const r = await coach.post("/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
     if (r.status !== 307) break;
@@ -359,4 +363,17 @@ test("the break is offered to anyone active, with or without a place in a compet
   assert.doesNotMatch(left, /I am taking a break/); assert.doesNotMatch(left, /I am not playing next season at all/);
   const stale = await sam.post("/pause");
   assert.equal(stale.status, 303); assert.equal(stale.location, "/");
+});
+
+test("an opt-out is credited to whoever made the latest one, and to nobody when the coach did", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const entry = p.entries[0].id;
+  const saidBy = async () => ((await f.api(`/v1/seasons/${p.season.id}/progress`, f.admin)).body.competitions[0].opted_out as any[])
+    .find((e) => e.entry_id === entry)?.said_by;
+  assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, sam.session(), "POST")).status, 200);
+  assert.equal(await saidBy(), "Sam");
+  assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, sam.session(), "DELETE")).status, 200);
+  assert.equal((await f.api(`/v1/entries/${entry}/opt-out`, f.admin, "POST")).status, 200);
+  assert.equal(await saidBy(), null, "the coach's newer opt-out is not the player's");
 });

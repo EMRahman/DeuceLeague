@@ -19,3 +19,4 @@ export * from "./website.js";
 export * from "./setup.js";
 export * from "./sample.js";
 export * from "./player-placements.js";
+export * from "./player-contacts.js";

@@ -432,15 +432,17 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     </p>
     <h2>Why</h2>
     <p>
-      To run the league you asked to join: to place you in a division, arrange your matches, let you sign in and
+      To run the league you asked to join: to place you in a division, arrange your matches, let your partner and
+      opponents reach you about them, let you sign in and
       report scores, and contact you about the league. We use email for sign-in links and telephone for WhatsApp league communications. Your gender decides which men's, women's or mixed
       competitions you can join, and your age group helps the coach plan fair draws. We send no marketing, and never sell or share your details
       for anyone else's use.
     </p>
     <h2>Who sees them</h2>
     <p>
-      The coach sees everything. Other players see only the name you play under, such as "Sam K.", and your
-      results. The site runs on Cloudflare, which stores the league's records for us. Our configured email provider processes your email address and sign-in email to send the link. WhatsApp processes communications sent through its service. When you ask to join,
+      The coach sees everything. Other players see the name you play under, such as "Sam K.", and your results.
+      While a competition is under way, your doubles partner and your opponents in it also see your full name, email
+      address and telephone number, so you can arrange your matches together; nobody else does. The site runs on Cloudflare, which stores the league's records for us. Our configured email provider processes your email address and sign-in email to send the link. WhatsApp processes communications sent through its service. When you ask to join,
       Cloudflare's Turnstile may check that a person, not a program, is sending the form, and we keep a scrambled
       form of your internet address for a day to limit how many submissions one source IP can send.
     </p>
@@ -734,6 +736,8 @@ export const Home: FC<{
   leaving: string | null;
   /** The competitions they are in now, which saying so would leave. */
   entries: string[];
+  /** What they have said about next season in each competition they are in now, in a few words. */
+  choices: NextChoice[];
   /** Those of them that what they said covers, and those entered after they said it, which it does not. */
   covered: string[];
   later: string[];
@@ -902,6 +906,23 @@ export const Home: FC<{
     {!p.leaving && p.active && (
       <section class="card">
         <h2>Next season</h2>
+        {p.choices.length > 0 && (
+          <>
+            <p>If you do nothing, you stay in for next season.</p>
+            <ul class="list">
+              {p.choices.map((x) => (
+                <li class="answer">
+                  <div class="answer-row">
+                    <span>
+                      <strong>{x.competition}</strong>: {x.line}
+                    </span>
+                    <a href={`/competitions/${x.competitionId}#next-season`}>change</a>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         {p.entries.length > 0 && (
           <>
             <p class="muted">
@@ -1204,25 +1225,34 @@ export type PartnerChoice = {
 /** What a doubles player sees of next season: their choice, their partner's, who is asking them, and whom they could ask. */
 export type NextSeason = {
   partner: { id: string; name: string } | null;
+  /** They played together in the competition before this one, so keeping the pair is playing together again. */
+  together: boolean;
   mine: PartnerChoice | null;
   partners: PartnerChoice | null;
   asking: PartnerChoice[];
   players: { id: string; name: string }[];
 };
 
-export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & TablesProps> = ({ frame, next, ...tables }) => {
+export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null; saved?: boolean } & TablesProps> = ({
+  frame,
+  next,
+  saved = false,
+  ...tables
+}) => {
   const { competition, past, mine } = tables;
   return (
     <Layout title={past ? `${competition.name}, ${past}` : competition.name} frame={frame}>
       <CompetitionTables {...tables} />
 
       {mine && next && !mine.optedOut && !mine.leaving && !mine.onBreak && competition.state === "active" && (
-        <Partners competitionId={competition.id} next={next} />
+        <Partners competitionId={competition.id} next={next} saved={saved} />
       )}
 
       {mine && (mine.leaving || mine.onBreak || !(next && !mine.optedOut)) && competition.state === "active" && (
-        <section>
+        <section id="next-season">
           <h2>Next season</h2>
+          {saved && <Notice ok messages={[mine.optedOut ? "Saved. The coach will leave you out of the next one."
+            : "Saved. You stay in for next season."]} />}
           {mine.onBreak ? (
             <p>
               You are on a break, so you are not in the draft for next season, and will not be until you say you are
@@ -1257,11 +1287,34 @@ export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null } & Ta
   );
 };
 
+/** A competition the player is in now, and what they have said about playing it next season. */
+export type NextChoice = { competitionId: string; competition: string; line: string };
+
+/**
+ * What a player has said about next season in one competition, in a few words for their home page: whether
+ * they are playing, and in doubles with whom. Saying nothing keeps them in, with the same partner.
+ */
+export function nextChoiceLine(entry: { opted_out_at: string | null; members: { id: string; display_name: string }[] },
+  me: string, choices: PartnerChoice[] | null, together: boolean): string {
+  if (entry.opted_out_at) return "not playing (you opted out)";
+  if (!choices) return "playing";
+  const partner = entry.members.find((m) => m.id !== me);
+  const mine = choices.find((c) => c.member_id === me);
+  const theirs = choices.find((c) => c.member_id === partner?.id);
+  if (mine?.choice === "leaving") return "not playing";
+  if (mine?.choice === "new_partner") {
+    return !mine.partner_id ? "playing with a new partner the coach finds"
+      : mine.agreed ? `playing with ${mine.partner_name}` : `asked ${mine.partner_name}, waiting for them to agree`;
+  }
+  if (partner && theirs) return `${partner.display_name} is not staying with you: choose what you want`;
+  return partner ? `playing with ${partner.display_name}${together ? " again" : ""}` : "playing";
+}
+
 /** Where a doubles player stands for next season, in a sentence. */
 function standing(next: NextSeason): string {
   const { mine, partner } = next;
   const with_ = partner?.name ?? "your partner";
-  if (!mine) return `You are down to play with ${with_} again.`;
+  if (!mine) return `You are down to play with ${with_}${next.together ? " again" : ""} next season.`;
   if (mine.choice === "leaving") return "You have told the coach you are not playing next season.";
   if (!mine.partner_id) return "You want a new partner. The coach will find you one, or ask someone below.";
   return mine.agreed
@@ -1280,13 +1333,13 @@ function partnersSay(next: NextSeason): string | null {
     : `${name} has asked for a new partner. Ask someone else, or leave it to the coach.`;
 }
 
-const Partners: FC<{ competitionId: string; next: NextSeason }> = ({ competitionId, next }) => {
+const Partners: FC<{ competitionId: string; next: NextSeason; saved: boolean }> = ({ competitionId, next, saved }) => {
   const choice = next.mine?.choice ?? "keep";
   const heads = partnersSay(next);
   return (
-    <section>
+    <section id="next-season">
       <h2>Next season</h2>
-      <p>{standing(next)}</p>
+      {saved ? <Notice ok messages={[`Saved. ${standing(next)}`]} /> : <p>{standing(next)}</p>}
       {heads && <p class="deadline">{heads}</p>}
       {next.asking.map((a) => (
         <div class="card">
@@ -1316,7 +1369,7 @@ const Partners: FC<{ competitionId: string; next: NextSeason }> = ({ competition
           <div class="choices">
             <label>
               <input type="radio" name="choice" value="keep" checked={choice === "keep"} />
-              Play with {next.partner?.name ?? "my partner"} again
+              Play with {next.partner?.name ?? "my partner"}{next.together ? " again" : ""}
             </label>
             <label>
               <input type="radio" name="choice" value="new_partner" checked={choice === "new_partner"} />
@@ -1448,6 +1501,47 @@ const ScoreForm: FC<{
   </form>
 );
 
+/** Someone to arrange a match with, as `GET /v1/me/contacts` gives them. */
+export type Contact = {
+  member_id: string; display_name: string; full_name: string | null; email: string | null; phone: string | null;
+  entry_ids: string[];
+  /** Whether they are on the player's own side: a doubles partner. */
+  partner?: boolean;
+};
+
+/** A WhatsApp chat link, for a number written in international form; others are shown to dial. */
+const whatsapp = (phone: string) => (phone.trim().startsWith("+") ? `https://wa.me/${phone.replace(/\D/g, "")}` : null);
+
+/** The partner and opponents of a match, with their names and contacts, for arranging it outside the app. */
+const Contacts: FC<{ contacts: Contact[] }> = ({ contacts }) => (
+  <section class="card">
+    <h2>Get in touch</h2>
+    <ul class="list">
+      {contacts.map((c) => (
+        <li class="answer">
+          <strong>{c.full_name ?? c.display_name}</strong>
+          <span class="muted"> · {c.partner ? "your partner" : "opponent"}</span>
+          <br />
+          {c.phone && (
+            <>
+              <a href={`tel:${c.phone.replace(/[^0-9+]/g, "")}`}>{c.phone}</a>
+              {whatsapp(c.phone) && (
+                <>
+                  {" "}· <a href={whatsapp(c.phone)!}>WhatsApp</a>
+                </>
+              )}
+            </>
+          )}
+          {c.phone && c.email && " · "}
+          {c.email && <a href={`mailto:${c.email}`}>{c.email}</a>}
+          {!c.phone && !c.email && <span class="muted">No contact details: ask the coach.</span>}
+        </li>
+      ))}
+    </ul>
+    <p class="muted">Only the players in your matches see these, to arrange them.</p>
+  </section>
+);
+
 export const MatchPage: FC<{
   frame: Frame;
   match: MatchDetail;
@@ -1464,7 +1558,9 @@ export const MatchPage: FC<{
   done: string | null;
   /** What was just sent and refused, to put back in the form rather than make them retype it. */
   sent: Record<string, string> | null;
-}> = ({ frame, match, competition, reportingClosed, division, mine, names, earned, today, messages, done, sent }) => {
+  /** The partner and opponents in it, and how to reach them, while the match is the player's own to arrange. */
+  contacts?: Contact[];
+}> = ({ frame, match, competition, reportingClosed, division, mine, names, earned, today, messages, done, sent, contacts = [] }) => {
   const from: Side = mine ?? 0;
   const theirs: Side = from === 0 ? 1 : 0;
   const live = (side: Side) => match.claims.find((c) => c.state === "pending" && c.side === side) ?? null;
@@ -1526,6 +1622,7 @@ export const MatchPage: FC<{
       <Notice messages={messages} />
       {status}
       {match.status === "played" && mine !== null && <p class="muted">Ask the coach if this result needs correcting.</p>}
+      {contacts.length > 0 && match.status !== "played" && <Contacts contacts={contacts} />}
       {canAct && (
         <ScoreForm
           matchId={match.id}

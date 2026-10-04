@@ -5,6 +5,7 @@ export const REASONS = [
   { value: "conflicting_entries", label: "The sides entered different results" },
   { value: "incorrect_result", label: "The confirmed result is incorrect" },
   { value: "unreported_result", label: "Neither side has entered the result" },
+  { value: "injury_or_withdrawal", label: "Injury or withdrawal" },
 ] as const;
 
 export type CoachSettlement = ReportForm & { reason: typeof REASONS[number]["value"] };
@@ -33,4 +34,22 @@ export function readSettlementForm(form: Record<string, string>, competition: Co
       ...(form.played_on ? { played_on: form.played_on } : {}) } }
     : readReportForm(form, 0, competition.match_format);
   return read.ok ? { ok: true, body: { ...read.report, reason: reason.value } } : read;
+}
+
+/** What the coach is told about two entries that are the same score reversed. */
+export const MIRRORED = "These are the same score reversed: one side may have entered its own games first.";
+
+type Entered = Pick<MatchDetail["claims"][number], "outcome" | "score" | "retired_side">;
+
+/**
+ * Whether two entries are the same score reversed: what one side writes when it
+ * puts its own games first. Same outcome and stopped side, every set swapped,
+ * and not simply equal.
+ */
+export function mirrored(a: Entered | undefined, b: Entered | undefined): boolean {
+  if (!a?.score || !b?.score || a.outcome !== b.outcome || a.retired_side !== b.retired_side) return false;
+  const [x, y] = [a.score.sets, b.score.sets];
+  return x.length === y.length
+    && x.every((set, i) => set.games[0] === y[i]!.games[1] && set.games[1] === y[i]!.games[0])
+    && x.some((set) => set.games[0] !== set.games[1]);
 }
