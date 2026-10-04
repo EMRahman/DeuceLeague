@@ -42,7 +42,7 @@ function memberRecord(r: Row): MemberRecord {
   return { id: String(r.id), displayName: String(r.display_name), status: String(r.status), rating: string(r.rating),
     ratingSystem: string(r.rating_system), level: r.level === null ? null : Number(r.level), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
     leavingAt: date(r.leaving_at),
-    signedInAt: date(r.signed_in_at), createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
+    signedInAt: date(r.signed_in_at), lastSignedInAt: date(r.last_signed_in_at), createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
     ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as object) };
 }
 function clubRead(db: D1Database) {
@@ -66,6 +66,9 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
       -- Sessions are deleted when they end, so this is the newest one still signed in.
       (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
         AND g.kind = 'session') AS signed_in_at,
+      -- Every sign-in is in the member's own history, which signing out leaves as it is.
+      (SELECT max(e.occurred_at) FROM event e INDEXED BY event_subject_ix WHERE e.club_id = m.club_id
+        AND e.subject_type = 'member' AND e.subject_id = m.id AND e.type = 'member.signed_in') AS last_signed_in_at,
       CASE WHEN permission.pii THEN json_object('fullName', m.full_name, 'email', m.email, 'phone', m.phone,
         'dateOfBirth', m.date_of_birth, 'gender', m.gender, 'ageGroup', m.age_group, 'notes', m.notes, 'invitationState', m.invitation_state, 'invitationAt', m.invitation_at) ELSE NULL END AS personal_json
     FROM member m, q, permission WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)

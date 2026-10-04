@@ -41,6 +41,10 @@ export const Member = z
         "When they signed in on the newest device where they are still signed in. Null when they are signed " +
         "in nowhere, so they need a login link.",
     }),
+    last_signed_in_at: Timestamp.nullable().openapi({
+      description: "When they last signed in anywhere, from the audit history; signing out does not clear it. " +
+        "Null when they have never signed in.",
+    }),
     created_at: Timestamp,
     updated_at: Timestamp,
     full_name: z.string().nullable().optional().openapi({ description: pii("Their full name.") }),
