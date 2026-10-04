@@ -21,7 +21,7 @@ import {
 } from "@deuceleague/website";
 import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
-import { Draft, EndSeason, Pairs, SeasonPage, type NextForm } from "./season-views.js";
+import { Draft, EndSeason, Pairs, SeasonPage, type LooseEnd, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
@@ -60,6 +60,8 @@ export type CoachOptions = {
   /** The courts' forecast, as the players' home page shows it; none without courts. */
   weather?: Weather;
   mail?: (message: { to: string; subject: string; text: string }) => Promise<void>;
+  /** Where a page fault is noted: one structural line, never the error itself. */
+  log?: (line: string) => void;
 };
 
 /** Where the coach's key lives: in a cookie only the server can read, sent only to /coach. */
@@ -178,6 +180,7 @@ function today(timezone: string): string {
 export function createCoachSite(options: CoachOptions) {
   const { api } = options;
   const publicUrl = new URL(options.publicUrl);
+  const log = options.log ?? console.log;
   const secure = publicUrl.protocol === "https:";
 
   const app = new Hono().basePath("/coach");
@@ -508,8 +511,12 @@ export function createCoachSite(options: CoachOptions) {
     return c.html(<CoachMatches frame={frameOf(who, "results")} matches={page.data} status={status} after={after} next={page.next_cursor} />);
   });
 
+  /** The match and its competition. A match the API cannot find, or an ID that cannot be one, is a missing page. */
   async function matchInputs(who: Coach, id: string) {
-    const match = await api<MatchDetail>("GET", `/v1/matches/${encodeURIComponent(id)}`, who.key);
+    const match = await api<MatchDetail>("GET", `/v1/matches/${encodeURIComponent(id)}`, who.key).catch((error) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) throw new NoSuchMatch();
+      throw error;
+    });
     const competition = await api<CoachCompetition>("GET", `/v1/competitions/${match.competition_id}`, who.key);
     return { match, competition };
   }
@@ -521,7 +528,8 @@ export function createCoachSite(options: CoachOptions) {
       `/v1/events?match_id=${inputs.match.id}&order=newest&limit=50${after ? `&after=${encodeURIComponent(after)}` : ""}`, who.key);
     return c.html(<CoachMatch frame={frameOf(who, "results")} {...inputs} timezone={who.club.timezone}
       events={history.data} historyAfter={after} historyNext={history.data.length === 50 ? history.next_cursor : null}
-      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"} />, status);
+      {...(values ? { values } : {})} {...(errors ? { errors } : {})} saved={c.req.query("done") === "saved"}
+      {...(!values && c.req.query("use") ? { use: c.req.query("use")! } : {})} />, status);
   }
 
   app.get("/matches/:id", async (c) => {
@@ -1003,8 +1011,21 @@ export function createCoachSite(options: CoachOptions) {
     }
     const next = sent ?? (now.ended ? { from: now.ended.season.id, name: nextName(now.ended.season.name),
       ...nextDates(now.ended.season, today(who.club.timezone)) } : null);
+    // How the latest ended season closed: what it left disputed or entered by one side only stays findable.
+    const last = seasons.filter((s) => s.state === "complete").sort(newestFirst)[0];
+    const closed = last ? { season: last, loose: await looseEnds(who.key, last.id) } : null;
     return c.html(<SeasonPage frame={seasonFrame(who)} turnover={now} progress={progress} next={next} message={message}
-      timezone={who.club.timezone} />, message ? 400 : 200);
+      timezone={who.club.timezone} closed={closed} />, message ? 400 : 200);
+  }
+
+  /** A season's matches disputed or entered by one side only: disputes first, then those waiting longest. */
+  async function looseEnds(key: string, seasonId: string): Promise<LooseEnd[]> {
+    const season = encodeURIComponent(seasonId);
+    return [
+      ...(await all<LooseEnd>(`/v1/matches?status=disputed&season_id=${season}`, key)),
+      ...(await all<LooseEnd>(`/v1/matches?status=reported&season_id=${season}`, key))
+        .sort((a, b) => Date.parse(a.updated_at) - Date.parse(b.updated_at)),
+    ];
   }
 
   app.get("/season", async (c) => {
@@ -1035,8 +1056,9 @@ export function createCoachSite(options: CoachOptions) {
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
     const blocked = await unstarted(who.key, season);
     if (blocked) return seasonPage(c, who, null, blocked);
-    const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
-    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} />);
+    const [progress, loose] = await Promise.all([api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key),
+      looseEnds(who.key, season.id)]);
+    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose} />);
   });
 
   app.post("/season/:id/end", async (c) => {
@@ -1046,6 +1068,19 @@ export function createCoachSite(options: CoachOptions) {
     if (!season || season.state !== "active") return c.redirect("/coach/season", 303);
     const blocked = await unstarted(who.key, season);
     if (blocked) return seasonPage(c, who, null, blocked);
+    // Results never agreed are left undecided only on purpose: the coach saw each of them listed and said so.
+    // One entered or disputed since the page was shown was not, so the page is shown again with it.
+    const form = await c.req.parseBody();
+    const shown = new Set(String(form.shown ?? "").split(",").filter(Boolean));
+    const loose = await looseEnds(who.key, season.id);
+    const unseen = loose.some((m) => !shown.has(m.id));
+    if (loose.length > 0 && (form.leave !== "yes" || unseen)) {
+      const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
+        message={form.leave === "yes" ? "Results have changed since this page was shown. Check the list again before ending the season."
+          : "Decide these results, or tick the box to leave them undecided, before ending the season."} />,
+        form.leave === "yes" ? 409 : 400);
+    }
     const take = allowance();
     // Reporting closes first, so no score arrives while the competitions close.
     if (season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now()) {
@@ -1269,5 +1304,25 @@ export function createCoachSite(options: CoachOptions) {
     return c.redirect("/coach", 303);
   });
 
+  // ─────────────────────────────────────────────────────────────── errors ──
+
+  app.notFound(async (c) => c.html(<Problem frame={frameOf(await coach(c).catch(() => null))} title="Nothing here"
+    detail="There is no such page." back={{ href: "/coach", label: "Back to the dashboard" }} />, 404));
+
+  app.onError(async (error, c) => {
+    if (error instanceof NoSuchMatch) {
+      return c.html(<Problem frame={frameOf(await coach(c).catch(() => null), "results")} title="No such match"
+        detail="There is no match at this address. The link may be incomplete or mistyped."
+        back={{ href: "/coach/results", label: "Back to results" }} />, 404);
+    }
+    // API errors can contain addresses or input. Keep logs structural.
+    log(`error ${c.req.method} ${c.req.path}`);
+    return c.html(<Problem frame={frameOf(null)} title="Something went wrong" detail="Please try again in a moment."
+      back={{ href: "/coach", label: "Back to the dashboard" }} />, 500);
+  });
+
   return app;
 }
+
+/** The match in a page's address does not exist. */
+class NoSuchMatch extends Error {}
