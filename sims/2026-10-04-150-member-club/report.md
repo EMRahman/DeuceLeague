@@ -263,24 +263,18 @@ reopening a season.
 There were no 5xx responses. All 5,550 logged responses carried
 `Cache-Control: no-store`.
 
-1. **`GET /v1/events?order=newest` never signals the end.**
-   - Every page, including an empty one past the oldest event, returns
-     `next_cursor: "1.1"`. The cause is `cursorOf(events.at(-1) ?? from)` in
-     `packages/api/src/cloudflare-events.ts:27`.
-   - A client following the documented cursor convention loops forever. The
-     orchestrator's own statistics script did, sending about 225,000 requests,
-     which were removed from the published log.
-   - The `oldest` feed rightly always returns a cursor for tailing. For
-     `newest`, a short page should end with `null`.
-   - Reproduced as `orchestrator-probe` with request IDs
-     `8f73789c-fba0-4642-9c5c-0cc778f013c8` and
-     `846e464e-3cb8-42f6-bdb0-5c0fbcf43221`.
-2. **Played-on dates after today are accepted.**
+1. **Played-on dates after today are accepted.**
    - The form's `max` is browser-only. Eleven results were stored with dates
      between 11 Oct 2026 and 28 Feb 2027 while the server clock read 4 Oct
      2026, because persona players typed their diary dates.
    - A mistyped year would be accepted the same way.
-3. **Withdrawn entries and drafts:** the design gaps verified in item 7 above.
+2. **Withdrawn entries and drafts:** the design gaps verified in item 7 above.
+
+Not a bug: the event feed's `next_cursor` is always present, for
+`order=newest` too, and reading ends at an empty page. The contract says so
+(`packages/api/src/contracts/events.ts`), and `deploy/cloudflare/test/events.test.ts`
+pages that way. The orchestrator's statistics script instead waited for a
+`null` cursor and looped; see §6.
 
 The 4xx responses were all expected:
 
@@ -380,6 +374,10 @@ The full list of harness faults is at the end of
   - partner suggestions an engine member claimed to have saved but the site
     had refused;
   - a deadlock that ran the Autumn week-7 events after week 9.
+- **A runaway statistics script:** after the run, the orchestrator's script
+  paged the event feed waiting for a `null` cursor, which the contract never
+  returns. Its 225,000 repeat requests were removed from the published
+  request log.
 - **Interruptions:** the API spend limit stopped persona agents twice, and the
   container restarted twice. The Worker restarted on the same D1 each time
   and the agents were resumed; no data was lost.

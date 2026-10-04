@@ -34,9 +34,7 @@ Short version:
     withdrawn entries.
   - Every response was `no-store`.
   - `npm test` and `npm run cf:test` passed.
-- **Bugs:**
-  - `GET /v1/events?order=newest` never returns a null cursor;
-  - the server accepts played-on dates after today.
+- **Bug:** the server accepts played-on dates after today.
 - **Biggest frictions at this size:**
   - the 145,799px Members page with no search;
   - no mid-season withdrawal;
