@@ -172,7 +172,7 @@
                       },
                       "display_name": {
                         "type": "string",
-                        "example": "Sam K."
+                        "example": "Sam Kerr"
                       },
                       "status": {
                         "type": "string",
@@ -468,7 +468,7 @@
               },
               "display_name": {
                 "type": "string",
-                "example": "Sam K."
+                "example": "Sam Kerr"
               }
             },
             "required": [
@@ -1896,7 +1896,7 @@
           },
           "display_name": {
             "type": "string",
-            "example": "Sam K.",
+            "example": "Sam Kerr",
             "description": "The name they play under: the only one shown to players and the public."
           },
           "status": {
@@ -2538,7 +2538,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 60,
-            "description": "The name they play under. Defaults to their first name and initial, such as \"Sam K.\""
+            "description": "The name they play under. Defaults to their full name, such as \"Sam Kerr\", or their first name and initial if that is longer than 60 characters."
           },
           "level": {
             "type": [
@@ -4153,7 +4153,7 @@
           },
           "label": {
             "type": "string",
-            "example": "Sam K. / Alex P.",
+            "example": "Sam Kerr / Alex Price",
             "description": "How the entry is written in a table: its own name, or its members' display names."
           },
           "display_name": {
@@ -4595,7 +4595,7 @@
           },
           "label": {
             "type": "string",
-            "example": "Sam K."
+            "example": "Sam Kerr"
           },
           "points": {
             "type": "number"
@@ -5062,7 +5062,7 @@
           },
           "display_name": {
             "type": "string",
-            "example": "Sam K."
+            "example": "Sam Kerr"
           },
           "this_season": {
             "type": "object",
@@ -5682,7 +5682,7 @@
               "string",
               "null"
             ],
-            "example": "Sam K. v Alex P.",
+            "example": "Sam Kerr v Alex Price",
             "description": "What the subject is called now: a match as its two sides, an entry's label, a member's display name (with `members:read`), or the name of a season, competition, division, key, court or the club. Looked up on reading, like `actor_name`."
           },
           "competition_name": {

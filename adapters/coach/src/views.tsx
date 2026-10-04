@@ -116,11 +116,14 @@ const PersonSelects: FC<{ id: string; gender: string | null; ageGroup: string | 
   </>
 );
 
-/** "Sam K.": the name the API gives a new member unless the coach chooses another. */
+/** "Sam Kerr": the name the API gives a new member unless the coach chooses another. */
 const playingName = (r: JoinRequest) => {
-  const initial = [...r.surname.trim()][0];
+  const first = r.first_name.trim(), surname = r.surname.trim();
+  const full = `${first} ${surname}`.trim();
   // The API's own limit, as its default keeps to: the field would refuse anything longer.
-  return (initial ? `${r.first_name.trim()} ${initial.toUpperCase()}.` : r.first_name.trim()).slice(0, 60);
+  if (full.length <= 60) return full;
+  const initial = [...surname][0];
+  return (initial ? `${first} ${initial.toUpperCase()}.` : first).slice(0, 60);
 };
 
 export type CoachCompetition = Competition & {
@@ -1341,6 +1344,15 @@ export const Members: FC<{
                   <input id={`phone-${m.id}`} type="tel" name="phone" value={m.phone ?? ""} maxlength={24} /></div>
                 <button class="quiet small" type="submit">Save contacts</button>
               </form>}
+              <form class="level" method="post" action={`/coach/members/${m.id}/name`}>
+                <label class="muted" for={`name-${m.id}`}>
+                  Name shown to players
+                </label>
+                <input id={`name-${m.id}`} name="display_name" maxlength={60} value={m.display_name} required />
+                <button class="quiet small" type="submit">
+                  Save
+                </button>
+              </form>
               <form class="level" method="post" action={`/coach/members/${m.id}/level`}>
                 <label class="muted" for={`level-${m.id}`}>
                   Level

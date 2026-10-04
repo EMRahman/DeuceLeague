@@ -384,6 +384,24 @@ export function createCoachSite(options: CoachOptions) {
     return c.redirect("/coach/members?declined=1", 303);
   });
 
+  /** The name players see in tables, fixtures and match pages. Past results follow it: they name the member by id. */
+  app.post("/members/:id/name", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const name = String((await c.req.parseBody()).display_name ?? "").trim();
+    if (!name || name.length > 60) return c.html(<Problem frame={frameOf(who, "members")} title="Name not changed"
+      detail="A name shown to players has 1 to 60 characters." back={{ href: `/coach/members#member-${id}`, label: "Back to members" }} />, 400);
+    try {
+      await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { display_name: name });
+    } catch (error) {
+      if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
+      return c.html(<Problem frame={frameOf(who, "members")} title="Name not changed"
+        detail="That member is not on the club's list any more." />, 404);
+    }
+    return c.redirect(`/coach/members#member-${id}`, 303);
+  });
+
   app.post("/members/:id/level", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);

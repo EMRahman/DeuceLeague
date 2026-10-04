@@ -19,7 +19,7 @@ export const Member = z
   .object({
     id: z.uuid(),
     display_name: z.string().openapi({
-      example: "Sam K.",
+      example: "Sam Kerr",
       description: "The name they play under: the only one shown to players and the public.",
     }),
     status: MemberStatus,

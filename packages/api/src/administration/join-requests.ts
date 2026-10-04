@@ -20,8 +20,12 @@ export function toJoinRequest(r: JoinRequestRecord): z.infer<typeof JoinRequest>
   };
 }
 
-/** "Sam K.": how players are named to each other unless the coach chooses otherwise. */
+/** "Sam Kerr": how players are named to each other unless the coach chooses otherwise. A name too long for the
+ * field becomes "Sam K.". */
 export function displayNameOf(r: Pick<JoinRequestRecord, "firstName" | "surname">): string {
-  const initial = [...r.surname.trim()][0];
-  return (initial ? `${r.firstName.trim()} ${initial.toUpperCase()}.` : r.firstName.trim()).slice(0, 60);
+  const first = r.firstName.trim(), surname = r.surname.trim();
+  const full = `${first} ${surname}`.trim();
+  if (full.length <= 60) return full;
+  const initial = [...surname][0];
+  return (initial ? `${first} ${initial.toUpperCase()}.` : first).slice(0, 60);
 }

@@ -440,7 +440,7 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     </p>
     <h2>Who sees them</h2>
     <p>
-      The coach sees everything. Other players see the name you play under, such as "Sam K.", and your results.
+      The coach sees everything. Other players see the name you play under, usually your full name, and your results.
       While a competition is under way, your doubles partner and your opponents in it also see your full name, email
       address and telephone number, so you can arrange your matches together; nobody else does. The site runs on Cloudflare, which stores the league's records for us. Our configured email provider processes your email address and sign-in email to send the link. WhatsApp processes communications sent through its service. When you ask to join,
       Cloudflare's Turnstile may check that a person, not a program, is sending the form, and we keep a scrambled

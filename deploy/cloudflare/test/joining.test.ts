@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHmac } from "node:crypto";
 import { purgeExpired } from "@deuceleague/db-d1";
+import { displayNameOf } from "../../../packages/api/dist/administration/join-requests.js";
 import { fixture } from "./helpers.ts";
 import { browser, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
 
@@ -53,7 +54,7 @@ test("a join request waits apart from members until the coach approves it, as a 
   assert.equal((await send(f, `/v1/join-requests/${created.body.id}/approve`, "POST", { level: 0 })).status, 400);
   const approved = await send(f, `/v1/join-requests/${created.body.id}/approve`, "POST", { level: 4 });
   assert.equal(approved.status, 201, JSON.stringify(approved.body));
-  assert.equal(approved.body.display_name, "Sam K."); assert.equal(approved.body.full_name, "Sam Kerr");
+  assert.equal(approved.body.display_name, "Sam Kerr"); assert.equal(approved.body.full_name, "Sam Kerr");
   assert.equal(approved.body.email, sam.email); assert.equal(approved.body.phone, sam.phone);
   assert.equal(approved.body.level, 4); assert.equal(approved.body.status, "active");
   assert.match(approved.body.joined_on, /^\d{4}-\d{2}-\d{2}$/);
@@ -69,7 +70,7 @@ test("a join request waits apart from members until the coach approves it, as a 
 
   // Someone asking with a member's email is shown as that member, and cannot be added twice.
   const twin = await send(f, "/v1/join-requests", "POST", { ...sam, email: "sam.kerr@EXAMPLE.org" }, form);
-  assert.deepEqual(twin.body.member, { id: approved.body.id, display_name: "Sam K." });
+  assert.deepEqual(twin.body.member, { id: approved.body.id, display_name: "Sam Kerr" });
   const clash = await send(f, `/v1/join-requests/${twin.body.id}/approve`, "POST", {});
   assert.equal(clash.status, 409); assert.equal(clash.body.code, "email_taken");
   assert.equal((await send(f, `/v1/join-requests/${twin.body.id}`)).status, 200);
@@ -86,7 +87,7 @@ test("a join request waits apart from members until the coach approves it, as a 
     method: "POST", headers: { Authorization: `Bearer ${f.admin}`, "Content-Type": "application/json" } });
   assert.equal(response.status, 201);
   const member = await response.json() as { display_name: string; level: number | null; email: string | null };
-  assert.equal(member.display_name, "Sam K."); assert.equal(member.level, null); assert.equal(member.email, listed[1].email);
+  assert.equal(member.display_name, "Sam Kerr"); assert.equal(member.level, null); assert.equal(member.email, listed[1].email);
   assert.equal((await send(f, `/v1/join-requests/${listed[2].id}/approve`, "POST", { display_name: "Sammy" })).body.display_name, "Sammy");
 });
 
@@ -201,7 +202,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   // No Turnstile set up: no script, and the page's policy allows none.
   assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-03/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-04/);
   assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
 
@@ -236,14 +237,14 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-03", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-04", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   assert.match((await coach.get("/coach")).html, /2 people are asking to join the league/);
   const members = await coach.get("/coach/members");
   assert.match(members.html, /Asking to join/); assert.match(members.html, /Robin Hale/); assert.match(members.html, /\+44 7700 900456/);
-  assert.match(members.html, /name="display_name"[^>]*value="Robin H\."/);
+  assert.match(members.html, /name="display_name"[^>]*value="Robin Hale"/);
   assert.match(members.html, /Female · 35 to 49/); assert.match(members.html, /Male<\/span>/);
   assert.match(members.html, /<option value="female" selected="">Female<\/option>/);
   assert.match(members.html, /not put them in a running season/);
@@ -257,6 +258,13 @@ test("the join form turns away programs and mistakes, and the coach approves the
   const memberId = added.location!.split("=")[1]!;
   const approved = (await f.api(`/v1/members/${memberId}`, f.admin)).body;
   assert.equal(approved.gender, "female"); assert.equal(approved.age_group, "35_49");
+  // The coach renames them from the members page, and every page that names them follows.
+  assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: "  Robin Hale " })).status, 303);
+  assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.display_name, "Robin Hale");
+  assert.match((await coach.get("/coach/members")).html, new RegExp(`id="name-${memberId}"[^>]*value="Robin Hale"`));
+  assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: " " })).status, 400);
+  assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: "x".repeat(61) })).status, 400);
+  assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.display_name, "Robin Hale");
   // The coach corrects them, or clears them, from the members page.
   assert.equal((await coach.post(`/coach/members/${memberId}/details`, { gender: "other", age_group: "50_64" })).status, 303);
   assert.deepEqual(((b) => [b.gender, b.age_group])((await f.api(`/v1/members/${memberId}`, f.admin)).body), ["other", "50_64"]);
@@ -288,7 +296,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match((await coach.get(declined.location!)).html, /Request declined and deleted/);
   assert.equal(await waiting(f), 0);
   assert.equal((await coach.post(`/coach/join-requests/${alex}/approve`, { display_name: "Alex M." })).status, 404);
-  assert.match((await coach.get("/coach/activity/all")).html, /approved Robin H\.&#39;s request to join|approved Robin H\.'s request to join/);
+  assert.match((await coach.get("/coach/activity/all")).html, /approved Robin Hale(?:&#39;|')s request to join/);
 });
 
 test("the coach's pages read one page of requests however many wait, and a long name still fits", async (t) => {
@@ -359,4 +367,10 @@ test("with Turnstile set up, the form runs its check and the Worker asks Cloudfl
   assert.deepEqual(f.turnstile.at(-1), { secret: "turnstile-secret", response: "pass", remoteip: "203.0.113.9" });
   // A program that fails the check does not use up the day's requests.
   assert.equal(await f.db.prepare("SELECT count FROM website_join_limit WHERE bucket = 'club'").first("count"), 1);
+});
+
+test("a new member plays under their full name, or first name and initial when that is too long", () => {
+  assert.equal(displayNameOf({ firstName: " Hannah ", surname: "Clarke " }), "Hannah Clarke");
+  assert.equal(displayNameOf({ firstName: "A".repeat(29), surname: "b".repeat(30) }), `${"A".repeat(29)} ${"b".repeat(30)}`);
+  assert.equal(displayNameOf({ firstName: "A".repeat(30), surname: "bc".repeat(20) }), `${"A".repeat(30)} B.`);
 });

@@ -19,7 +19,7 @@ const SessionCredential = z.object({
   member: z
     .object({
       id: z.uuid(),
-      display_name: z.string().openapi({ example: "Sam K." }),
+      display_name: z.string().openapi({ example: "Sam Kerr" }),
       /** `paused` while they are on a break from the league. */
       status: MemberStatus,
       leaving_at: Timestamp.nullable().openapi({

@@ -36,7 +36,7 @@ export const Row = z
       description: "Unranked: played fewer than the rules' minimum, so listed below the ranked. Withdrawn: listed last.",
     }),
     entry_id: z.uuid(),
-    label: z.string().openapi({ example: "Sam K." }),
+    label: z.string().openapi({ example: "Sam Kerr" }),
     points: z.number(),
     played: z.number().int().openapi({ description: "Matches it took the court for, or turned up ready to." }),
     won: z.number().int(),

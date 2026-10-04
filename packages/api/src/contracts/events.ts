@@ -42,7 +42,7 @@ const Event = z
         "null without it, for the system, or for a record since deleted.",
     }),
     subject_name: z.string().nullable().openapi({
-      example: "Sam K. v Alex P.",
+      example: "Sam Kerr v Alex Price",
       description:
         "What the subject is called now: a match as its two sides, an entry's label, a member's display name " +
         "(with `members:read`), or the name of a season, competition, division, key, court or the club. " +

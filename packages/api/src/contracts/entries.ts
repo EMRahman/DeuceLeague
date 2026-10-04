@@ -16,7 +16,7 @@ export const Entry = z
     competition_id: z.uuid(),
     division_id: z.uuid(),
     label: z.string().openapi({
-      example: "Sam K. / Alex P.",
+      example: "Sam Kerr / Alex Price",
       description: "How the entry is written in a table: its own name, or its members' display names.",
     }),
     display_name: z.string().nullable().openapi({ description: "The entry's own name, if it has one." }),
