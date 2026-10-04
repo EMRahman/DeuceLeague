@@ -16,6 +16,16 @@ export function deadlinePassed(deadline: Date): never {
     `Results were taken until ${iso(deadline)}. The coach can settle this match, or move the season's deadline.`);
 }
 
+const DAY = 86_400_000;
+
+/** A match cannot have been played after today. Tomorrow in UTC is already today somewhere, so no club is refused its own date. */
+function checkPlayedOn(playedOn: string | undefined, now: Date) {
+  const latest = new Date(now.getTime() + DAY).toISOString().slice(0, 10);
+  if (playedOn !== undefined && playedOn > latest) {
+    throw problems.validation([{ path: "played_on", message: "cannot be after today" }]);
+  }
+}
+
 export function visibleToPlayer(competition: ResultContext["competition"]): boolean {
   return competition.visibility === "members" && competition.state !== "draft";
 }
@@ -58,6 +68,7 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
       side = ownSide as SideIndex;
     }
     checkDeadline();
+    checkPlayedOn(body.played_on, now);
     const { claim, checked } = checkResult(body, competition.matchFormat);
     if (match.status === "played") {
       if (compareClaims(ledgerClaim(match), claim).length === 0) return null;
@@ -83,6 +94,7 @@ export function decideResult(state: ResultContext, action: ResultAction, id: str
     };
   }
   const { body } = action;
+  checkPlayedOn(body.played_on, now);
   const { claim, checked } = checkResult(body, competition.matchFormat);
   const playedOn = body.played_on ?? match.playedOn;
   if (match.status === "played" && compareClaims(ledgerClaim(match), claim).length === 0 && playedOn === match.playedOn) return null;

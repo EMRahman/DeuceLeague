@@ -94,7 +94,7 @@ const ResultFields = {
   retired_side: SideIndex.nullable()
     .optional()
     .meta({ description: "Required for retired, walkover and conceded: the side that stopped." }),
-  played_on: z.iso.date().optional(),
+  played_on: z.iso.date().optional().openapi({ description: "No later than today." }),
   raw_input: z.string().max(2000).optional().openapi({ description: "What the player typed, if they typed it." }),
 };
 

@@ -117,6 +117,24 @@ test("format validation rejects illegal results atomically and every outcome can
   }
 });
 
+test("players and the coach cannot date a result after today", async (t) => {
+  const f = await playing(t);
+  const m = f.matches[0]!;
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+  for (const [path, body] of [
+    [`/v1/matches/${m}/claims`, { side: 0, ...completed, played_on: day(2) }],
+    [`/v1/matches/${m}/settle`, { ...completed, played_on: day(2) }],
+    [`/v1/matches/${m}/settlement-preview`, { ...completed, played_on: day(2) }],
+  ] as const) {
+    const refused = await f.send(path, f.admin, "POST", body);
+    assert.equal(refused.status, 400, path);
+    assert.deepEqual(refused.body.errors, [{ path: "played_on", message: "cannot be after today" }]);
+  }
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM result_submission").first("n"), 0);
+  assert.equal((await f.report(m, 0, { played_on: day(0) })).status, 201);
+  assert.equal((await f.report(m, 1, { played_on: day(-1) })).status, 201);
+});
+
 test("players report only their own singles/doubles side and never receive raw input or member PII", async (t) => {
   const f = await playing(t, 2, true);
   const m = f.matches[0]!;

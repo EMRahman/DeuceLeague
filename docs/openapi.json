@@ -1105,7 +1105,8 @@
           },
           "played_on": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "No later than today."
           },
           "raw_input": {
             "type": "string",
@@ -1425,7 +1426,8 @@
           },
           "played_on": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "No later than today."
           },
           "raw_input": {
             "type": "string",
