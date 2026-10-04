@@ -156,6 +156,8 @@ export async function commitResult(db: D1Database, state: ResultSnapshot, change
 export type MatchFilters = {
   limit: number; after?: string | undefined; competitionId?: string | undefined; divisionId?: string | undefined;
   entryId?: string | undefined; memberId?: string | undefined; status?: string | undefined;
+  /** Matches of this season's competitions only. */
+  seasonId?: string | undefined;
   /** `created`, the default: oldest first. `recent`: most recently changed first, continuing after the `after` match. */
   order?: "created" | "recent" | undefined;
 };
@@ -172,7 +174,7 @@ export async function readMatchPage(db: D1Database, hash: string, kind: Credenti
     WHERE m.club_id = (SELECT id FROM club WHERE singleton = 1)
       AND (? IS NULL OR (m.updated_at, m.id) < (SELECT a.updated_at, a.id FROM match a WHERE a.id = ?))
       AND (? IS NULL OR m.competition_id = ?) AND (? IS NULL OR m.division_id = ?)
-      AND (? IS NULL OR m.status = ?)
+      AND (? IS NULL OR m.status = ?) AND (? IS NULL OR c.season_id = ?)
       AND (? IS NULL OR EXISTS (SELECT 1 FROM match_side s WHERE s.match_id = m.id AND s.club_id = m.club_id AND s.entry_id = ?))
       AND (? IS NULL OR EXISTS (SELECT 1 FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id AND em.club_id = s.club_id
         WHERE s.match_id = m.id AND s.club_id = m.club_id AND em.member_id = ?))
@@ -188,10 +190,13 @@ export async function readMatchPage(db: D1Database, hash: string, kind: Credenti
     ), by_match(id) AS (
       SELECT id FROM match WHERE ?1 IS NULL AND ?2 IS NULL AND division_id = ?3
       UNION ALL SELECT id FROM match WHERE ?1 IS NULL AND ?2 IS NULL AND ?3 IS NULL AND competition_id = ?4
-      UNION ALL SELECT id FROM match WHERE ?1 IS NULL AND ?2 IS NULL AND ?3 IS NULL AND ?4 IS NULL AND status = ?5
+      -- A season's matches, through its competitions, rather than the status of every season's.
+      UNION ALL SELECT sm.id FROM competition sc JOIN match sm ON sm.competition_id = sc.id
+        WHERE ?1 IS NULL AND ?2 IS NULL AND ?3 IS NULL AND ?4 IS NULL AND sc.season_id = ?9 AND (?5 IS NULL OR sm.status = ?5)
+      UNION ALL SELECT id FROM match WHERE ?1 IS NULL AND ?2 IS NULL AND ?3 IS NULL AND ?4 IS NULL AND ?9 IS NULL AND status = ?5
     ), candidate(id) AS (
       SELECT id FROM by_side UNION ALL SELECT id FROM by_match
-      UNION ALL SELECT id FROM match WHERE ?1 IS NULL AND ?2 IS NULL AND ?3 IS NULL AND ?4 IS NULL AND ?5 IS NULL
+      UNION ALL SELECT id FROM match WHERE ?1 IS NULL AND ?2 IS NULL AND ?3 IS NULL AND ?4 IS NULL AND ?5 IS NULL AND ?9 IS NULL
     ) SELECT m.*, (
       SELECT json_group_array(json_object('sideIndex', s.side_index, 'entryId', s.entry_id,
         'label', (SELECT label FROM entry_label el WHERE el.entry_id = s.entry_id AND el.club_id = s.club_id)) ORDER BY s.side_index)
@@ -202,7 +207,7 @@ export async function readMatchPage(db: D1Database, hash: string, kind: Credenti
     WHERE m.id IN candidate AND m.club_id = (SELECT id FROM club WHERE singleton = 1)
       AND (?6 IS NULL OR m.id > ?6)
       AND (?4 IS NULL OR m.competition_id = ?4) AND (?3 IS NULL OR m.division_id = ?3)
-      AND (?5 IS NULL OR m.status = ?5)
+      AND (?5 IS NULL OR m.status = ?5) AND (?9 IS NULL OR c.season_id = ?9)
       AND (?2 IS NULL OR EXISTS (SELECT 1 FROM match_side s WHERE s.match_id = m.id AND s.club_id = m.club_id AND s.entry_id = ?2))
       AND (?1 IS NULL OR EXISTS (SELECT 1 FROM match_side s JOIN entry_member em ON em.entry_id = s.entry_id AND em.club_id = s.club_id
         WHERE s.match_id = m.id AND s.club_id = m.club_id AND em.member_id = ?1))
@@ -212,10 +217,11 @@ export async function readMatchPage(db: D1Database, hash: string, kind: Credenti
   const identity = await readIdentity(db, hash, kind, null, [
     recent
       ? recent.bind(q.after ?? null, q.after ?? null, q.competitionId ?? null, q.competitionId ?? null,
-        q.divisionId ?? null, q.divisionId ?? null, q.status ?? null, q.status ?? null, q.entryId ?? null, q.entryId ?? null,
+        q.divisionId ?? null, q.divisionId ?? null, q.status ?? null, q.status ?? null, q.seasonId ?? null, q.seasonId ?? null,
+        q.entryId ?? null, q.entryId ?? null,
         q.memberId ?? null, q.memberId ?? null, session, q.limit + 1)
       : oldest.bind(q.memberId ?? null, q.entryId ?? null, q.divisionId ?? null, q.competitionId ?? null,
-        q.status ?? null, q.after ?? null, session, q.limit + 1),
+        q.status ?? null, q.after ?? null, session, q.limit + 1, q.seasonId ?? null),
   ]);
   const rows = (identity.extraResults[0]!.results as Row[]).map((r) => matchRecord(r, JSON.parse(String(r.sides_json)) as MatchRecord["sides"]));
   const more = rows.length > q.limit;

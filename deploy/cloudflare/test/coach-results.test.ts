@@ -8,7 +8,7 @@ const versionOf = (html: string) => {
   assert.ok(version, "review page includes a version of its decision inputs");
   return version;
 };
-const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
 
 test("settlement previews use real standings, make no submissions, and retain the coach's identity and reason", async t => {
   const f = await playing(t, 3);
@@ -253,6 +253,43 @@ test("the coach can give injury or withdrawal as the reason for a decision", asy
   const settled = await f.api(`/v1/matches/${p.match}/settle`, f.admin, "POST", { ...body, expected_version: preview.body.version });
   assert.equal(settled.status, 201, JSON.stringify(settled.body));
   assert.match(text((await coach.get(`/coach/matches/${p.match}`)).html), /Injury or withdrawal/);
+});
+
+test("Results and the match page write every score side-0-first, offer each entry as a decision and spot a reversed score", async t => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
+  const names = (await f.api(`/v1/matches/${p.match}`, f.admin)).body.sides.map((s: any) => s.label) as [string, string];
+  const claim = (side: 0 | 1, sets: [number, number][], extra: object = {}) => f.api(`/v1/matches/${p.match}/claims`, f.admin, "POST",
+    { side, outcome: "completed", score: score(...sets), played_on: "2026-06-01", ...extra });
+  // Side 1 enters a win, 4-6 6-7 for side 0: the waiting list writes it from side 0, not from the reporter.
+  assert.equal((await claim(1, [[4, 6], [6, 7]])).status, 201);
+  let results = text((await coach.get("/coach/results")).html)
+  assert.match(results, new RegExp(`${names[1]} entered: 4-6, 6-7\\. ${names[0]} has not answered`));
+  assert.match(results, new RegExp(`Written with ${names[0]}'s games first`));
+  // Side 0 enters the same score with its own games first: a mirror image, not the same score.
+  assert.equal((await claim(0, [[6, 4], [7, 6]])).status, 201);
+  results = text((await coach.get("/coach/results")).html);
+  assert.match(results, /same score reversed/);
+  let page = await coach.get(`/coach/matches/${p.match}`);
+  assert.match(text(page.html), /same score reversed/);
+  const use = [...page.html.matchAll(/href="([^"]*\?use=[^"]+)"/g)].map((m) => m[1]!.replace(/&amp;/g, "&"));
+  assert.equal(use.length, 2, "each entry can start the decision");
+  // Using side 1's entry fills the form with it; saving still needs review, a reason and the version.
+  page = await coach.get(use[1]!);
+  assert.match(text(page.html), new RegExp(`holds ${names[1]}'s entry`));
+  for (const [field, value] of [["mine_1", "4"], ["theirs_1", "6"], ["mine_2", "6"], ["theirs_2", "7"], ["played_on", "2026-06-01"]]) {
+    assert.match(page.html, new RegExp(`name="${field}"[^>]*value="${value}"`), field);
+  }
+  assert.match(page.html, /value="completed" checked/);
+  assert.doesNotMatch(page.html, /<option value="[a-z_]+" selected/, "no reason is chosen for the coach");
+  const unsaved = await coach.post(`/coach/matches/${p.match}/settle`, { outcome: "completed", mine_1: "4", theirs_1: "6",
+    mine_2: "6", theirs_2: "7", reason: "conflicting_entries" });
+  assert.equal(unsaved.status, 400, "saving without review is refused");
+  assert.equal((await f.api(`/v1/matches/${p.match}`, f.admin)).body.status, "disputed");
+  // A different score is a plain dispute, with no note.
+  assert.equal((await claim(0, [[6, 2], [6, 2]])).status, 201);
+  assert.doesNotMatch(text((await coach.get("/coach/results")).html), /same score reversed/);
+  assert.doesNotMatch(text((await coach.get(`/coach/matches/${p.match}`)).html), /same score reversed/);
 });
 
 test("an unknown or malformed match ID is a missing page for the coach and the player", async t => {
