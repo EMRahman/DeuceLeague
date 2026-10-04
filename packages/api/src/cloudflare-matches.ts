@@ -64,7 +64,7 @@ export function registerCloudflareMatches(app: OpenAPIHono<CloudflareEnv>, db: D
     return c.json(await retryMutation(async () => {
       const page = await readMatchPage(db, initial.hash, initial.kind, {
         limit: q.limit, after: q.after, competitionId: q.competition_id, divisionId: q.division_id,
-        entryId: q.entry_id, memberId: q.member_id, status: q.status, order: q.order,
+        entryId: q.entry_id, memberId: q.member_id, status: q.status, order: q.order, seasonId: q.season_id,
       });
       authorize(c, page.identity);
       await commitIdentity(db, page.identity, { type: "read" });

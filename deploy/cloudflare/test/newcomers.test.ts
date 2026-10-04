@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { browser, playingWebsite, signIn, websiteFixture } from "./website-helpers.ts";
 
-test("an approved newcomer sees waiting, announced dates, provisional doubles placement and open fixtures", async (t) => {
+test("an approved newcomer sees waiting and announced dates, nothing of a draft, then their started placement and fixtures", async (t) => {
   const f = await websiteFixture(t);
   const request = await f.create("/v1/join-requests", { first_name: "Robin", surname: "Hale",
     email: "robin@example.org", phone: "07700 900123", privacy_notice: "uk-2026-10-01" });
@@ -30,20 +30,22 @@ test("an approved newcomer sees waiting, announced dates, provisional doubles pl
   const division = await f.create(`/v1/competitions/${comp.id}/divisions`, { name: "Division 4" });
   const partner = await f.create("/v1/members", { display_name: "Lee" });
   await f.create(`/v1/competitions/${comp.id}/entries`, { division_id: division.id, member_ids: [member.id, partner.id] });
+  // Next season's draft stays private, their own place included, until the coach starts it.
   home = (await player.get("/")).html;
-  assert.match(home, /Your provisional place.*Spring 2027/);
-  assert.match(home, /Doubles · Division 4/); assert.match(home, /Partner: Lee/);
-  assert.match(home, /draft placement and may change/); assert.doesNotMatch(home, /waiting for the coach to consider/);
-  // The exception is only their own lineup: normal draft reads remain refused.
+  assert.match(home, /waiting for the coach to consider your placement in Spring 2027/);
+  assert.doesNotMatch(home, /Your provisional place|Division 4|Lee/);
+  assert.deepEqual((await f.api("/v1/me/placements", player.session())).body.placements, []);
   assert.equal((await f.api(`/v1/competitions/${comp.id}`, player.session())).status, 404);
   assert.equal((await f.api(`/v1/competitions/${comp.id}/entries`, player.session())).status, 404);
   assert.equal((await f.api("/v1/me/placements", f.admin)).status, 403);
   assert.equal((await f.request("/v1/me/placements")).status, 401);
   assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
-  assert.match((await player.get("/")).html, /Your provisional place/);
+  home = (await player.get("/")).html;
+  assert.match(home, /Your membership is approved/); assert.doesNotMatch(home, /Your provisional place|Division 4/);
   assert.equal((await f.api(`/v1/competitions/${comp.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
   home = (await player.get("/")).html;
-  assert.match(home, /Your season is open/); assert.match(home, /fixtures are still being prepared/);
+  assert.match(home, /Your season is open · Spring 2027/); assert.match(home, /fixtures are still being prepared/);
+  assert.match(home, /Doubles · Division 4/); assert.match(home, /Partner: Lee/);
   assert.doesNotMatch(home, /Your provisional place|Your membership is approved/);
   const opponents = await Promise.all(["Alex", "Sam"].map((display_name) => f.create("/v1/members", { display_name })));
   await f.create(`/v1/competitions/${comp.id}/entries`, { division_id: division.id, member_ids: opponents.map((m) => m.id) });
@@ -85,4 +87,14 @@ test("coach newcomers exclude breaks, leavers and previous participants who opte
   const home = (await coach.get("/coach/members")).html;
   const waiting = home.split("Waiting to be placed")[1]!.split("On the club&#39;s list")[0]!;
   assert.match(waiting, /New arrival/); assert.doesNotMatch(waiting, /Opted out|On break|Leaving|Left club|Sam|Alex/);
+});
+
+test("a competition moved back to draft after play still counts as one the player has been in", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const score = { sets: [{ games: [6, 4] }, { games: [6, 3] }] };
+  assert.equal((await f.api(`/v1/matches/${p.match}/claims`, f.admin, "POST", { side: 0, outcome: "completed", score })).status, 201);
+  assert.equal((await f.api(`/v1/competitions/${p.comp.id}`, f.admin, "PATCH", { state: "draft" })).status, 200);
+  assert.equal((await f.api("/v1/me/placements", sam.session())).body.has_entries, true);
+  assert.doesNotMatch((await sam.get("/")).html, /Your membership is approved/);
 });

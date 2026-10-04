@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
-import { deadlineLine, type Season } from "@deuceleague/website";
-import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PlacedEntry, type Turnover, type Unplaced } from "./season.js";
+import { deadlineLine, type Match, type Season } from "@deuceleague/website";
+import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PairsView, type PlacedEntry, type Turnover,
+  type Unplaced } from "./season.js";
 import { Layout, type CoachCompetition, type Frame, type SeasonProgress } from "./views.js";
 
 /** The Season tab's pages: ending a season, starting the next from its tables, and adjusting the drafts. */
@@ -29,6 +30,27 @@ const Notice: FC<{ message: string | null }> = ({ message }) =>
 
 export type NextForm = { from: string; name: string; starts_on: string; ends_on: string };
 
+/** A match whose sides never agreed a result, nor the coach decided one: disputed, or entered by one side only. */
+export type LooseEnd = Match & { updated_at: string };
+
+/** Each loose end on a line, linked to its match page, where the coach can decide it while the season runs. */
+const LooseEnds: FC<{ matches: LooseEnd[] }> = ({ matches }) => (
+  <ul class="list">
+    {matches.map((m) => {
+      const names = [0, 1].map((side) => m.sides.find((s) => s.side === side)?.label ?? `Side ${side + 1}`);
+      return (
+        <li class="answer">
+          <a href={`/coach/matches/${m.id}`}>{names.join(" v ")}</a>
+          <span class="muted">
+            {" "}· {[m.competition_name, m.division_name].filter(Boolean).join(" · ")} ·{" "}
+            {m.status === "disputed" ? "the sides entered different results" : "only one side entered a result"}
+          </span>
+        </li>
+      );
+    })}
+  </ul>
+);
+
 export const SeasonPage: FC<{
   frame: Frame;
   turnover: Turnover;
@@ -38,7 +60,9 @@ export const SeasonPage: FC<{
   next: NextForm | null;
   message: string | null;
   timezone: string;
-}> = ({ frame, turnover, progress, next, message, timezone }) => {
+  /** The latest ended season, and its matches left disputed or entered by one side only. */
+  closed: { season: Season; loose: LooseEnd[] } | null;
+}> = ({ frame, turnover, progress, next, message, timezone, closed }) => {
   const { running, ended, preparing } = turnover;
   return (
     <Layout title="Season" frame={frame}>
@@ -95,7 +119,10 @@ export const SeasonPage: FC<{
             promoted, relegated or held by each competition's rules. Anyone who opted out, or played fewer matches than
             the minimum, is left out; you can add them back.
           </p>
-          <p class="muted">Players see nothing of next season until you start it.</p>
+          <p class="muted">
+            Players see nothing of next season, their own place included, until you start it. Then they see their
+            competition, division and fixtures.
+          </p>
           <form method="post" action="/coach/season/next">
             <input type="hidden" name="from" value={next.from} />
             <div class="field">
@@ -113,6 +140,23 @@ export const SeasonPage: FC<{
             </div>
             <button type="submit">Start next season</button>
           </form>
+        </div>
+      )}
+
+      {closed && (
+        <div class="card">
+          <h2>How {closed.season.name} closed</h2>
+          {closed.loose.length === 0 ? (
+            <p class="muted">Every result was agreed by both sides or decided by you.</p>
+          ) : (
+            <>
+              <p>
+                {plural(closed.loose.length, "match", "matches")} ended without an agreed result and count as unplayed.
+                Its competitions are a record now: reopen one through the API to change a result.
+              </p>
+              <LooseEnds matches={closed.loose} />
+            </>
+          )}
         </div>
       )}
 
@@ -150,18 +194,42 @@ export const SeasonPage: FC<{
   );
 };
 
-export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgress }> = ({ frame, season, progress }) => {
+export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgress; loose: LooseEnd[]; message?: string | null }> = ({
+  frame,
+  season,
+  progress,
+  loose,
+  message = null,
+}) => {
   const competitions = progress.competitions.filter((x) => x.state === "active");
   const outstanding = competitions.reduce((n, x) => n + x.outstanding, 0);
+  const unentered = Math.max(0, outstanding - loose.length);
   const early = season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now();
   return (
     <Layout title={`End ${season.name}`} frame={frame}>
       <h1>End {season.name} now?</h1>
+      <Notice message={message} />
+      {loose.length > 0 && (
+        <div class="card">
+          <h2>{plural(loose.length, "result")} never agreed</h2>
+          <p>
+            These will count as unplayed unless you decide them first. Open one to see both sides' entries and decide
+            it.
+          </p>
+          <LooseEnds matches={loose} />
+        </div>
+      )}
       <ul class="plain">
         {early && <li>Reporting closes now, before the deadline. Players can no longer report or agree scores.</li>}
-        {outstanding > 0 && (
+        {unentered > 0 && (
           <li>
-            <strong>{plural(outstanding, "match", "matches")}</strong> without an agreed result will count as unplayed.
+            <strong>{plural(unentered, "match", "matches")}</strong> nobody entered a result for will count as unplayed.
+          </li>
+        )}
+        {loose.length > 0 && (
+          <li>
+            <strong>{plural(loose.length, "match", "matches")}</strong> above, disputed or entered by one side only,
+            will count as unplayed too.
           </li>
         )}
         <li>The tables become final, and {competitions.map((x) => x.name).join(" and ")} become a record.</li>
@@ -177,6 +245,14 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
         Nothing is deleted. A season ended by mistake can be reopened through the API, which moves it back a step.
       </p>
       <form method="post" action={`/coach/season/${season.id}/end`}>
+        <input type="hidden" name="shown" value={loose.map((m) => m.id).join(",")} />
+        {loose.length > 0 && (
+          <label class="choice">
+            <input type="checkbox" name="leave" value="yes" required /> Leave{" "}
+            {loose.length === 1 ? "this result" : `these ${loose.length} results`} undecided: {loose.length === 1 ? "it counts" : "they count"} as
+            unplayed.
+          </label>
+        )}
         <button type="submit">End {season.name}</button>
       </form>
       <p class="after">
@@ -295,6 +371,7 @@ export const Draft: FC<{
     <Layout title={`${draft.name}, ${season.name}`} frame={frame}>
       <p class="muted">
         <a href="/coach/season">Season</a> · {season.name} · draft
+        {doubles && <> · <a href={`/coach/pairs#competition-${previous.id}`}>What players said about partners</a></>}
       </p>
       <h1>{draft.name}</h1>
       {empty ? (
@@ -331,16 +408,18 @@ export const Draft: FC<{
           {!empty &&
             view.vacancies
               .filter((v) => v.to.id === d.id)
-              .map(({ vacancy, to, fill }) => (
+              .map(({ vacancy, to, fill, back }) => (
                 <div class="notice">
-                  {vacancy.explanation}
+                  {back
+                    ? `${vacancy.label} ${vacancy.label.includes(" / ") ? "are" : "is"} back in ${back.name}; ${to.name} receives one fewer this season.`
+                    : vacancy.explanation}
                   {fill && (
                     <form method="post" action={`/coach/season/entries/${fill.id}/move`}>
                       <input type="hidden" name="draft" value={fill.competition_id} />
                       <input type="hidden" name="division_id" value={to.id} />
                       <input type="hidden" name="reason" value={vacancy.kind === "promotion" ? "promoted" : "relegated"} />
-                      <button class="small" type="submit">
-                        {vacancy.kind === "promotion" ? "Promote" : "Relegate"} {fill.label}
+                      <button class="small quiet" type="submit">
+                        Suggestion: {vacancy.kind === "promotion" ? "promote" : "relegate"} {fill.label}
                       </button>
                     </form>
                   )}
@@ -417,22 +496,24 @@ export const Draft: FC<{
       )}
 
       {!empty && doubles && (
-        <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} category={draft.category} />
+        <Pairing draft={draft.id} view={view} divisions={divisions} bottom={bottom} category={draft.category}
+          previous={previous.name} />
       )}
     </Layout>
   );
 };
 
 /** Why someone has no pair in the draft, in a few words: what they said, else what became of their pair. */
-const note = (u: Unplaced) =>
-  u.said ?? (u.last ? `Was in ${u.last.entry.label} · ${u.last.why}` : "Not in doubles last season");
+const note = (u: Unplaced, previous: string) =>
+  u.said ?? (u.last ? `Was in ${u.last.entry.label} · ${u.last.why}` : `Not in ${previous} last season`);
 
-const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number; category: string }> = ({
+const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; bottom: number; category: string; previous: string }> = ({
   draft,
   view,
   divisions,
   bottom,
   category,
+  previous,
 }) => {
   const paired = new Set(view.pairs.flat().map((u) => u.id));
   const free = view.unplaced.filter((u) => !u.out && !paired.has(u.id));
@@ -478,7 +559,7 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
                 <Level level={u.level} />
                 {genderUnclear(u, category) && <span class="tag">Gender not recorded</span>}
                 <br />
-                <span class="muted">{note(u)}</span>
+                <span class="muted">{note(u, previous)}</span>
               </li>
             ))}
           </ul>
@@ -532,4 +613,58 @@ const PlayerSelect: FC<{ id: string; name: string; players: Unplaced[]; category
       </option>
     ))}
   </select>
+);
+
+/** Every doubles competition's players by what they said about next season: who is with whom, who needs whom. */
+export const Pairs: FC<{ frame: Frame; season: Season | null; competitions: { competition: CoachCompetition; view: PairsView }[] }> = ({
+  frame,
+  season,
+  competitions,
+}) => (
+  <Layout title="Next season's pairs" frame={frame}>
+    <h1>Next season's pairs</h1>
+    <p class="muted">
+      What each doubles player{season ? ` in ${season.name}` : ""} has said about next season. Nobody saying anything
+      means keeping their partner. Filling next season's draft follows the same: agreed new pairs wait for you to place
+      them, and those without a partner are listed for you to pair.
+    </p>
+    {competitions.length === 0 && <p>No doubles competition is running.</p>}
+    {competitions.length > 1 && (
+      <p class="jump">
+        {competitions.map(({ competition }) => <a href={`#competition-${competition.id}`}>{competition.name}</a>)}
+      </p>
+    )}
+    {competitions.map(({ competition, view }) => (
+      <section class="card" id={`competition-${competition.id}`}>
+        <h2>{competition.name}</h2>
+        <h3>New pairs agreed ({view.agreed.length})</h3>
+        {view.agreed.length === 0 ? <p class="muted">None yet.</p> : (
+          <ul class="list">{view.agreed.map(([a, b]) => <li class="answer">{a} and {b}</li>)}</ul>
+        )}
+        <h3>Looking for a partner ({view.seeking.length + view.partnerless.length})</h3>
+        {view.seeking.length + view.partnerless.length === 0 ? <p class="muted">Nobody.</p> : (
+          <ul class="list">
+            {view.seeking.map((s) => (
+              <li class="answer">
+                {s.name} <span class="muted">· {s.asked ? `asked ${s.asked}, who has not agreed yet` : "wants you to find a partner"}</span>
+              </li>
+            ))}
+            {view.partnerless.map((p) => (
+              <li class="answer">
+                {p.name} <span class="muted">· has said nothing, but {p.partner} {p.why}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h3>Not playing next season ({view.out.length})</h3>
+        {view.out.length === 0 ? <p class="muted">Nobody.</p> : (
+          <ul class="list">{view.out.map((o) => <li class="answer">{o.name} <span class="muted">· {o.why}</span></li>)}</ul>
+        )}
+        <h3>Keeping their partner ({view.keeping.length})</h3>
+        {view.keeping.length === 0 ? <p class="muted">None.</p> : (
+          <ul class="list">{view.keeping.map((k) => <li class="answer">{k}</li>)}</ul>
+        )}
+      </section>
+    ))}
+  </Layout>
 );
