@@ -246,6 +246,7 @@ table.progress tfoot td { font-weight: 600; border-bottom: 0; }
 }
 progress { width: 100%; height: .6rem; accent-color: var(--accent); margin-bottom: .25rem; }
 ul.plain { margin: 0 0 .75rem; padding-left: 1.2rem; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 form.level { display: flex; align-items: center; gap: .5rem; margin-top: .4rem; }
 form.level label { margin: 0; font-weight: 400; font-size: .9rem; }
 form.level select { width: auto; padding: .3rem .5rem; font-size: .9rem; }
@@ -1404,7 +1405,8 @@ export const Members: FC<{
         <h2 id="former">Former members ({left.length})</h2>
         <p class="muted">
           Their scores stay in past tables. They are left out of next season's draft and cannot be entered in a
-          competition. If one comes back, put them back in the club.
+          competition. If one comes back, put them back in the club. If one asks for their personal data to be
+          deleted, erase them: their results stay, under "Erased member".
         </p>
         <div class="card">
           <ul class="list">
@@ -1412,11 +1414,16 @@ export const Members: FC<{
               <li class="answer" id={`member-${m.id}`}>
                 <div class="answer-row">
                   <span>{m.display_name}</span>
-                  <form method="post" action={`/coach/members/${m.id}/back`}>
-                    <button class="quiet small" type="submit">
-                      Back in the club
-                    </button>
-                  </form>
+                  <span class="actions">
+                    <form method="post" action={`/coach/members/${m.id}/back`}>
+                      <button class="quiet small" type="submit">
+                        Back in the club
+                      </button>
+                    </form>
+                    <a class="button small quiet" href={`/coach/members/${m.id}/erase`}>
+                      Erase…
+                    </a>
+                  </span>
                 </div>
               </li>
             ))}
@@ -1615,6 +1622,36 @@ export const InvitationResults: FC<{ frame: Frame; results: { name: string; mess
     {added && <p>{added} is now a member, waiting for next season's placement. Approval succeeded even if the email failed.</p>}
     <ul>{results.map((r) => <li><strong>{r.name}</strong>: {r.message}</li>)}</ul>
     <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>
+  </Layout>
+);
+
+/**
+ * Erasing a former member, asked first with the administrator key: it cannot be undone, and this browser's own
+ * key is not allowed to do it. The key is used for this one request and not kept.
+ */
+export const ConfirmErase: FC<{ frame: Frame; member: CoachMember; message?: string }> = ({ frame, member, message }) => (
+  <Layout title={`Erase ${member.display_name}?`} frame={frame}>
+    <h1>Erase {member.display_name}?</h1>
+    <Notice message={message} />
+    <p>For when someone asks for their personal data to be deleted. This cannot be undone.</p>
+    <ul class="plain">
+      <li>Their name, email, phone, date of birth, notes and level are deleted.</li>
+      <li>Their matches and scores stay, so every table still adds up. Other players see them as "Erased member".</li>
+      <li>A team name that could name them, and anything they typed when reporting a score, is cleared.</li>
+      <li>They come off Former members and cannot be brought back. If they rejoin, they start as a new member.</li>
+    </ul>
+    <form method="post" action={`/coach/members/${member.id}/erase`}>
+      <input type="hidden" name="confirm" value="yes" />
+      <div class="field">
+        <label for="key">Administrator key</label>
+        <input id="key" name="key" type="password" autocomplete="off" required />
+        <p class="muted">The key the installer showed you. It is used for this once and not kept.</p>
+      </div>
+      <button type="submit">Erase {member.display_name}</button>
+    </form>
+    <p class="after">
+      <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+    </p>
   </Layout>
 );
 

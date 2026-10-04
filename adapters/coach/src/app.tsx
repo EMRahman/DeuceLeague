@@ -31,6 +31,7 @@ import {
   LatestResults,
   Dashboard,
   Members,
+  ConfirmErase,
   ConfirmLeft,
   EMAILED_MINUTES,
   notPlaying,
@@ -324,7 +325,8 @@ export function createCoachSite(options: CoachOptions) {
     const added = members.find((m) => m.id === c.req.query("added"));
     const gone = left.find((m) => m.id === c.req.query("left"));
     const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted."
-      : gone ? `${gone.display_name} has left the club. They are under Former members, where you can bring them back.` : null;
+      : gone ? `${gone.display_name} has left the club. They are under Former members, where you can bring them back.`
+      : c.req.query("erased") ? "Erased. Their personal data is deleted; their results stay, under \"Erased member\"." : null;
     return c.html(
       <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
         requests={requests?.requests ?? null}
@@ -479,6 +481,50 @@ export function createCoachSite(options: CoachOptions) {
       return c.redirect(action === "left" ? `/coach/members?left=${encodeURIComponent(id)}#member-${id}` : `/coach/members#member-${id}`, 303);
     });
   }
+
+  /** A former member, or null when there is none to erase: not found, still in the club, or gone already. */
+  async function formerMember(key: string, id: string) {
+    const member = await api<CoachMember & { deleted_at?: string | null }>("GET",
+      `/v1/members/${encodeURIComponent(id)}`, key).catch((error: unknown) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+      throw error;
+    });
+    return member && !member.deleted_at && member.status === "left" ? member : null;
+  }
+
+  // Erasing is for a former member only, asked first, and needs the administrator key: this browser's own key
+  // cannot erase, and the administrator key is used for this one request and not kept.
+  app.get("/members/:id/erase", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const member = await formerMember(who.key, c.req.param("id"));
+    if (!member) return c.redirect("/coach/members#former", 303);
+    return c.html(<ConfirmErase frame={frameOf(who, "members")} member={member} />);
+  });
+
+  app.post("/members/:id/erase", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const body = await c.req.parseBody();
+    if (body.confirm !== "yes") return c.redirect(`/coach/members/${encodeURIComponent(id)}/erase`, 303);
+    const member = await formerMember(who.key, id);
+    if (!member) return c.redirect("/coach/members#former", 303);
+    const refused = (message: string, status: 400 | 401 | 403) =>
+      c.html(<ConfirmErase frame={frameOf(who, "members")} member={member} message={message} />, status);
+    const pasted = String(body.key ?? "").trim();
+    if (!pasted.startsWith("dl_")) return refused("That is not an API key. Paste the administrator key the installer showed you.", 400);
+    try {
+      await api("POST", `/v1/members/${encodeURIComponent(id)}/erase`, pasted);
+    } catch (error) {
+      if (!(error instanceof ApiProblem)) throw error;
+      if (error.problem.status === 401) return refused("That key was not accepted. Check you copied all of it.", 401);
+      if (error.problem.status === 403) return refused("That key cannot erase members. Use the administrator key the installer showed you.", 403);
+      if (error.problem.status !== 404) throw error;
+      return c.redirect("/coach/members#former", 303);
+    }
+    return c.redirect("/coach/members?erased=1#former", 303);
+  });
 
   app.get("/results", async (c) => {
     const who = await coach(c);

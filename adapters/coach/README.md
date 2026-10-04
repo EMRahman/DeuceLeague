@@ -92,6 +92,12 @@ MIT-licensed.
   Each member also has **Not playing next season** (`POST /v1/members/{id}/leave`),
   for a player leaving the league altogether: out of every draft, singles and
   doubles, while this season carries on as it is, and **Take it back**.
+  **Left the club…** asks first, then sets `status` to `left`, moving them to
+  **Former members**, each with **Back in the club** and **Erase…**. Erase is
+  for a request to delete their personal data: a page says what it does and
+  asks for the administrator key, which this browser's own key does not hold,
+  then calls `POST /v1/members/{id}/erase` with it once without keeping it.
+  Their matches stay, under "Erased member".
 - **Next season's pairs** (`/coach/pairs`), linked from each doubles
   competition on the dashboard and from its draft. For the season under way, or
   else the one just ended, each doubles competition's players by what they said
