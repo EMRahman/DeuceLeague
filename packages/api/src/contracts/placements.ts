@@ -33,7 +33,8 @@ export const Vacancy = z.object({
     .openapi({
       description:
         "Who the engine would suggest instead: the best-placed entry that is carried over and not moving, for a " +
-        "promotion; the worst, for a relegation. Null when nobody qualifies. The coach decides.",
+        "promotion; the worst, for a relegation, but never from the top half of the division for a relegation or the " +
+        "bottom half for a promotion. Null when nobody qualifies. The coach decides.",
     }),
   explanation: z.string(),
 });

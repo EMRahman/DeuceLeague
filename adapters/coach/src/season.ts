@@ -29,6 +29,11 @@ export type OpenVacancy = {
   to: Division;
   /** The suggested entry, still in the division it came from, ready to move. */
   fill: DraftEntry | null;
+  /**
+   * The draft division the entry that held the place is in, when the coach has put it back somewhere other
+   * than where the place leads: then the place is simply one fewer, and nothing is suggested.
+   */
+  back: Division | null;
 };
 
 /** A division with fewer entries than it takes to play the minimum, for the coach to see before starting. */
@@ -318,16 +323,22 @@ export function draftView(
       const others = arrived.filter((e) => !movers.some((m) => m.previous_entry_id === e.previous_entry_id));
       // Empty places the coach has filled, the ones whose suggested entry has gone there first.
       const taken = (v: PlanVacancy) => there.has(v.fill?.previous_entry_id ?? null);
+      // Where the coach has put back the entry that held a place, if not in the division the place leads to.
+      const backIn = (previous: string | null) => {
+        const entry = draft.entries.find((e) => e.previous_entry_id === previous && e.division_id !== to.id);
+        return entry ? draft.divisions.find((d) => d.id === entry.division_id) ?? null : null;
+      };
       const left = [...empty].sort((a, b) => Number(taken(b)) - Number(taken(a))).slice(Math.min(others.length, empty.length));
       for (const vacancy of left) {
         const fill = draft.entries.find((e) => e.previous_entry_id === vacancy.fill?.previous_entry_id
           && fromOf(e.previous_entry_id)?.ordinal === from && e.division_id !== to.id) ?? null;
-        vacancies.push({ vacancy, to, fill });
+        const back = backIn(vacancy.previous_entry_id);
+        vacancies.push({ vacancy, to, fill: back ? null : fill, back });
       }
       // Entries beyond the empty places fill the places of movers who are gone, so those are the ones still open.
       const gone = movers.filter((m) => !there.has(m.previous_entry_id)).slice(Math.max(0, others.length - empty.length));
       for (const m of gone) {
-        vacancies.push({ to, fill: null, vacancy: { kind, from_division: from, to_division: to.ordinal, previous_entry_id: m.previous_entry_id,
+        vacancies.push({ to, fill: null, back: backIn(m.previous_entry_id), vacancy: { kind, from_division: from, to_division: to.ordinal, previous_entry_id: m.previous_entry_id,
           label: m.label, because: `was ${moved} but is no longer in ${to.name}`, fill: null,
           explanation: `A ${kind} place ${kind === "promotion" ? "into" : "down to"} ${to.name} is unfilled: ${m.label}, ` +
             `who was ${moved}, is no longer there.` } });

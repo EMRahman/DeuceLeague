@@ -168,6 +168,7 @@ export const list = createRoute({
   request: {
     query: PageQuery.extend({
       competition_id: z.uuid().optional(),
+      season_id: z.uuid().optional().openapi({ description: "Matches of this season's competitions only." }),
       division_id: z.uuid().optional(),
       entry_id: z.uuid().optional().openapi({ description: "Matches this entry was drawn in." }),
       member_id: z.uuid().optional().openapi({

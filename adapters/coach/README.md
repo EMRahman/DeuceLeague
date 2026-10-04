@@ -90,9 +90,12 @@ MIT-licensed.
   doubles, while this season carries on as it is, and **Take it back**.
 - **Season** (`/coach/season`). The turn of a season, in four steps, each an
   existing API route:
-  - **End season now**, after a page saying what ending early does: moves the
+  - **End season now**, after a page saying what ending early does and
+    listing each result never agreed (disputed, or entered by one side only),
+    linked to decide it; leaving any undecided needs a tick. It moves the
     results deadline to now if it is later, completes each active
-    competition, then completes the season.
+    competition, then completes the season. Afterwards the Season page says
+    how the season closed, listing the matches it left undecided.
   - **Prepare next season's drafts**, once one has ended, suggesting the next
     of spring, summer, autumn and winter as its name: a planning season with the
     coach's name and dates (results close at the end of the last day), each
@@ -103,7 +106,9 @@ MIT-licensed.
     season's entries not carried over, with why, to add back; and the members
     not in the draft, to add, or in doubles to pair. It reads the engine's plan
     (`GET /v1/competitions/{id}/placements`) to show each promotion or
-    relegation place left empty, with a one-click suggested fill, and flags a
+    relegation place left empty, with a one-click suggested fill (never from
+    the wrong half of the table), says so instead once the coach has put the
+    entry that held the place back where it was, and flags a
     division too small for its minimum. In doubles it reads what
     players said about next season's partners
     (`GET /v1/competitions/{id}/partner-choices`): pairs who agreed wait to be
