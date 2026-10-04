@@ -89,6 +89,27 @@ test("coach newcomers exclude breaks, leavers and previous participants who opte
   assert.match(waiting, /New arrival/); assert.doesNotMatch(waiting, /Opted out|On break|Leaving|Left club|Sam|Alex/);
 });
 
+test("a waiting newcomer is told when next season's places are decided, and where new players start", async (t) => {
+  const f = await websiteFixture(t);
+  const p = await playingWebsite(f);
+  const request = await f.create("/v1/join-requests", { first_name: "Ingrid", surname: "Olsen",
+    email: "ingrid@example.org", phone: "07700 900124", privacy_notice: "uk-2026-10-01" });
+  assert.equal((await f.api(`/v1/join-requests/${request.id}/approve`, f.admin, "POST", { display_name: "Ingrid O." })).status, 201);
+  // A deadline a month from whenever the test runs, written as the club's clock shows it.
+  const deadline = new Date(Date.now() + 30 * 86_400_000).toISOString();
+  const timeZone = (await f.api("/v1/me", f.admin)).body.club.timezone;
+  const shown = new Date(deadline).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone });
+  assert.equal((await f.api(`/v1/seasons/${p.season.id}`, f.admin, "PATCH", { results_deadline_at: deadline })).status, 200);
+  const ingrid = await signIn(f, "ingrid@example.org");
+  const text = async () => (await ingrid.get("/")).html.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
+  assert.match(await text(), new RegExp(`Next season's places are decided after results close on ${shown}\\. New players usually start in the bottom division\\.`));
+  // With no deadline still to come, the starting division is still said.
+  assert.equal((await f.api(`/v1/seasons/${p.season.id}`, f.admin, "PATCH", { results_deadline_at: null })).status, 200);
+  assert.match(await text(), /once this season's results close\. New players usually start in the bottom division\./);
+  // A player already in the season is not told this.
+  assert.doesNotMatch((await (await signIn(f, "sam@example.org")).get("/")).html, /New players usually start/);
+});
+
 test("a competition moved back to draft after play still counts as one the player has been in", async (t) => {
   const f = await websiteFixture(t); const p = await playingWebsite(f);
   const sam = await signIn(f, "sam@example.org");

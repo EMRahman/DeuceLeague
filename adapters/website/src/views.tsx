@@ -742,6 +742,8 @@ export const Home: FC<{
   covered: string[];
   later: string[];
   placementStatus: PlayerPlacements;
+  /** A season is under way, with when its results close, if that is still to come: next season's places follow. */
+  running?: { resultsClose: string | null } | null;
   /** On a break: out of every draft until they say they are back. */
   onBreak: boolean;
   /** Still in the club and not on a break: only they are offered a break or leaving. */
@@ -759,6 +761,10 @@ export const Home: FC<{
           : <p class="muted">Next season's name and dates have not been announced yet.</p>}
         <p>You have no matches yet because approval does not add you to the running season.
           A division place is not guaranteed until the coach assigns one.</p>
+        {p.running && <p>
+          {p.running.resultsClose ? `Next season's places are decided after results close on ${p.running.resultsClose}. `
+            : "Next season's places are decided once this season's results close. "}
+          New players usually start in the bottom division.</p>}
         <p>You do not need to do anything now. The coach will be in touch when your place and fixtures are ready.</p>
       </section>
     )}
