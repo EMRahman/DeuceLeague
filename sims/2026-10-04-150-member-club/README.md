@@ -13,6 +13,7 @@ The first study at the size of a real club, run against `main` at `95b0e94`:
 |---|---|
 | [prompt.md](prompt.md) | The brief: club, engine, scripted events, personas, checks |
 | [report.md](report.md) | Outcomes, ranked pain points, coding-agent use, bugs, verification and limits |
+| [issues.md](issues.md) | Twelve issue drafts with proposed fixes; full names decided |
 | [findings-raw.md](findings-raw.md) | The 46 checkpoint friction logs, unmerged, followed by the harness faults |
 | [request-log.jsonl](request-log.jsonl) | 5,550 sanitized requests: no credentials, cookies or login links |
 | [screenshots/](screenshots/) | Phone-width (390px) pages: coach dashboard, Members, Season, Results, a draft, player home pages and a table |
