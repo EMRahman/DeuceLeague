@@ -12,7 +12,8 @@ filed in the tracker. Evidence comes from the report, the persona reports in
 Most of the gaps are coach-site routes over API operations that already
 exist. Withdrawing an entry (`PATCH /v1/entries/{id}`), renaming a member
 (`PATCH /v1/members/{id}`) and reopening a season (`PATCH /v1/seasons/{id}`)
-are what the coding agent used for its 48 requests.
+are what the coding agent used for its 48 requests. Withdrawal also needs one
+new API operation, so that several entries are withdrawn atomically (issue 5).
 
 Suggested order:
 
@@ -60,8 +61,8 @@ claims and settlement)
 
 ## 2. Contact details: save either field, clear one, and show phones on the Chase list
 
-**Type:** Bug · **Component:** coach site (`adapters/coach/src/app.tsx:1017`,
-Chase list)
+**Type:** Bug · **Components:** coach site (`adapters/coach/src/app.tsx:1017`,
+Chase list), API (`ChaseEntry` in `packages/api/src/contracts/standings.ts`)
 
 **Evidence.**
 
@@ -79,7 +80,11 @@ Chase list)
 
 - Validate each field only if it is filled in. An emptied field is sent as
   `null`, after a "Clear Scott Thorne's phone?" confirmation.
-- Show phone numbers on the Chase list, as `tel:` links.
+- Add `phone` to `ChaseEntry` under the same rule as `email`: present only
+  for a credential holding `members:pii`. Regenerate the API documentation.
+- Show phone numbers on the Chase list as `tel:` links. A coach key without
+  `members:pii` sees neither email nor phone, and the page says contact
+  details need that permission.
 - The "Contacts not saved" page names which field was wrong, and an email
   already used by another member.
 
@@ -87,7 +92,10 @@ Chase list)
 
 - A member with only a phone, or only an email, can be saved.
 - Emptying a field and confirming clears it; the other is unchanged.
-- The Chase list shows a phone for every listed member who has one.
+- With `members:pii`, the Chase list shows a phone for every listed member
+  who has one.
+- Without `members:pii`, neither the API nor the page shows any email or
+  phone.
 
 **Note**
 
@@ -181,8 +189,8 @@ privacy notice (`adapters/website/src/views.tsx:440`), `deploy/cloudflare/JOININ
 
 ## 5. Withdraw a player or pair mid-season from the website
 
-**Type:** Story · **Component:** coach site (member page from issue 4; Season
-and Results pages)
+**Type:** Story · **Components:** API (a new withdrawal operation), coach site
+(member page from issue 4)
 
 **Evidence.**
 
@@ -192,7 +200,8 @@ and Results pages)
 - "Left the club" only drops the member from future drafts and says the
   coach "can still decide the rest". She read that as settling each fixture by
   hand.
-- `PATCH /v1/entries/{id}` already withdraws an entry. The standings already
+- `PATCH /v1/entries/{id}` withdraws one entry, with no version, in its own
+  batch, so several calls cannot be all-or-nothing. The standings already
   count a withdrawn entry's remaining fixtures as walkovers; the run verified
   this against the ledger.
 
@@ -204,8 +213,13 @@ and Results pages)
   rules: "6 remaining fixtures count as walkovers to the opponents; 3 played
   results stay". For doubles it names the partner, who is withdrawn with
   them, and says the partner can still pair up next season (see issue 8).
-- Confirming withdraws the chosen entries, one `PATCH` per entry with its
-  version.
+- Confirming withdraws all the chosen entries at once through a new
+  operation, such as `POST /v1/members/{id}/withdraw` with `entry_ids`. It
+  reads the club revision and the entries, then commits every state change,
+  their audit events and the revision guard in one D1 batch. It retries only
+  a confirmed stale-revision failure. This needs an OpenAPI contract, a
+  matching Cloudflare route and regenerated `docs/openapi.json` and
+  `docs/api.html`.
 - "Left the club" and "Taking a break", when the member has active entries,
   offer this as the next step.
 
@@ -214,8 +228,9 @@ and Results pages)
 - The coach withdraws James Hale from all his entries without the API.
 - The preview's walkover counts match the standings after withdrawal.
 - A doubles withdrawal names the partner on both the preview and the result.
-- A stale-revision failure re-reads and retries; any other failure leaves
-  the entries untouched and says so.
+- Withdrawing several entries is atomic: if any one cannot be withdrawn, none
+  is, and the page says which and why.
+- A D1 test covers the batch, and a Worker test covers the route.
 
 ---
 
