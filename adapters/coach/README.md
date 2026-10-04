@@ -88,6 +88,12 @@ MIT-licensed.
   Each member also has **Not playing next season** (`POST /v1/members/{id}/leave`),
   for a player leaving the league altogether: out of every draft, singles and
   doubles, while this season carries on as it is, and **Take it back**.
+- **Next season's pairs** (`/coach/pairs`), linked from each doubles
+  competition on the dashboard and from its draft. For the season under way, or
+  else the one just ended, each doubles competition's players by what they said
+  (`GET /v1/competitions/{id}/partner-choices`): new pairs agreed, players
+  looking for a partner (including those whose partner is not staying), those
+  not playing, and the pairs keeping their partner.
 - **Season** (`/coach/season`). The turn of a season, in four steps, each an
   existing API route:
   - **End season now**, after a page saying what ending early does and
@@ -96,7 +102,8 @@ MIT-licensed.
     results deadline to now if it is later, completes each active
     competition, then completes the season. Afterwards the Season page says
     how the season closed, listing the matches it left undecided.
-  - **Start next season**, once one has ended: a planning season with the
+  - **Prepare next season's drafts**, once one has ended, suggesting the next
+    of spring, summer, autumn and winter as its name: a planning season with the
     coach's name and dates (results close at the end of the last day), each
     ended competition made again as a draft naming it as previous, and each
     draft filled from the final tables (`POST /v1/competitions/{id}/placements`).
@@ -112,7 +119,8 @@ MIT-licensed.
     players said about next season's partners
     (`GET /v1/competitions/{id}/partner-choices`): pairs who agreed wait to be
     added, and anyone not playing is listed apart.
-  - **Start** the season: activates it, then draws each division's matches
+  - **Start** the season, after a page asking first since players get their
+    fixtures at once: activates it, then draws each division's matches
     (`POST /v1/divisions/{id}/fixtures`) and activates each draft.
 
   Each step checks where things are first, so a form sent again finishes the

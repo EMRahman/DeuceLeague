@@ -199,7 +199,7 @@ test("sample browser installation stays within its SQL statement budget and reta
   for (const discipline of ["singles", "doubles"]) {
     await coachPage(`/coach/season/drafts/${drafts.find((d) => d.discipline === discipline)!.id}`, "Twelve-competition");
   }
-  await coachForm(`/coach/season/${drafts[0]!.season_id}/start`);
+  await coachForm(`/coach/season/${drafts[0]!.season_id}/start`, { confirm: "yes" });
   assert.equal((await json("GET", "/v1/competitions?state=draft")).data.length, 0, "every draft started");
 
   const invitee = await json("POST", "/v1/members", { display_name: "Invitee", email: "invitee@example.org", phone: "07700 900123" });

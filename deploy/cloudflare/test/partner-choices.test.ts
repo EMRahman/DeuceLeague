@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { playingWebsite, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
+import { browser, playingWebsite, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
 
 type Choice = { member_name: string; choice: string; partner_name: string | null; agreed: boolean };
 const lines = (data: Choice[]) => data.map((c) => [c.member_name, c.choice, c.partner_name, c.agreed]);
@@ -107,4 +107,43 @@ test("singles has no partners, and erasing a player takes their choices and any 
   const rows = await f.db.prepare("SELECT count(*) AS n FROM partner_choice WHERE member_id = ? OR partner_id = ?")
     .bind(players.kim!.id, players.kim!.id).first("n");
   assert.equal(rows, 0);
+});
+
+test("the coach sees next season's pairs on one page, matching what players said", async (t) => {
+  const f = await websiteFixture(t, { sample: true });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const doubles = (await f.api("/v1/competitions?state=active", f.admin)).body.data.find((x: any) => x.discipline === "doubles");
+  const flat = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
+  assert.match((await coach.get("/coach")).html, new RegExp(`href="/coach/pairs#competition-${doubles.id}"`));
+  const page = flat((await coach.get("/coach/pairs")).html);
+  assert.match(page, /Sample doubles New pairs agreed \(1\) Sample (Harper and Sample Parker|Parker and Sample Harper)/);
+  assert.match(page, /Sample Indy · asked Sample Bailey, who has not agreed yet/);
+  assert.match(page, /Sample Taylor · is not playing Sample doubles/);
+  assert.match(page, /Sample Sage · has said nothing, but Sample Taylor is not playing Sample doubles/);
+  assert.match(page, /Sample Jordan · has said nothing, but Sample Indy wants a new partner/);
+  assert.match(page, /Sample Alex · has said nothing, but Sample Parker agreed to play with Sample Harper/);
+  // Every player the API lists as changing something is on the page, in the same terms.
+  const choices = (await f.api(`/v1/competitions/${doubles.id}/partner-choices`, f.admin)).body.data as any[];
+  for (const c of choices) assert.ok(page.includes(c.member_name), `${c.member_name} is shown`);
+  assert.match(page, /Keeping their partner \(\d+\)/);
+});
+
+test("next season's pairs count leaving only for entries it covers, and an agreed pair only while both can play", async () => {
+  const { pairsView } = await import("../../../adapters/coach/dist/season.js");
+  const member = (id: string) => ({ id, display_name: id });
+  const entry = (id: string, a: string, b: string, created_at = "2026-09-01T00:00:00Z") =>
+    ({ id, competition_id: "c", division_id: "d", label: `${a} / ${b}`, members: [member(a), member(b)], state: "active", opted_out_at: null, created_at }) as any;
+  const club = (leaving: Record<string, string> = {}) => ["A", "B", "C", "D"].map((id) => ({ id, display_name: id, level: null, leaving_at: leaving[id] ?? null }));
+  // A said they are leaving before this entry was made: it does not cover it, so the pair keeps together.
+  let view = pairsView([entry("e1", "A", "B", "2026-09-10T00:00:00Z")], [], club({ A: "2026-09-05T00:00:00Z" }), new Set(), "Mixed");
+  assert.deepEqual(view.keeping, ["A / B"]);
+  view = pairsView([entry("e1", "A", "B", "2026-09-01T00:00:00Z")], [], club({ A: "2026-09-05T00:00:00Z" }), new Set(), "Mixed");
+  assert.deepEqual(view.out, [{ name: "A", why: "is leaving the league" }]);
+  // A agreed with C, but C has since gone on a break: A is looking again, not in an agreed pair.
+  const agreed = [{ member_id: "A", choice: "new_partner", partner_id: "C", partner_name: "C", agreed: true },
+    { member_id: "C", choice: "new_partner", partner_id: "A", partner_name: "A", agreed: true }] as any;
+  view = pairsView([entry("e1", "A", "B"), entry("e2", "C", "D")], agreed, club(), new Set(["C"]), "Mixed");
+  assert.deepEqual(view.agreed, []);
+  assert.deepEqual(view.seeking, [{ name: "A", asked: null }]);
+  assert.ok(view.out.some((o) => o.name === "C"));
 });

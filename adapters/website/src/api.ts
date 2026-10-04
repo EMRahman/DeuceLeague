@@ -103,6 +103,8 @@ export type Competition = {
   match_format: MatchFormat;
   rules: Rules;
   state: "draft" | "active" | "complete" | "archived";
+  /** The competition this one follows on from, last season. */
+  previous_competition_id?: string | null;
 };
 
 export type Entry = {

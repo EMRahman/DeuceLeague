@@ -19,9 +19,9 @@ import {
   type Entry,
   type Weather,
 } from "@deuceleague/website";
-import { draftView, endOfDay, nextDates, nextName, turnover, type ActiveMember, type Division, type DraftEntry,
+import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
-import { Draft, EndSeason, SeasonPage, type LooseEnd, type NextForm } from "./season-views.js";
+import { Draft, EndSeason, Pairs, SeasonPage, StartSeason, type LooseEnd, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
@@ -1176,6 +1176,31 @@ export function createCoachSite(options: CoachOptions) {
     detail="That competition has started, or is not next season's. Players' places change only before they have played."
     back={backToSeason} />, 404);
 
+  // What each doubles player said about next season: every season under way's, or else the one just ended's.
+  app.get("/pairs", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const seasons = (await all<Season>("/v1/seasons", who.key)).sort(newestFirst);
+    const running = seasons.filter((s) => s.state === "active");
+    const shown = running.length > 0 ? running : seasons.filter((s) => s.state === "complete").slice(0, 1);
+    const doubles = (await Promise.all(shown.map((s) => all<CoachCompetition>(`/v1/competitions?season_id=${s.id}`, who.key))))
+      .flat().filter((x) => x.discipline === "doubles" && x.state !== "draft");
+    const season = shown.length === 1 ? shown[0]! : null;
+    const [members, onBreak] = doubles.length === 0 ? [[], []] : await Promise.all([
+      all<ActiveMember>("/v1/members?status=active", who.key),
+      all<ActiveMember>("/v1/members?status=paused", who.key),
+    ]);
+    const paused = new Set(onBreak.map((m) => m.id));
+    const competitions = await Promise.all(doubles.map(async (competition) => {
+      const [entries, choices] = await Promise.all([
+        api<{ data: Entry[] }>("GET", `/v1/competitions/${competition.id}/entries`, who.key),
+        api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competition.id}/partner-choices`, who.key),
+      ]);
+      return { competition, view: pairsView(entries.data, choices.data, members, paused, competition.name) };
+    }));
+    return c.html(<Pairs frame={seasonFrame(who)} season={season} competitions={competitions} />);
+  });
+
   app.get("/season/drafts/:id", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
@@ -1276,11 +1301,23 @@ export function createCoachSite(options: CoachOptions) {
     });
   }
 
+  // Starting is asked first, on its own page: players get their fixtures the moment it is done.
+  app.get("/season/:id/start", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const season = await seasonOf(who.key, c.req.param("id"));
+    if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    const drafts = await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=draft`, who.key);
+    if (drafts.length === 0) return c.redirect("/coach/season", 303);
+    return c.html(<StartSeason frame={seasonFrame(who)} season={season} drafts={drafts} />);
+  });
+
   app.post("/season/:id/start", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const season = await seasonOf(who.key, c.req.param("id"));
     if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    if ((await c.req.parseBody()).confirm !== "yes") return c.redirect(`/coach/season/${season.id}/start`, 303);
     const take = allowance();
     // The season opens first, since only then can its competitions. Each draft then gets its
     // matches and opens: once open it is done, so a form sent again carries on with the next.
