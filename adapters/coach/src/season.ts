@@ -99,8 +99,27 @@ export function turnover(seasons: Season[], competitions: CoachCompetition[]): T
   };
 }
 
-/** "Sample season 2" after "Sample season", "Summer 2027" after "Summer 2026". */
+const SEASONS = ["Spring", "Summer", "Autumn", "Winter"] as const;
+
+/**
+ * The next season's name: the next of spring, summer, autumn and winter ("Winter 2026–27" after
+ * "Autumn 2026", "Spring 2027" after it), else the number after ("Sample season 2" after "Sample season").
+ * Only a suggestion: a club with one season a year changes it once, and the next follows.
+ */
 export function nextName(name: string): string {
+  const named = /^(.*?)\b(Spring|Summer|Autumn|Fall|Winter)(\s+)(\d{4})(?:\s*([–\-/])\s*(\d{2}|\d{4}))?(.*)$/i.exec(name);
+  if (named) {
+    const [, before, word, gap, year, dash, , after] = named as unknown as string[];
+    const at = word!.toLowerCase() === "fall" ? 2 : SEASONS.findIndex((s) => s.toLowerCase() === word!.toLowerCase());
+    const next = SEASONS[(at + 1) % 4]!;
+    // Keep the club's capitalisation: "summer 2027" stays lower case.
+    const cased = word === word!.toLowerCase() ? next.toLowerCase() : word === word!.toUpperCase() ? next.toUpperCase() : next;
+    const y = Number(year);
+    // Winter spans the turn of the year, and spring follows in the later one.
+    const when = next === "Winter" ? `${y}${dash ?? "–"}${String(y + 1).slice(-2)}`
+      : at === 3 ? String(dash ? y + 1 : y) : String(y);
+    return `${before}${cased}${gap}${when}${after}`;
+  }
   const number = /^(.*?)(\d+)$/.exec(name);
   return number ? `${number[1]}${Number(number[2]) + 1}` : `${name} 2`;
 }
@@ -108,11 +127,16 @@ export function nextName(name: string): string {
 const DAY = 86_400_000;
 const addDays = (date: string, days: number) => new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY).toISOString().slice(0, 10);
 
-/** Next season's suggested dates: from today, as long as the last one ran, or eight weeks. */
+/**
+ * Next season's suggested dates: from the day after the last one was due to end, or today if that has passed,
+ * as long as the last one ran, or eight weeks.
+ */
 export function nextDates(last: Season, today: string): { starts_on: string; ends_on: string } {
   const length = last.starts_on && last.ends_on
     ? Math.round((Date.parse(last.ends_on) - Date.parse(last.starts_on)) / DAY) : 55;
-  return { starts_on: today, ends_on: addDays(today, Math.max(length, 1)) };
+  const after = last.ends_on ? addDays(last.ends_on, 1) : today;
+  const starts_on = after > today ? after : today;
+  return { starts_on, ends_on: addDays(starts_on, Math.max(length, 1)) };
 }
 
 /**

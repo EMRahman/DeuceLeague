@@ -21,7 +21,7 @@ import {
 } from "@deuceleague/website";
 import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
-import { Draft, EndSeason, Pairs, SeasonPage, type LooseEnd, type NextForm } from "./season-views.js";
+import { Draft, EndSeason, Pairs, SeasonPage, StartSeason, type LooseEnd, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
@@ -1281,11 +1281,23 @@ export function createCoachSite(options: CoachOptions) {
     });
   }
 
+  // Starting is asked first, on its own page: players get their fixtures the moment it is done.
+  app.get("/season/:id/start", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const season = await seasonOf(who.key, c.req.param("id"));
+    if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    const drafts = await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}&state=draft`, who.key);
+    if (drafts.length === 0) return c.redirect("/coach/season", 303);
+    return c.html(<StartSeason frame={seasonFrame(who)} season={season} drafts={drafts} />);
+  });
+
   app.post("/season/:id/start", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const season = await seasonOf(who.key, c.req.param("id"));
     if (!season || !["planning", "active"].includes(season.state)) return c.redirect("/coach/season", 303);
+    if ((await c.req.parseBody()).confirm !== "yes") return c.redirect(`/coach/season/${season.id}/start`, 303);
     const take = allowance();
     // The season opens first, since only then can its competitions. Each draft then gets its
     // matches and opens: once open it is done, so a form sent again carries on with the next.
