@@ -512,7 +512,7 @@ test("a vacancy's note says so once the entry that held the place is back where 
   const f = await websiteFixture(t, { sample: true });
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   const season = (await f.api("/v1/seasons?state=active", f.admin)).body.data[0];
-  await send(coach, `/coach/season/${season.id}/end`);
+  await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
   await send(coach, "/coach/season/next", { from: season.id, name: "Sample season 2", starts_on: "2026-10-01", ends_on: "2026-11-30" });
   const singles = (await f.api("/v1/competitions?state=draft", f.admin)).body.data.find((x: { discipline: string }) => x.discipline === "singles");
   const divisions = (await f.api(`/v1/competitions/${singles.id}/divisions`, f.admin)).body.data as { id: string; ordinal: number }[];
