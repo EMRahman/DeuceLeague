@@ -35,6 +35,11 @@ new API operation, so that several entries are withdrawn atomically (issue 5).
    one-at-a-time coach decision already allows this. The bulk confirmation
    covers only completed and retired results entered by the side that lost
    (issue 6).
+6. **Plan for a fresh deployment.** No club runs DeuceLeague yet, so nothing
+   needs to handle members already given short names (issue 3).
+7. **Coach-emailed sign-in invitations last 7 days**, still working once.
+   Links a player asks for on the sign-in page keep their 15 minutes
+   (issue 12).
 
 Suggested order:
 
@@ -163,11 +168,8 @@ privacy notice (`adapters/website/src/views.tsx:440`), `deploy/cloudflare/JOININ
   pages show the new name.
 - The privacy notice has a new version and no longer promises "Sam K.".
 
-**Open question**
-
-- Members who joined under the old notice keep their short name until the
-  coach renames them. Should the coach ask them first, or is the notice change
-  enough?
+There are no members with short names to migrate: DeuceLeague is planned for
+a fresh deployment (decision 6).
 
 ---
 
@@ -484,8 +486,9 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
   signed in. It gives the sign-in page address, ready-made announcement text,
   and the number not yet signed in.
 - On the player sign-in page, add "No email? Ask your coach for a link."
-- Keep coach email invitations in batches of five. Add a "Phone-only, not
-  signed in" list with a 72-hour link button for each member.
+- Keep coach email invitations in batches of five, with each link lasting 7
+  days (decision 7). Add a "Phone-only, not signed in" list with a 72-hour
+  link button for each member.
 
 **Acceptance**
 
@@ -493,11 +496,8 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
   than 90% of members have signed in.
 - The coach reaches every phone-only, never-signed-in member's link from one
   list.
-
-**Open question**
-
-- Should emailed coach invitations last longer than 15 minutes? The
-  self-service form and the WhatsApp links worked, so this may not be needed.
+- A coach-emailed invitation works once within 7 days; a link requested on
+  the sign-in page still lasts 15 minutes.
 
 ---
 
