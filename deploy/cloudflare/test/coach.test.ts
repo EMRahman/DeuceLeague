@@ -573,7 +573,10 @@ test("the coach ends the sample season early and starts the next from its final 
   const confirm = await coach.get(`/coach/season/${season.id}/end`);
   assert.match(page.html, /<summary>End the season…<\/summary>/); assert.match(page.html, /class="button danger"/);
   assert.match(confirm.html, /End Sample season now\?/);
-  assert.match(confirm.html, /Reporting closes now, 30 days before the results deadline/);
+  // Counted in calendar days on the club's clock, as the page counts them, from the sample's own deadline.
+  const londonDay = (d: Date) => Date.parse(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(d));
+  const daysLeft = Math.round((londonDay(new Date(season.results_deadline_at)) - londonDay(new Date())) / 86_400_000);
+  assert.match(confirm.html, new RegExp(`Reporting closes now, ${daysLeft} days? before the results deadline`));
   assert.match(confirm.html, /Only your coding agent can reopen a season/);
   assert.doesNotMatch(confirm.html, /name="just_started"/, "a season well under way needs no extra tick");
   // A season ended on the day it started needs the box ticked that says so, whatever else is ticked.
