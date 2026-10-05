@@ -47,10 +47,17 @@ new API operation, so that several entries are withdrawn atomically (issue 5).
    stops simply doesn't play; their remaining matches are left unplayed at
    season end.
 9. **No printable draft** (issue 11): only the dashboard mention.
-10. **Issues 4, 7, 8, 9, 10 and 12 go ahead.** Issue 6 waits for a decision.
-11. **Live-table arrows** (low-severity item): proposed that an entry shows ▲
-    or ▼ only once it has played at least one match, with the zones worked out
-    as now. Awaiting confirmation.
+10. **Issues 4, 7, 8, 9, 10 and 12 go ahead.**
+11. **Live-table arrows** (low-severity item): an entry shows ▲ or ▼ only once
+    it has played at least one match, with the zones worked out as now.
+    Confirmed.
+
+**5 October, third review:**
+
+12. **No bulk confirmation** (issue 6 dropped). Players chase their opponents
+    to get results agreed; the coach does not sit with a queue to clear.
+13. **No promotion suggestions for a short division** (issue 8's third part
+    skipped). The coach arranges the divisions before starting the season.
 
 Suggested order:
 
@@ -273,6 +280,8 @@ a fresh deployment (decision 6).
 ---
 
 ## 6. Confirm uncontested results in one go
+
+**Dropped** (decision 12). Kept for the record.
 
 **Type:** Story · **Component:** coach site (`/coach/results`)
 
