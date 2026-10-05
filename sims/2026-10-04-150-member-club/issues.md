@@ -37,9 +37,9 @@ new API operation, so that several entries are withdrawn atomically (issue 5).
    (issue 6).
 6. **Plan for a fresh deployment.** No club runs DeuceLeague yet, so nothing
    needs to handle members already given short names (issue 3).
-7. **Coach-emailed sign-in invitations last 7 days**, still working once.
-   Links a player asks for on the sign-in page keep their 15 minutes
-   (issue 12).
+7. **Every sign-in link lasts 7 days**, still working once: the coach's
+   emailed invitations, links the coach sends by phone, and links a player
+   asks for on the sign-in page (issue 12; implemented in #79).
 
 Suggested order:
 
@@ -487,7 +487,7 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
   and the number not yet signed in.
 - On the player sign-in page, add "No email? Ask your coach for a link."
 - Keep coach email invitations in batches of five, with each link lasting 7
-  days (decision 7). Add a "Phone-only, not signed in" list with a 72-hour
+  days (decision 7). Add a "Phone-only, not signed in" list with a sign-in
   link button for each member.
 
 **Acceptance**
@@ -496,8 +496,7 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
   than 90% of members have signed in.
 - The coach reaches every phone-only, never-signed-in member's link from one
   list.
-- A coach-emailed invitation works once within 7 days; a link requested on
-  the sign-in page still lasts 15 minutes.
+- Every sign-in link, however it is sent, works once within 7 days.
 
 ---
 

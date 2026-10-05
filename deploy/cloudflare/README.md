@@ -102,8 +102,8 @@ Players sign in with one-time links. The sign-in page asks players for a link
 from their coach. The coach makes one on the coach's site at `/coach`, or with
 `POST /v1/members/{id}/login-link`, and hands it over, for example on WhatsApp.
 The link opens `/login?token=…` and works once. The coach's site makes links
-that last 72 hours, since a chat message is often read hours later; a link from
-the API lasts fifteen minutes unless the caller asks for up to 72 hours with
+that last seven days, since a message is often read days later. Every link,
+emailed or handed over, lasts seven days unless the caller asks for less with
 `expires_in_minutes`. A coach can also let players request links by email at
 any time; see
 [sign-in emails](EMAIL.md).

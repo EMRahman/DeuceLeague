@@ -390,14 +390,14 @@ export function createWebsite(options: WebsiteOptions) {
     if (!link) return answer();
     const url = new URL("/login", publicUrl);
     url.searchParams.set("token", link.token);
-    const minutes = Math.round((Date.parse(link.expires_at) - now) / 60_000);
+    const days = Math.round((Date.parse(link.expires_at) - now) / 86_400_000);
     await mail!({
       to: email,
       subject: `Sign in to ${frame.club}`,
       text:
         `Hello ${member.display_name},\n\n` +
         `To sign in to ${frame.club}'s league, open this link and press "Sign in":\n\n${url.href}\n\n` +
-        `It works once, within ${minutes} minutes. You then stay signed in on that device until you sign out.\n\n` +
+        `It works once, within ${days} days. You then stay signed in on that device until you sign out.\n\n` +
         "If you did not ask to sign in, you can ignore this email.\n",
     });
     log(`sign-in link sent to member ${member.id}`);

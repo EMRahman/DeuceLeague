@@ -465,8 +465,8 @@ export const LinkSent: FC<{ frame: Frame; email: string }> = ({ frame, email }) 
   <Layout title="Check your email" frame={frame}>
     <h1>Check your email</h1>
     <p>
-      If <strong>{email}</strong> is on the club's list, a sign-in link is on its way. It works once, for fifteen
-      minutes.
+      If <strong>{email}</strong> is on the club's list, a sign-in link is on its way. It works once, for seven
+      days.
     </p>
     <p class="muted">
       Nothing arrived? Look in your spam folder, then ask your coach which address they have for you.

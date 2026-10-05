@@ -420,7 +420,7 @@
           "expires_at": {
             "type": "string",
             "format": "date-time",
-            "description": "When it stops working: 15 minutes from now unless you asked for longer."
+            "description": "When it stops working: 10080 minutes from now unless you asked for longer."
           }
         },
         "required": [
@@ -441,9 +441,9 @@
           "expires_in_minutes": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 4320,
-            "example": 4320,
-            "description": "How long the link works, up to 4320 minutes (72 hours). Defaults to 15, enough to open an email. A link the coach hands over in a chat may be read hours later, so ask for longer there."
+            "maximum": 10080,
+            "example": 10080,
+            "description": "How long the link works, up to and by default 10080 minutes (7 days). Ask for less only if the link must expire sooner."
           }
         }
       },
@@ -5920,7 +5920,7 @@
           "Player logins"
         ],
         "summary": "Make a login link for a member",
-        "description": "A one-time token for a login link, which works for 15 minutes, or up to 72 hours if you ask. It is returned to you, and your own tooling delivers it — the core sends nothing. The player's website exchanges it for a session with `POST /v1/session`: do that from a page the player submits, not on opening the link, since mail scanners open links before people do.",
+        "description": "A one-time token for a login link, which works for 10080 minutes (7 days), or less if you ask. It is returned to you, and your own tooling delivers it — the core sends nothing. The player's website exchanges it for a session with `POST /v1/session`: do that from a page the player submits, not on opening the link, since mail scanners open links before people do.",
         "security": [
           {
             "apiKey": [

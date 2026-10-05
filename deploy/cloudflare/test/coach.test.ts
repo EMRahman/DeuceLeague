@@ -75,10 +75,10 @@ test("the coach makes a player's sign-in link, which signs the player in once, w
   assert.ok(list.html.indexOf("Sam") < list.html.indexOf("Aaron"), "who still needs a link comes first");
   assert.match(list.html, new RegExp(`action="/coach/members/${sam.id}/sign-in-link"`));
   const made = await coach.post(`/coach/members/${sam.id}/sign-in-link`);
-  assert.equal(made.status, 200); assert.match(made.html, /Sign-in link for Sam/); assert.match(made.html, /within 72 hours/);
+  assert.equal(made.status, 200); assert.match(made.html, /Sign-in link for Sam/); assert.match(made.html, /within 7 days/);
   const token = /https:\/\/league\.test\/login\?token=([A-Za-z0-9_-]+)/.exec(made.html)?.[1]; assert.ok(token);
   const expires = Number(await f.db.prepare("SELECT expires_at FROM access_grant WHERE kind = 'login_link'").first("expires_at"));
-  assert.ok(expires > Date.now() + 71.9 * 3_600_000 && expires <= Date.now() + 72 * 3_600_000, "a coach's link lasts 72 hours");
+  assert.ok(expires > Date.now() + 167.9 * 3_600_000 && expires <= Date.now() + 168 * 3_600_000, "a coach's link lasts seven days");
   const player = browser(f);
   assert.equal((await player.get(`/login?token=${token}`)).status, 200);
   assert.equal((await player.post("/login/confirm", { token })).status, 303);

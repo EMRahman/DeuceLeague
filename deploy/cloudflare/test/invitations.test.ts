@@ -30,7 +30,7 @@ test("coach invitations persist provider outcomes separately from sign-ins, supp
   const link = linkFor(f, "alex@example.org");
   const grant = await f.db.prepare("SELECT expires_at, created_at FROM access_grant WHERE member_id = ? AND kind = 'login_link'")
     .bind(a.id).first<{ expires_at: number; created_at: number }>();
-  assert.ok(Math.abs(grant!.expires_at - grant!.created_at - 15 * 60_000) < 1000);
+  assert.ok(Math.abs(grant!.expires_at - grant!.created_at - 7 * 86_400_000) < 1000);
   const player = browser(f);
   assert.equal((await player.post("/login/confirm", { token: link.searchParams.get("token")! })).status, 303);
   assert.equal((await browser(f).post("/login/confirm", { token: link.searchParams.get("token")! })).status, 401);
@@ -155,9 +155,12 @@ test("Members says when an emailed link ran out unused, and lists those placed b
   const [sam, alex] = p.members;
   assert.equal((await coach.post(`/coach/members/${sam.id}/invite`)).status, 200);
   assert.doesNotMatch((await coach.get("/coach/members")).html, /Link sent, not used/, "not while it still works");
-  // Twenty minutes on, unused.
-  await f.db.prepare("UPDATE member SET invitation_at = invitation_at - 20 * 60000 WHERE id = ?").bind(sam.id).run();
-  assert.match((await coach.get("/coach/members")).html, /Link sent, not used: it ran out 15 minutes after sending/);
+  // Six days on, it still works.
+  await f.db.prepare("UPDATE member SET invitation_at = invitation_at - 6 * 86400000 WHERE id = ?").bind(sam.id).run();
+  assert.doesNotMatch((await coach.get("/coach/members")).html, /Link sent, not used/, "not within seven days");
+  // Over seven days on, unused.
+  await f.db.prepare("UPDATE member SET invitation_at = invitation_at - 86400000 - 60000 WHERE id = ?").bind(sam.id).run();
+  assert.match((await coach.get("/coach/members")).html, /Link sent, not used: it ran out seven days after sending/);
   // Alex signs in; a newcomer with no place is not listed as placed.
   const alexBrowser = await signIn(f, "alex@example.org");
   const newcomer = await f.create("/v1/members", { display_name: "Newcomer", email: "new@example.org" });

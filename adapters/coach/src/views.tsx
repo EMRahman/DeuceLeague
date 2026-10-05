@@ -1135,12 +1135,12 @@ export const Chase: FC<{
   );
 };
 
-/** How long an emailed sign-in link works. */
-export const EMAILED_MINUTES = 15;
+/** How long every sign-in link works, emailed or handed over: a member may not open it for days. */
+export const LINK_MINUTES = 7 * 24 * 60;
 
 /** An emailed sign-in link that ran out before the member signed in with it. */
 const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === "accepted" && !!m.invitation_at
-  && Date.parse(m.invitation_at) + EMAILED_MINUTES * 60_000 < now
+  && Date.parse(m.invitation_at) + LINK_MINUTES * 60_000 < now
   && !signedInSince(m, m.invitation_at);
 
 /** Whether they have signed in at all, or since a moment: signing out since does not undo it. */
@@ -1274,7 +1274,7 @@ export const Members: FC<{
       </>
     )}
     <h2>On the club's list</h2>
-    <p>{emailConfigured ? "Email sign-in invitations individually or select up to five members per batch. Emailed links work once, for fifteen minutes. Provider acceptance does not confirm inbox delivery."
+    <p>{emailConfigured ? "Email sign-in invitations individually or select up to five members per batch. Emailed links work once, for seven days. Provider acceptance does not confirm inbox delivery."
       : "Email is not configured. Ask your club administrator to set up sign-in email to send invitations. You can still hand over sign-in links."}</p>
     {emailConfigured && <form id="invitations" method="post" action="/coach/members/invite">
       <button type="submit">Email selected members (up to 5)</button>
@@ -1282,7 +1282,7 @@ export const Members: FC<{
 
     <p>
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
-      once, within 72 hours. Once signed in, a player stays signed in on that phone.
+      once, within seven days. Once signed in, a player stays signed in on that phone.
     </p>
     {unsigned ? (
       <p>
@@ -1331,7 +1331,7 @@ export const Members: FC<{
                 {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
               </p>}
               {unusedLink(m) && <p class="deadline">
-                Link sent, not used: it ran out {EMAILED_MINUTES} minutes after sending. Email another, or make a sign-in
+                Link sent, not used: it ran out seven days after sending. Email another, or make a sign-in
                 link to send another way.
               </p>}
               {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
@@ -1451,16 +1451,16 @@ export const Members: FC<{
   </Layout>
 );
 
-export const SignInLink: FC<{ frame: Frame; member: string; url: string; hours: number }> = ({
+export const SignInLink: FC<{ frame: Frame; member: string; url: string; days: number }> = ({
   frame,
   member,
   url,
-  hours,
+  days,
 }) => (
   <Layout title="Sign-in link" frame={frame}>
     <h1>Sign-in link for {member}</h1>
     <p>
-      Send this to {member}. It works once, within {hours} hours, and is not shown again: make a new one if it runs
+      Send this to {member}. It works once, within {days} days, and is not shown again: make a new one if it runs
       out.
     </p>
     <div class="field">
