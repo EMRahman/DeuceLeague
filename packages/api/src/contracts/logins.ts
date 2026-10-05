@@ -8,10 +8,11 @@ import { authProblems, conflictProblem, IdParam, notFoundProblem, requires, Time
 export const LOGIN_LINK_MINUTES = 15;
 
 /**
- * The longest a caller may ask a link to work: a link handed over in a chat is
- * often read hours later, but one should not sit usable in a chat for long.
+ * The longest a caller may ask a link to work: a coach's invitation can sit in
+ * an inbox for days before a member opens it, but a link should not stay usable
+ * for long.
  */
-export const MAX_LOGIN_LINK_MINUTES = 72 * 60;
+export const MAX_LOGIN_LINK_MINUTES = 7 * 24 * 60;
 
 const LoginLinkOptions = z
   .object({
@@ -25,9 +26,9 @@ const LoginLinkOptions = z
       .openapi({
         example: MAX_LOGIN_LINK_MINUTES,
         description:
-          `How long the link works, up to ${MAX_LOGIN_LINK_MINUTES} minutes (72 hours). Defaults to ` +
-          `${LOGIN_LINK_MINUTES}, enough to open an email. A link the coach hands over in a chat may be ` +
-          "read hours later, so ask for longer there.",
+          `How long the link works, up to ${MAX_LOGIN_LINK_MINUTES} minutes (7 days). Defaults to ` +
+          `${LOGIN_LINK_MINUTES}, enough to open an email the player just asked for. A link the coach hands ` +
+          "over in a chat, or emails as an invitation, may be read hours or days later, so ask for longer there.",
       }),
   })
   .openapi("LoginLinkOptions");
@@ -73,7 +74,7 @@ export const mint = createRoute({
   tags: ["Player logins"],
   summary: "Make a login link for a member",
   description:
-    `A one-time token for a login link, which works for ${LOGIN_LINK_MINUTES} minutes, or up to 72 hours ` +
+    `A one-time token for a login link, which works for ${LOGIN_LINK_MINUTES} minutes, or up to 7 days ` +
     "if you ask. It is returned to " +
     "you, and your own tooling delivers it — the core sends nothing. The player's website exchanges it for " +
     "a session with `POST /v1/session`: do that from a page the player submits, not on opening the link, " +

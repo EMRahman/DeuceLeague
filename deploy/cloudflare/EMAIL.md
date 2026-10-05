@@ -3,8 +3,9 @@
 A club runs without email. Deployment and setup never ask for it: players sign
 in with one-time links that the coach makes on `/coach` (or with
 `POST /v1/members/{id}/login-link`) and hands over, for example on WhatsApp. A
-link opens `/login?token=…`, works once and lasts 72 hours. An emailed link
-lasts fifteen minutes.
+link opens `/login?token=…`, works once and lasts 72 hours. A coach's emailed
+invitation lasts seven days; a link a player asks for by email lasts fifteen
+minutes.
 
 If the coach later wants players to request their own sign-in link by email,
 they can add a provider at any time. Nothing in the club's data changes:
@@ -13,7 +14,7 @@ alongside email.
 
 ## Coach invitations
 
-On **Members**, the coach can **Email sign-in link**, select up to five members per batch, or **Approve and email sign-in link** for a join request. Links work once, for fifteen minutes. The page records the latest provider acceptance or failed attempt, and separately shows who has signed in. Acceptance does not confirm inbox delivery. Failed sends can be retried after checking contacts and the provider; approval is never undone by a mail failure.
+On **Members**, the coach can **Email sign-in link**, select up to five members per batch, or **Approve and email sign-in link** for a join request. Links work once, for seven days. The page records the latest provider acceptance or failed attempt, and separately shows who has signed in. Acceptance does not confirm inbox delivery. Failed sends can be retried after checking contacts and the provider; approval is never undone by a mail failure.
 
 Existing members without either contact are listed under **Contact details to complete**. Complete their email and telephone using **Save contacts**. They remain members while you collect these details. New sign-ups require both. Without a provider, the page explains how to enable email and still offers manual links.
 

@@ -144,9 +144,10 @@ in [new players joining](../deploy/cloudflare/JOINING.md).
 **Player logins.** A key holding `members:write` makes a login link for a
 member, `POST /v1/members/{id}/login-link`, and gets back its token. The
 caller's own tooling puts it in a link and delivers it — the core does not send
-email. The link works once, for fifteen minutes, which suits an email. A link
-handed over in a chat is often read hours later, so the caller may ask for up to
-72 hours with `{"expires_in_minutes": 4320}`; it still works once. The player's website
+email. The link works once, for fifteen minutes, which suits an email the player
+just asked for. A link handed over in a chat, or emailed as an invitation, is
+often read hours or days later, so the caller may ask for up to 7 days with
+`{"expires_in_minutes": 10080}`; it still works once. The player's website
 exchanges it for a session, `POST /v1/session` with the link's token as the
 credential, from a page the player submits rather than on opening the link,
 because mail scanners open links before people do.

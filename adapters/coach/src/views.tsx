@@ -1135,8 +1135,8 @@ export const Chase: FC<{
   );
 };
 
-/** How long an emailed sign-in link works. */
-export const EMAILED_MINUTES = 15;
+/** How long an emailed invitation works: a member may not open it for days. */
+export const EMAILED_MINUTES = 7 * 24 * 60;
 
 /** An emailed sign-in link that ran out before the member signed in with it. */
 const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === "accepted" && !!m.invitation_at
@@ -1274,7 +1274,7 @@ export const Members: FC<{
       </>
     )}
     <h2>On the club's list</h2>
-    <p>{emailConfigured ? "Email sign-in invitations individually or select up to five members per batch. Emailed links work once, for fifteen minutes. Provider acceptance does not confirm inbox delivery."
+    <p>{emailConfigured ? "Email sign-in invitations individually or select up to five members per batch. Emailed links work once, for seven days. Provider acceptance does not confirm inbox delivery."
       : "Email is not configured. Ask your club administrator to set up sign-in email to send invitations. You can still hand over sign-in links."}</p>
     {emailConfigured && <form id="invitations" method="post" action="/coach/members/invite">
       <button type="submit">Email selected members (up to 5)</button>
@@ -1331,7 +1331,7 @@ export const Members: FC<{
                 {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
               </p>}
               {unusedLink(m) && <p class="deadline">
-                Link sent, not used: it ran out {EMAILED_MINUTES} minutes after sending. Email another, or make a sign-in
+                Link sent, not used: it ran out seven days after sending. Email another, or make a sign-in
                 link to send another way.
               </p>}
               {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>

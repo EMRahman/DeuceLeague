@@ -84,8 +84,8 @@ const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:
 
 /**
  * How long a link the coach hands over lasts. A chat message is often read
- * hours later, so a link has the API's longest life rather than an email's
- * fifteen minutes. It still works once.
+ * hours later, so a link lasts 72 hours rather than the fifteen minutes of one
+ * a player asks for. It still works once.
  */
 const LINK_HOURS = 72;
 
@@ -1005,7 +1005,7 @@ export function createCoachSite(options: CoachOptions) {
       const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: EMAILED_MINUTES, expected_email: member.email });
       const url = new URL("/login", publicUrl); url.searchParams.set("token", link.token);
       await options.mail({ to: member.email, subject: `${who.club.name}: your sign-in link`,
-        text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for fifteen minutes. If it expires, request a new link on the league website.\n` });
+        text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for seven days. If it expires, request a new link on the league website.\n` });
       state = "accepted";
     } catch { /* Neither credentials nor provider errors may reach logs or the page. */ }
     const message = state === "accepted" ? "Email accepted for sending. Inbox delivery is not confirmed."

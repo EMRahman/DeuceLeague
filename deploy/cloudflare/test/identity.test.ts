@@ -148,15 +148,15 @@ test("credential kind is checked before input validation; missing members do not
   await code(await f.call("/v1/not-implemented"), 401, "missing_credential");
 });
 
-test("a caller may ask a login link to last up to 72 hours, and no longer", async (t) => {
+test("a caller may ask a login link to last up to 7 days, and no longer", async (t) => {
   const f = await fixture(t);
   const member = await f.member();
-  const long = await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes: 72 * 60 });
+  const long = await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes: 7 * 24 * 60 });
   assert.equal(long.status, 201);
   const { token, expires_at } = await long.json() as { token: string; expires_at: string };
   const expires = Number(await f.db.prepare("SELECT expires_at FROM access_grant WHERE token_hash = ?").bind(hash(token)).first("expires_at"));
   assert.equal(new Date(expires).toISOString(), expires_at);
-  assert.ok(expires > Date.now() + 71.9 * 3_600_000 && expires <= Date.now() + 72 * 3_600_000);
+  assert.ok(expires > Date.now() + 167.9 * 3_600_000 && expires <= Date.now() + 168 * 3_600_000);
   const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'member.login_link.created'").first<string>("payload");
   assert.equal(JSON.parse(event!).expires_at, expires_at);
   // An empty body, with or without a JSON content type, asks for the default fifteen minutes.
@@ -167,7 +167,7 @@ test("a caller may ask a login link to last up to 72 hours, and no longer", asyn
     const minutes = (Date.parse((await response.json() as { expires_at: string }).expires_at) - Date.now()) / 60_000;
     assert.ok(minutes > 14 && minutes <= 15);
   }
-  for (const expires_in_minutes of [72 * 60 + 1, 0, 1.5]) {
+  for (const expires_in_minutes of [7 * 24 * 60 + 1, 0, 1.5]) {
     await code(await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes }), 400, "validation_failed");
   }
   assert.equal(await f.db.prepare("SELECT count(*) AS n FROM access_grant").first("n"), 3, "refused requests make no link");
