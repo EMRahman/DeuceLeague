@@ -84,10 +84,10 @@ the exact address, and commit. Wait for the build to finish again.
 2. Look at **Results**, with the sample's two disputes and a score waiting on
    the other side, at **Tables**, which shows the tables and the
    forecast as players see them, and at **Activity** and the **Chase list**.
-3. On **Members**, press **Sign-in link** for **Sample Alex**. With a real
+3. On **Members**, open **Sample Alex** and press **Sign-in link**. With a real
    player you would send this link on WhatsApp; here, open it in this window
    and press **Sign in**.
-4. Back on `/coach/members`, make a link for **Sample Bailey** and open it in a
+4. Back on `/coach/members`, open **Sample Bailey**, make a link and open it in a
    **private window**, since a browser holds one player's sign-in.
 
 A link works once, within seven days.

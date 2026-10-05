@@ -32,6 +32,7 @@ import {
   Dashboard,
   Members,
   ConfirmClearContacts,
+  MemberPage,
   ConfirmErase,
   ConfirmLeft,
   LINK_MINUTES,
@@ -308,7 +309,13 @@ export function createCoachSite(options: CoachOptions) {
     // Placed but never signed in: in a competition under way or being drafted, read only when asked for.
     const unsigned = c.req.query("show") === "unsigned";
     const placed = unsigned ? await placedMembers(who.key) : null;
-    const members = present.filter((m) => m.status !== "left" && (!placed || (placed.has(m.id) && !signedInSince(m))));
+    const club = present.filter((m) => m.status !== "left");
+    // A search looks in names, and in the contacts this key may read: the list is already in hand, so it costs no read.
+    const query = (c.req.query("q") ?? "").trim().slice(0, 100);
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+    const matches = (m: CoachMember) => words.every((w) =>
+      [m.display_name, m.email ?? "", m.phone ?? "", m.phone?.replace(/\D/g, "") ?? ""].some((f) => f.toLowerCase().includes(w)));
+    const members = club.filter((m) => (!placed || (placed.has(m.id) && !signedInSince(m))) && matches(m));
     const left = present.filter((m) => m.status === "left").sort((a, b) => a.display_name.localeCompare(b.display_name));
     const waiting = await waitingForPlacement(who);
     // Who still needs a link first, then by name.
@@ -317,7 +324,7 @@ export function createCoachSite(options: CoachOptions) {
         Number(!!a.signed_in_at) - Number(!!b.signed_in_at) || a.display_name.localeCompare(b.display_name),
     );
     // Ids only in the address: a name there would reach the browser's history.
-    const added = members.find((m) => m.id === c.req.query("added"));
+    const added = club.find((m) => m.id === c.req.query("added"));
     const gone = left.find((m) => m.id === c.req.query("left"));
     const done = added ? `${added.display_name} is now a member.` : c.req.query("declined") ? "Request declined and deleted."
       : gone ? `${gone.display_name} has left the club. They are under Former members, where you can bring them back.`
@@ -326,8 +333,27 @@ export function createCoachSite(options: CoachOptions) {
       <Members frame={frameOf(who, "members")} members={members} left={left} waiting={waiting}
         requests={requests?.requests ?? null}
         moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
-        timezone={who.club.timezone} emailConfigured={!!options.mail} unsigned={unsigned} />,
+        timezone={who.club.timezone} emailConfigured={!!options.mail} unsigned={unsigned} query={query}
+        total={club.length} signedIn={club.filter((m) => m.signed_in_at).length} />,
     );
+  });
+
+  /** One member and every form that changes them: the page each of those forms comes back to. */
+  app.get("/members/:id", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    const member = /^[0-9a-f-]{36}$/.test(id) ? await api<CoachMember & { deleted_at?: string | null }>("GET",
+      `/v1/members/${encodeURIComponent(id)}`, who.key).catch((error: unknown) => {
+      if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
+      throw error;
+    }) : null;
+    if (!member || member.deleted_at) {
+      return c.html(<Problem frame={frameOf(who, "members")} title="No such member"
+        detail="That member is not on the club's list any more." />, 404);
+    }
+    return c.html(<MemberPage frame={frameOf(who, "members")} member={member} saved={c.req.query("saved") === "1"}
+      emailConfigured={!!options.mail} timezone={who.club.timezone} />);
   });
 
   /** Everyone with a place in a competition under way or being drafted. */
@@ -385,7 +411,7 @@ export function createCoachSite(options: CoachOptions) {
     const id = c.req.param("id");
     const name = String((await c.req.parseBody()).display_name ?? "").trim();
     if (!name || name.length > 60) return c.html(<Problem frame={frameOf(who, "members")} title="Name not changed"
-      detail="A name shown to players has 1 to 60 characters." back={{ href: `/coach/members#member-${id}`, label: "Back to members" }} />, 400);
+      detail="A name shown to players has 1 to 60 characters." back={{ href: `/coach/members/${id}`, label: "Back to the member" }} />, 400);
     try {
       await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { display_name: name });
     } catch (error) {
@@ -393,7 +419,7 @@ export function createCoachSite(options: CoachOptions) {
       return c.html(<Problem frame={frameOf(who, "members")} title="Name not changed"
         detail="That member is not on the club's list any more." />, 404);
     }
-    return c.redirect(`/coach/members#member-${id}`, 303);
+    return c.redirect(`/coach/members/${id}?saved=1`, 303);
   });
 
   app.post("/members/:id/level", async (c) => {
@@ -407,7 +433,7 @@ export function createCoachSite(options: CoachOptions) {
       return c.html(<Problem frame={frameOf(who, "members")} title="Level not changed"
         detail="That member is not on the club's list any more." />, 404);
     }
-    return c.redirect(`/coach/members#member-${id}`, 303);
+    return c.redirect(`/coach/members/${id}?saved=1`, 303);
   });
 
   /** Gender and age group, as the coach corrects them. Blank clears the field. */
@@ -425,7 +451,7 @@ export function createCoachSite(options: CoachOptions) {
       return c.html(<Problem frame={frameOf(who, "members")} title="Details not changed"
         detail={error.problem.status === 403 ? "This key cannot change members' personal details." : "That member is not on the club's list any more."} />, error.problem.status === 403 ? 403 : 404);
     }
-    return c.redirect(`/coach/members#member-${id}`, 303);
+    return c.redirect(`/coach/members/${id}?saved=1`, 303);
   });
 
   /** A break from the league, for as long as it lasts, and the end of it. This season carries on as it is. */
@@ -441,7 +467,7 @@ export function createCoachSite(options: CoachOptions) {
         return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
           detail="That member has left the club or is not on its list any more." />, 404);
       }
-      return c.redirect(`/coach/members#member-${id}`, 303);
+      return c.redirect(`/coach/members/${id}?saved=1`, 303);
     });
   }
 
@@ -458,7 +484,7 @@ export function createCoachSite(options: CoachOptions) {
         return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
           detail="That member is not on the club's list any more." />, 404);
       }
-      return c.redirect(`/coach/members#member-${id}`, 303);
+      return c.redirect(`/coach/members/${id}?saved=1`, 303);
     });
   }
 
@@ -491,7 +517,7 @@ export function createCoachSite(options: CoachOptions) {
         return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
           detail="That member is not on the club's list any more." />, 404);
       }
-      return c.redirect(action === "left" ? `/coach/members?left=${encodeURIComponent(id)}#member-${id}` : `/coach/members#member-${id}`, 303);
+      return c.redirect(action === "left" ? `/coach/members?left=${encodeURIComponent(id)}#former` : `/coach/members/${id}?saved=1`, 303);
     });
   }
 
@@ -1035,7 +1061,7 @@ export function createCoachSite(options: CoachOptions) {
       ...(phone && !isTelephone(phone) ? ["A telephone number has 7 to 15 digits, and may start with +, such as 07700 900123."] : []),
     ];
     if (wrong.length) return c.html(<Problem frame={frameOf(who, "members")} title="Contacts not saved"
-      detail={`${wrong.join(" ")} Return to Members to correct it.`} back={{ href: `/coach/members#member-${id}`, label: "Back to members" }} />, 400);
+      detail={`${wrong.join(" ")} Return to Members to correct it.`} back={{ href: `/coach/members/${id}`, label: "Back to the member" }} />, 400);
     if ((!email || !phone) && form.confirm !== "yes") {
       const member = await api<CoachMember>("GET", `/v1/members/${encodeURIComponent(id)}`, who.key).catch((error: unknown) => {
         if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
@@ -1047,7 +1073,7 @@ export function createCoachSite(options: CoachOptions) {
     }
     try { await api("PATCH", `/v1/members/${encodeURIComponent(id)}`, who.key, { email: email || null, phone: phone || null }); }
     catch { return c.html(<Problem frame={frameOf(who, "members")} title="Contacts not saved" detail="Check your permission and that another member does not already use this email. Return to Members to correct it." />, 400); }
-    return c.redirect(`/coach/members#member-${id}`, 303);
+    return c.redirect(`/coach/members/${id}?saved=1`, 303);
   });
 
   app.post("/members/:id/sign-in-link", async (c) => {

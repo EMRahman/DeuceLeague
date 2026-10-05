@@ -261,7 +261,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   // The coach renames them from the members page, and every page that names them follows.
   assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: "  Robin Hale " })).status, 303);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.display_name, "Robin Hale");
-  assert.match((await coach.get("/coach/members")).html, new RegExp(`id="name-${memberId}"[^>]*value="Robin Hale"`));
+  assert.match((await coach.get(`/coach/members/${memberId}`)).html, new RegExp(`id="name-${memberId}"[^>]*value="Robin Hale"`));
   assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: " " })).status, 400);
   assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: "x".repeat(61) })).status, 400);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.display_name, "Robin Hale");
@@ -271,7 +271,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal((await coach.post(`/coach/members/${memberId}/details`, { gender: "female", age_group: "" })).status, 303);
   assert.deepEqual(((b) => [b.gender, b.age_group])((await f.api(`/v1/members/${memberId}`, f.admin)).body), ["female", null]);
   // Leaving the club is asked first, saying what it does; a post not confirmed changes nothing.
-  assert.match((await coach.get("/coach/members")).html, new RegExp(`href="/coach/members/${memberId}/left"`));
+  assert.match((await coach.get(`/coach/members/${memberId}`)).html, new RegExp(`href="/coach/members/${memberId}/left"`));
   const ask = await coach.get(`/coach/members/${memberId}/left`);
   assert.equal(ask.status, 200); assert.match(ask.html, /has left the club\?/); assert.match(ask.html, /matches this season stay as they are/);
   const unconfirmed = await coach.post(`/coach/members/${memberId}/left`);

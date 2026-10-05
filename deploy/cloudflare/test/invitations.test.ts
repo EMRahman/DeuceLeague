@@ -160,7 +160,8 @@ test("Members says when an emailed link ran out unused, and lists those placed b
   assert.doesNotMatch((await coach.get("/coach/members")).html, /Link sent, not used/, "not within seven days");
   // Over seven days on, unused.
   await f.db.prepare("UPDATE member SET invitation_at = invitation_at - 86400000 - 60000 WHERE id = ?").bind(sam.id).run();
-  assert.match((await coach.get("/coach/members")).html, /Link sent, not used: it ran out seven days after sending/);
+  assert.match((await coach.get(`/coach/members/${sam.id}`)).html, /Link sent, not used: it ran out seven days after sending/);
+  assert.match((await coach.get("/coach/members")).html, /emailed link not used/);
   // Alex signs in; a newcomer with no place is not listed as placed.
   const alexBrowser = await signIn(f, "alex@example.org");
   const newcomer = await f.create("/v1/members", { display_name: "Newcomer", email: "new@example.org" });

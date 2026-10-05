@@ -73,7 +73,17 @@ test("the coach makes a player's sign-in link, which signs the player in once, w
   assert.match(list.html, /Sam/); assert.doesNotMatch(list.html, /Gone/);
   assert.match(list.html, /1 of 2 signed in/); assert.match(list.html, /Not signed in yet/);
   assert.ok(list.html.indexOf("Sam") < list.html.indexOf("Aaron"), "who still needs a link comes first");
-  assert.match(list.html, new RegExp(`action="/coach/members/${sam.id}/sign-in-link"`));
+  assert.match(list.html, new RegExp(`href="/coach/members/${sam.id}"`));
+  assert.doesNotMatch(list.html, /<form[^>]*method="post"[^>]*action="\/coach\/members\/[0-9a-f-]{36}\//, "the list holds no member's forms");
+  const page = await coach.get(`/coach/members/${sam.id}`);
+  assert.equal(page.status, 200); assert.match(page.html, /<h1>Sam<\/h1>/);
+  assert.match(page.html, new RegExp(`action="/coach/members/${sam.id}/sign-in-link"`));
+  // A search narrows the list, by name or by contact, and says when nobody matches.
+  const found = (await coach.get("/coach/members?q=sa")).html;
+  assert.match(found, new RegExp(`href="/coach/members/${sam.id}"`)); assert.match(found, /1 member matching/);
+  assert.doesNotMatch(found, new RegExp(`id="member-${aaron.id}"`));
+  assert.match((await coach.get("/coach/members?q=zzz")).html, /Nobody matches/);
+  assert.equal((await coach.get("/coach/members/not-a-member")).status, 404);
   const made = await coach.post(`/coach/members/${sam.id}/sign-in-link`);
   assert.equal(made.status, 200); assert.match(made.html, /Sign-in link for Sam/); assert.match(made.html, /within 7 days/);
   const token = /https:\/\/league\.test\/login\?token=([A-Za-z0-9_-]+)/.exec(made.html)?.[1]; assert.ok(token);
