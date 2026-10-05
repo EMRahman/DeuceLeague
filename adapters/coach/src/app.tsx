@@ -255,11 +255,25 @@ export function createCoachSite(options: CoachOptions) {
   app.get("/", async (c) => {
     const who = await coach(c);
     if (!who) return c.html(<SignIn frame={frameOf(null)} />);
-    const [seasons, competitions, requests] = await Promise.all([
+    const [seasons, planning, competitions, requests, listed] = await Promise.all([
       all<Season>("/v1/seasons?state=active", who.key),
+      all<Season>("/v1/seasons?state=planning", who.key),
       all<CoachCompetition>("/v1/competitions", who.key),
       joinRequests(who),
+      all<CoachMember & { deleted_at?: string | null }>("/v1/members", who.key),
     ]);
+    const preparing = planning.map((s) => ({ name: s.name,
+      drafts: competitions.filter((x) => x.season_id === s.id && x.state === "draft").length }));
+    // Until nine in ten have signed in, the dashboard helps bring the rest online.
+    const club = listed.filter((m) => !m.deleted_at && m.status !== "left");
+    // Signing out everywhere does not undo having come online: count anyone who has ever signed in.
+    const signedIn = club.filter((m) => signedInSince(m)).length;
+    const online = club.length > 0 && signedIn < club.length * 0.9 ? {
+      members: club.length, signedIn, signInUrl: new URL("/", publicUrl).href, byEmail: !!options.mail,
+      phoneOnly: who.scopes.includes("members:pii")
+        ? club.filter((m) => m.phone && !m.email && !signedInSince(m)).sort((a, b) => a.display_name.localeCompare(b.display_name))
+        : null,
+    } : null;
     const views: SeasonView[] = [];
     // One read a season, however many competitions it runs: Workers Free allows 50 D1 queries a request.
     for (const season of seasons) {
@@ -277,7 +291,7 @@ export function createCoachSite(options: CoachOptions) {
     }
     return c.html(
       <Dashboard frame={frameOf(who, "dashboard")} seasons={views} asking={requests?.requests.length ?? 0}
-        askingMore={requests?.more ?? false} timezone={who.club.timezone} />,
+        askingMore={requests?.more ?? false} timezone={who.club.timezone} online={online} preparing={preparing} />,
     );
   });
 

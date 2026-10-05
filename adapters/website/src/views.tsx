@@ -305,11 +305,12 @@ export const SignIn: FC<{ frame: Frame; byEmail: boolean; joining?: boolean; mes
           </div>
           <button type="submit">Email me a sign-in link</button>
         </form>
+        <p class="muted">No email, or the club does not have it? Ask your coach for a sign-in link.</p>
       </>
     ) : (
       <p>
         Ask your coach for a sign-in link. Open it on your phone and press <strong>Sign in</strong>: there is no
-        password, and you stay signed in. A link works once, and not for long, so ask for a new one if it has run
+        password, and you stay signed in. A link works once, within seven days, so ask for a new one if it has run
         out.
       </p>
     )}

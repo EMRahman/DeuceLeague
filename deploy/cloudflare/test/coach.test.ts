@@ -640,6 +640,11 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.equal(planned[0].results_deadline_at, "2026-11-30T23:59:59.000Z");
   const drafts = (await competitions()).filter((x) => x.season_id === planned[0].id);
   assert.deepEqual(drafts.map((x) => [x.name, x.state]).sort(), [["Sample doubles", "draft"], ["Sample singles", "draft"]]);
+  // The dashboard says the drafts are waiting, rather than only that no season is running.
+  const waitingDrafts = (await coach.get("/coach")).html;
+  assert.match(waitingDrafts, /No season is running/);
+  assert.match(waitingDrafts, /Sample season 2 is drafted: 2 competitions\. Review and start it on the Season tab\./);
+  assert.doesNotMatch(waitingDrafts, /Prepare the next\s+season from the last one/);
   const singles = drafts.find((x) => x.discipline === "singles")!; const doubles = drafts.find((x) => x.discipline === "doubles")!;
 
   const preparing = await coach.get("/coach/season");
@@ -736,4 +741,33 @@ test("next season's suggested name follows the seasons of the year, and its date
   const season = (starts_on: string, ends_on: string) => ({ starts_on, ends_on }) as any;
   assert.deepEqual(nextDates(season("2026-09-01", "2026-12-10"), "2026-10-03"), { starts_on: "2026-12-11", ends_on: "2027-03-21" });
   assert.deepEqual(nextDates(season("2026-01-01", "2026-03-10"), "2026-10-03"), { starts_on: "2026-10-03", ends_on: "2026-12-10" });
+});
+
+test("the dashboard helps bring the club online until nine in ten have signed in", async (t) => {
+  const f = await websiteFixture(t);
+  const sam = await f.create("/v1/members", { display_name: "Sam", email: "sam@example.org" });
+  const phoebe = await f.create("/v1/members", { display_name: "Phoebe", phone: "07700 900321" });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const home = (await coach.get("/coach")).html;
+  assert.match(home, /Getting your club online/); assert.match(home, /<strong>0 of 2<\/strong> members have signed in/);
+  assert.match(home, /Open https:\/\/league\.test\/ on your phone/); assert.match(home, /Email me a sign-in link/);
+  // Someone with only a telephone cannot ask by email: the panel lists them with a link button.
+  assert.match(home, /Telephone only, not signed in \(1\)/);
+  assert.match(home, new RegExp(`action="/coach/members/${phoebe.id}/sign-in-link"`));
+  assert.doesNotMatch(home, new RegExp(`action="/coach/members/${sam.id}/sign-in-link"`));
+  // The player's sign-in page says what to do without an email.
+  assert.match((await browser(f).get("/")).html, /No email, or the club does not have it\? Ask your coach for a sign-in link/);
+  // Once nine in ten have signed in, the panel goes.
+  for (const id of [sam.id, phoebe.id]) {
+    const token = (await f.api(`/v1/members/${id}/login-link`, f.admin, "POST")).body.token;
+    assert.equal((await f.api("/v1/session", token, "POST")).status, 201);
+  }
+  assert.doesNotMatch((await coach.get("/coach")).html, /Getting your club online/);
+  // Signing out everywhere does not undo having come online.
+  assert.equal((await f.api(`/v1/members/${phoebe.id}/sign-out`, f.admin, "POST")).status, 200);
+  assert.equal((await f.api(`/v1/members/${phoebe.id}`, f.admin)).body.signed_in_at, null);
+  assert.doesNotMatch((await coach.get("/coach")).html, /Getting your club online/);
+  // A season being prepared with no competitions yet still points to the Season tab.
+  assert.equal((await f.api("/v1/seasons", f.admin, "POST", { name: "Spring", starts_on: "2027-01-01", ends_on: "2027-03-31" })).status, 201);
+  assert.match((await coach.get("/coach")).html, /Spring is being prepared, with no competitions yet\. Carry on with it on the Season tab\./);
 });

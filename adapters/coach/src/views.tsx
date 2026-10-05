@@ -370,6 +370,56 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
   </Layout>
 );
 
+/** Bringing the club online: shown until nine in ten members have signed in. */
+export type Online = {
+  members: number;
+  signedIn: number;
+  /** Where players sign in, for the announcement. */
+  signInUrl: string;
+  /** Whether players can ask for their own link by email. */
+  byEmail: boolean;
+  /** Members with a telephone but no email who have never signed in; null when this key may not read contacts. */
+  phoneOnly: CoachMember[] | null;
+};
+
+/** A season being prepared, and how many competitions it has drafted. */
+export type Preparing = { name: string; drafts: number };
+
+const OnlinePanel: FC<{ online: Online }> = ({ online }) => (
+  <div class="card">
+    <h2 id="online">Getting your club online</h2>
+    <p>
+      <strong>{online.signedIn} of {online.members}</strong> members have signed in. Post this in the club's group
+      chat or email to everyone:
+    </p>
+    <blockquote>
+      Our league is online. Open {online.signInUrl} on your phone
+      {online.byEmail
+        ? ", enter the email address the club has for you and press \"Email me a sign-in link\". No email, or nothing arrived? Ask the coach for a link."
+        : " and ask the coach for your sign-in link."}{" "}
+      A link works once, within seven days, and you then stay signed in.
+    </blockquote>
+    {online.phoneOnly && online.phoneOnly.length > 0 && (
+      <>
+        <h3>Telephone only, not signed in ({online.phoneOnly.length})</h3>
+        <p class="muted">They cannot ask for a link by email. Make each a link and send it on WhatsApp or by text.</p>
+        <ul class="list">
+          {online.phoneOnly.map((m) => (
+            <li class="answer">
+              <div class="answer-row">
+                <span>{m.display_name}<span class="muted"> · {m.phone}</span></span>
+                <form method="post" action={`/coach/members/${m.id}/sign-in-link`}>
+                  <button class="quiet small" type="submit">Sign-in link</button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </>
+    )}
+  </div>
+);
+
 export const Dashboard: FC<{
   frame: Frame;
   seasons: SeasonView[];
@@ -377,7 +427,10 @@ export const Dashboard: FC<{
   asking: number;
   askingMore: boolean;
   timezone: string;
-}> = ({ frame, seasons, asking, askingMore, timezone }) => (
+  /** Null once most of the club has signed in. */
+  online?: Online | null;
+  preparing?: Preparing[];
+}> = ({ frame, seasons, asking, askingMore, timezone, online = null, preparing = [] }) => (
   <Layout title="Dashboard" frame={frame}>
     {asking > 0 && (
       <div class="notice">
@@ -390,12 +443,24 @@ export const Dashboard: FC<{
     {seasons.length === 0 && (
       <>
         <h1>No season is running</h1>
-        <p>
-          Once a season and its competitions are active, this page shows how far through they are. Start the next
-          season from the last one on the <a href="/coach/season">Season</a> tab.
-        </p>
+        {preparing.length === 0 && (
+          <p>
+            Once a season and its competitions are active, this page shows how far through they are. Prepare the next
+            season from the last one on the <a href="/coach/season">Season</a> tab.
+          </p>
+        )}
       </>
     )}
+    {preparing.map((p) => (
+      <div class="notice">
+        <a href="/coach/season">
+          {p.drafts > 0
+            ? `${p.name} is drafted: ${plural(p.drafts, "competition")}. Review and start it on the Season tab.`
+            : `${p.name} is being prepared, with no competitions yet. Carry on with it on the Season tab.`}
+        </a>
+      </div>
+    ))}
+    {online && <OnlinePanel online={online} />}
     {seasons.map(({ season, competitions }) => {
       const disputed = competitions.reduce((n, x) => n + x.progress.disputed, 0);
       const reported = competitions.reduce((n, x) => n + x.progress.reported, 0);
