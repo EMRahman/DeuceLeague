@@ -23,14 +23,18 @@ export function checkChoosing(competition: LeagueCompetitionRecord) {
     "Players say what they want for next season while the competition is under way. After that the coach places them.");
 }
 
-/** Who is playing in the competition: its active entries' members, with their partners. */
+/**
+ * Who is playing in the competition, with their partners: its active entries' members, and those of a pair that
+ * withdrew, who may still play next season. A member in both counts with their active pair.
+ */
 function lineup(entries: EntryRecord[]) {
   const partnerOf = new Map<string, string | null>();
   const names = new Map<string, string>();
-  for (const e of entries) {
-    for (const m of e.members) names.set(m.id, m.displayName);
-    if (e.state !== "active") continue;
-    for (const m of e.members) partnerOf.set(m.id, e.members.find((o) => o.id !== m.id)?.id ?? null);
+  for (const e of [...entries.filter((e) => e.state === "withdrawn"), ...entries.filter((e) => e.state === "active")]) {
+    for (const m of e.members) {
+      names.set(m.id, m.displayName);
+      partnerOf.set(m.id, e.members.find((o) => o.id !== m.id)?.id ?? null);
+    }
   }
   return { partnerOf, names };
 }
