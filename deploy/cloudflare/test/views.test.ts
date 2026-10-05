@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 import { readChase, readLeagueViews } from "@deuceleague/db-d1";
+import { DEFAULT_RULES } from "@deuceleague/schema";
 import { daysRemaining, progressCounts } from "../../../packages/api/dist/league/progress.js";
 import { tablesFromRecords } from "../../../packages/api/dist/league/tables.js";
 import { playing, hash, completed } from "./result-helpers.ts";
@@ -55,10 +56,17 @@ test("movement includes surrounding divisions when filtering and honors next-sea
     for (let i = 1; i <= 3; i++) { const e = await create(f, `/v1/competitions/${f.ids.competition}/entries`, { division_id: d.id, member_ids: [await f.member(`${group}${i}`)] }); if (group === "B") middle.push(e.id); }
   }
   const path = `/v1/competitions/${f.ids.competition}/standings`;
+  // Arrows show only for entries that have played, so every division plays its round first.
+  assert.ok((await send(f, path)).body.divisions.every((d: any) => d.rows.every((r: any) => r.movement === null)), "no arrows before play");
+  for (const d of divs.slice(1)) assert.equal((await send(f, `/v1/divisions/${d}/fixtures`, "POST")).status, 200);
+  for (const m of (await send(f, `/v1/matches?competition_id=${f.ids.competition}&limit=100`)).body.data) {
+    assert.equal((await send(f, `/v1/matches/${m.id}/settle`, "POST", { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } })).status, 201);
+  }
   const all = (await send(f, path)).body;
   assert.deepEqual(all.divisions.map((d: any) => d.rows.map((r: any) => r.movement)), [[null, null, "relegated"], ["promoted", null, "relegated"], ["promoted", null, null]]);
   assert.deepEqual((await send(f, `${path}?division_id=${divs[1]}`)).body.divisions, [all.divisions[1]]);
-  await send(f, `/v1/entries/${middle[0]}/opt-out`, "POST");
+  void middle;
+  await send(f, `/v1/entries/${all.divisions[1].rows[0].entry_id}/opt-out`, "POST");
   const rows = (await send(f, `${path}?division_id=${divs[1]}`)).body.divisions[0].rows;
   // The place stays empty: the one below does not show as going up in its stead.
   assert.equal(rows[0].movement, null); assert.equal(rows[1].movement, null);
@@ -407,4 +415,32 @@ test("the chase list counts toward the minimum as the tables do when a player wi
   }
   const progress = (await f.api(`/v1/competitions/${comp.id}/progress`, f.admin)).body;
   assert.equal(progress.below_minimum, ["A", "C", "D"].filter((n) => played[n]! < 3).length);
+});
+
+test("the table shows going up or down only for entries that have played", async (t) => {
+  const f = await fixture(t);
+  const season = await create(f, "/v1/seasons", { name: "Arrows", starts_on: "2026-01-01", ends_on: "2026-12-31",
+    results_deadline_at: new Date(Date.now() + 86_400_000).toISOString() });
+  assert.equal((await send(f, `/v1/seasons/${season.id}`, "PATCH", { state: "active" })).status, 200);
+  const competition = await create(f, "/v1/competitions", { season_id: season.id, name: "League", discipline: "singles",
+    match_format: "best_of_3_champions_tiebreak", rules: { ...DEFAULT_RULES, movement: { promote: 1, relegate: 1, minMatchesForPromotion: 0 } } });
+  const divisions = [await create(f, `/v1/competitions/${competition.id}/divisions`, {}), await create(f, `/v1/competitions/${competition.id}/divisions`, {})];
+  for (const [d, names] of [[divisions[0], ["Ann", "Bea", "Cal"]], [divisions[1], ["Dee", "Eve", "Fay"]]] as const) {
+    for (const name of names) await create(f, `/v1/competitions/${competition.id}/entries`, { division_id: d.id, member_ids: [await f.member(name)] });
+    assert.equal((await send(f, `/v1/divisions/${d.id}/fixtures`, "POST")).status, 200);
+  }
+  assert.equal((await send(f, `/v1/competitions/${competition.id}`, "PATCH", { state: "active" })).status, 200);
+  const arrows = async () => Object.fromEntries((await send(f, `/v1/competitions/${competition.id}/standings`)).body.divisions
+    .flatMap((d: any) => d.rows.map((r: any) => [r.label, r.movement])));
+  // Before any match, nobody is going anywhere.
+  assert.ok(Object.values(await arrows()).every((m) => m === null), "no arrows before a match is played");
+  // Once a match in Division 2 is played, its winner tops the table and is shown going up; nobody who has not
+  // played carries an arrow, even at the foot of Division 1, where the zone stays where it is.
+  const first = (await send(f, `/v1/matches?division_id=${divisions[1].id}`)).body.data[0];
+  assert.ok(first);
+  assert.equal((await send(f, `/v1/matches/${first.id}/settle`, "POST", { outcome: "completed", score: { sets: [{ games: [6, 1] }, { games: [6, 1] }] } })).status, 201);
+  const after = await arrows();
+  const winner = first.sides.find((s: any) => s.side === 0).label;
+  assert.equal(after[winner], "promoted");
+  for (const [name, m] of Object.entries(after)) if (name !== winner) assert.equal(m, null, `${name}: no arrow`);
 });

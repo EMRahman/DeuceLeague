@@ -60,8 +60,8 @@ export const Row = z
     movement: z.enum(["promoted", "relegated"]).nullable().openapi({
       description:
         "Where the entry would go if the competition ended now, by its own movement rules — the same " +
-        "suggestion placements would make. Null: held. The top division promotes nobody and the bottom " +
-        "relegates nobody. Only ever a suggestion: the coach decides.",
+        "suggestion placements would make. Null: held, or not yet played a match. The top division promotes " +
+        "nobody and the bottom relegates nobody. Only ever a suggestion: the coach decides.",
     }),
   })
   .openapi("StandingsRow");
