@@ -116,11 +116,14 @@ const PersonSelects: FC<{ id: string; gender: string | null; ageGroup: string | 
   </>
 );
 
-/** "Sam K.": the name the API gives a new member unless the coach chooses another. */
+/** "Sam Kerr": the name the API gives a new member unless the coach chooses another. */
 const playingName = (r: JoinRequest) => {
-  const initial = [...r.surname.trim()][0];
+  const first = r.first_name.trim(), surname = r.surname.trim();
+  const full = `${first} ${surname}`.trim();
   // The API's own limit, as its default keeps to: the field would refuse anything longer.
-  return (initial ? `${r.first_name.trim()} ${initial.toUpperCase()}.` : r.first_name.trim()).slice(0, 60);
+  if (full.length <= 60) return full;
+  const initial = [...surname][0];
+  return (initial ? `${first} ${initial.toUpperCase()}.` : first).slice(0, 60);
 };
 
 export type CoachCompetition = Competition & {
@@ -202,6 +205,7 @@ export type ChaseRow = {
   member_id: string;
   display_name: string;
   email?: string | null;
+  phone?: string | null;
   needs_playing: number;
   awaiting_you: number;
   awaiting_them: number;
@@ -1024,7 +1028,9 @@ export const Chase: FC<{
   choices: number[];
   /** The competitions under way, for who is short of their minimum. */
   progress: SeasonProgress["competitions"];
-}> = ({ frame, rows, within, choices, progress }) => {
+  /** Whether the coach's key may read members' email addresses and telephone numbers. */
+  contacts: boolean;
+}> = ({ frame, rows, within, choices, progress, contacts }) => {
   const groups = new Map<string, ChaseRow[]>();
   for (const row of rows) {
     const key = `${row.competition_name} · ${row.division_name}`;
@@ -1039,6 +1045,7 @@ export const Chase: FC<{
         Who still has matches to play or scores to confirm. Remind them however you talk to players: this site sends
         nothing.
       </p>
+      {!contacts && <p class="muted">Email addresses and telephone numbers need a key with the members:pii permission.</p>}
       <nav class="tabs" aria-label="Which competitions">
         <a href="/coach/chase" aria-current={within === null ? "page" : undefined}>
           All
@@ -1094,6 +1101,7 @@ export const Chase: FC<{
                   <li class="answer">
                     <strong>{r.display_name}</strong>
                     {r.email && <span class="muted"> · {r.email}</span>}
+                    {r.phone && <span class="muted"> · <a href={`tel:${r.phone.replace(/[^\d+]/g, "")}`}>{r.phone}</a></span>}
                     <br />
                     {[
                       r.needs_playing > 0 && `${plural(r.needs_playing, "match", "matches")} to play`,
@@ -1331,11 +1339,20 @@ export const Members: FC<{
               </form>}
               {m.email !== undefined && <form class="approve" method="post" action={`/coach/members/${m.id}/contacts`}>
                 <div class="field"><label for={`email-${m.id}`}>Email for sign-in links</label>
-                  <input id={`email-${m.id}`} type="email" name="email" value={m.email ?? ""} maxlength={254} required /></div>
+                  <input id={`email-${m.id}`} type="email" name="email" value={m.email ?? ""} maxlength={254} /></div>
                 <div class="field"><label for={`phone-${m.id}`}>Telephone for WhatsApp</label>
-                  <input id={`phone-${m.id}`} type="tel" name="phone" value={m.phone ?? ""} maxlength={24} required /></div>
+                  <input id={`phone-${m.id}`} type="tel" name="phone" value={m.phone ?? ""} maxlength={24} /></div>
                 <button class="quiet small" type="submit">Save contacts</button>
               </form>}
+              <form class="level" method="post" action={`/coach/members/${m.id}/name`}>
+                <label class="muted" for={`name-${m.id}`}>
+                  Name shown to players
+                </label>
+                <input id={`name-${m.id}`} name="display_name" maxlength={60} value={m.display_name} required />
+                <button class="quiet small" type="submit">
+                  Save
+                </button>
+              </form>
               <form class="level" method="post" action={`/coach/members/${m.id}/level`}>
                 <label class="muted" for={`level-${m.id}`}>
                   Level
@@ -1654,6 +1671,33 @@ export const ConfirmErase: FC<{ frame: Frame; member: CoachMember; message?: str
     </p>
   </Layout>
 );
+
+/** Emptying a contact field clears it: asked first, since an empty box is easy to send by mistake. */
+export const ConfirmClearContacts: FC<{ frame: Frame; member: CoachMember; email: string; phone: string; clearing: string[] }> = ({
+  frame, member, email, phone, clearing,
+}) => {
+  const what = clearing.join(" and ");
+  return (
+    <Layout title={`Clear ${member.display_name}'s ${what}?`} frame={frame}>
+      <h1>Clear {member.display_name}'s {what}?</h1>
+      <ul class="plain">
+        {clearing.includes("email address") && <li>Without an email address they cannot be emailed a sign-in link; you can still make one to send another way.</li>}
+        {clearing.includes("telephone number") && <li>Their partner and opponents will not see a telephone number for them.</li>}
+        {email && <li>Their email address will be {email}.</li>}
+        {phone && <li>Their telephone number will be {phone}.</li>}
+      </ul>
+      <form method="post" action={`/coach/members/${member.id}/contacts`}>
+        <input type="hidden" name="confirm" value="yes" />
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="phone" value={phone} />
+        <button type="submit">Yes, clear the {what}</button>
+      </form>
+      <p class="after">
+        <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+      </p>
+    </Layout>
+  );
+};
 
 /** Leaving the club, asked first: what it does to this season, next season and signing in. */
 export const ConfirmLeft: FC<{ frame: Frame; member: CoachMember }> = ({ frame, member }) => (

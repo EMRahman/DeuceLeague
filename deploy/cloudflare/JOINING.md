@@ -9,7 +9,7 @@ The form asks for a first name, a surname, both an email address and a telephone
 age group (under 18, 18 to 34, 35 to 49, 50 to 64, 65 or over). It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
 and asks the person to tick that they have read it.
 
-Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-03`.
+Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-04`.
 
 Nobody is a member until you approve them. Until then, they are only a request.
 
@@ -20,7 +20,7 @@ Sign in at `/coach`. When someone is waiting, the dashboard says so. On
 they gave. It also warns you if a member already has the same email address.
 
 - **Approve** adds them to the club's list, under the name they play under
-  (their first name and initial, such as "Robin H.", unless you change it) and
+  (their full name, such as "Robin Hale", unless you change it) and
   the level you choose, with the gender and age group they gave, which you can
   change before approving or later on the Members page. With [sign-in emails](EMAIL.md) configured, choose **Approve and email sign-in link**, or email the invitation from their member record afterwards. Approval succeeds even if sending fails. You can also make a **Sign-in link** to hand over.
 - **Decline** deletes the request and everything they sent. They are not told.
@@ -38,7 +38,7 @@ page shows the oldest 25 requests at a time; deciding them brings on the next.
 
 ## Existing members and invitations
 
-Existing members stay on the list even if contacts are missing. **Contact details to complete** links to each affected member. Use **Save contacts** to add a valid email and telephone; personal details require `members:pii`.
+Existing members stay on the list even if contacts are missing. **Contact details to complete** links to each affected member. Use **Save contacts** to add an email address, a telephone number or both. Emptying a field clears it after you confirm. Personal details require `members:pii`.
 
 With email configured, use **Email sign-in link**, or select one to five members and **Email selected members**. Batches are bounded to keep each request within the Worker query allowance. Members shows the latest accepted or failed email attempt separately from who has signed in. Provider acceptance does not confirm inbox delivery. On failure, check contacts and provider configuration before retrying; a manual link remains available.
 

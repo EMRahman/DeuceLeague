@@ -20,7 +20,7 @@ function context(): ResultContext {
       createdAt: now, updatedAt: now,
       sides: [{ sideIndex: 0, entryId: randomUUID(), label: "Alex" }, { sideIndex: 1, entryId: randomUUID(), label: "Bailey" }] },
     competition: { state: "active", visibility: "members", matchFormat: format },
-    claims: [], deadline: null, ownSide: 0, memberId: randomUUID(), now,
+    claims: [], deadline: null, ownSide: 0, memberId: randomUUID(), now, timezone: "Europe/London",
   };
 }
 
@@ -154,4 +154,18 @@ test("the player match page starts blank, shows only its own mismatch, and direc
   assert.match(final, /4-6, 3-6/);
   assert.match(final, /Ask the coach if this result needs correcting/);
   assert.doesNotMatch(final, /class="card report"/);
+});
+
+test("a played-on date may be today on the club's calendar, never tomorrow", () => {
+  // 23:30 UTC on 2 October is already 3 October in London (BST) and still 2 October in Honolulu.
+  const late = new Date("2026-10-02T23:30:00Z");
+  const decide = (timezone: string, played_on: string, type: "report" | "settle" = "report") =>
+    () => decideResult({ ...context(), now: late, timezone }, { type, body: { ...games, played_on } } as any, randomUUID());
+  assert.ok(decide("Europe/London", "2026-10-03")());
+  assert.ok(decide("Pacific/Honolulu", "2026-10-02")());
+  for (const [zone, day] of [["Europe/London", "2026-10-04"], ["Pacific/Honolulu", "2026-10-03"], ["UTC", "2026-10-03"]]) {
+    for (const type of ["report", "settle"] as const) {
+      assert.throws(decide(zone!, day!, type), (e: any) => e.status === 400 && e.extra?.errors?.[0]?.path === "played_on", `${zone} ${day} ${type}`);
+    }
+  }
 });

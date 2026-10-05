@@ -14,7 +14,7 @@ const Counts = z.object({
 export const DisputeHistoryRow = z
   .object({
     member_id: z.uuid(),
-    display_name: z.string().openapi({ example: "Sam K." }),
+    display_name: z.string().openapi({ example: "Sam Kerr" }),
     this_season: Counts.openapi({ description: "Matches in a season that is running now." }),
     earlier: Counts.openapi({ description: "Matches in a season that has ended or is not yet running." }),
   })

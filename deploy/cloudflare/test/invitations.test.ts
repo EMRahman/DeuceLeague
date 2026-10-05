@@ -55,6 +55,27 @@ test("coach invitations persist provider outcomes separately from sign-ins, supp
   assert.equal(erased.invitation_state, null); assert.equal(erased.invitation_at, null);
 });
 
+test("the coach saves either contact on its own, and clears one only after confirming", async (t) => {
+  const f = await websiteFixture(t);
+  const gavin = await f.create("/v1/members", { display_name: "Gavin" });
+  const scott = await f.create("/v1/members", { display_name: "Scott", email: "scott@example.org", phone: "07700 900111" });
+  const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
+  const contacts = async (id: string) => {
+    const { email, phone } = (await f.api(`/v1/members/${id}`, f.admin)).body;
+    return { email, phone };
+  };
+  assert.equal((await coach.post(`/coach/members/${gavin.id}/contacts`, { email: "", phone: "07700 900222" })).status, 303);
+  assert.deepEqual(await contacts(gavin.id), { email: null, phone: "07700 900222" });
+  const asked = await coach.post(`/coach/members/${scott.id}/contacts`, { email: "scott@example.org", phone: "" });
+  assert.equal(asked.status, 200); assert.match(asked.html, /Clear Scott(?:&#39;|')s telephone number\?/);
+  assert.deepEqual(await contacts(scott.id), { email: "scott@example.org", phone: "07700 900111" });
+  assert.equal((await coach.post(`/coach/members/${scott.id}/contacts`, { email: "scott@example.org", phone: "", confirm: "yes" })).status, 303);
+  assert.deepEqual(await contacts(scott.id), { email: "scott@example.org", phone: null });
+  const wrong = await coach.post(`/coach/members/${gavin.id}/contacts`, { email: "", phone: "12" });
+  assert.equal(wrong.status, 400); assert.match(wrong.html, /7 to 15 digits/);
+  assert.deepEqual(await contacts(gavin.id), { email: null, phone: "07700 900222" });
+});
+
 test("approve and email preserves approval on failure, and missing provider or contact is actionable", async (t) => {
   const f = await websiteFixture(t);
   const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });

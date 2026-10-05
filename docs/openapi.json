@@ -172,7 +172,7 @@
                       },
                       "display_name": {
                         "type": "string",
-                        "example": "Sam K."
+                        "example": "Sam Kerr"
                       },
                       "status": {
                         "type": "string",
@@ -468,7 +468,7 @@
               },
               "display_name": {
                 "type": "string",
-                "example": "Sam K."
+                "example": "Sam Kerr"
               }
             },
             "required": [
@@ -1105,7 +1105,8 @@
           },
           "played_on": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "No later than today."
           },
           "raw_input": {
             "type": "string",
@@ -1425,7 +1426,8 @@
           },
           "played_on": {
             "type": "string",
-            "format": "date"
+            "format": "date",
+            "description": "No later than today."
           },
           "raw_input": {
             "type": "string",
@@ -1894,7 +1896,7 @@
           },
           "display_name": {
             "type": "string",
-            "example": "Sam K.",
+            "example": "Sam Kerr",
             "description": "The name they play under: the only one shown to players and the public."
           },
           "status": {
@@ -2536,7 +2538,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 60,
-            "description": "The name they play under. Defaults to their first name and initial, such as \"Sam K.\""
+            "description": "The name they play under. Defaults to their full name, such as \"Sam Kerr\", or their first name and initial if that is longer than 60 characters."
           },
           "level": {
             "type": [
@@ -4151,7 +4153,7 @@
           },
           "label": {
             "type": "string",
-            "example": "Sam K. / Alex P.",
+            "example": "Sam Kerr / Alex Price",
             "description": "How the entry is written in a table: its own name, or its members' display names."
           },
           "display_name": {
@@ -4593,7 +4595,7 @@
           },
           "label": {
             "type": "string",
-            "example": "Sam K."
+            "example": "Sam Kerr"
           },
           "points": {
             "type": "number"
@@ -5060,7 +5062,7 @@
           },
           "display_name": {
             "type": "string",
-            "example": "Sam K."
+            "example": "Sam Kerr"
           },
           "this_season": {
             "type": "object",
@@ -5175,6 +5177,13 @@
             "type": "string"
           },
           "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "PII. Present only for a credential holding `members:pii`."
+          },
+          "phone": {
             "type": [
               "string",
               "null"
@@ -5673,7 +5682,7 @@
               "string",
               "null"
             ],
-            "example": "Sam K. v Alex P.",
+            "example": "Sam Kerr v Alex Price",
             "description": "What the subject is called now: a match as its two sides, an entry's label, a member's display name (with `members:read`), or the name of a season, competition, division, key, court or the club. Looked up on reading, like `actor_name`."
           },
           "competition_name": {
@@ -11327,7 +11336,7 @@
           "Standings and progress"
         ],
         "summary": "Who has matches outstanding",
-        "description": "One row per member per division, most outstanding first, split by what is needed from them. Only the running season is listed: a finished season's matches cannot be settled, so nothing would clear them. A match against a withdrawn entry, or one whose members have all left the club, is outstanding for no one until the entry returns. `within_days` is the whole reminder workflow: 30 a month out, 14 a fortnight later. Emails appear only for a credential holding `members:pii`. What gets sent, and to whom, is the coach's decision — the core sends nothing.",
+        "description": "One row per member per division, most outstanding first, split by what is needed from them. Only the running season is listed: a finished season's matches cannot be settled, so nothing would clear them. A match against a withdrawn entry, or one whose members have all left the club, is outstanding for no one until the entry returns. `within_days` is the whole reminder workflow: 30 a month out, 14 a fortnight later. Emails and phone numbers appear only for a credential holding `members:pii`. What gets sent, and to whom, is the coach's decision — the core sends nothing.",
         "security": [
           {
             "apiKey": [

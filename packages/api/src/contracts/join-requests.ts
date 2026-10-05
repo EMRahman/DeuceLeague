@@ -48,7 +48,9 @@ export const NewJoinRequest = z
 export const Approval = z
   .object({
     display_name: z.string().trim().min(1).max(60).optional().openapi({
-      description: 'The name they play under. Defaults to their first name and initial, such as "Sam K."',
+      description:
+        'The name they play under. Defaults to their full name, such as "Sam Kerr", or their first name and initial ' +
+        "if that is longer than 60 characters.",
     }),
     level: Level.nullable().optional(),
     gender: Gender.nullable().optional().openapi({ description: "Replaces the one on the request, if the coach knows better." }),

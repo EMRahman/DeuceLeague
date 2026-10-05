@@ -56,7 +56,7 @@ const Session = z
         "The player's session, sent as `Authorization: Bearer dls_…`. It does not expire. Shown this once: " +
         "only its SHA-256 is stored.",
     }),
-    member: z.object({ id: z.uuid(), display_name: z.string().openapi({ example: "Sam K." }) }),
+    member: z.object({ id: z.uuid(), display_name: z.string().openapi({ example: "Sam Kerr" }) }),
   })
   .openapi("Session");
 

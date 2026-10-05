@@ -196,12 +196,14 @@ test("the chase list leaves out matches against a withdrawn entry or a member wh
   assert.deepEqual((await all()).map((r) => r.outstanding_matches), [2, 2, 2]);
 });
 
-test("chase emails require live PII permission in D1 and members:read at the route", async (t) => {
+test("chase emails and phones require live PII permission in D1 and members:read at the route", async (t) => {
   const f = await playing(t); const publicKey = await key(f, ["members:read"]);
+  assert.equal((await send(f, `/v1/members/${f.members[0]![0]}`, "PATCH", { phone: "07700 900123" })).status, 200);
   const r = await send(f, "/v1/chase-list", "GET", undefined, publicKey); assert.equal(r.status, 200);
-  assert.ok(r.body.data.every((r: any) => !("email" in r)));
-  const snapshot = await readChase(f.db, hash(publicKey), "api_key"); assert.ok(snapshot.rows.every((r) => !("email" in r)));
+  assert.ok(r.body.data.every((r: any) => !("email" in r) && !("phone" in r)));
+  const snapshot = await readChase(f.db, hash(publicKey), "api_key"); assert.ok(snapshot.rows.every((r) => !("email" in r) && !("phone" in r)));
   const privateRows = (await send(f, "/v1/chase-list")).body.data; assert.ok(privateRows.every((r: any) => r.email.endsWith("@test.invalid")));
+  assert.deepEqual(privateRows.map((r: any) => r.phone).sort(), ["07700 900123", null]);
   assert.equal((await send(f, "/v1/chase-list", "GET", undefined, await key(f, ["league:read"]))).status, 403);
   assert.equal((await send(f, "/v1/chase-list?within_days=bad", "GET", undefined, await f.session(f.members[0]![0]!))).body.code, "credential_not_accepted");
 });

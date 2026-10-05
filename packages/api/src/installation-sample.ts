@@ -144,7 +144,7 @@ export function installationSample(clubId: string, timezone: string, now: Date,
         const games = WINS[played++ % WINS.length]!;
         const score = (side: SideIndex, sets = games) => ({ sets: sets.map(([w, l]) => ({ games: (side === 0 ? [w, l] : [l, w]) as [number, number] })) });
         const daysAgo = what === "reported" ? 3 + (played % 5) : 2 + (played * 7) % 26;
-        const match = new MatchState(f.id, clubId, competition, record, [f.side0, f.side1], opened, day(at(daysAgo)));
+        const match = new MatchState(f.id, clubId, competition, record, [f.side0, f.side1], opened, day(at(daysAgo)), timezone);
         const player = (side: SideIndex) => entries.find((e) => e.id === (side === 0 ? f.side0 : f.side1))!.members[0]!.id;
         const reporter = (played % 2 === 0 ? stronger : 1 - stronger) as SideIndex;
         match.act(sample, player(reporter), reporter, at(daysAgo, 20), deadline,
@@ -179,7 +179,7 @@ class MatchState {
   claims: ClaimRecord[] = [];
   ledger: ResultMutation["ledger"] = null;
   constructor(id: string, clubId: string, competition: { id: string; name: string }, division: { id: string; name: string },
-    sides: [string, string], created: Date, readonly playedOn: string) {
+    sides: [string, string], created: Date, readonly playedOn: string, readonly timezone: string) {
     this.record = { id, clubId, competitionId: competition.id, divisionId: division.id, competitionName: competition.name,
       divisionName: division.name, status: "open", outcome: null, score: null, winningSide: null,
       retiredSide: null, playedOn: null, acceptedSubmissionId: null, createdAt: created, updatedAt: created,
@@ -187,7 +187,7 @@ class MatchState {
   }
   act(sample: InstallationSample, memberId: string, ownSide: SideIndex, now: Date, deadline: Date, action: ResultAction) {
     const id = uuidv7(now.getTime());
-    const change = decideResult({ match: this.record, claims: this.claims, memberId, ownSide, now, deadline,
+    const change = decideResult({ match: this.record, claims: this.claims, memberId, ownSide, now, deadline, timezone: this.timezone,
       competition: { state: "active", visibility: "members", matchFormat: FORMAT } }, action, id);
     if (!change) throw new Error("A sample result changed nothing");
     // The same order commitResult writes in: supersede, insert, confirm.
