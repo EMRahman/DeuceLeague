@@ -280,3 +280,11 @@ test("someone who has left the club or been removed leaves their place empty, an
   assert.deepEqual(["b2", "b3"].map((id) => s[id]?.reason), ["promoted", "relegated"]);
   assert.deepEqual(plan.vacancies.map((v) => [v.kind, v.entryId]), [["promotion", "b1"], ["relegation", "b4"]]);
 });
+
+test("a withdrawn pair breaking up still says it took the relegation place", () => {
+  const d1: DivisionStandings = { ordinal: 1, name: "Division 1", standings: [row("a1", 1), row("a2", 2), row("a3", null, 2, "withdrawn")] };
+  const s = byId(suggestPlacements([d1, division(2, ["b1", "b2"])], { promote: 1, relegate: 1, minMatchesForPromotion: 0 }, divisions(2),
+    new Set(), new Map(), new Map([["a3", "Kim asked for a new partner"]])));
+  assert.match(s.a3?.explanation ?? "", /^Withdrew from Division 1, so not carried over; it takes one of the relegation places to Division 2\./);
+  assert.equal(s.a2?.reason, "held");
+});

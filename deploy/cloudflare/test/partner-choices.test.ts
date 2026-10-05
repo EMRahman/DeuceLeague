@@ -157,6 +157,15 @@ test("a pair that withdrew can still choose partners for next season, and the co
   assert.equal((await say("lee", { choice: "new_partner" })).status, 200);
   const asked = await say("sam", { choice: "new_partner", partner_id: players.lee!.id });
   assert.equal(asked.status, 200, JSON.stringify(asked.body));
+  // Kim and Lee may pair up again: asking each other is a new pair, not keeping one that is not carried over.
+  let again = await say("kim", { choice: "new_partner", partner_id: players.lee!.id });
+  assert.deepEqual(lines(again.body.data), [["Kim", "new_partner", "Lee", false]]);
+  again = await say("lee", { choice: "new_partner", partner_id: players.kim!.id });
+  assert.deepEqual(lines(again.body.data).filter(([name]) => name !== "Sam"), [["Lee", "new_partner", "Kim", true], ["Kim", "new_partner", "Lee", true]]);
+  // A player whose pair is still playing sees the withdrawn players among those they could ask.
+  const sam = await (await import("./website-helpers.ts")).signIn(f, "sam@example.org");
+  const home = (await sam.get(`/competitions/${comp.id}`)).html;
+  assert.match(home, new RegExp(`<option value="${players.kim!.id}"`));
   // The coach's pairs page lists the pair as withdrawn, and Kim, who said nothing, as without a partner.
   const { pairsView } = await import("../../../adapters/coach/dist/season.js");
   const member = (id: string) => ({ id, display_name: id });

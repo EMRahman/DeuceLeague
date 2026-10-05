@@ -786,17 +786,19 @@ export function createWebsite(options: WebsiteOptions) {
     const me = p.me.credential.member.id;
     const [{ data: choices }, { data: entries }] = await Promise.all([
       api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${competitionId}/partner-choices`, p.session),
-      api<{ data: Entry[] }>("GET", `/v1/competitions/${competitionId}/entries?state=active`, p.session),
+      // A pair that withdrew can still play next season, so its players can be asked too.
+      api<{ data: Entry[] }>("GET", `/v1/competitions/${competitionId}/entries`, p.session),
     ]);
-    const partner = entry.members.find((m) => m.id !== me);
+    // A withdrawn pair is not kept together: its players are each looking, and may ask each other again.
+    const partner = entry.state === "withdrawn" ? undefined : entry.members.find((m) => m.id !== me);
     return {
       partner: partner ? { id: partner.id, name: partner.display_name } : null,
       together,
       mine: choices.find((x) => x.member_id === me) ?? null,
       partners: choices.find((x) => x.member_id === partner?.id) ?? null,
       asking: choices.filter((x) => x.partner_id === me && !x.agreed),
-      players: entries.flatMap((e) => e.members).filter((m) => m.id !== me && m.id !== partner?.id)
-        .map((m) => ({ id: m.id, name: m.display_name })).sort((a, b) => a.name.localeCompare(b.name)),
+      players: [...new Map(entries.flatMap((e) => e.members).filter((m) => m.id !== me && m.id !== partner?.id)
+        .map((m) => [m.id, { id: m.id, name: m.display_name }])).values()].sort((a, b) => a.name.localeCompare(b.name)),
     };
   }
 

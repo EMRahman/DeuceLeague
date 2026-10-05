@@ -25,7 +25,9 @@ export function checkChoosing(competition: LeagueCompetitionRecord) {
 
 /**
  * Who is playing in the competition, with their partners: its active entries' members, and those of a pair that
- * withdrew, who may still play next season. A member in both counts with their active pair.
+ * withdrew, who may still play next season. A withdrawn pair is not carried over, so its players have no partner
+ * to keep: each is looking, and asking the other is asking for a new pair. A member in both counts with their
+ * active pair.
  */
 function lineup(entries: EntryRecord[]) {
   const partnerOf = new Map<string, string | null>();
@@ -33,7 +35,7 @@ function lineup(entries: EntryRecord[]) {
   for (const e of [...entries.filter((e) => e.state === "withdrawn"), ...entries.filter((e) => e.state === "active")]) {
     for (const m of e.members) {
       names.set(m.id, m.displayName);
-      partnerOf.set(m.id, e.members.find((o) => o.id !== m.id)?.id ?? null);
+      partnerOf.set(m.id, e.state === "active" ? e.members.find((o) => o.id !== m.id)?.id ?? null : null);
     }
   }
   return { partnerOf, names };

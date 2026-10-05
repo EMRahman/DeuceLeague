@@ -158,7 +158,17 @@ export function planPlacements(
     for (const row of division.standings) {
       const place = describePlace(row, division.name);
       const base = { entryId: row.entryId, label: row.label, from: { division: division.ordinal, position: row.position } };
-      if (optedOut.has(row.entryId)) {
+      // Withdrawing says the most: it is why the entry is not carried over, and it may have taken a relegation place.
+      if (row.standing === "withdrawn") {
+        suggestions.push({
+          ...base,
+          to: null,
+          reason: null,
+          explanation: `Withdrew from ${division.name}, so not carried over` +
+            `${withdrawnDown.has(row.entryId) ? `; it takes one of the relegation places to ${nameOf(down)}` : ""}. ` +
+            "Add them back if they are returning.",
+        });
+      } else if (optedOut.has(row.entryId)) {
         suggestions.push({
           ...base,
           to: null,
@@ -176,7 +186,7 @@ export function planPlacements(
             `${place}, but ${breakingUp.get(row.entryId)}, so the pair is not carried over. ` +
             "Add them back if they stay together.",
         });
-      } else if (tooFewToStay.has(row.entryId) && row.standing !== "withdrawn") {
+      } else if (tooFewToStay.has(row.entryId)) {
         const { played, target } = tooFewToStay.get(row.entryId)!;
         suggestions.push({
           ...base,
@@ -185,15 +195,6 @@ export function planPlacements(
           explanation:
             `${place}, but played ${played} of the ${target} ${target === 1 ? "match" : "matches"} needed to keep ` +
             "a place, so not carried over. Add them back if they are staying.",
-        });
-      } else if (row.standing === "withdrawn") {
-        suggestions.push({
-          ...base,
-          to: null,
-          reason: null,
-          explanation: `Withdrew from ${division.name}, so not carried over` +
-            `${withdrawnDown.has(row.entryId) ? `; it takes one of the relegation places to ${nameOf(down)}` : ""}. ` +
-            "Add them back if they are returning.",
         });
       } else if (departed.has(row.entryId)) {
         suggestions.push({
