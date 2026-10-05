@@ -77,7 +77,11 @@ export function registerCloudflareViews(app: OpenAPIHono<CloudflareEnv>, db: D1D
         tables.final ? tooFewToStay(competition, s.data.entries, s.ledger) : new Map(), new Map(),
         // Someone leaving the league altogether is out of the draft, so the arrows leave their place empty too.
         departedOf(s.data.entries, new Map()));
-      const movement = new Map(suggestions.flatMap((p) => p.reason === "promoted" || p.reason === "relegated" ? [[p.entryId, p.reason]] : []));
+      // An arrow only once the entry has played: nobody is shown going down on 0 points before a ball is hit.
+      // The zones are the draft's own, so an entry that has not played leaves its arrow out rather than moving it.
+      const played = new Map(tables.divisions.flatMap((d) => d.rows.map((r) => [r.entryId, r.played] as const)));
+      const movement = new Map(suggestions.flatMap((p) => (p.reason === "promoted" || p.reason === "relegated")
+        && (played.get(p.entryId) ?? 0) >= 1 ? [[p.entryId, p.reason]] : []));
       return toStandings(id, { ...tables, divisions: tables.divisions.filter((d) => !division_id || d.division.id === division_id) }, movement);
     }), 200);
   });
