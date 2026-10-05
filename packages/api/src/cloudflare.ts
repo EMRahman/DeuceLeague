@@ -172,7 +172,8 @@ export function createCloudflareApp(options: Options) {
         type: "session" as const, id: auth.credential.id, scopes: [...auth.scopes],
         member: { id: state.credential!.member_id!, display_name: state.credential!.display_name!,
           status: (state.credential!.member_status ?? "active") as "active" | "paused" | "left",
-          leaving_at: iso(state.credential!.leaving_at == null ? null : new Date(state.credential!.leaving_at)) },
+          leaving_at: iso(state.credential!.leaving_at == null ? null : new Date(state.credential!.leaving_at)),
+          wants_to_play: (state.credential!.member_plays ?? null) as "singles" | "doubles" | "both" | "not_now" | null },
       },
     },
   })), 200));

@@ -51,7 +51,16 @@ export type ActiveMember = {
   leaving_at?: string | null;
   /** Personal: present only when the coach's key may read members' details. */
   gender?: string | null;
+  /** What they want to play next season: singles, doubles, both or not now. Null: not said. */
+  wants_to_play?: string | null;
 };
+
+/**
+ * Whether a newcomer asked for this kind of competition. A social member (`not_now`) is offered in none; someone
+ * who has not said is offered in every one, since the coach may know.
+ */
+export const wantsThis = (m: Pick<ActiveMember, "wants_to_play">, discipline: string) =>
+  !m.wants_to_play || m.wants_to_play === "both" || m.wants_to_play === discipline;
 
 /**
  * Whether someone's recorded gender suits a competition. A men's competition takes men, a women's women, and a
@@ -286,8 +295,10 @@ export function draftView(
     if (!c.partner_id) return { said: "Wants a new partner", out: false };
     return { said: c.agreed ? `Agreed to play with ${c.partner_name}` : `Asked ${c.partner_name}, who has not agreed yet`, out: false };
   };
-  // Those who played in it last season stay listed, whatever their gender, with why they are out.
-  const unplaced = members.filter((m) => !drafted.has(m.id) && (lastOf.has(m.id) || fits(m, category))).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
+  // Those who played in it last season stay listed, whatever their gender, with why they are out. Anyone else is
+  // offered only if they fit it and asked to play it.
+  const unplaced = members.filter((m) => !drafted.has(m.id)
+    && (lastOf.has(m.id) || (fits(m, category) && wantsThis(m, previous.competition.discipline)))).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
     .sort((a, b) => Number(!!b.last) - Number(!!a.last) || (a.level ?? 11) - (b.level ?? 11)
       || a.display_name.localeCompare(b.display_name));
   const free = new Map(unplaced.map((u) => [u.id, u]));

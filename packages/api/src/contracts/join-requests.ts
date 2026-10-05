@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { AgeGroup, Gender } from "@deuceleague/schema";
+import { AgeGroup, Gender, WantsToPlay } from "@deuceleague/schema";
 import { Level, Member, pii } from "./members.js";
 import { authProblems, conflictProblem, IdParam, notFoundProblem, PageQuery, pageOf, requires, Timestamp, validationProblem } from "./shared.js";
 
@@ -12,6 +12,7 @@ export const JoinRequest = z
     phone: z.string().nullable().openapi({ description: pii("As they typed it.") }),
     gender: Gender.nullable().openapi({ description: pii("As they chose it on the form; null if the request did not carry one.") }),
     age_group: AgeGroup.nullable().openapi({ description: pii("The band they chose on the form, or null if they left it blank.") }),
+    wants_to_play: WantsToPlay.nullable().openapi({ description: pii("What they want to play, as they chose it on the form; null if the request did not carry it.") }),
     privacy_notice: z.string().openapi({
       example: "uk-2026-09-30",
       description: "Which privacy notice they read and agreed to, when they asked.",
@@ -38,6 +39,9 @@ export const NewJoinRequest = z
       .openapi({ description: "Required telephone number for WhatsApp league communications; 7 to 15 digits with optional punctuation." }),
     gender: Gender.nullable().optional().openapi({ description: "The club's own form always sends one. Copied to the member on approval." }),
     age_group: AgeGroup.nullable().optional().openapi({ description: "Optional. Copied to the member on approval." }),
+    wants_to_play: WantsToPlay.nullable().optional().openapi({
+      description: "Singles, doubles, both, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval.",
+    }),
     privacy_notice: z.string().trim().min(1).max(40).openapi({
       example: "uk-2026-09-30",
       description: "Which privacy notice the person read and agreed to. The form that showed it names it.",
@@ -55,6 +59,7 @@ export const Approval = z
     level: Level.nullable().optional(),
     gender: Gender.nullable().optional().openapi({ description: "Replaces the one on the request, if the coach knows better." }),
     age_group: AgeGroup.nullable().optional().openapi({ description: "Replaces the one on the request." }),
+    wants_to_play: WantsToPlay.nullable().optional().openapi({ description: "Replaces the one on the request." }),
   })
   .openapi("JoinRequestApproval");
 

@@ -7,6 +7,7 @@ import {
   deadlineLine,
   GENDERS,
   isTelephone,
+  PLAYS,
   newestFirst,
   within,
   WEATHER_GRACE_MS,
@@ -375,6 +376,7 @@ export function createCoachSite(options: CoachOptions) {
         level: levelOf(form.level),
         gender: choiceOf(form.gender, GENDERS),
         age_group: choiceOf(form.age_group, AGE_GROUPS),
+        ...(form.wants_to_play === undefined ? {} : { wants_to_play: choiceOf(form.wants_to_play, PLAYS) }),
       });
       if (form.invite === "yes") return c.html(<InvitationResults frame={frameOf(who, "members")}
         added={member.display_name} memberId={member.id} results={[await invite(who, member.id)]} />);
@@ -417,6 +419,22 @@ export function createCoachSite(options: CoachOptions) {
     } catch (error) {
       if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
       return c.html(<Problem frame={frameOf(who, "members")} title="Name not changed"
+        detail="That member is not on the club's list any more." />, 404);
+    }
+    return c.redirect(`/coach/members/${id}?saved=1`, 303);
+  });
+
+  /** What they want to play next season: who the drafts and the newcomers list offer. Blank is "not said". */
+  app.post("/members/:id/plays", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const id = c.req.param("id");
+    try {
+      await api("PUT", `/v1/members/${encodeURIComponent(id)}/wants-to-play`, who.key,
+        { wants_to_play: choiceOf((await c.req.parseBody()).wants_to_play, PLAYS) });
+    } catch (error) {
+      if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;
+      return c.html(<Problem frame={frameOf(who, "members")} title="Not changed"
         detail="That member is not on the club's list any more." />, 404);
     }
     return c.redirect(`/coach/members/${id}?saved=1`, 303);

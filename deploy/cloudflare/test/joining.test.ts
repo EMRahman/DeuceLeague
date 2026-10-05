@@ -4,7 +4,7 @@ import { createHmac } from "node:crypto";
 import { purgeExpired } from "@deuceleague/db-d1";
 import { displayNameOf } from "../../../packages/api/dist/administration/join-requests.js";
 import { fixture } from "./helpers.ts";
-import { browser, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
+import { browser, signIn, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
 
 type Fixture = Awaited<ReturnType<typeof fixture>>;
 async function send(f: Fixture, path: string, method = "GET", body?: unknown, token = f.admin) {
@@ -180,7 +180,7 @@ function started(f: WebsiteFixture, ago = 5_000) {
 }
 const person = (f: WebsiteFixture, fields: Record<string, string> = {}) => ({
   started: started(f), website: "", first_name: "Robin", surname: "Hale", email: "robin@example.org", phone: "07700 900123", gender: "female",
-  age_group: "35_49", privacy: "yes", ...fields,
+  age_group: "35_49", plays: "both", privacy: "yes", ...fields,
 });
 const waiting = (f: WebsiteFixture) => f.db.prepare("SELECT count(*) AS n FROM join_request").first<number>("n");
 async function join(f: WebsiteFixture, form: Record<string, string>, address?: string) {
@@ -202,7 +202,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   // No Turnstile set up: no script, and the page's policy allows none.
   assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-04/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-05/);
   assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
 
@@ -237,7 +237,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-04", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-05", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -373,4 +373,49 @@ test("a new member plays under their full name, or first name and initial when t
   assert.equal(displayNameOf({ firstName: " Hannah ", surname: "Clarke " }), "Hannah Clarke");
   assert.equal(displayNameOf({ firstName: "A".repeat(29), surname: "b".repeat(30) }), `${"A".repeat(29)} ${"b".repeat(30)}`);
   assert.equal(displayNameOf({ firstName: "A".repeat(30), surname: "bc".repeat(20) }), `${"A".repeat(30)} B.`);
+});
+
+test("the join form asks what they want to play; the coach and the player can change it, and social members wait for nothing", async (t) => {
+  const f = await websiteFixture(t);
+  // The form asks, and will not go without an answer.
+  assert.match((await browser(f).get("/join")).html, /name="plays" value="not_now"/);
+  const missing = await join(f, person(f, { plays: "" }));
+  assert.equal(missing.status, 400); assert.match(missing.html, /Say whether you want to play singles, doubles, both, or not now/);
+  assert.equal((await join(f, person(f, { plays: "singles" }))).status, 200);
+  assert.equal((await join(f, person(f, { first_name: "Sol", surname: "Social", email: "sol@example.org", phone: "07700 900777", plays: "not_now" }))).status, 200);
+  const requests = (await f.api("/v1/join-requests", f.admin)).body.data as { id: string; first_name: string; wants_to_play: string }[];
+  assert.deepEqual(requests.map((r) => [r.first_name, r.wants_to_play]).sort(), [["Robin", "singles"], ["Sol", "not_now"]]);
+  // Approval copies it, and the coach may change it there.
+  const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
+  const robinRequest = requests.find((r) => r.first_name === "Robin")!;
+  const solRequest = requests.find((r) => r.first_name === "Sol")!;
+  assert.match((await coach.get("/coach/members")).html, new RegExp(`id="plays-${robinRequest.id}"[\\s\\S]*?<option value="singles" selected="">`));
+  const robin = (await coach.post(`/coach/join-requests/${robinRequest.id}/approve`, { gender: "female", age_group: "", level: "", wants_to_play: "both" })).location!.split("=")[1]!;
+  const sol = (await coach.post(`/coach/join-requests/${solRequest.id}/approve`, { gender: "male", age_group: "", level: "", wants_to_play: "not_now" })).location!.split("=")[1]!;
+  assert.equal((await f.api(`/v1/members/${robin}`, f.admin)).body.wants_to_play, "both");
+  // Waiting to be placed lists Robin with what she wants; Sol, a social member, is only counted.
+  const members = (await coach.get("/coach/members")).html;
+  assert.match(members, new RegExp(`href="/coach/members/${robin}">Robin Hale</a>[\\s\\S]*?Singles and doubles`));
+  assert.doesNotMatch(members.slice(members.indexOf("Waiting to be placed"), members.indexOf("On the club")), /Sol Social/);
+  assert.match(members, /1 social member is not waiting for a place/);
+  // The coach changes it on the member's page; the player on their home page.
+  assert.equal((await coach.post(`/coach/members/${sol}/plays`, { wants_to_play: "doubles" })).location, `/coach/members/${sol}?saved=1`);
+  assert.equal((await f.api(`/v1/members/${sol}`, f.admin)).body.wants_to_play, "doubles");
+  const player = await signIn(f, "robin@example.org");
+  assert.match((await player.get("/")).html, /<option value="both" selected="">/);
+  assert.equal((await player.post("/plays", { wants_to_play: "not_now" })).location, "/?done=plays");
+  assert.equal((await f.api(`/v1/members/${robin}`, f.admin)).body.wants_to_play, "not_now");
+  assert.match((await player.get("/?done=plays")).html, /The coach will see what you want to play/);
+  // A player speaks only for themselves.
+  const session = (await f.api("/v1/session", (await f.api(`/v1/members/${robin}/login-link`, f.admin, "POST")).body.token, "POST")).body.token;
+  assert.equal((await f.api(`/v1/members/${robin}/wants-to-play`, session, "PUT", { wants_to_play: "singles" })).status, 200);
+  assert.equal((await f.api("/v1/me", session)).body.credential.member.wants_to_play, "singles");
+  assert.notEqual((await f.api(`/v1/members/${sol}/wants-to-play`, session, "PUT", { wants_to_play: "singles" })).status, 200);
+  assert.equal((await f.api(`/v1/members/${sol}`, f.admin)).body.wants_to_play, "doubles");
+});
+
+test("a draft offers a newcomer only for what they want to play", async () => {
+  const { wantsThis } = await import("../../../adapters/coach/dist/season.js");
+  assert.deepEqual(["singles", "doubles", "both", "not_now", null].map((w) => [wantsThis({ wants_to_play: w }, "singles"), wantsThis({ wants_to_play: w }, "doubles")]),
+    [[true, false], [false, true], [true, true], [false, false], [true, true]]);
 });

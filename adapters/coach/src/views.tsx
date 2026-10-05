@@ -13,6 +13,8 @@ import {
   type TablesProps,
   GENDERS,
   genderLabel,
+  PLAYS,
+  playsLabel,
   type VenueForecast,
   type Competition,
   type Match,
@@ -45,6 +47,8 @@ export type CoachMember = {
   status: "active" | "paused" | "left";
   /** When they said they are not playing next season at all, if they did. */
   leaving_at: string | null;
+  /** What they want to play next season: singles, doubles, both or not now. Null: not said. */
+  wants_to_play?: string | null;
   /** Personal: present only when this browser's key may read members' details. */
   gender?: string | null;
   age_group?: string | null;
@@ -59,6 +63,8 @@ export type JoinRequest = {
   phone: string | null;
   gender: string | null;
   age_group: string | null;
+  /** What they want to play, as they chose it on the form. */
+  wants_to_play?: string | null;
   created_at: string;
   expires_at: string;
   /** A member already on the list with the same email address. */
@@ -114,6 +120,17 @@ const PersonSelects: FC<{ id: string; gender: string | null; ageGroup: string | 
       </select>
     </div>
   </>
+);
+
+/** What someone wants to play next season, as a select: blank is "not said". */
+const PlaysSelect: FC<{ id: string; value: string | null }> = ({ id, value }) => (
+  <div class="field">
+    <label for={id}>Wants to play</label>
+    <select id={id} name="wants_to_play">
+      <option value="" selected={!value}>Not said</option>
+      {PLAYS.map(([v, label]) => <option value={v} selected={value === v}>{label}</option>)}
+    </select>
+  </div>
 );
 
 /** "Sam Kerr": the name the API gives a new member unless the coach chooses another. */
@@ -1236,6 +1253,7 @@ export const Members: FC<{
                     <LevelSelect id={`level-${r.id}`} value={null} />
                   </div>
                   <PersonSelects id={r.id} gender={r.gender} ageGroup={r.age_group} />
+                  <PlaysSelect id={`plays-${r.id}`} value={r.wants_to_play ?? null} />
                   <button class="small" type="submit">
                     Approve
                   </button>
@@ -1262,25 +1280,32 @@ export const Members: FC<{
         <a href={`/coach/members/${m.id}`}>{m.display_name}</a>: {[!m.email ? "email" : "", !m.phone ? "telephone" : ""].filter(Boolean).join(" and ")} missing
       </li>)}</ul>
     </div>}
-    {waiting && waiting.length > 0 && (
+    {waiting && waiting.some((m) => m.wants_to_play !== "not_now") && (
       <>
         <h2>Waiting to be placed</h2>
         <p class="muted">
-          New club members with no league entry yet. Members taking a break, leaving, or previously entered
-          are not newcomers. Consider these members in the draft for next season, on the{" "}
-          <a href="/coach/season">Season</a> tab.
+          New club members with no league entry yet who want to play, or have not said. Members taking a break,
+          leaving, previously entered or social are not listed. Consider these members in the draft for next season,
+          on the <a href="/coach/season">Season</a> tab; each draft offers them only for what they want to play.
         </p>
         <div class="card">
           <ul class="list">
-            {waiting.map((m) => (
+            {waiting.filter((m) => m.wants_to_play !== "not_now").map((m) => (
               <li class="answer">
                 <a href={`/coach/members/${m.id}`}>{m.display_name}</a>
                 {m.level !== null && <span class="tag level">Level {m.level}</span>}
+                <span class="tag">{m.wants_to_play ? playsLabel(m.wants_to_play) : "Not said what they play"}</span>
               </li>
             ))}
           </ul>
         </div>
       </>
+    )}
+    {waiting && waiting.some((m) => m.wants_to_play === "not_now") && (
+      <p class="muted">
+        {plural(waiting.filter((m) => m.wants_to_play === "not_now").length, "social member is", "social members are")}{" "}
+        not waiting for a place. Open one to change that if they ask to play.
+      </p>
     )}
     <h2>On the club's list</h2>
     <form class="search" method="get" action="/coach/members">
@@ -1326,6 +1351,7 @@ export const Members: FC<{
                   {m.level !== null && <span class="tag level">Level {m.level}</span>}
                   {m.status === "paused" && <span class="tag">On a break</span>}
                   {m.leaving_at && <span class="tag">Not playing next season</span>}
+                  {m.wants_to_play === "not_now" && <span class="tag">Social</span>}
                   <br />
                   {m.signed_in_at ? (
                     <span class="muted">Signed in {at(m.signed_in_at, timezone)}</span>
@@ -1452,6 +1478,10 @@ export const MemberPage: FC<{
           <button class="quiet small" type="submit">Save</button>
         </form>
         <p class="muted">Levels run from 10, a beginner, to 1, a national player.</p>
+        <form class="level" method="post" action={`/coach/members/${m.id}/plays`}>
+          <PlaysSelect id={`plays-${m.id}`} value={m.wants_to_play ?? null} />
+          <button class="quiet small" type="submit">Save</button>
+        </form>
         {m.gender !== undefined && (
           <form class="approve" method="post" action={`/coach/members/${m.id}/details`}>
             <PersonSelects id={m.id} gender={m.gender} ageGroup={m.age_group ?? null} />

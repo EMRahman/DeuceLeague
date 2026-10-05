@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { fixture, change } from "./helpers.ts";
 import { browser, websiteFixture, linkFor, playingWebsite, signIn } from "./website-helpers.ts";
 
@@ -99,8 +99,12 @@ test("the invitation migration retains legacy members without contacts", async (
   const f = await fixture(t, true, false, "0015_member_leaving.sql");
   const id = crypto.randomUUID();
   await change(f.db, [f.db.prepare("INSERT INTO member (id, club_id, display_name) VALUES (?, ?, ?)").bind(id, f.clubId, "Legacy")]);
-  const sql = await readFile(new URL("../../../packages/db-d1/migrations/0016_member_invitations.sql", import.meta.url), "utf8");
-  await f.db.batch(sql.split("--> statement-breakpoint").map((part) => f.db.prepare(part)));
+  // The invitation migration, and every one since, over a member made before it.
+  const directory = new URL("../../../packages/db-d1/migrations/", import.meta.url);
+  for (const file of (await readdir(directory)).filter((name) => name.endsWith(".sql") && name > "0015_member_leaving.sql").sort()) {
+    const sql = await readFile(new URL(file, directory), "utf8");
+    await f.db.batch(sql.split("--> statement-breakpoint").map((part) => f.db.prepare(part)));
+  }
   const response = await f.call(`/v1/members/${id}`, f.admin);
   assert.equal(response.status, 200);
   const member = await response.json() as any;

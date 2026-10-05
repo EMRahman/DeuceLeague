@@ -245,6 +245,13 @@ credited by withdrawing the entry. Coming back does not place anyone in a draft
 already filled: the coach adds them from its newcomers. A member who has left the
 club (`status: left`) is not on a break.
 
+What a member wants to play next season is `wants_to_play`: `singles`,
+`doubles`, `both`, or `not_now` for a social member, and null if they have not
+said. The join form asks it and approval copies it; `PUT
+/v1/members/{id}/wants-to-play` changes it (a player for themselves, or a key
+with `members:write`), and a player's `/v1/me` shows it. The coach's site offers
+a newcomer in a draft only for what they want to play.
+
 Placements fill next season's competition from this one's final tables. The
 coach creates the new competition as a draft, naming the previous one, and one
 call fills it: every entry that finished is placed with its reason and a

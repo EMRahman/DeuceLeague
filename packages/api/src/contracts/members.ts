@@ -1,5 +1,5 @@
 import { createRoute, z } from "@hono/zod-openapi";
-import { AgeGroup, Gender, MemberStatus } from "@deuceleague/schema";
+import { AgeGroup, Gender, MemberStatus, WantsToPlay } from "@deuceleague/schema";
 import { authProblems, conflictProblem, Flag, IdParam, notFoundProblem, PageQuery, pageOf, requires, Timestamp, validationProblem } from "./shared.js";
 
 /** The coach's playing level, on the scale British clubs know from the LTA's ratings. */
@@ -27,6 +27,11 @@ export const Member = z
     rating_system: z.string().nullable().openapi({ example: "UTR" }),
     level: Level.nullable(),
     joined_on: z.iso.date().nullable(),
+    wants_to_play: WantsToPlay.nullable().openapi({
+      description:
+        "What they want to play next season: `singles`, `doubles`, `both`, or `not_now` for a social member. " +
+        "Null: they have not said. Asked on the join form; the coach or the player can change it.",
+    }),
     leaving_at: Timestamp.nullable().openapi({
       description:
         "When they said they are not playing next season at all, if they did. It takes every entry they held " +
@@ -73,6 +78,7 @@ export const MemberFields = z.object({
   rating_system: z.string().trim().min(1).max(40).nullable().optional(),
   level: Level.nullable().optional(),
   joined_on: z.iso.date().nullable().optional(),
+  wants_to_play: WantsToPlay.nullable().optional(),
   full_name: z.string().trim().min(1).max(200).nullable().optional().openapi({ description: PII_INPUT }),
   email: z.email().max(254).nullable().optional().openapi({ description: PII_INPUT }),
   phone: z.string().trim().min(1).max(40).nullable().optional().openapi({ description: PII_INPUT }),
@@ -197,6 +203,30 @@ export const stay = createRoute({
   request: { params: IdParam },
   responses: {
     200: { description: "The member, playing on.", ...one },
+    ...authProblems,
+    ...notFoundProblem,
+    ...conflictProblem("`member_removed`: a removed member cannot be changed."),
+  },
+});
+
+export const wantsToPlay = createRoute({
+  method: "put",
+  path: "/v1/members/{id}/wants-to-play",
+  tags: ["Members"],
+  summary: "Say what a member wants to play next season",
+  description:
+    "Singles, doubles, both, or `not_now` for a social member; null clears it. The coach uses it to see who " +
+    "wants a place in next season's draft, and a newcomer who wants to play is listed for one. A player's session " +
+    "may set it for themselves; a key needs `members:write`. Saying the same again does nothing more.",
+  ...requires.orPlayerOwn("members:write"),
+  request: {
+    params: IdParam,
+    body: { required: true, content: { "application/json": { schema: z.object({ wants_to_play: WantsToPlay.nullable() })
+      .openapi("WantsToPlayChoice") } } },
+  },
+  responses: {
+    200: { description: "The member, as they now stand.", ...one },
+    ...validationProblem,
     ...authProblems,
     ...notFoundProblem,
     ...conflictProblem("`member_removed`: a removed member cannot be changed."),

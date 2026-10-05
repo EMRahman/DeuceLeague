@@ -22,6 +22,8 @@ export type MemberRecord = {
   ratingSystem: string | null; level: number | null; joinedOn: string | null; deletedAt: Date | null;
   /** When they said they are not playing next season at all, if they did. */
   leavingAt: Date | null;
+  /** What they want to play: singles, doubles, both or not now (social). Null: not said. */
+  plays: string | null;
   /** The newest session still signed in; null when signed in nowhere. */
   signedInAt: Date | null;
   /** The latest sign-in ever, from the audit history: unlike signedInAt, signing out does not clear it. */
@@ -30,5 +32,5 @@ export type MemberRecord = {
 } & Partial<PersonalFields>;
 export type MemberChanges = Partial<{
   displayName: string; status: string; rating: string | null; ratingSystem: string | null; level: number | null;
-  joinedOn: string | null;
+  joinedOn: string | null; plays: string | null;
 } & Omit<PersonalFields, "invitationState" | "invitationAt">>;
