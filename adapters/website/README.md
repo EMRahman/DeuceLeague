@@ -9,7 +9,14 @@ with no scripts, so it works on any phone.
 It is built for the four things a player comes to do, each a tap or two from
 the home page: agree a score (straight from the home page), report one, see
 where they stand (position, and whether they are going up or down), and see
-who is left to play before the deadline. The tables show every division of a
+who is left to play before the deadline. The home page puts what waits on the
+player first: scores to answer, then each match left to play with a button to
+report it and a WhatsApp or call link for the people in it, where they have a
+number (`GET /v1/me/contacts`, one read, only when something is left to play).
+The season they are in is a line a competition below that, and next season's
+choices are folded away until the player opens them, or until one needs an
+answer. Scores are typed on a number pad, not picked from lists; once a score is
+in, the form folds under "Change the score". The tables show every division of a
 competition on one page, with the rules explained from the competition's own
 settings. Finished seasons stay a tap away: a season row over the tables,
 this season apart from the past ones, moves between seasons, keeping to the

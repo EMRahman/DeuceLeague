@@ -1124,7 +1124,8 @@ export function createCoachSite(options: CoachOptions) {
       url.searchParams.set("token", link.token);
       const days = Math.round((Date.parse(link.expires_at) - Date.now()) / 86_400_000);
       return c.html(
-        <SignInLink frame={frameOf(who, "members")} member={member.display_name} memberId={member.id} url={url.href} days={days} />,
+        <SignInLink frame={frameOf(who, "members")} member={member.display_name} memberId={member.id} url={url.href} days={days}
+          phone={member.phone ?? null} />,
       );
     } catch (error) {
       if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;

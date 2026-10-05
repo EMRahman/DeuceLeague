@@ -6,7 +6,8 @@ tables as players do, see what happened lately, see who to chase,
 make a player's sign-in link to hand over, for example on WhatsApp, approve or
 decline people asking to join, set each member's level, keep the courts the
 forecast is for, and end a season and start the next from its tables.
-Server-rendered HTML with no scripts, in the players' site's style. It reads
+Server-rendered HTML with no scripts, in the players' site's style, in a wider
+column than theirs; the tabs wrap so every one stays in view. It reads
 the league and changes nothing in it but sign-in links, join requests, levels,
 the forecast's courts and the turn of a season; the coach's coding agent makes other changes through
 the API.
@@ -30,8 +31,18 @@ MIT-licensed.
 - **Sign-in links.** "Sign-in link" on a member calls
   `POST /v1/members/{id}/login-link` with `expires_in_minutes` set to seven
   days, since a message is often read days later, and shows the link once. It
-  works once.
-- **Dashboard** (`/coach`). For each active season, the time left to report
+  works once. The page gives a message ready to paste ("Hi Sam, here is your
+  sign-in link for the club's tennis league: …"), which a tap selects whole.
+  With the member's telephone on file in international form (`+44 …`) it adds a
+  button that opens a WhatsApp chat with them. The chat opens empty: the link
+  is never put in the chat's address, which WhatsApp's servers would receive,
+  so it travels only inside the pasted message. A number without its country
+  code gets a note saying where to add it instead of a button.
+- **Dashboard** (`/coach`). **Needs you** comes first: people asking to join,
+  results disputed or waiting on the other side, and seasons being prepared,
+  each a link to where it is dealt with. **Getting your club online** is open
+  while fewer than half the members have signed in, then a line to open, and
+  goes at nine in ten. For each active season, the time left to report
   results, and for each active competition its minimum number of matches,
   highlighted beside its name, and a table by division, with a total. The
   table groups its columns: matches played, in all, waiting on the other side

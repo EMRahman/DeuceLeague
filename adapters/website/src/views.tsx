@@ -73,11 +73,6 @@ a.button { display: inline-flex; align-items: center; font-weight: 600; border-r
 a.button.quiet { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; }
 button.small, a.button.small { padding: .4rem .8rem; min-height: 38px; font-size: .9rem; }
 .standing .where { color: var(--muted); font-size: .9rem; }
-dl.toplay { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: .45rem .9rem; }
-dl.toplay dt { color: var(--muted); font-size: .85rem; padding-top: .1rem; }
-dl.toplay dd { margin: 0; }
-dl.toplay .sep { color: var(--muted); }
-@media (max-width: 420px) { dl.toplay { grid-template-columns: 1fr; gap: 0; } dl.toplay dd { margin-bottom: .5rem; } }
 .pills { display: flex; gap: .4rem; overflow-x: auto; margin: 0 0 .6rem; scrollbar-width: none; }
 .pills label { position: relative; white-space: nowrap; margin: 0; font-weight: 500; font-size: .85rem; padding: .35rem .8rem; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
 .pills input { position: absolute; opacity: 0; pointer-events: none; }
@@ -184,7 +179,9 @@ legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 .hint { font-size: .85rem; color: var(--muted); margin: -.25rem 0 .6rem; }
 .sets { display: grid; grid-template-columns: auto 4.5rem 4.5rem; gap: .4rem .75rem; align-items: center; margin-bottom: 1rem; }
-.sets .head { font-size: .8rem; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A name that is long wraps instead of being cut to "Sample …", which names nobody. */
+.sets .head { font-size: .8rem; line-height: 1.2; color: var(--muted); text-align: center; overflow-wrap: anywhere; align-self: end; }
+.sets .note { display: block; font-size: .75rem; font-weight: 400; color: var(--muted); }
 /* Only what applies: no score for a walkover or concession, no "who stopped" for a match played out. */
 form.report:has(input[name=outcome][value=completed]:checked) .stopped,
 form.report:has(input[name=outcome][value=unplayed]:checked) .stopped { display: none; }
@@ -204,6 +201,8 @@ button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; paddin
 button.quiet { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; }
 button.link { background: none; border: 0; padding: 0; min-height: 0; color: var(--muted); font-weight: 400; text-decoration: underline; }
 details { margin-top: .75rem; }
+details.card > summary { cursor: pointer; }
+details.card[open] > summary { margin-bottom: .75rem; }
 `;
 
 const ICON_COLOUR = "#2f6b3a";
@@ -538,6 +537,8 @@ export type MyMatch = {
   opponent: string;
   /** What they need to know at a glance, in their terms. */
   note: string;
+  /** For a match still to play: the partner and opponents, and their numbers, to arrange it. */
+  people?: Contact[];
 };
 
 /** A match needing this side's independent result or a correction. */
@@ -578,26 +579,101 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
   </ul>
 );
 
-/** Matches as a line per competition — opponents only, each a link to the match: for To play and Waiting. */
-const ByCompetition: FC<{ matches: MyMatch[] }> = ({ matches }) => {
-  const byCompetition = new Map<string, MyMatch[]>();
-  for (const m of matches) byCompetition.set(m.competition, [...(byCompetition.get(m.competition) ?? []), m]);
+/**
+ * What is left to play, a row each: who, in what, how to reach them (the people in the match, when they have a
+ * number) and the button that reports it. Arranging the match comes first, so that is what the row offers.
+ */
+const ToPlay: FC<{ matches: MyMatch[] }> = ({ matches }) => (
+  <ul class="list">
+    {matches.map((m) => {
+      // "WhatsApp: Sam · Alex", then "Call: …" for numbers a chat cannot be opened to: the way is said once, not per name.
+      const ways = new Map<string, { name: string; href: string }[]>();
+      for (const c of m.people ?? []) {
+        if (!c.phone) continue;
+        const chat = whatsapp(c.phone);
+        const way = chat ? "WhatsApp" : "Call";
+        ways.set(way, [...(ways.get(way) ?? []), { name: c.display_name, href: chat ?? `tel:${c.phone.replace(/[^0-9+]/g, "")}` }]);
+      }
+      return (
+        <li class="answer">
+          <div>
+            <a href={`/matches/${m.id}`}><strong>{m.opponent}</strong></a> <span class="muted">· {m.competition}</span>
+          </div>
+          <div class="answer-row">
+            <span class="muted">
+              {[...ways].map(([way, people], i) => (
+                <>
+                  {i > 0 && " · "}
+                  {way}:{" "}
+                  {people.map((r, j) => (
+                    <>
+                      {j > 0 && " · "}
+                      <a href={r.href}>{r.name}</a>
+                    </>
+                  ))}
+                </>
+              ))}
+            </span>
+            <span class="actions">
+              <a class="button small quiet" href={`/matches/${m.id}#report`}>
+                Report score
+              </a>
+            </span>
+          </div>
+        </li>
+      );
+    })}
+  </ul>
+);
+
+/**
+ * The seasons under way a player has a place in: a card a season with a row a competition, each a way in to its
+ * fixtures. It is a reminder, not a task, so it sits below what is waiting on the player.
+ */
+const OpenSeasons: FC<{ placements: PlayerPlacements["placements"] }> = ({ placements }) => {
+  const seasons = new Map<string, PlayerPlacements["placements"]>();
+  for (const x of placements) seasons.set(x.season.id, [...(seasons.get(x.season.id) ?? []), x]);
   return (
-    <dl class="toplay">
-      {[...byCompetition].map(([competition, ms]) => (
-        <>
-          <dt>{competition}</dt>
-          <dd>
-            {ms.map((m, i) => (
-              <>
-                {i > 0 && <span class="sep"> · </span>}
-                <a href={`/matches/${m.id}`}>{m.opponent}</a>
-              </>
-            ))}
-          </dd>
-        </>
-      ))}
-    </dl>
+    <>
+      {[...seasons.values()].map((group) => {
+        const season = group[0]!.season;
+        const ready = group.filter((x) => x.fixtures_ready).length;
+        // When only some are ready, each row says so; otherwise one sentence does.
+        const mixed = ready > 0 && ready < group.length;
+        return (
+          <section class="card">
+            <h2>Your season is open · {season.name}</h2>
+            <ul class="list">
+              {group.map((x) => (
+                <li>
+                  <a class="rowlink" href={`/competitions/${x.competition_id}#mine`}>
+                    <span>
+                      <span class="title">{x.competition_name} · {x.division_name}</span>
+                      {x.partner && <span class="muted"> · Partner: {x.partner.display_name}</span>}
+                      {mixed && (
+                        <>
+                          <br />
+                          <span class="muted">{x.fixtures_ready ? "Fixtures ready" : "Fixtures still being prepared"}</span>
+                        </>
+                      )}
+                    </span>
+                    <span class="chev">›</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <PlacementDates season={season} />
+            {!mixed && (
+              <p style="margin:0">
+                {ready > 0
+                  ? "Your fixtures are ready to play."
+                  : "Your fixtures are still being prepared. The coach will be in touch when they are ready; you do not need to do anything now."}
+              </p>
+            )}
+          </section>
+        );
+      })}
+    </>
   );
 };
 
@@ -781,19 +857,15 @@ export const Home: FC<{
         <p>You do not need to do anything now. The coach will be in touch when your place and fixtures are ready.</p>
       </section>
     )}
-    {p.placementStatus.placements.map((placement) => (
+    {p.placementStatus.placements.filter((placement) => placement.provisional).map((placement) => (
       <section class="card">
-        <h2>{placement.provisional ? "Your provisional place" : "Your season is open"} · {placement.season.name}</h2>
+        <h2>Your provisional place · {placement.season.name}</h2>
         <p><strong>{placement.competition_name} · {placement.division_name}</strong>
           {placement.partner && <> · Partner: {placement.partner.display_name}</>}</p>
         <PlacementDates season={placement.season} />
-        {placement.provisional ? <>
-          <p>This is a draft placement and may change. Play starts when the coach opens the season and competition.</p>
-          <p>{placement.fixtures_ready ? "Your fixtures have been prepared, but are not open to play yet." : "Your fixtures are still being prepared."}
-            {" "}You do not need to do anything now.</p>
-        </>
-          : placement.fixtures_ready ? <p>Your fixtures are ready to play. <a href={`/competitions/${placement.competition_id}#mine`}>See your competition and fixtures</a>.</p>
-          : <p>Your fixtures are still being prepared. The coach will be in touch when they are ready; you do not need to do anything now.</p>}
+        <p>This is a draft placement and may change. Play starts when the coach opens the season and competition.</p>
+        <p>{placement.fixtures_ready ? "Your fixtures have been prepared, but are not open to play yet." : "Your fixtures are still being prepared."}
+          {" "}You do not need to do anything now.</p>
       </section>
     ))}
     {p.onBreak && (
@@ -862,7 +934,7 @@ export const Home: FC<{
     {p.toPlay.length > 0 && (
       <section class="card">
         <h2>To play ({p.toPlay.length})</h2>
-        <ByCompetition matches={p.toPlay} />
+        <ToPlay matches={p.toPlay} />
       </section>
     )}
     {p.standings.length > 0 && (
@@ -901,7 +973,7 @@ export const Home: FC<{
                 <span>{m.mine ? <>You said <strong>{m.mine}</strong></> : <span class="muted">{m.note}</span>}</span>
                 <span class="actions">
                   <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                    Enter result
+                    Change score
                   </a>
                 </span>
               </div>
@@ -916,9 +988,13 @@ export const Home: FC<{
         <MatchRows matches={p.closed} />
       </section>
     )}
+    <OpenSeasons placements={p.placementStatus.placements.filter((x) => !x.provisional)} />
+    {/* Folded away all season: the dropdown and the two ways out are for when a player has something to say. */}
     {!p.leaving && p.active && (
-      <section class="card">
-        <h2>Next season</h2>
+      <details class="card" open={p.choices.some((x) => x.attention)}>
+        <summary>
+          <strong>Next season</strong> <span class="muted">· what you want to play, a break, or leaving</span>
+        </summary>
         <form class="inline" method="post" action="/plays">
           <label for="plays">I want to play</label>{" "}
           <select id="plays" name="wants_to_play">
@@ -937,7 +1013,7 @@ export const Home: FC<{
                     <span>
                       <strong>{x.competition}</strong>: {x.line}
                     </span>
-                    <a href={`/competitions/${x.competitionId}#next-season`}>change</a>
+                    <a href={`/competitions/${x.competitionId}#next-season`}>{x.attention ?? "change"}</a>
                   </div>
                 </li>
               ))}
@@ -966,7 +1042,7 @@ export const Home: FC<{
             I am taking a break
           </button>
         </form>
-      </section>
+      </details>
     )}
     {p.weather && <WeatherBox {...p.weather} />}
     {p.answer.length + p.toPlay.length + p.waiting.length + p.closed.length === 0 &&
@@ -1309,26 +1385,46 @@ export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null; saved
 };
 
 /** A competition the player is in now, and what they have said about playing it next season. */
-export type NextChoice = { competitionId: string; competition: string; line: string };
+export type NextChoice = {
+  competitionId: string;
+  competition: string;
+  line: string;
+  /** Set when something here waits on the player, and what the link to answer it says: "choose" or "answer". */
+  attention?: "choose" | "answer";
+};
+
+/** Those who have asked this player to be their partner next season and are waiting to hear. */
+export function partnerRequests(choices: PartnerChoice[] | null, me: string): PartnerChoice[] {
+  return (choices ?? []).filter((x) => x.partner_id === me && !x.agreed);
+}
 
 /**
  * What a player has said about next season in one competition, in a few words for their home page: whether
- * they are playing, and in doubles with whom. Saying nothing keeps them in, with the same partner.
+ * they are playing, and in doubles with whom. Saying nothing keeps them in, with the same partner. It also says
+ * when something waits on them, a partner who is not staying or someone asking them to partner, since the home
+ * page folds next season away and an answer nobody sees is no answer.
  */
 export function nextChoiceLine(entry: { opted_out_at: string | null; members: { id: string; display_name: string }[] },
-  me: string, choices: PartnerChoice[] | null, together: boolean): string {
-  if (entry.opted_out_at) return "not playing (you opted out)";
-  if (!choices) return "playing";
+  me: string, choices: PartnerChoice[] | null, together: boolean): Pick<NextChoice, "line" | "attention"> {
+  if (entry.opted_out_at) return { line: "not playing (you opted out)" };
+  if (!choices) return { line: "playing" };
   const partner = entry.members.find((m) => m.id !== me);
   const mine = choices.find((c) => c.member_id === me);
   const theirs = choices.find((c) => c.member_id === partner?.id);
-  if (mine?.choice === "leaving") return "not playing";
+  if (mine?.choice === "leaving") return { line: "not playing" };
+  // Someone asking the player is not the player's own say, but it is the one thing here that needs an answer.
+  const asking = partnerRequests(choices, me);
+  const asked = asking.length === 0 ? ""
+    : ` ${asking.map((x) => x.member_name ?? "Someone").join(" and ")} ${asking.length === 1 ? "has" : "have"} asked you to be their partner next season.`;
+  const attention = asking.length > 0 ? ({ attention: "answer" } as const) : {};
   if (mine?.choice === "new_partner") {
-    return !mine.partner_id ? "playing with a new partner the coach finds"
+    const said = !mine.partner_id ? "playing with a new partner the coach finds"
       : mine.agreed ? `playing with ${mine.partner_name}` : `asked ${mine.partner_name}, waiting for them to agree`;
+    return { line: said + (asked ? "." + asked : ""), ...attention };
   }
-  if (partner && theirs) return `${partner.display_name} is not staying with you: choose what you want`;
-  return partner ? `playing with ${partner.display_name}${together ? " again" : ""}` : "playing";
+  if (partner && theirs) return { line: `${partner.display_name} is not staying as your partner. Choose what you want`, attention: "choose" };
+  const playing = partner ? `playing with ${partner.display_name}${together ? " again" : ""}` : "playing";
+  return { line: playing + (asked ? "." + asked : ""), ...attention };
 }
 
 /** Where a doubles player stands for next season, in a sentence. */
@@ -1425,26 +1521,31 @@ const Partners: FC<{ competitionId: string; next: NextSeason; saved: boolean }> 
 
 // ──────────────────────────────────────────────────────────────── a match ──
 
-/** A score box as a list to pick from — 0 to `max` — blank for a set not played. */
-const ScoreSelect: FC<{ name: string; max: number; value: string | undefined; id?: string; label?: string }> = ({
+/** A score box: whole numbers, 0 to `max`, left blank for a set not played. A number pad on a phone, not a list to scroll. */
+const ScoreBox: FC<{ name: string; max: number; value: string | undefined; id?: string; label?: string }> = ({
   name,
   max,
   value,
   id,
   label,
 }) => (
-  <select name={name} id={id} aria-label={label}>
-    <option value="" selected={!value}>
-      –
-    </option>
-    {Array.from({ length: max + 1 }, (_, n) => (
-      <option value={String(n)} selected={value === String(n)}>
-        {n}
-      </option>
-    ))}
-  </select>
+  <input
+    type="number"
+    name={name}
+    id={id}
+    aria-label={label}
+    min="0"
+    max={String(max)}
+    step="1"
+    inputmode="numeric"
+    value={value ?? ""}
+  />
 );
 
+/**
+ * The score form. Once a player has entered a score it folds away under "Change the score": the page then says what
+ * was saved and what it waits for, rather than showing the whole form again beneath it.
+ */
 const ScoreForm: FC<{
   matchId: string;
   format: Competition["match_format"];
@@ -1457,70 +1558,87 @@ const ScoreForm: FC<{
   values: Record<string, string>;
   /** Whose score filled the form in, to say so. */
   filledFrom: string | null;
-}> = ({ matchId, format, opponent, today, again, pair, values, filledFrom }) => (
-  <form method="post" action={`/matches/${matchId}/report`} class="card report" id="report">
-    <h2>{again ? "Change the score" : "Report the score"}</h2>
-    {filledFrom && <p class="hint">Filled in with {filledFrom}: change what is wrong and send it.</p>}
-    <fieldset>
-      <legend>How did it end?</legend>
-      <div class="choices">
-        {OUTCOMES.map((o) => (
+  /** Shown open: a score not yet entered, or one just refused. Otherwise a changeable score is folded away. */
+  open: boolean;
+}> = ({ matchId, format, opponent, today, again, pair, values, filledFrom, open }) => {
+  const folded = again && !open;
+  const form = (
+    <form method="post" action={`/matches/${matchId}/report`} class={folded ? "report" : "card report"} id={folded ? undefined : "report"}>
+      {!folded && <h2>{again ? "Change the score" : "Report the score"}</h2>}
+      {filledFrom && <p class="hint">Filled in with {filledFrom}: change what is wrong and send it.</p>}
+      <fieldset>
+        <legend>How did it end?</legend>
+        <div class="choices">
+          {OUTCOMES.map((o) => (
+            <label>
+              <input type="radio" name="outcome" value={o.value} checked={(values.outcome ?? OUTCOMES[0]!.value) === o.value} />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset class="stopped">
+        {/* Asked in the words of the outcome chosen above; the full question where :has() is not supported. */}
+        <legend>
+          <span class="ask-any">Who retired, was injured or did not turn up?</span>
+          <span class="ask-retired">Who retired?</span>
+          <span class="ask-conceded">Who was injured?</span>
+          <span class="ask-walkover">Who did not turn up?</span>
+        </legend>
+        <div class="choices">
           <label>
-            <input type="radio" name="outcome" value={o.value} checked={(values.outcome ?? OUTCOMES[0]!.value) === o.value} />
-            {o.label}
+            <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />
+            {pair ? "Us" : "Me"}
           </label>
-        ))}
+          <label>
+            <input type="radio" name="stopped" value="them" checked={values.stopped === "them"} />
+            {opponent}
+          </label>
+        </div>
+      </fieldset>
+      <div class="scoring">
+        <p class="hint">{formatHint(format)}</p>
+        {/* "Them", not their name: a long name was cut to "Sample …", and the page's title already has both. */}
+        <div class="sets">
+          <span />
+          <span class="head">{pair ? "Us" : "You"}</span>
+          <span class="head">Them</span>
+          {setRows(format).map((row) => (
+            <>
+              <label for={`mine_${row.n}`}>
+                {row.label}
+                {row.tiebreak && <span class="note">only if the sets were level</span>}
+              </label>
+              <ScoreBox id={`mine_${row.n}`} name={`mine_${row.n}`} max={row.max} value={values[`mine_${row.n}`]} />
+              <ScoreBox
+                name={`theirs_${row.n}`}
+                max={row.max}
+                value={values[`theirs_${row.n}`]}
+                label={`${row.label}, ${opponent}`}
+              />
+            </>
+          ))}
+        </div>
       </div>
-    </fieldset>
-    <fieldset class="stopped">
-      {/* Asked in the words of the outcome chosen above; the full question where :has() is not supported. */}
-      <legend>
-        <span class="ask-any">Who retired, was injured or did not turn up?</span>
-        <span class="ask-retired">Who retired?</span>
-        <span class="ask-conceded">Who was injured?</span>
-        <span class="ask-walkover">Who did not turn up?</span>
-      </legend>
-      <div class="choices">
-        <label>
-          <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />
-          {pair ? "Us" : "Me"}
-        </label>
-        <label>
-          <input type="radio" name="stopped" value="them" checked={values.stopped === "them"} />
-          {opponent}
-        </label>
+      <div class="field">
+        <label for="played_on">Played on</label>
+        <input id="played_on" name="played_on" type="date" value={values.played_on || today} max={today} />
       </div>
-    </fieldset>
-    <div class="scoring">
-      <p class="hint">{formatHint(format)}</p>
-      <div class="sets">
-        <span />
-        <span class="head">You</span>
-        <span class="head">{opponent}</span>
-        {setRows(format).map((row) => (
-          <>
-            <label for={`mine_${row.n}`}>{row.label}</label>
-            <ScoreSelect id={`mine_${row.n}`} name={`mine_${row.n}`} max={row.max} value={values[`mine_${row.n}`]} />
-            <ScoreSelect
-              name={`theirs_${row.n}`}
-              max={row.max}
-              value={values[`theirs_${row.n}`]}
-              label={`${row.label}, ${opponent}`}
-            />
-          </>
-        ))}
-      </div>
-    </div>
-    <div class="field">
-      <label for="played_on">Played on</label>
-      <input id="played_on" name="played_on" type="date" value={values.played_on || today} max={today} />
-    </div>
-    <button type="submit">Send the score</button>
-    <p class="muted" style="margin:.75rem 0 0">
-      It will count when {opponent} independently enters a matching result.
-    </p>
-  </form>
-);
+      <button type="submit">Send the score</button>
+      <p class="muted" style="margin:.75rem 0 0">
+        It will count when {opponent} independently enters a matching result.
+      </p>
+    </form>
+  );
+  return folded ? (
+    <details class="card" id="report">
+      <summary>Change the score</summary>
+      {form}
+    </details>
+  ) : (
+    form
+  );
+};
 
 /** Someone to arrange a match with, as `GET /v1/me/contacts` gives them. */
 export type Contact = {
@@ -1531,7 +1649,7 @@ export type Contact = {
 };
 
 /** A WhatsApp chat link, for a number written in international form; others are shown to dial. */
-const whatsapp = (phone: string) => (phone.trim().startsWith("+") ? `https://wa.me/${phone.replace(/\D/g, "")}` : null);
+export const whatsapp = (phone: string) => (phone.trim().startsWith("+") ? `https://wa.me/${phone.replace(/\D/g, "")}` : null);
 
 /** The partner and opponents of a match, with their names and contacts, for arranging it outside the app. */
 const Contacts: FC<{ contacts: Contact[] }> = ({ contacts }) => (
@@ -1654,6 +1772,7 @@ export const MatchPage: FC<{
           pair={competition.discipline === "doubles"}
           values={sent ?? (mineLive ? claimToForm(mineLive, from) : {})}
           filledFrom={sent ? null : mineLive ? "your score" : null}
+          open={sent !== null || messages.length > 0}
         />
       )}
       {mine !== null && (competition.state !== "active" || reportingClosed) && match.status !== "played" && (
