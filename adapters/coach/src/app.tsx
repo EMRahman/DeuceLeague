@@ -1360,7 +1360,7 @@ export function createCoachSite(options: CoachOptions) {
       ? (await api<{ data: PartnerChoice[] }>("GET", `/v1/competitions/${previousId}/partner-choices`, who.key)).data : [];
     const view = draftView({ divisions: divisions.data, entries: entries.data },
       { competition: previous, entries: lastEntries.data, standings }, members, choices, draft.category, plan,
-      draft.rules, new Set(onBreak.map((m) => m.id)));
+      draft.rules, new Set(onBreak.map((m) => m.id)), draft.discipline);
     return c.html(<Draft frame={seasonFrame(who)} season={season} draft={draft} previous={previous} view={view}
       genders={members.some((m) => m.gender !== undefined)}
       empty={divisions.data.length === 0 && entries.data.length === 0} />);

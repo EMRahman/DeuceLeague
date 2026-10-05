@@ -226,6 +226,8 @@ export function draftView(
   rules: { minMatchesToPlay: number } = { minMatchesToPlay: 0 },
   /** Members on a break from the league: not in `members`, but not gone either. */
   onBreak: ReadonlySet<string> = new Set(),
+  /** The draft's own discipline: newcomers are offered for what they want to play in it, whatever it follows. */
+  discipline: string = previous.competition.discipline,
 ): DraftView {
   const rows = new Map(previous.standings.divisions.flatMap((d) => d.rows.map((r) => [r.entry_id, { division: d, row: r }])));
   const drafted = new Set(draft.entries.flatMap((e) => e.members.map((m) => m.id)));
@@ -298,7 +300,7 @@ export function draftView(
   // Those who played in it last season stay listed, whatever their gender, with why they are out. Anyone else is
   // offered only if they fit it and asked to play it.
   const unplaced = members.filter((m) => !drafted.has(m.id)
-    && (lastOf.has(m.id) || (fits(m, category) && wantsThis(m, previous.competition.discipline)))).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
+    && (lastOf.has(m.id) || (fits(m, category) && wantsThis(m, discipline)))).map((m) => ({ ...m, last: lastOf.get(m.id) ?? null, ...said(m) }))
     .sort((a, b) => Number(!!b.last) - Number(!!a.last) || (a.level ?? 11) - (b.level ?? 11)
       || a.display_name.localeCompare(b.display_name));
   const free = new Map(unplaced.map((u) => [u.id, u]));

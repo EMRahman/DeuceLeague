@@ -415,7 +415,13 @@ test("the join form asks what they want to play; the coach and the player can ch
 });
 
 test("a draft offers a newcomer only for what they want to play", async () => {
-  const { wantsThis } = await import("../../../adapters/coach/dist/season.js");
+  const { draftView, wantsThis } = await import("../../../adapters/coach/dist/season.js");
+  // The draft's own discipline decides, even one following a competition of the other kind.
+  const member = (id: string, wants_to_play: string) => ({ id, display_name: id, level: null, wants_to_play });
+  const view = draftView({ divisions: [], entries: [] },
+    { competition: { discipline: "singles", rules: { minMatchesToPlay: 0 } } as any, entries: [], standings: { divisions: [] } as any },
+    [member("Dee", "doubles"), member("Sid", "singles"), member("Sol", "not_now")], [], "open", undefined, undefined, new Set(), "doubles");
+  assert.deepEqual(view.unplaced.map((u: { id: string }) => u.id), ["Dee"]);
   assert.deepEqual(["singles", "doubles", "both", "not_now", null].map((w) => [wantsThis({ wants_to_play: w }, "singles"), wantsThis({ wants_to_play: w }, "doubles")]),
     [[true, false], [false, true], [true, true], [false, false], [true, true]]);
 });
