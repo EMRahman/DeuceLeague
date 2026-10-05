@@ -257,6 +257,9 @@ form.level select { width: auto; padding: .3rem .5rem; font-size: .9rem; }
 form.approve { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 .75rem; margin-top: .6rem; }
 form.approve .field { flex: 1 1 11rem; margin-bottom: .5rem; }
 form.approve button { margin-bottom: .5rem; }
+form.search { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .5rem 0 1rem; }
+form.search label { margin: 0; }
+form.search input { flex: 1 1 12rem; width: auto; }
 .answer p.deadline { margin: .4rem 0 0; }
 .tag.level { background: var(--past-bg); color: var(--past); }
 .after { margin-top: .75rem; }
@@ -1167,7 +1170,13 @@ export const Members: FC<{
   timezone: string;
   /** Showing only those placed in a competition who have never signed in. */
   unsigned?: boolean;
-}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured, unsigned = false }) => (
+  /** What the coach searched for, or "" for everyone. */
+  query?: string;
+  /** Everyone on the list, and how many of them have signed in, whatever the search shows. */
+  total: number;
+  signedIn: number;
+}> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured, unsigned = false,
+  query = "", total, signedIn }) => (
   <Layout title="Members" frame={frame}>
     <h1>Members</h1>
     {left.length > 0 && (
@@ -1182,8 +1191,8 @@ export const Members: FC<{
           <>
             {" "}
             They will be placed in a division at the start of next season, from the draft on the{" "}
-            <a href="/coach/season">Season</a> tab; a running season is not changed. Make them a sign-in link below, or
-            email them an invitation from their member record below.
+            <a href="/coach/season">Season</a> tab; a running season is not changed. Make them a sign-in link, or
+            email them an invitation, from <a href={`/coach/members/${addedId}`}>their page</a>.
           </>
         )}
       </div>
@@ -1250,7 +1259,7 @@ export const Members: FC<{
       <h2>Contact details to complete</h2>
       <p>Existing members stay on the list. Add their missing email for sign-in links and telephone for WhatsApp league communications.</p>
       <ul>{members.filter((m) => m.email !== undefined && (!m.email || !m.phone)).map((m) => <li>
-        <a href={`#member-${m.id}`}>{m.display_name}</a>: {[!m.email ? "email" : "", !m.phone ? "telephone" : ""].filter(Boolean).join(" and ")} missing
+        <a href={`/coach/members/${m.id}`}>{m.display_name}</a>: {[!m.email ? "email" : "", !m.phone ? "telephone" : ""].filter(Boolean).join(" and ")} missing
       </li>)}</ul>
     </div>}
     {waiting && waiting.length > 0 && (
@@ -1265,7 +1274,7 @@ export const Members: FC<{
           <ul class="list">
             {waiting.map((m) => (
               <li class="answer">
-                <a href={`#member-${m.id}`}>{m.display_name}</a>
+                <a href={`/coach/members/${m.id}`}>{m.display_name}</a>
                 {m.level !== null && <span class="tag level">Level {m.level}</span>}
               </li>
             ))}
@@ -1274,32 +1283,38 @@ export const Members: FC<{
       </>
     )}
     <h2>On the club's list</h2>
-    <p>{emailConfigured ? "Email sign-in invitations individually or select up to five members per batch. Emailed links work once, for seven days. Provider acceptance does not confirm inbox delivery."
-      : "Email is not configured. Ask your club administrator to set up sign-in email to send invitations. You can still hand over sign-in links."}</p>
+    <form class="search" method="get" action="/coach/members">
+      {unsigned && <input type="hidden" name="show" value="unsigned" />}
+      <label for="q">Find a member</label>
+      <input id="q" name="q" type="search" value={query} placeholder="Name, email or telephone" />
+      <button class="small" type="submit">Find</button>
+      {query && <a href={unsigned ? "/coach/members?show=unsigned" : "/coach/members"}>Clear</a>}
+    </form>
+    <p class="muted">
+      Open a member to make them a sign-in link, change their details, or record a break or that they have left.
+      {emailConfigured ? " To email invitations to several at once, select up to five below. Emailed links work once, for seven days; provider acceptance does not confirm inbox delivery."
+        : " Email is not configured, so invitations cannot be emailed; you can still hand over sign-in links."}
+    </p>
     {emailConfigured && <form id="invitations" method="post" action="/coach/members/invite">
       <button type="submit">Email selected members (up to 5)</button>
     </form>}
-
-    <p>
-      Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
-      once, within seven days. Once signed in, a player stays signed in on that phone.
-    </p>
     {unsigned ? (
       <p>
         <strong>Placed but never signed in ({members.length}).</strong> In a competition under way or being drafted, and
         never signed in. <a href="/coach/members">Show everyone</a>
       </p>
     ) : (
-      members.length > 0 && (
+      total > 0 && (
         <p class="muted">
-          {members.filter((m) => m.signed_in_at).length} of {members.length} signed in. Those not signed in yet are
-          listed first. Levels run from 10, a beginner, to 1, a national player.{" "}
+          {signedIn} of {total} signed in. Those not signed in yet are listed first. Levels run from 10, a beginner,
+          to 1, a national player.{" "}
           <a href="/coach/members?show=unsigned">Show only those placed but never signed in</a>
         </p>
       )
     )}
+    {query && <p class="muted">{plural(members.length, "member")} matching "{query}".</p>}
     {members.length === 0 ? (
-      <p class="muted">{unsigned ? "Everyone placed has signed in." : "The club has no members yet."}</p>
+      <p class="muted">{query ? "Nobody matches. Check the spelling, or search by email or telephone." : unsigned ? "Everyone placed has signed in." : "The club has no members yet."}</p>
     ) : (
       <div class="card">
         <ul class="list">
@@ -1307,111 +1322,20 @@ export const Members: FC<{
             <li class="answer" id={`member-${m.id}`}>
               <div class="answer-row">
                 <span>
-                  {m.display_name}
+                  <a href={`/coach/members/${m.id}`}>{m.display_name}</a>
                   {m.level !== null && <span class="tag level">Level {m.level}</span>}
                   {m.status === "paused" && <span class="tag">On a break</span>}
-                  {emailConfigured && m.email && <label><input type="checkbox" name="member" value={m.id} form="invitations" /> Select for email</label>}
-                  {m.email && <span class="muted"> · {m.email}</span>}
-                  {m.phone && <span class="muted"> · {m.phone}</span>}
+                  {m.leaving_at && <span class="tag">Not playing next season</span>}
                   <br />
                   {m.signed_in_at ? (
                     <span class="muted">Signed in {at(m.signed_in_at, timezone)}</span>
                   ) : (
                     <span class="deadline">Not signed in yet</span>
                   )}
+                  {unusedLink(m) && <span class="deadline"> · emailed link not used</span>}
                 </span>
-                <form method="post" action={`/coach/members/${m.id}/sign-in-link`}>
-                  <button class="quiet small" type="submit">
-                    Sign-in link
-                  </button>
-                </form>
+                {emailConfigured && m.email && <label class="muted"><input type="checkbox" name="member" value={m.id} form="invitations" /> Email</label>}
               </div>
-              {m.invitation_state && <p class={m.invitation_state === "failed" ? "deadline" : "muted"}>
-                {m.invitation_state === "accepted" ? "Email accepted for sending; inbox delivery not confirmed" : "Email attempt failed; check contacts and provider, then retry"}
-                {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
-              </p>}
-              {unusedLink(m) && <p class="deadline">
-                Link sent, not used: it ran out seven days after sending. Email another, or make a sign-in
-                link to send another way.
-              </p>}
-              {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
-                <button class="small" type="submit">Email sign-in link</button>
-              </form>}
-              {m.email !== undefined && <form class="approve" method="post" action={`/coach/members/${m.id}/contacts`}>
-                <div class="field"><label for={`email-${m.id}`}>Email for sign-in links</label>
-                  <input id={`email-${m.id}`} type="email" name="email" value={m.email ?? ""} maxlength={254} /></div>
-                <div class="field"><label for={`phone-${m.id}`}>Telephone for WhatsApp</label>
-                  <input id={`phone-${m.id}`} type="tel" name="phone" value={m.phone ?? ""} maxlength={24} /></div>
-                <button class="quiet small" type="submit">Save contacts</button>
-              </form>}
-              <form class="level" method="post" action={`/coach/members/${m.id}/name`}>
-                <label class="muted" for={`name-${m.id}`}>
-                  Name shown to players
-                </label>
-                <input id={`name-${m.id}`} name="display_name" maxlength={60} value={m.display_name} required />
-                <button class="quiet small" type="submit">
-                  Save
-                </button>
-              </form>
-              <form class="level" method="post" action={`/coach/members/${m.id}/level`}>
-                <label class="muted" for={`level-${m.id}`}>
-                  Level
-                </label>
-                <LevelSelect id={`level-${m.id}`} value={m.level} />
-                <button class="quiet small" type="submit">
-                  Save
-                </button>
-              </form>
-              {m.gender !== undefined && (
-                <form class="approve" method="post" action={`/coach/members/${m.id}/details`}>
-                  <PersonSelects id={m.id} gender={m.gender} ageGroup={m.age_group ?? null} />
-                  <button class="quiet small" type="submit">
-                    Save
-                  </button>
-                </form>
-              )}
-              {m.status === "paused" ? (
-                <form method="post" action={`/coach/members/${m.id}/resume`}>
-                  <span class="deadline">On a break</span>
-                  <span class="muted"> · out of every draft until they are back · </span>
-                  <button class="quiet small" type="submit">
-                    Back from a break
-                  </button>
-                </form>
-              ) : (
-                <form method="post" action={`/coach/members/${m.id}/pause`}>
-                  <button class="quiet small" type="submit">
-                    Take a break
-                  </button>
-                  <span class="muted">
-                    {" "}Out of every draft until they are back. Their matches this season stay, and still count.
-                  </span>
-                </form>
-              )}
-              {m.leaving_at ? (
-                <form method="post" action={`/coach/members/${m.id}/staying`}>
-                  <span class="deadline">Not playing next season at all</span>
-                  <span class="muted"> · since {at(m.leaving_at, timezone)} · </span>
-                  <button class="quiet small" type="submit">
-                    Take it back
-                  </button>
-                </form>
-              ) : (
-                <form method="post" action={`/coach/members/${m.id}/leaving`}>
-                  <button class="quiet small" type="submit">
-                    Not playing next season
-                  </button>
-                  <span class="muted">
-                    {" "}Out of next season's drafts, singles and doubles. Their matches this season stay, and still count.
-                  </span>
-                </form>
-              )}
-              <p>
-                <a class="button small quiet" href={`/coach/members/${m.id}/left`}>
-                  Left the club…
-                </a>
-                <span class="muted"> Asks first. Their results stay; they are not placed again, nor sent new sign-in links.</span>
-              </p>
             </li>
           ))}
         </ul>
@@ -1430,7 +1354,7 @@ export const Members: FC<{
             {left.map((m) => (
               <li class="answer" id={`member-${m.id}`}>
                 <div class="answer-row">
-                  <span>{m.display_name}</span>
+                  <a href={`/coach/members/${m.id}`}>{m.display_name}</a>
                   <span class="actions">
                     <form method="post" action={`/coach/members/${m.id}/back`}>
                       <button class="quiet small" type="submit">
@@ -1451,9 +1375,131 @@ export const Members: FC<{
   </Layout>
 );
 
-export const SignInLink: FC<{ frame: Frame; member: string; url: string; days: number }> = ({
+/**
+ * One member, with everything the coach can do for them. Its heading names them, so every form on the page is
+ * plainly theirs, and each saves back here.
+ */
+export const MemberPage: FC<{
+  frame: Frame;
+  member: CoachMember;
+  saved: boolean;
+  emailConfigured: boolean;
+  timezone: string;
+}> = ({ frame, member: m, saved, emailConfigured, timezone }) => (
+  <Layout title={m.display_name} frame={frame}>
+    <p class="jump"><a href="/coach/members">← All members</a></p>
+    <h1>{m.display_name}</h1>
+    {saved && <div class="notice ok" role="status">Saved.</div>}
+    <p>
+      {m.level !== null && <span class="tag level">Level {m.level}</span>}
+      {m.status === "paused" && <span class="tag">On a break</span>}
+      {m.status === "left" && <span class="tag">Left the club</span>}
+      {m.email && <span class="muted"> {m.email}</span>}
+      {m.phone && <span class="muted"> · {m.phone}</span>}
+      <br />
+      {m.signed_in_at ? (
+        <span class="muted">Signed in {at(m.signed_in_at, timezone)}</span>
+      ) : (
+        <span class="deadline">Not signed in yet</span>
+      )}
+    </p>
+    {m.status === "left" ? (
+      <>
+        <p class="muted">
+          Their scores stay in past tables. They are left out of next season's draft and cannot be entered in a
+          competition. If they come back, put them back in the club. If they ask for their personal data to be
+          deleted, erase them: their results stay, under "Erased member".
+        </p>
+        <form method="post" action={`/coach/members/${m.id}/back`}>
+          <button class="quiet small" type="submit">Back in the club</button>
+        </form>
+        <p><a class="button small quiet" href={`/coach/members/${m.id}/erase`}>Erase…</a></p>
+      </>
+    ) : (
+      <>
+        <h2>Signing in</h2>
+        <p class="muted">A link works once, within seven days. Once signed in, a player stays signed in on that phone.</p>
+        {m.invitation_state && <p class={m.invitation_state === "failed" ? "deadline" : "muted"}>
+          {m.invitation_state === "accepted" ? "Email accepted for sending; inbox delivery not confirmed" : "Email attempt failed; check contacts and provider, then retry"}
+          {m.invitation_at && ` · ${at(m.invitation_at, timezone)}`}
+        </p>}
+        {unusedLink(m) && <p class="deadline">
+          Link sent, not used: it ran out seven days after sending. Email another, or make a sign-in
+          link to send another way.
+        </p>}
+        <form method="post" action={`/coach/members/${m.id}/sign-in-link`}>
+          <button class="quiet small" type="submit">Sign-in link</button>
+        </form>
+        {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
+          <button class="small" type="submit">Email sign-in link</button>
+        </form>}
+        <h2>Details</h2>
+        {m.email !== undefined && <form class="approve" method="post" action={`/coach/members/${m.id}/contacts`}>
+          <div class="field"><label for={`email-${m.id}`}>Email for sign-in links</label>
+            <input id={`email-${m.id}`} type="email" name="email" value={m.email ?? ""} maxlength={254} /></div>
+          <div class="field"><label for={`phone-${m.id}`}>Telephone for WhatsApp</label>
+            <input id={`phone-${m.id}`} type="tel" name="phone" value={m.phone ?? ""} maxlength={24} /></div>
+          <button class="quiet small" type="submit">Save contacts</button>
+        </form>}
+        <form class="level" method="post" action={`/coach/members/${m.id}/name`}>
+          <label class="muted" for={`name-${m.id}`}>Name shown to players</label>
+          <input id={`name-${m.id}`} name="display_name" maxlength={60} value={m.display_name} required />
+          <button class="quiet small" type="submit">Save</button>
+        </form>
+        <form class="level" method="post" action={`/coach/members/${m.id}/level`}>
+          <label class="muted" for={`level-${m.id}`}>Level</label>
+          <LevelSelect id={`level-${m.id}`} value={m.level} />
+          <button class="quiet small" type="submit">Save</button>
+        </form>
+        <p class="muted">Levels run from 10, a beginner, to 1, a national player.</p>
+        {m.gender !== undefined && (
+          <form class="approve" method="post" action={`/coach/members/${m.id}/details`}>
+            <PersonSelects id={m.id} gender={m.gender} ageGroup={m.age_group ?? null} />
+            <button class="quiet small" type="submit">Save</button>
+          </form>
+        )}
+        <h2>Playing</h2>
+        {m.status === "paused" ? (
+          <form method="post" action={`/coach/members/${m.id}/resume`}>
+            <span class="deadline">On a break</span>
+            <span class="muted"> · out of every draft until they are back · </span>
+            <button class="quiet small" type="submit">Back from a break</button>
+          </form>
+        ) : (
+          <form method="post" action={`/coach/members/${m.id}/pause`}>
+            <button class="quiet small" type="submit">Take a break</button>
+            <span class="muted">
+              {" "}Out of every draft until they are back. Their matches this season stay, and still count.
+            </span>
+          </form>
+        )}
+        {m.leaving_at ? (
+          <form method="post" action={`/coach/members/${m.id}/staying`}>
+            <span class="deadline">Not playing next season at all</span>
+            <span class="muted"> · since {at(m.leaving_at, timezone)} · </span>
+            <button class="quiet small" type="submit">Take it back</button>
+          </form>
+        ) : (
+          <form method="post" action={`/coach/members/${m.id}/leaving`}>
+            <button class="quiet small" type="submit">Not playing next season</button>
+            <span class="muted">
+              {" "}Out of next season's drafts, singles and doubles. Their matches this season stay, and still count.
+            </span>
+          </form>
+        )}
+        <p>
+          <a class="button small quiet" href={`/coach/members/${m.id}/left`}>Left the club…</a>
+          <span class="muted"> Asks first. Their results stay; they are not placed again, nor sent new sign-in links.</span>
+        </p>
+      </>
+    )}
+  </Layout>
+);
+
+export const SignInLink: FC<{ frame: Frame; member: string; memberId: string; url: string; days: number }> = ({
   frame,
   member,
+  memberId,
   url,
   days,
 }) => (
@@ -1471,8 +1517,9 @@ export const SignInLink: FC<{ frame: Frame; member: string; url: string; days: n
       Opening it in this browser signs this browser in as {member}. To try it as the player yourself, open it in a
       private window.
     </p>
-    <p>
-      <a href="/coach/members">Back to members</a>
+    <p class="jump">
+      <a href={`/coach/members/${memberId}`}>Back to {member}</a>
+      <a href="/coach/members">All members</a>
     </p>
   </Layout>
 );
@@ -1633,12 +1680,16 @@ export const Problem: FC<{ frame: Frame; title: string; detail: string; back?: {
   </Layout>
 );
 
-export const InvitationResults: FC<{ frame: Frame; results: { name: string; message: string }[]; added?: string }> = ({ frame, results, added }) => (
+export const InvitationResults: FC<{ frame: Frame; results: { name: string; message: string }[]; added?: string;
+  /** The one member invited, when there was one: the page goes back to them. */
+  memberId?: string }> = ({ frame, results, added, memberId }) => (
   <Layout title="Sign-in invitations" frame={frame}>
     <h1>Sign-in invitations</h1>
     {added && <p>{added} is now a member, waiting for next season's placement. Approval succeeded even if the email failed.</p>}
     <ul>{results.map((r) => <li><strong>{r.name}</strong>: {r.message}</li>)}</ul>
-    <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>
+    {memberId
+      ? <p class="jump"><a href={`/coach/members/${memberId}`}>Back to {added ?? results[0]?.name ?? "the member"}</a> <a href="/coach/members">All members</a></p>
+      : <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>}
   </Layout>
 );
 
@@ -1667,7 +1718,7 @@ export const ConfirmErase: FC<{ frame: Frame; member: CoachMember; message?: str
       <button type="submit">Erase {member.display_name}</button>
     </form>
     <p class="after">
-      <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+      <a href={`/coach/members/${member.id}`}>No, back to {member.display_name}</a>
     </p>
   </Layout>
 );
@@ -1693,7 +1744,7 @@ export const ConfirmClearContacts: FC<{ frame: Frame; member: CoachMember; email
         <button type="submit">Yes, clear the {what}</button>
       </form>
       <p class="after">
-        <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+        <a href={`/coach/members/${member.id}`}>No, back to {member.display_name}</a>
       </p>
     </Layout>
   );
@@ -1718,7 +1769,7 @@ export const ConfirmLeft: FC<{ frame: Frame; member: CoachMember }> = ({ frame, 
       <button type="submit">Yes, {member.display_name} has left</button>
     </form>
     <p class="after">
-      <a href={`/coach/members#member-${member.id}`}>No, back to Members</a>
+      <a href={`/coach/members/${member.id}`}>No, back to {member.display_name}</a>
     </p>
   </Layout>
 );

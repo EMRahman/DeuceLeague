@@ -42,8 +42,9 @@ at `/coach/weather`; see [court forecasts](WEATHER.md).
 
 ## 4. Invite your players
 
-Sign in at `/coach` with the administrator key. On **Members**, press
-**Sign-in link** for each player and send it to them, for example on WhatsApp.
+Sign in at `/coach` with the administrator key. On **Members**, open each
+player (search by name, email or telephone), press **Sign-in link** and send it
+to them, for example on WhatsApp.
 A link works once, within seven days; once signed in, a player stays signed in on
 that phone.
 

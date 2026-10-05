@@ -170,12 +170,15 @@ test("the coach marks a member as not playing next season, and the draft names w
   const leaver = free(singles).map((e) => e.members[0]!).find((m) => ![gone.id, stays.id].includes(m.id))!;
   void stays;
 
-  const members = (await coach.get("/coach/members")).html;
+  const members = (await coach.get(`/coach/members/${leaver.id}`)).html;
   assert.match(members, new RegExp(`action="/coach/members/${leaver.id}/leaving"`));
-  assert.equal((await coach.post(`/coach/members/${leaver.id}/leaving`)).status, 303);
+  const saved = await coach.post(`/coach/members/${leaver.id}/leaving`);
+  assert.equal(saved.status, 303); assert.equal(saved.location, `/coach/members/${leaver.id}?saved=1`);
   assert.equal((await coach.post(`/coach/members/${gone.id}/leaving`)).status, 303);
-  const marked = (await coach.get("/coach/members")).html;
+  const marked = (await coach.get(`/coach/members/${leaver.id}?saved=1`)).html;
+  assert.match(marked, /Saved\./);
   assert.match(marked, new RegExp(`action="/coach/members/${leaver.id}/staying"`)); assert.match(marked, /Not playing next season at all/);
+  assert.match((await coach.get("/coach/members")).html, /<span class="tag">Not playing next season<\/span>/);
   // The dashboard lists them under who is not playing next season, in each competition they were in.
   const dashboard = (await coach.get("/coach")).html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   assert.match(dashboard, new RegExp(`opted out of next season:[^.]*${singles.find((e) => e.members[0]!.id === leaver.id)!.label}`));
@@ -299,10 +302,10 @@ test("the coach puts a member on a break, and the draft says so and what it mean
   const pair = entries.find((e) => !e.opted_out_at && e.members.every((m) => !said.has(m.id)))!;
   const [away, stays] = [pair.members[0]!, pair.members[1]!];
 
-  assert.match((await coach.get("/coach/members")).html, new RegExp(`action="/coach/members/${away.id}/pause"`));
+  assert.match((await coach.get(`/coach/members/${away.id}`)).html, new RegExp(`action="/coach/members/${away.id}/pause"`));
   assert.equal((await coach.post(`/coach/members/${away.id}/pause`)).status, 303);
-  const marked = (await coach.get("/coach/members")).html;
-  assert.match(marked, /<span class="tag">On a break<\/span>/); assert.match(marked, new RegExp(`action="/coach/members/${away.id}/resume"`));
+  assert.match((await coach.get("/coach/members")).html, /<span class="tag">On a break<\/span>/);
+  assert.match((await coach.get(`/coach/members/${away.id}`)).html, new RegExp(`action="/coach/members/${away.id}/resume"`));
 
   const shown = /name="shown" value="([^"]*)"/.exec((await coach.get(`/coach/season/${season.id}/end`)).html)?.[1] ?? "";
   for (let hop = 0; hop < 20; hop++) { const r = await coach.post(`/coach/season/${season.id}/end`, { leave: "yes", shown }); if (r.status !== 307) break; }

@@ -41,6 +41,24 @@ new API operation, so that several entries are withdrawn atomically (issue 5).
    emailed invitations, links the coach sends by phone, and links a player
    asks for on the sign-in page (issue 12; implemented in #79).
 
+**5 October, second review:**
+
+8. **No mid-season withdrawal on the site** (issue 5 dropped). A player who
+   stops simply doesn't play; their remaining matches are left unplayed at
+   season end.
+9. **No printable draft** (issue 11): only the dashboard mention.
+10. **Issues 4, 7, 8, 9, 10 and 12 go ahead.**
+11. **Live-table arrows** (low-severity item): an entry shows ▲ or ▼ only once
+    it has played at least one match, with the zones worked out as now.
+    Confirmed.
+
+**5 October, third review:**
+
+12. **No bulk confirmation** (issue 6 dropped). Players chase their opponents
+    to get results agreed; the coach does not sit with a queue to clear.
+13. **No promotion suggestions for a short division** (issue 8's third part
+    skipped). The coach arranges the divisions before starting the season.
+
 Suggested order:
 
 1. Issues 1–3 are small and self-contained.
@@ -175,6 +193,8 @@ a fresh deployment (decision 6).
 
 ## 4. Members at 150: search, and one page per member
 
+**Implemented** in the `feat/member-pages` pull request.
+
 **Type:** Story · **Component:** coach site (`/coach/members`, `adapters/coach/src/app.tsx:305`)
 
 **Evidence.**
@@ -211,6 +231,8 @@ a fresh deployment (decision 6).
 ---
 
 ## 5. Withdraw a player or pair mid-season from the website
+
+**Dropped** (decision 8). Kept for the record.
 
 **Type:** Story · **Components:** API (a new withdrawal operation), coach site
 (member page from issue 4)
@@ -258,6 +280,8 @@ a fresh deployment (decision 6).
 ---
 
 ## 6. Confirm uncontested results in one go
+
+**Dropped** (decision 12). Kept for the record.
 
 **Type:** Story · **Component:** coach site (`/coach/results`)
 
@@ -440,6 +464,8 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
 ---
 
 ## 11. Drafts: show them on the dashboard, and print one for the committee
+
+**Dashboard mention only** (decision 9); no print view.
 
 **Type:** Story · **Component:** coach site (dashboard; draft pages)
 

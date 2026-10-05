@@ -13,7 +13,7 @@ alongside email.
 
 ## Coach invitations
 
-On **Members**, the coach can **Email sign-in link**, select up to five members per batch, or **Approve and email sign-in link** for a join request. Links work once, for seven days. The page records the latest provider acceptance or failed attempt, and separately shows who has signed in. Acceptance does not confirm inbox delivery. Failed sends can be retried after checking contacts and the provider; approval is never undone by a mail failure.
+On a member's page, the coach can **Email sign-in link**; on **Members**, select up to five members per batch; or **Approve and email sign-in link** for a join request. Links work once, for seven days. The page records the latest provider acceptance or failed attempt, and separately shows who has signed in. Acceptance does not confirm inbox delivery. Failed sends can be retried after checking contacts and the provider; approval is never undone by a mail failure.
 
 Existing members without either contact are listed under **Contact details to complete**. Complete their email and telephone using **Save contacts**. They remain members while you collect these details. New sign-ups require both. Without a provider, the page explains how to enable email and still offers manual links.
 
