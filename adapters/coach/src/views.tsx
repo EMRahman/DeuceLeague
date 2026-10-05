@@ -1496,9 +1496,10 @@ export const MemberPage: FC<{
   </Layout>
 );
 
-export const SignInLink: FC<{ frame: Frame; member: string; url: string; days: number }> = ({
+export const SignInLink: FC<{ frame: Frame; member: string; memberId: string; url: string; days: number }> = ({
   frame,
   member,
+  memberId,
   url,
   days,
 }) => (
@@ -1516,8 +1517,9 @@ export const SignInLink: FC<{ frame: Frame; member: string; url: string; days: n
       Opening it in this browser signs this browser in as {member}. To try it as the player yourself, open it in a
       private window.
     </p>
-    <p>
-      <a href="/coach/members">Back to members</a>
+    <p class="jump">
+      <a href={`/coach/members/${memberId}`}>Back to {member}</a>
+      <a href="/coach/members">All members</a>
     </p>
   </Layout>
 );
@@ -1678,12 +1680,16 @@ export const Problem: FC<{ frame: Frame; title: string; detail: string; back?: {
   </Layout>
 );
 
-export const InvitationResults: FC<{ frame: Frame; results: { name: string; message: string }[]; added?: string }> = ({ frame, results, added }) => (
+export const InvitationResults: FC<{ frame: Frame; results: { name: string; message: string }[]; added?: string;
+  /** The one member invited, when there was one: the page goes back to them. */
+  memberId?: string }> = ({ frame, results, added, memberId }) => (
   <Layout title="Sign-in invitations" frame={frame}>
     <h1>Sign-in invitations</h1>
     {added && <p>{added} is now a member, waiting for next season's placement. Approval succeeded even if the email failed.</p>}
     <ul>{results.map((r) => <li><strong>{r.name}</strong>: {r.message}</li>)}</ul>
-    <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>
+    {memberId
+      ? <p class="jump"><a href={`/coach/members/${memberId}`}>Back to {added ?? results[0]?.name ?? "the member"}</a> <a href="/coach/members">All members</a></p>
+      : <p><a href="/coach/members">Return to Members to check contacts, retry an invitation or see who has signed in.</a></p>}
   </Layout>
 );
 

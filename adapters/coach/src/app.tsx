@@ -377,7 +377,7 @@ export function createCoachSite(options: CoachOptions) {
         age_group: choiceOf(form.age_group, AGE_GROUPS),
       });
       if (form.invite === "yes") return c.html(<InvitationResults frame={frameOf(who, "members")}
-        added={member.display_name} results={[await invite(who, member.id)]} />);
+        added={member.display_name} memberId={member.id} results={[await invite(who, member.id)]} />);
       return c.redirect(`/coach/members?added=${member.id}`, 303);
     } catch (error) {
       if (!(error instanceof ApiProblem)) throw error;
@@ -1048,7 +1048,7 @@ export function createCoachSite(options: CoachOptions) {
   });
   app.post("/members/:id/invite", async (c) => {
     const who = await coach(c); if (!who) return c.redirect("/coach", 303);
-    return c.html(<InvitationResults frame={frameOf(who, "members")} results={[await invite(who, c.req.param("id"))]} />);
+    return c.html(<InvitationResults frame={frameOf(who, "members")} memberId={c.req.param("id")} results={[await invite(who, c.req.param("id"))]} />);
   });
   /** Either contact on its own: many members have only one. An emptied field clears it, once the coach confirms. */
   app.post("/members/:id/contacts", async (c) => {
@@ -1092,7 +1092,7 @@ export function createCoachSite(options: CoachOptions) {
       url.searchParams.set("token", link.token);
       const days = Math.round((Date.parse(link.expires_at) - Date.now()) / 86_400_000);
       return c.html(
-        <SignInLink frame={frameOf(who, "members")} member={member.display_name} url={url.href} days={days} />,
+        <SignInLink frame={frameOf(who, "members")} member={member.display_name} memberId={member.id} url={url.href} days={days} />,
       );
     } catch (error) {
       if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;

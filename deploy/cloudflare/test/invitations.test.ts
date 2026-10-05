@@ -37,6 +37,7 @@ test("coach invitations persist provider outcomes separately from sign-ins, supp
   assert.ok((await f.api(`/v1/members/${a.id}`, f.admin)).body.signed_in_at);
   f.failMail(true);
   const failed = await coach.post(`/coach/members/${b.id}/invite`);
+  assert.match(failed.html, new RegExp(`href="/coach/members/${b.id}">Back to Bailey</a>`), "the result goes back to the member");
   assert.match(failed.html, /Email attempt failed/); assert.doesNotMatch(failed.html, /sensitive provider error/);
   assert.equal((await f.api(`/v1/members/${b.id}`, f.admin)).body.invitation_state, "failed");
   f.failMail(false); assert.match((await coach.post(`/coach/members/${b.id}/invite`)).html, /accepted for sending/);

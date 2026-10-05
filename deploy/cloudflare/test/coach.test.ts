@@ -85,6 +85,7 @@ test("the coach makes a player's sign-in link, which signs the player in once, w
   assert.match((await coach.get("/coach/members?q=zzz")).html, /Nobody matches/);
   assert.equal((await coach.get("/coach/members/not-a-member")).status, 404);
   const made = await coach.post(`/coach/members/${sam.id}/sign-in-link`);
+  assert.match(made.html, new RegExp(`href="/coach/members/${sam.id}">Back to Sam</a>`), "the link page goes back to the member");
   assert.equal(made.status, 200); assert.match(made.html, /Sign-in link for Sam/); assert.match(made.html, /within 7 days/);
   const token = /https:\/\/league\.test\/login\?token=([A-Za-z0-9_-]+)/.exec(made.html)?.[1]; assert.ok(token);
   const expires = Number(await f.db.prepare("SELECT expires_at FROM access_grant WHERE kind = 'login_link'").first("expires_at"));
