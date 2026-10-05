@@ -4,9 +4,9 @@ Twelve issue drafts from [report.md](report.md): the bug (§4) and the high and
 medium pain points (§2). Low-severity items are collected at the end.
 
 Each draft has evidence, a **proposal**, acceptance criteria and any open
-questions. One point is decided: **players' full names may be shown** (issue
-3). The rest are the simulation's suggestions for the next work list, not yet
-filed in the tracker. Evidence comes from the report, the persona reports in
+questions. Issues 1–3 are implemented (#77). The rest are the simulation's
+suggestions for the next work list, amended by the decisions below, and not
+yet filed in the tracker. Evidence comes from the report, the persona reports in
 [findings-raw.md](findings-raw.md) and the cited source lines at `ca44d13`.
 
 Most of the gaps are coach-site routes over API operations that already
@@ -15,11 +15,37 @@ exist. Withdrawing an entry (`PATCH /v1/entries/{id}`), renaming a member
 are what the coding agent used for its 48 requests. Withdrawal also needs one
 new API operation, so that several entries are withdrawn atomically (issue 5).
 
+## Decisions
+
+**4 October.** Players' full names may be shown (issue 3).
+
+**5 October**, after the drafts were reviewed:
+
+1. **No late entries.** A newcomer is never added to a running division; they
+   wait for the next season's draft (issue 10).
+2. **A withdrawn entry takes a relegation place** in the draft, so the entry
+   above it stays up. The coach can still arrange every division before the
+   next season starts, at their discretion (issue 8).
+3. **"Wants to play" is asked on the join form** (issue 10).
+4. **Reopening an ended season stays a coding-agent task.** The site doesn't
+   offer it (issue 7).
+5. **Walkovers are never confirmed in bulk.** A walkover counts only when the
+   side that was walked over confirms it, or when the coach decides that one
+   match after discussing it with the players outside the app. The
+   one-at-a-time coach decision already allows this. The bulk confirmation
+   covers only completed and retired results entered by the side that lost
+   (issue 6).
+6. **Plan for a fresh deployment.** No club runs DeuceLeague yet, so nothing
+   needs to handle members already given short names (issue 3).
+7. **Coach-emailed sign-in invitations last 7 days**, still working once.
+   Links a player asks for on the sign-in page keep their 15 minutes
+   (issue 12).
+
 Suggested order:
 
 1. Issues 1–3 are small and self-contained.
 2. Issues 4–7 are what a coach of 150 needs before a real season: they remove
-   every reason the coding agent was needed.
+   every reason the coding agent was needed, except reopening a season.
 3. Issues 8–12 are clarity, drafting and reach.
 
 Linked:
@@ -142,11 +168,8 @@ privacy notice (`adapters/website/src/views.tsx:440`), `deploy/cloudflare/JOININ
   pages show the new name.
 - The privacy notice has a new version and no longer promises "Sam K.".
 
-**Open question**
-
-- Members who joined under the old notice keep their short name until the
-  coach renames them. Should the coach ask them first, or is the notice change
-  enough?
+There are no members with short names to migrate: DeuceLeague is planned for
+a fresh deployment (decision 6).
 
 ---
 
@@ -249,10 +272,9 @@ privacy notice (`adapters/website/src/views.tsx:440`), `deploy/cloudflare/JOININ
 
 **Proposal.**
 
-- On Results, add "Confirm as entered": a tick-list of one-sided results that
-  nobody could dispute:
-  - the side that entered it lost (or retired);
-  - a walkover claimed by the side that lost it.
+- On Results, add "Confirm as entered": a tick-list of one-sided completed or
+  retired results that the losing side entered. Walkovers never appear on it
+  (decision 5); the coach decides each one on its own match page.
 - Every line shows the competition, both names, the score side-0-first and who
   entered it, all ticked by default.
 - One review screen, then one save that settles each ticked match with its
@@ -266,17 +288,12 @@ privacy notice (`adapters/website/src/views.tsx:440`), `deploy/cloudflare/JOININ
 - 18 losing-side entries are confirmed with one review and one save.
 - A match that another entry changed between list and save is not settled,
   and is reported.
-- A winning side's one-sided entry never appears in the tick-list.
-
-**Open question**
-
-- Should a walkover claimed by the winning side join the list after a few
-  days without an answer from the other side? This run could not test waiting
-  times.
+- A winning side's one-sided entry, and any walkover, never appears in the
+  tick-list.
 
 ---
 
-## 7. Season turnover: separate Start from End, fix End's wording, and reopen on the site
+## 7. Season turnover: separate Start from End, and fix End's wording
 
 **Type:** Story · **Component:** coach site (`adapters/coach/src/season-views.tsx:156,248`)
 
@@ -297,16 +314,18 @@ privacy notice (`adapters/website/src/views.tsx:440`), `deploy/cloudflare/JOININ
   as a destructive action, never where a Start button was.
 - Refuse to end a season on the day it started without a second "I meant to
   end it" confirmation.
-- Add "Reopen Spring 2027" on the Season page for a season ended in the last
-  7 days, with a results deadline chosen as a **date** in the club's time zone.
+- Reopening stays a coding-agent task (decision 4). Instead, the Season page
+  says so plainly ("Ended by mistake? Ask your coding agent to reopen it"), and
+  `UPDATING.md` or the coach guide gives the agent the steps, including
+  setting the deadline as a date in the club's time zone.
 - Say "Reporting closes now, N days before the deadline" only when the deadline
   is in the future; on or after deadline day say "Reporting closes now".
 
 **Acceptance**
 
 - Start and End never appear in the same position on the page.
-- The coach reopens a season ended by mistake, and sets its deadline to 31
-  March (BST) without it moving to another day.
+- The coach guide tells the agent how to reopen a season and set its
+  deadline to a date in the club's time zone.
 - The end confirmation's wording matches the deadline.
 
 ---
@@ -336,7 +355,8 @@ coach pairs view (`adapters/coach/src/season.ts:403`), core engine (placements p
 - In the pairs view, list the withdrawn pair under "withdrew this season" and
   the other partner under "looking for a partner", unless they've chosen.
 - In the draft, a withdrawn entry in the relegation zone takes one of the
-  relegation places, so the next one up stays.
+  relegation places, so the next one up stays (decision 2). The coach can
+  still move any entry in the draft before starting the season.
 - When a division would be short of its size, suggest promotion fills from the
   division below in finishing order, using the existing secondary-action
   style.
@@ -407,21 +427,15 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
 - The newcomer's home box says when places are decided: "Next season's places
   are decided after results close on 10 Dec. New players usually start in the
   bottom division."
-- On a running division with fewer fixtures played, add "Add a late entry",
-  using `POST /v1/competitions/{id}/entries` and the existing fixture
-  generation.
+- No late entries (decision 1). A newcomer who says yes mid-season waits for
+  the next draft, and the newcomer box says so.
 
 **Acceptance**
 
 - A social member doesn't appear in "Waiting to be placed" or a draft pool
   unless they want to play.
 - A waiting newcomer sees the running season's results deadline.
-- The coach adds a late newcomer to a running division without the API.
-
-**Open question**
-
-- Can a late entry join a division with fixtures already played, and if so,
-  do they play everyone or only the remaining rounds?
+- A newcomer who wants to play mid-season is told they start next season.
 
 ---
 
@@ -472,8 +486,9 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
   signed in. It gives the sign-in page address, ready-made announcement text,
   and the number not yet signed in.
 - On the player sign-in page, add "No email? Ask your coach for a link."
-- Keep coach email invitations in batches of five. Add a "Phone-only, not
-  signed in" list with a 72-hour link button for each member.
+- Keep coach email invitations in batches of five, with each link lasting 7
+  days (decision 7). Add a "Phone-only, not signed in" list with a 72-hour
+  link button for each member.
 
 **Acceptance**
 
@@ -481,11 +496,8 @@ placed", `adapters/coach/src/views.tsx:1250`), drafts, player home
   than 90% of members have signed in.
 - The coach reaches every phone-only, never-signed-in member's link from one
   list.
-
-**Open question**
-
-- Should emailed coach invitations last longer than 15 minutes? The
-  self-service form and the WhatsApp links worked, so this may not be needed.
+- A coach-emailed invitation works once within 7 days; a link requested on
+  the sign-in page still lasts 15 minutes.
 
 ---
 
