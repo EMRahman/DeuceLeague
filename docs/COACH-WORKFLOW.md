@@ -72,6 +72,23 @@ whole, so read them first and change only that number. Each player is expected
 to play the minimum, or all their fixtures if fewer. The coach's dashboard
 shows how many in each division are short of it.
 
+### Reopen a season ended by mistake
+
+The coach's site ends a season but never reopens one: that is the agent's job,
+so it is done deliberately. Confirm the season's name and the new last day for
+results with the coach, then, one step back at a time:
+
+1. `PATCH /v1/seasons/{id}` with `{"state": "active"}`.
+2. For each of its competitions, `PATCH /v1/competitions/{id}` with
+   `{"state": "active"}`. A competition can be active only inside an active
+   season, so the season goes first.
+3. `PATCH /v1/seasons/{id}` with `results_deadline_at` set to the end of the
+   coach's chosen day **in the club's time zone** (`GET /v1/club`), written as
+   an instant with its offset. Work the offset out for that date, not today:
+   on 31 March in London, 23:59:59 is `2027-03-31T23:59:59+01:00`, because
+   British Summer Time has started.
+4. Read the season back and tell the coach the day and time the site now shows.
+
 For a batch change, the agent should give a short preview and identify anything
 ambiguous. Routine corrections should remain quick: name the person or match,
 state the intended result, and check the returned record.

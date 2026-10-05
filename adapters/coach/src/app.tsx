@@ -21,7 +21,7 @@ import {
 } from "@deuceleague/website";
 import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type ActiveMember, type Division, type DraftEntry,
   type PartnerChoice, type PlacementPlan } from "./season.js";
-import { Draft, EndSeason, Pairs, SeasonPage, StartSeason, type LooseEnd, type NextForm } from "./season-views.js";
+import { Draft, EndSeason, justStarted, Pairs, SeasonPage, StartSeason, type LooseEnd, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
@@ -1192,7 +1192,8 @@ export function createCoachSite(options: CoachOptions) {
     if (blocked) return seasonPage(c, who, null, blocked);
     const [progress, loose] = await Promise.all([api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key),
       looseEnds(who.key, season.id)]);
-    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose} />);
+    return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
+      timezone={who.club.timezone} />);
   });
 
   app.post("/season/:id/end", async (c) => {
@@ -1208,10 +1209,16 @@ export function createCoachSite(options: CoachOptions) {
     const shown = new Set(String(form.shown ?? "").split(",").filter(Boolean));
     const loose = await looseEnds(who.key, season.id);
     const unseen = loose.some((m) => !shown.has(m.id));
+    // A season ended on the day it started is most likely a slip: it needs the box ticked that says so.
+    if (justStarted(season, who.club.timezone) && form.just_started !== "yes") {
+      const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
+      return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
+        timezone={who.club.timezone} message={`${season.name} has only just started. Tick the box to end it anyway.`} />, 400);
+    }
     if (loose.length > 0 && (form.leave !== "yes" || unseen)) {
       const progress = await api<SeasonProgress>("GET", `/v1/seasons/${season.id}/progress`, who.key);
       return c.html(<EndSeason frame={seasonFrame(who)} season={season} progress={progress} loose={loose}
-        message={form.leave === "yes" ? "Results have changed since this page was shown. Check the list again before ending the season."
+        timezone={who.club.timezone} message={form.leave === "yes" ? "Results have changed since this page was shown. Check the list again before ending the season."
           : "Decide these results, or tick the box to leave them undecided, before ending the season."} />,
         form.leave === "yes" ? 409 : 400);
     }

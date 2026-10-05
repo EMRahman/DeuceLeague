@@ -571,7 +571,23 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.match(page.html, /<a href="\/coach\/season" aria-current="page">Season<\/a>/);
 
   const confirm = await coach.get(`/coach/season/${season.id}/end`);
-  assert.match(confirm.html, /End Sample season now\?/); assert.match(confirm.html, /Reporting closes now, before the deadline/);
+  assert.match(page.html, /<summary>End the season…<\/summary>/); assert.match(page.html, /class="button danger"/);
+  assert.match(confirm.html, /End Sample season now\?/);
+  // Counted in calendar days on the club's clock, as the page counts them, from the sample's own deadline.
+  const londonDay = (d: Date) => Date.parse(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(d));
+  const daysLeft = Math.round((londonDay(new Date(season.results_deadline_at)) - londonDay(new Date())) / 86_400_000);
+  assert.match(confirm.html, new RegExp(`Reporting closes now, ${daysLeft} days? before the results deadline`));
+  assert.match(confirm.html, /Only your coding agent can reopen a season/);
+  assert.doesNotMatch(confirm.html, /name="just_started"/, "a season well under way needs no extra tick");
+  // A season ended on the day it started needs the box ticked that says so, whatever else is ticked.
+  const startsOn = season.starts_on;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { starts_on: today })).status, 200);
+  assert.match((await coach.get(`/coach/season/${season.id}/end`)).html, /name="just_started" value="yes" required/);
+  const slip = await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
+  assert.equal(slip.status, 400); assert.match(slip.html, /has only just started/);
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin)).body.state, "active");
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { starts_on: startsOn })).status, 200);
   // The results never agreed are listed, each linked to decide, apart from the matches nobody entered.
   const loose = [...(await f.api("/v1/matches?status=disputed", f.admin)).body.data,
     ...(await f.api("/v1/matches?status=reported", f.admin)).body.data] as { id: string }[];
@@ -594,6 +610,17 @@ test("the coach ends the sample season early and starts the next from its final 
   assert.equal(after.state, "complete"); assert.ok(Date.parse(after.results_deadline_at) <= Date.now());
   assert.deepEqual((await competitions()).map((x) => x.state), ["complete", "complete"]);
   assert.equal((await send(coach, `/coach/season/${season.id}/end`)).status, 303, "ending it again changes nothing");
+  // The agent's documented steps reopen it (docs/COACH-WORKFLOW.md), with a deadline on the club's own day.
+  assert.equal((await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  for (const x of await competitions()) {
+    if (x.season_id === season.id) assert.equal((await f.api(`/v1/competitions/${x.id}`, f.admin, "PATCH", { state: "active" })).status, 200);
+  }
+  const reopened = await f.api(`/v1/seasons/${season.id}`, f.admin, "PATCH", { results_deadline_at: "2099-03-31T23:59:59+01:00" });
+  assert.equal(reopened.status, 200); assert.equal(reopened.body.results_deadline_at, "2099-03-31T22:59:59.000Z");
+  assert.match((await coach.get("/coach/season")).html, /Results close in \d+ days \(Tue 31 Mar\)/);
+  // And the coach ends it again, as before.
+  const endedAgain = await send(coach, `/coach/season/${season.id}/end`, { leave: "yes", shown: await shownOn(coach, `/coach/season/${season.id}/end`) });
+  assert.equal(endedAgain.status, 303);
   // Afterwards they stay findable from the Season page.
   const closed = await coach.get("/coach/season");
   assert.match(closed.html, /How Sample season closed/);

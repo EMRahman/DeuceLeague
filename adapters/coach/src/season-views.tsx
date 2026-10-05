@@ -99,13 +99,18 @@ export const SeasonPage: FC<{
                 </a>
               </div>
             )}
-            <p class="muted">
-              Ending the season makes the tables final, so next season can be started from them: promotion and
-              relegation, and leaving out anyone who opted out or played too few matches.
-            </p>
-            <a class="button" href={`/coach/season/${season.id}/end`}>
-              End season now
-            </a>
+            {/* Ending is folded away at the foot of the card, never where a Start button was a moment ago. */}
+            <details class="end after">
+              <summary>End the season…</summary>
+              <p class="muted">
+                Ending the season makes the tables final, so next season can be started from them: promotion and
+                relegation, and leaving out anyone who opted out or played too few matches. It closes reporting for
+                every player. Only your coding agent can reopen a season.
+              </p>
+              <a class="button danger" href={`/coach/season/${season.id}/end`}>
+                End {season.name}…
+              </a>
+            </details>
           </div>
         );
       })}
@@ -153,7 +158,7 @@ export const SeasonPage: FC<{
             <>
               <p>
                 {plural(closed.loose.length, "match", "matches")} ended without an agreed result and count as unplayed.
-                Its competitions are a record now: reopen one through the API to change a result.
+                Its competitions are a record now. To change a result, ask your coding agent to reopen the season.
               </p>
               <LooseEnds matches={closed.loose} />
             </>
@@ -197,17 +202,31 @@ export const SeasonPage: FC<{
   );
 };
 
-export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgress; loose: LooseEnd[]; message?: string | null }> = ({
+/** Calendar days from today to a moment, on the club's calendar: 0 on the day itself. */
+const daysUntil = (moment: string, timezone: string, now = new Date()) => {
+  const day = (d: Date) => Date.parse(new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(d));
+  return Math.round((day(new Date(moment)) - day(now)) / 86_400_000);
+};
+
+/** Whether a season has only just begun: today is its first day, or it has not reached it. */
+export const justStarted = (season: Season, timezone: string, now = new Date()) =>
+  season.starts_on !== null && season.starts_on >= new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(now);
+
+export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgress; loose: LooseEnd[]; timezone: string;
+  message?: string | null }> = ({
   frame,
   season,
   progress,
   loose,
+  timezone,
   message = null,
 }) => {
   const competitions = progress.competitions.filter((x) => x.state === "active");
   const outstanding = competitions.reduce((n, x) => n + x.outstanding, 0);
   const unentered = Math.max(0, outstanding - loose.length);
-  const early = season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now();
+  const open = season.results_deadline_at === null || Date.parse(season.results_deadline_at) > Date.now();
+  const daysLeft = season.results_deadline_at && open ? daysUntil(season.results_deadline_at, timezone) : 0;
+  const fresh = justStarted(season, timezone);
   return (
     <Layout title={`End ${season.name}`} frame={frame}>
       <h1>End {season.name} now?</h1>
@@ -223,7 +242,12 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
         </div>
       )}
       <ul class="plain">
-        {early && <li>Reporting closes now, before the deadline. Players can no longer report or agree scores.</li>}
+        {open && (
+          <li>
+            Reporting closes now{daysLeft > 0 && `, ${plural(daysLeft, "day")} before the results deadline`}. Players can
+            no longer report or agree scores.
+          </li>
+        )}
         {unentered > 0 && (
           <li>
             <strong>{plural(unentered, "match", "matches")}</strong> nobody entered a result for will count as unplayed.
@@ -245,7 +269,7 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
         )}
       </ul>
       <p class="muted">
-        Nothing is deleted. A season ended by mistake can be reopened through the API, which moves it back a step.
+        Nothing is deleted, but you cannot undo this here. Ended by mistake? Only your coding agent can reopen a season.
       </p>
       <form method="post" action={`/coach/season/${season.id}/end`}>
         <input type="hidden" name="shown" value={loose.map((m) => m.id).join(",")} />
@@ -256,7 +280,13 @@ export const EndSeason: FC<{ frame: Frame; season: Season; progress: SeasonProgr
             unplayed.
           </label>
         )}
-        <button type="submit">End {season.name}</button>
+        {fresh && (
+          <label class="choice">
+            <input type="checkbox" name="just_started" value="yes" required /> I mean to end {season.name}, though it has
+            only just started.
+          </label>
+        )}
+        <button class="danger" type="submit">End {season.name}</button>
       </form>
       <p class="after">
         <a href="/coach/season">Back to Season</a>

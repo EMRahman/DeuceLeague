@@ -260,6 +260,8 @@ form.approve button { margin-bottom: .5rem; }
 form.search { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: .5rem 0 1rem; }
 form.search label { margin: 0; }
 form.search input { flex: 1 1 12rem; width: auto; }
+a.button.danger, button.danger { background: transparent; color: var(--down); border: 1px solid var(--down); }
+details.end summary { color: var(--muted); cursor: pointer; }
 .answer p.deadline { margin: .4rem 0 0; }
 .tag.level { background: var(--past-bg); color: var(--past); }
 .after { margin-top: .75rem; }
