@@ -15,13 +15,13 @@ const TIEBREAK_MAX = 30;
  * most games (or tiebreak points) its score boxes offer: a set runs to one past
  * its tiebreak (7-6), or to 20 for a set played out without one.
  */
-export function setRows(format: MatchFormat): { n: number; label: string; max: number }[] {
+export function setRows(format: MatchFormat): { n: number; label: string; max: number; tiebreak: boolean }[] {
   const count = format.setsToWin * 2 - 1;
   const setMax = format.set.tiebreakAt === null ? 20 : format.set.tiebreakAt + 1;
   return Array.from({ length: count }, (_, i) => {
     const n = i + 1;
     const tiebreak = n === count && count > 1 && format.finalSet.type === "champions_tiebreak";
-    return { n, label: tiebreak ? "Match tiebreak" : `Set ${n}`, max: tiebreak ? TIEBREAK_MAX : setMax };
+    return { n, label: tiebreak ? "Match tiebreak" : `Set ${n}`, max: tiebreak ? TIEBREAK_MAX : setMax, tiebreak };
   });
 }
 

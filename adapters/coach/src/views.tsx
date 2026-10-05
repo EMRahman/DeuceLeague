@@ -10,6 +10,7 @@ import {
   playedOn,
   STYLE,
   WeatherBox,
+  whatsapp,
   type TablesProps,
   GENDERS,
   genderLabel,
@@ -235,6 +236,18 @@ export type ChaseRow = {
 
 /** What the coach's pages add to the players' style. */
 const COACH_STYLE = `
+/* Wider than the players' column, which suits a phone: the coach's tables and lists have room on a desktop. */
+header, main, footer { max-width: 56rem; }
+/* Every tab stays in view: a row that scrolls sideways hides its scrollbar, and the last tabs were never found. */
+.tabs { flex-wrap: wrap; overflow-x: visible; margin: 0 0 1rem; padding: 0; }
+@media (max-width: 559px) { .tabs a { padding: .3rem .65rem; font-size: .85rem; } }
+/* The forms that are one field wide stay a readable width, whatever the page's. */
+form.narrow-form, .readable { max-width: 36rem; }
+.needs h2 { margin-bottom: .2rem; }
+.needs a.rowlink { min-height: 40px; padding: .4rem 0; }
+details.online > summary h2 { display: inline; margin: 0; font-size: 1.1rem; }
+.copy { user-select: all; -webkit-user-select: all; }
+blockquote.copy { margin: 0 0 1rem; padding: .6rem .9rem; background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; white-space: pre-line; overflow-wrap: anywhere; }
 table.progress th, table.progress td { text-align: right; width: auto; white-space: nowrap; }
 table.progress .name { text-align: left; width: 100%; white-space: normal; vertical-align: bottom; }
 table.progress th.group { text-align: center; color: var(--fg); font-weight: 600; padding-bottom: .2rem; }
@@ -377,10 +390,11 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
       Paste the administrator key the installer showed you. This browser gets its own key, which lasts 90 days; the
       administrator key itself is not kept.
     </p>
-    <form method="post" action="/coach/sign-in">
+    <form method="post" action="/coach/sign-in" class="readable">
       <div class="field">
-        <label for="key">API key</label>
-        <input id="key" name="key" type="password" autocomplete="off" required />
+        <label for="key">Administrator key</label>
+        {/* A password field, so a password manager can keep the key and fill it in next time. */}
+        <input id="key" name="key" type="password" autocomplete="current-password" autocapitalize="off" required />
       </div>
       <button type="submit">Sign in</button>
     </form>
@@ -402,9 +416,13 @@ export type Online = {
 /** A season being prepared, and how many competitions it has drafted. */
 export type Preparing = { name: string; drafts: number };
 
+/** Open while fewer than half have signed in; after that a line, so the work that is waiting comes first. */
 const OnlinePanel: FC<{ online: Online }> = ({ online }) => (
-  <div class="card">
-    <h2 id="online">Getting your club online</h2>
+  <details class="card online" open={online.signedIn * 2 < online.members}>
+    <summary>
+      <h2 id="online">Getting your club online</h2>
+      <span class="muted"> · {online.signedIn} of {online.members} signed in</span>
+    </summary>
     <p>
       <strong>{online.signedIn} of {online.members}</strong> members have signed in. Post this in the club's group
       chat or email to everyone:
@@ -434,7 +452,7 @@ const OnlinePanel: FC<{ online: Online }> = ({ online }) => (
         </ul>
       </>
     )}
-  </div>
+  </details>
 );
 
 export const Dashboard: FC<{
@@ -447,15 +465,49 @@ export const Dashboard: FC<{
   /** Null once most of the club has signed in. */
   online?: Online | null;
   preparing?: Preparing[];
-}> = ({ frame, seasons, asking, askingMore, timezone, online = null, preparing = [] }) => (
+}> = ({ frame, seasons, asking, askingMore, timezone, online = null, preparing = [] }) => {
+  // What waits on the coach, in one place at the top: the rest of the page is for looking at how the season is going.
+  const needs: { href: string; text: string }[] = [];
+  if (asking > 0) {
+    needs.push({
+      href: "/coach/members",
+      text: `${askingMore ? `More than ${asking} people are` : asking === 1 ? "1 person is" : `${asking} people are`} asking to join the league`,
+    });
+  }
+  for (const { season, competitions } of seasons) {
+    const disputed = competitions.reduce((n, x) => n + x.progress.disputed, 0);
+    const reported = competitions.reduce((n, x) => n + x.progress.reported, 0);
+    if (disputed === 0 && reported === 0) continue;
+    const results = [
+      disputed > 0 && `${plural(disputed, "result")} disputed`,
+      reported > 0 && `${plural(reported, "result")} waiting on the other side`,
+    ].filter(Boolean).join(", ");
+    needs.push({ href: "/coach/results", text: seasons.length > 1 ? `${season.name}: ${results}` : results });
+  }
+  for (const p of preparing) {
+    needs.push({
+      href: "/coach/season",
+      text: p.drafts > 0
+        ? `${p.name} is drafted: ${plural(p.drafts, "competition")}. Review and start it on the Season tab.`
+        : `${p.name} is being prepared, with no competitions yet. Carry on with it on the Season tab.`,
+    });
+  }
+  return (
   <Layout title="Dashboard" frame={frame}>
-    {asking > 0 && (
-      <div class="notice">
-        <a href="/coach/members">
-          {askingMore ? `More than ${asking} people are` : asking === 1 ? "1 person is" : `${asking} people are`} asking to join
-          the league
-        </a>
-      </div>
+    {needs.length > 0 && (
+      <section class="card needs" aria-labelledby="needs-you">
+        <h2 id="needs-you">Needs you</h2>
+        <ul class="list">
+          {needs.map((n) => (
+            <li>
+              <a class="rowlink" href={n.href}>
+                <span class="title">{n.text}</span>
+                <span class="chev">›</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
     )}
     {seasons.length === 0 && (
       <>
@@ -468,19 +520,8 @@ export const Dashboard: FC<{
         )}
       </>
     )}
-    {preparing.map((p) => (
-      <div class="notice">
-        <a href="/coach/season">
-          {p.drafts > 0
-            ? `${p.name} is drafted: ${plural(p.drafts, "competition")}. Review and start it on the Season tab.`
-            : `${p.name} is being prepared, with no competitions yet. Carry on with it on the Season tab.`}
-        </a>
-      </div>
-    ))}
     {online && <OnlinePanel online={online} />}
     {seasons.map(({ season, competitions }) => {
-      const disputed = competitions.reduce((n, x) => n + x.progress.disputed, 0);
-      const reported = competitions.reduce((n, x) => n + x.progress.reported, 0);
       const deadline = deadlineLine(season.results_deadline_at, timezone);
       return (
         <>
@@ -488,18 +529,6 @@ export const Dashboard: FC<{
             <h1>{season.name}</h1>
             {deadline && <span class="deadline">{deadline}</span>}
           </div>
-          {(disputed > 0 || reported > 0) && (
-            <div class="notice">
-              <a href="/coach/results">
-                {[
-                  disputed > 0 && `${plural(disputed, "result")} disputed`,
-                  reported > 0 && `${plural(reported, "result")} waiting on the other side`,
-                ]
-                  .filter(Boolean)
-                  .join(", ")}
-              </a>
-            </div>
-          )}
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
           {competitions.map(({ progress, optedOut, next }) => {
             const entries = progress.discipline === "doubles" ? "Pairs" : "Players";
@@ -589,7 +618,8 @@ export const Dashboard: FC<{
       );
     })}
   </Layout>
-);
+  );
+};
 
 /** The dashboard table's second header row: each column, its name out of the table, and what it counts. */
 function columnsOf(progress: Progress, entries: "Players" | "Pairs") {
@@ -1593,33 +1623,59 @@ export const MemberPage: FC<{
   </Layout>
 );
 
-export const SignInLink: FC<{ frame: Frame; member: string; memberId: string; url: string; days: number }> = ({
-  frame,
-  member,
-  memberId,
-  url,
-  days,
-}) => (
-  <Layout title="Sign-in link" frame={frame}>
-    <h1>Sign-in link for {member}</h1>
-    <p>
-      Send this to {member}. It works once, within {days} days, and is not shown again: make a new one if it runs
-      out.
-    </p>
-    <div class="field">
-      <label for="link">Link</label>
-      <input id="link" type="text" value={url} readonly />
-    </div>
-    <p class="muted">
-      Opening it in this browser signs this browser in as {member}. To try it as the player yourself, open it in a
-      private window.
-    </p>
-    <p class="jump">
-      <a href={`/coach/members/${memberId}`}>Back to {member}</a>
-      <a href="/coach/members">All members</a>
-    </p>
-  </Layout>
-);
+export const SignInLink: FC<{
+  frame: Frame;
+  member: string;
+  memberId: string;
+  url: string;
+  days: number;
+  /** Their telephone, when this browser's key may read it: it makes the WhatsApp chat one tap away. */
+  phone?: string | null;
+}> = ({ frame, member, memberId, url, days, phone }) => {
+  const first = member.trim().split(/\s+/)[0] ?? member;
+  const club = frame.club ?? "the club";
+  // Ready to paste. The link is never put in a chat link's address, which another company's server would see:
+  // the chat opens empty and the message is pasted in, so the link travels only inside the message.
+  const message =
+    `Hi ${first}, here is your sign-in link for ${club}'s tennis league:\n${url}\n` +
+    `Open it on your phone and press "Sign in". It works once, within ${days} days, and then you stay signed in.`;
+  const chat = phone ? whatsapp(phone) : null;
+  return (
+    <Layout title="Sign-in link" frame={frame}>
+      <h1>Sign-in link for {member}</h1>
+      <p>
+        Send this to {member}. It works once, within {days} days, and is not shown again: make a new one if it runs
+        out.
+      </p>
+      <h2>Message</h2>
+      <p class="muted">Tap the message to select it all, copy it, and paste it into WhatsApp, a text or an email.</p>
+      <blockquote class="copy readable" id="message">{message}</blockquote>
+      {chat ? (
+        <p>
+          <a class="button" href={chat} rel="noreferrer">Open WhatsApp chat with {first}</a>
+          <span class="muted"> Opens an empty chat: paste the message in.</span>
+        </p>
+      ) : phone ? (
+        <p class="muted">
+          {member}'s telephone, {phone}, is not written with its country code (+44 …), so there is no WhatsApp button.
+          Add it on <a href={`/coach/members/${memberId}`}>their page</a> to get one next time.
+        </p>
+      ) : null}
+      <div class="field readable">
+        <label for="link">Just the link</label>
+        <input id="link" class="copy" type="text" value={url} readonly />
+      </div>
+      <p class="muted">
+        Opening it in this browser signs this browser in as {member}. To try it as the player yourself, open it in a
+        private window.
+      </p>
+      <p class="jump">
+        <a href={`/coach/members/${memberId}`}>Back to {member}</a>
+        <a href="/coach/members">All members</a>
+      </p>
+    </Layout>
+  );
+};
 
 /** A court the forecast is for, as the API gives it. */
 export type CourtLocation = { id: string; name: string; latitude: number; longitude: number };

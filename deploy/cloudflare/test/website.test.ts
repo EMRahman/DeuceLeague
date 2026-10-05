@@ -385,3 +385,47 @@ test("a player finds next season's choices from home, sees each saved, and \"aga
   assert.equal((await sam.post(`/competitions/${p.comp.id}/partner`, { choice: "new_partner", partner_id: "" })).status, 303);
   assert.match(text((await sam.get("/")).html), /Club league : playing with a new partner the coach finds/);
 });
+
+test("home puts what to do first: a row each to play with a way to reach them, and the season and next season folded", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  // Alex's number is in international form, so Sam can start the chat from home; no more is shown than the match page's.
+  assert.equal((await f.api(`/v1/members/${p.members[1].id}`, f.admin, "PATCH", { phone: "+44 7700 900123" })).status, 200);
+  const sam = await signIn(f, "sam@example.org");
+  const home = (await sam.get("/")).html;
+  assert.match(home, /To play \(1\)/);
+  assert.match(home, /WhatsApp:\s*<a href="https:\/\/wa\.me\/447700900123">Alex<\/a>/);
+  assert.match(home, new RegExp(`href="/matches/${p.match}#report"[^>]*>\\s*Report score`));
+  assert.doesNotMatch(home, /example\.org|Private Alex/, "the row shows a name and a number, nothing else");
+  // The season is a card of rows, one for each competition, and says once that fixtures are ready.
+  assert.equal(home.match(/Your season is open · Summer/g)?.length, 1);
+  assert.match(home, /Your fixtures are ready to play\./);
+  assert.ok(home.indexOf("To play (1)") < home.indexOf("Your season is open"), "what is waiting comes before the reminder of the season");
+  // Next season is a line until opened, with everything still on the page.
+  assert.match(home, /<details class="card">\s*<summary>\s*<strong>Next season<\/strong>/);
+  assert.match(home, /I am taking a break/);
+  // Someone who has not got a number gets no contact line.
+  const alex = await signIn(f, "alex@example.org");
+  assert.doesNotMatch((await alex.get("/")).html, /wa\.me|>Call</);
+});
+
+test("the score form takes numbers, names the sides plainly, and folds away once a score is in", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const page = (await sam.get(`/matches/${p.match}`)).html;
+  assert.match(page, /<input type="number" name="mine_1"[^>]*inputmode="numeric"/);
+  assert.doesNotMatch(page, /<select name="(mine|theirs)_/);
+  assert.match(page, /<span class="head">You<\/span><span class="head">Them<\/span>/);
+  assert.match(page, /Match tiebreak<span class="note">only if the sets were level<\/span>/);
+  assert.match(page, /<h2>Report the score<\/h2>/); assert.doesNotMatch(page, /<details class="card" id="report">/);
+  // Refused, it comes back open with what was typed.
+  const refused = await sam.post(`/matches/${p.match}/report`, { outcome: "completed", mine_1: "6", theirs_1: "6" });
+  assert.equal(refused.status, 400); assert.match(refused.html, /name="mine_1"[^>]*value="6"/);
+  assert.doesNotMatch(refused.html, /<details class="card" id="report">/);
+  // Sent, the page says what was saved and the form waits behind "Change the score".
+  const sent = await sam.post(`/matches/${p.match}/report`, { outcome: "completed", mine_1: "6", theirs_1: "4", mine_2: "6", theirs_2: "3" });
+  assert.equal(sent.status, 303);
+  const after = (await sam.get(`/matches/${p.match}?done=sent`)).html;
+  assert.match(after, /You entered <strong>6-4, 6-3<\/strong>/);
+  assert.match(after, /<details class="card" id="report">\s*<summary>Change the score<\/summary>/);
+  assert.match(after, /name="mine_1"[^>]*value="6"/, "the folded form still holds the score to change");
+});

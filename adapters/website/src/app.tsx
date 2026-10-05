@@ -61,7 +61,7 @@ export {
   type Standings,
 } from "./api.js";
 export { deadlineLine, describe, playedOn, readReportForm, claimToForm, setRows, formatHint, type ReportForm } from "./score.js";
-export { CompetitionTables, Credit, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
+export { CompetitionTables, Credit, STYLE, WeatherBox, whatsapp, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
 export { AGE_GROUPS, ageGroupLabel, GENDERS, genderLabel, PLAYS, playsLabel, PRIVACY_NOTICE } from "./join.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
@@ -607,12 +607,25 @@ export function createWebsite(options: WebsiteOptions) {
         const own = live(mine);
         if (m.status === "disputed" || detail.waiting_on === mine) {
           answer.push({
-            ...item(m.status === "disputed" ? "entries do not match — speak outside the app and enter the agreed result" : "enter your result independently"),
+            ...item(m.status === "disputed" ? "entries do not match — speak outside the app and enter the agreed result" : "their score is in: enter yours, and it counts when the two match"),
             mine: m.status === "disputed" && own ? describe(own, mine, names) : null,
           });
         } else {
           waiting.push({ ...item("reported"), mine: own ? describe(own, mine, names) : null });
         }
+      }
+    }
+
+    // Who to reach to arrange each match still to play: one read for them all, and the page does without it.
+    if (toPlay.length > 0) {
+      const sides = new Map(matches.map((m) => [m.id, new Set(m.sides.flatMap((s) => (s.entry_id ? [s.entry_id] : [])))]));
+      const contacts = await api<{ data: Contact[] }>("GET", "/v1/me/contacts", p.session).catch((error: unknown) => {
+        log(`contacts: ${error instanceof Error ? error.message : String(error)}`);
+        return { data: [] as Contact[] };
+      });
+      for (const m of toPlay) {
+        const entries = sides.get(m.id);
+        m.people = contacts.data.filter((x) => x.entry_ids.some((e) => entries?.has(e)));
       }
     }
 

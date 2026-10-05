@@ -139,6 +139,9 @@ test("the coach's pages show the sample league: progress, disputes, waiting resu
   assert.equal(home.status, 200);
   assert.match(home.html, /<h1>Sample season<\/h1>/); assert.match(home.html, /Results close in \d+ days/);
   assert.match(home.html, /2 results disputed, 1 result waiting on the other side/);
+  assert.match(home.html, /<h2 id="needs-you">Needs you<\/h2>/);
+  assert.ok(home.html.indexOf('id="needs-you"') < home.html.indexOf('class="progress"'), "what waits on the coach comes before the tables");
+  assert.match(home.html, /\.tabs \{ flex-wrap: wrap/, "every tab stays in view");
   for (const name of ["Sample singles", "Sample doubles", "Division 1", "Division 3"]) assert.match(home.html, new RegExp(name));
   assert.match(home.html, /played \(\d+%\)/);
   // Not playing next season: opted out, or a doubles player who told the coach they are not playing.
@@ -750,6 +753,7 @@ test("the dashboard helps bring the club online until nine in ten have signed in
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
   const home = (await coach.get("/coach")).html;
   assert.match(home, /Getting your club online/); assert.match(home, /<strong>0 of 2<\/strong> members have signed in/);
+  assert.match(home, /<details class="card online" open(="")?>/, "open while few have signed in");
   assert.match(home, /Open https:\/\/league\.test\/ on your phone/); assert.match(home, /Email me a sign-in link/);
   // Someone with only a telephone cannot ask by email: the panel lists them with a link button.
   assert.match(home, /Telephone only, not signed in \(1\)/);
@@ -757,6 +761,11 @@ test("the dashboard helps bring the club online until nine in ten have signed in
   assert.doesNotMatch(home, new RegExp(`action="/coach/members/${sam.id}/sign-in-link"`));
   // The player's sign-in page says what to do without an email.
   assert.match((await browser(f).get("/")).html, /No email, or the club does not have it\? Ask your coach for a sign-in link/);
+  // Once half are in, it is a line the coach can open; the work that is waiting comes first.
+  const first = (await f.api(`/v1/members/${sam.id}/login-link`, f.admin, "POST")).body.token;
+  assert.equal((await f.api("/v1/session", first, "POST")).status, 201);
+  const half = (await coach.get("/coach")).html;
+  assert.match(half, /<details class="card online">/); assert.match(half, /1 of 2 signed in/);
   // Once nine in ten have signed in, the panel goes.
   for (const id of [sam.id, phoebe.id]) {
     const token = (await f.api(`/v1/members/${id}/login-link`, f.admin, "POST")).body.token;
@@ -770,4 +779,31 @@ test("the dashboard helps bring the club online until nine in ten have signed in
   // A season being prepared with no competitions yet still points to the Season tab.
   assert.equal((await f.api("/v1/seasons", f.admin, "POST", { name: "Spring", starts_on: "2027-01-01", ends_on: "2027-03-31" })).status, 201);
   assert.match((await coach.get("/coach")).html, /Spring is being prepared, with no competitions yet\. Carry on with it on the Season tab\./);
+});
+
+test("the sign-in link page hands over a message to paste, and a WhatsApp chat that never carries the link", async (t) => {
+  const f = await websiteFixture(t);
+  await f.configure({ MAIL_PROVIDER: "", MAIL_FROM: "", RESEND_API_KEY: "" });
+  const lou = await f.create("/v1/members", { display_name: "Lou Parker", phone: "+44 7700 900555" });
+  const kit = await f.create("/v1/members", { display_name: "Kit", phone: "07700 900321" });
+  const sam = await f.create("/v1/members", { display_name: "Sam" });
+  const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+
+  const made = (await coach.post(`/coach/members/${lou.id}/sign-in-link`)).html;
+  const token = /https:\/\/league\.test\/login\?token=([A-Za-z0-9_-]+)/.exec(made)?.[1]; assert.ok(token);
+  assert.match(made, /<blockquote class="copy readable" id="message">Hi Lou, here is your sign-in link for /);
+  assert.match(made, /within 7 days, and then you stay signed in/);
+  assert.match(made, /<a class="button" href="https:\/\/wa\.me\/447700900555"[^>]*>Open WhatsApp chat with Lou<\/a>/);
+  // The chat opens empty: the link is not put in an address another company's server would receive.
+  assert.doesNotMatch(made, new RegExp(`wa\\.me[^"]*${token}`));
+  assert.ok(!made.includes("?text="), "no message in the chat address");
+  assert.match(made, /<input id="link" class="copy" type="text" value="https:\/\/league\.test\/login\?token=/);
+
+  // A number without its country code cannot open a chat: the page says why and where to fix it.
+  const local = (await coach.post(`/coach/members/${kit.id}/sign-in-link`)).html;
+  assert.doesNotMatch(local, /wa\.me/); assert.match(local, /country code/);
+  assert.match(local, new RegExp(`href="/coach/members/${kit.id}">their page</a>`));
+  // And with no number there is just the message.
+  const none = (await coach.post(`/coach/members/${sam.id}/sign-in-link`)).html;
+  assert.doesNotMatch(none, /wa\.me|country code/); assert.match(none, /Hi Sam, here is your sign-in link/);
 });
