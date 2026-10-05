@@ -265,11 +265,12 @@ export function createCoachSite(options: CoachOptions) {
       drafts: competitions.filter((x) => x.season_id === s.id && x.state === "draft").length }));
     // Until nine in ten have signed in, the dashboard helps bring the rest online.
     const club = listed.filter((m) => !m.deleted_at && m.status !== "left");
-    const signedIn = club.filter((m) => m.signed_in_at).length;
+    // Signing out everywhere does not undo having come online: count anyone who has ever signed in.
+    const signedIn = club.filter((m) => signedInSince(m)).length;
     const online = club.length > 0 && signedIn < club.length * 0.9 ? {
       members: club.length, signedIn, signInUrl: new URL("/", publicUrl).href, byEmail: !!options.mail,
       phoneOnly: who.scopes.includes("members:pii")
-        ? club.filter((m) => m.phone && !m.email && !m.signed_in_at).sort((a, b) => a.display_name.localeCompare(b.display_name))
+        ? club.filter((m) => m.phone && !m.email && !signedInSince(m)).sort((a, b) => a.display_name.localeCompare(b.display_name))
         : null,
     } : null;
     const views: SeasonView[] = [];

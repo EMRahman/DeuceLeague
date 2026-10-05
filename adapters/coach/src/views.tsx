@@ -446,10 +446,12 @@ export const Dashboard: FC<{
         )}
       </>
     )}
-    {preparing.filter((p) => p.drafts > 0).map((p) => (
+    {preparing.map((p) => (
       <div class="notice">
         <a href="/coach/season">
-          {p.name} is drafted: {plural(p.drafts, "competition")}. Review and start it on the Season tab.
+          {p.drafts > 0
+            ? `${p.name} is drafted: ${plural(p.drafts, "competition")}. Review and start it on the Season tab.`
+            : `${p.name} is being prepared, with no competitions yet. Carry on with it on the Season tab.`}
         </a>
       </div>
     ))}

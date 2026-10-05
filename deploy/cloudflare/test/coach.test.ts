@@ -725,4 +725,11 @@ test("the dashboard helps bring the club online until nine in ten have signed in
     assert.equal((await f.api("/v1/session", token, "POST")).status, 201);
   }
   assert.doesNotMatch((await coach.get("/coach")).html, /Getting your club online/);
+  // Signing out everywhere does not undo having come online.
+  assert.equal((await f.api(`/v1/members/${phoebe.id}/sign-out`, f.admin, "POST")).status, 200);
+  assert.equal((await f.api(`/v1/members/${phoebe.id}`, f.admin)).body.signed_in_at, null);
+  assert.doesNotMatch((await coach.get("/coach")).html, /Getting your club online/);
+  // A season being prepared with no competitions yet still points to the Season tab.
+  assert.equal((await f.api("/v1/seasons", f.admin, "POST", { name: "Spring", starts_on: "2027-01-01", ends_on: "2027-03-31" })).status, 201);
+  assert.match((await coach.get("/coach")).html, /Spring is being prepared, with no competitions yet\. Carry on with it on the Season tab\./);
 });
