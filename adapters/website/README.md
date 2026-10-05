@@ -4,7 +4,7 @@ What a club's players use, out of the box: they sign in with a link emailed
 to them, see their matches and the tables, report scores and agree their
 opponents' — and say they are not playing next season or, in doubles, who they
 want as their partner. Server-rendered HTML
-with no scripts, so it works on any phone.
+with forms that work on any phone. A small same-origin script adds dragging and checkbox interactions.
 
 It is built for the four things a player comes to do, each a tap or two from
 the home page: agree a score (straight from the home page), report one, see
@@ -16,12 +16,15 @@ number (`GET /v1/me/contacts`, one read, only when something is left to play).
 The player dashboard puts court weather at the top, then counts of matches left,
 matches to arrange, arranged matches and leagues. Each league card shows the
 player's division, place, points and matches played and left to play.
-The compact match board has **To arrange**, **Planned** (who to arrange next)
-and **Arranged** columns, with an optional agreed date. Markers are private to
+Each competition has an expandable board with **To Arrange** and **Arranged** lanes.
+Drag a card between lanes (including by its handle on touch screens), or use its
+move button. Collapsed boards stay collapsed on refresh within the browser tab.
+No date is requested or displayed. Markers are private to
 each player and persist through the API; they do not notify opponents or change
 results. WhatsApp links accept international numbers and UK mobile numbers in
 local form. Playing preferences include singles, doubles, mixed doubles and
-every combination, on the join form and under next season's choices.
+every combination, selected with independent checkboxes on the join form and
+under next season's choices.
 The season they are in is a line a competition below that, and next season's
 choices are folded away until the player opens them, or until one needs an
 answer. Scores are typed on a number pad, not picked from lists; once a score is

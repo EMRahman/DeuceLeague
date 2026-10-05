@@ -3,12 +3,12 @@ import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { PlayerPlacements, Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
-import { AGE_GROUPS, GENDERS, PLAYS, PRIVACY_NOTICE, type JoinForm } from "./join.js";
+import { AGE_GROUPS, GENDERS, PLAY_TYPES, playSelections, PRIVACY_NOTICE, type JoinForm } from "./join.js";
 
 /**
- * Every page, as plain server-rendered HTML: no scripts, so it works on any
- * phone, and forms that post back. The one exception is Cloudflare's
- * Turnstile check on the join form, when a club turns it on. Hono escapes everything interpolated here.
+ * Server-rendered HTML and forms work without JavaScript. A small same-origin
+ * script adds match dragging and checkbox interactions; Turnstile may also run
+ * on the join form when the club turns it on. Hono escapes everything interpolated here.
  * A club restyling the site starts with STYLE and Layout.
  *
  * Written for a phone first. A player comes here a few times a month to do
@@ -36,26 +36,33 @@ export const STYLE = `
 .league-card { display:flex; flex-direction:column; gap:.25rem; color:inherit; text-decoration:none; margin:0; }
 .league-card strong { color:var(--accent); }
 .league-card .tag { align-self:flex-start; margin:0; }
-.match-board { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; margin-bottom:1.5rem; }
+.match-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; margin-bottom:1.5rem; }
 .board-column { min-width:0; background:var(--past-bg); border-radius:12px; padding:.65rem; }
-.board-column.planned { background:var(--warn-bg); }
 .board-column.arranged { background:var(--ok-bg); }
 .board-column h3 { font-size:.95rem; margin:0 0 .65rem; }
 .board-empty { font-size:.85rem; margin:0; }
 .match-card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:.75rem; margin-bottom:.6rem; overflow-wrap:anywhere; }
 .match-card:last-child { margin-bottom:0; }
 .match-card .opponent { font-weight:700; text-decoration:none; }
-.match-meta, .match-date { font-size:.8rem; margin:.2rem 0 .5rem; }
+.match-meta { font-size:.8rem; margin:.2rem 0 .5rem; }
 .match-chats { display:flex; flex-direction:column; gap:.35rem; font-size:.8rem; margin:.6rem 0; }
 .match-chats a { min-height:32px; display:flex; align-items:center; }
 .match-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; font-size:.8rem; }
 .match-actions form { margin:0; }
-.plan-edit { font-size:.8rem; margin-top:.65rem; }
-.plan-edit form { margin-top:.65rem; }
-.plan-edit label { margin-top:.5rem; }
-.plan-edit .hint { margin:.35rem 0; font-size:.75rem; }
+.competition-board { margin-bottom:1rem; border:1px solid var(--line); border-radius:12px; padding:.75rem; background:var(--card); }
+.competition-board > summary { padding:.15rem 0; margin-bottom:.5rem; }
+.competition-board:not([open]) > summary { margin-bottom:0; }
+.competition-board .match-board { margin-bottom:0; }
+.match-card-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:.25rem; }
+.drag-handle { background:transparent; color:var(--muted); cursor:grab; padding:0 .3rem; min-height:32px; font-size:1.3rem; flex-shrink:0; touch-action:none; }
+.match-card.dragging { opacity:.45; }
+.board-column.drop-target { outline:2px dashed var(--accent); outline-offset:-3px; }
+.match-card.saving { opacity:.6; pointer-events:none; }
+.drag-ghost { position:fixed; z-index:10; pointer-events:none; margin:0; opacity:.85; transform:rotate(2deg); box-shadow:0 8px 24px #0004; }
+.play-choices { border:0; padding:0; margin-top:1rem; }
+[hidden] { display:none !important; }
 @media(min-width:760px) { main:has(.match-board), header:has(+main .match-board), body:has(.match-board) footer { max-width:64rem; } }
-@media(max-width:599px) { .match-board { grid-template-columns:1fr; } .dashboard-counts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:599px) { .dashboard-counts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 
 :root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
   --warn: #8a4b08; --warn-bg: #fdf1e2; --ok: #1f5b2c; --ok-bg: #e6f3e8; --card: #fff;
@@ -409,15 +416,8 @@ export const Join: FC<{
           ))}
         </select>
       </div>
-      <fieldset class="field">
-        <legend>Do you want to play in the league?</legend>
-        <div class="choices">
-          {PLAYS.map(([value, label]) => (
-            <label><input type="radio" name="plays" value={value} required checked={values.plays === value} /> {label}</label>
-          ))}
-        </div>
-        <span class="muted">New players are placed at the start of a season, usually in the bottom division. You can change this later.</span>
-      </fieldset>
+      <PlayChoices value={values.plays} />
+      <p class="hint">Choose any combination. New players usually start in the bottom division at the start of a season.</p>
       <div class="field choices">
         <label>
           <input type="checkbox" name="privacy" value="yes" required checked={values.privacy} />
@@ -435,6 +435,7 @@ export const Join: FC<{
       )}
       <button type="submit">Ask to join</button>
     </form>
+    <script src="/dashboard.js" defer />
   </Layout>
 );
 
@@ -563,6 +564,7 @@ export const Problem: FC<{ frame: Frame; title: string; detail: string }> = ({ f
 /** A match as the signed-in player sees it: from their side. */
 export type MyMatch = {
   id: string;
+  competitionId: string;
   competition: string;
   opponent: string;
   /** What they need to know at a glance, in their terms. */
@@ -618,50 +620,55 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
  * What is left to play, a row each: who, in what, how to reach them (the people in the match, when they have a
  * number) and the button that reports it. Arranging the match comes first, so that is what the row offers.
  */
-const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => (
-  <section class="match-board" aria-label="Match planning board">
-    {([['to_arrange', 'To arrange'], ['planned', 'Planned'], ['arranged', 'Arranged']] as const).map(([state, title]) => {
-      const matchesHere = matches.filter(m => (m.plan ?? 'to_arrange') === state);
-      return <section class={`board-column ${state}`}>
-        <h3>{title} <span class="muted">({matchesHere.length})</span></h3>
-        {matchesHere.length === 0 && <p class="muted board-empty">{state === 'to_arrange' ? 'All caught up.' : state === 'planned' ? 'Choose who to play next.' : 'No matches arranged yet.'}</p>}
-        {matchesHere.map(m => <article class="match-card">
-          <a class="opponent" href={`/matches/${m.id}`}>{m.opponent}</a>
-          <p class="muted match-meta">{m.competition}</p>
-          {state === 'arranged' && <p class="match-date">{m.arrangedOn ? playedOn(m.arrangedOn) : 'Date agreed outside the app'}</p>}
-          {(m.people ?? []).some(c => c.phone || c.email) && <div class="match-chats">
-            {(m.people ?? []).map(c => c.phone && whatsapp(c.phone)
-              ? <a href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`}>WhatsApp · {c.display_name}</a>
-              : c.phone ? <a href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`}>Call · {c.display_name}</a>
-              : c.email ? <a href={`mailto:${c.email}`}>Email · {c.display_name}</a> : null)}
-          </div>}
-          {!(m.people ?? []).some(c => c.phone || c.email) && <p class="muted match-meta">Ask the coach for contact details.</p>}
-          <div class="match-actions">
-            {state !== 'arranged' && <form method="post" action={`/matches/${m.id}/plan`}>
-              <input type="hidden" name="state" value={state === 'to_arrange' ? 'planned' : 'arranged'} />
-              <button class="small" type="submit">{state === 'to_arrange' ? 'Plan next' : 'Mark arranged'}</button>
-            </form>}
-            <a href={`/matches/${m.id}#report`}>Report score</a>
-          </div>
-          <details class="plan-edit">
-            <summary>{state === 'arranged' ? 'Change plan / set date' : 'Set date / change plan'}</summary>
-            <form method="post" action={`/matches/${m.id}/plan`}>
-              <label for={`state-${m.id}`}>Match plan</label>
-              <select id={`state-${m.id}`} name="state">
-                <option value="to_arrange" selected={state === 'to_arrange'}>To arrange</option>
-                <option value="planned" selected={state === 'planned'}>Planned · arrange next</option>
-                <option value="arranged" selected={state === 'arranged'}>Arranged · agreed with players</option>
-              </select>
-              <label for={`date-${m.id}`}>Agreed date (optional)</label>
-              <input id={`date-${m.id}`} type="date" name="arranged_on" value={m.arrangedOn ?? ''} />
-              <p class="hint">Adding a date marks it arranged.</p>
-              <button class="small quiet" type="submit">Save plan</button>
-            </form>
-          </details>
-        </article>)}
-      </section>;
-    })}
-  </section>
+const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => {
+  const competitions = new Map<string, MyMatch[]>();
+  for (const match of matches) competitions.set(match.competitionId, [...(competitions.get(match.competitionId) ?? []), match]);
+  return <>
+    <p id="board-status" class="hint" role="status" aria-live="polite"></p>
+    {[...competitions].map(([id, matches]) => <details class="competition-board" data-competition={id} open>
+      <summary><strong>{matches[0]!.competition}</strong> <span class="muted">· {matches.length} to play</span></summary>
+      <section class="match-board" aria-label={`${matches[0]!.competition} match board`}>
+        {([['to_arrange', 'To Arrange'], ['arranged', 'Arranged']] as const).map(([state, title]) => {
+          const matchesHere = matches.filter(m => (m.plan === 'arranged' ? 'arranged' : 'to_arrange') === state);
+          return <section class={`board-column ${state}`} data-lane={state}>
+            <h3>{title} <span class="muted lane-count">({matchesHere.length})</span></h3>
+            <p class="muted board-empty" hidden={matchesHere.length > 0}>{state === 'to_arrange' ? 'All caught up.' : 'No matches arranged yet.'}</p>
+            {matchesHere.map(m => <article class="match-card" draggable="true" data-match={m.id}>
+              <div class="match-card-heading">
+                <a class="opponent" draggable="false" href={`/matches/${m.id}`}>{m.opponent}</a>
+                <button type="button" class="drag-handle" aria-label={`Drag match against ${m.opponent}`} title="Drag to the other lane">⠿</button>
+              </div>
+              {(m.people ?? []).some(c => c.phone || c.email) && <div class="match-chats">
+                {(m.people ?? []).map(c => c.phone && whatsapp(c.phone)
+                  ? <a draggable="false" href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`}>WhatsApp · {c.display_name}</a>
+                  : c.phone ? <a draggable="false" href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`}>Call · {c.display_name}</a>
+                  : c.email ? <a draggable="false" href={`mailto:${c.email}`}>Email · {c.display_name}</a> : null)}
+              </div>}
+              {!(m.people ?? []).some(c => c.phone || c.email) && <p class="muted match-meta">Ask the coach for contact details.</p>}
+              <div class="match-actions">
+                <form class="move-match" method="post" action={`/matches/${m.id}/plan`}>
+                  <input type="hidden" name="state" value={state === 'to_arrange' ? 'arranged' : 'to_arrange'} />
+                  <button class="small" type="submit">{state === 'to_arrange' ? 'Mark arranged' : 'To arrange'}</button>
+                </form>
+                <a draggable="false" href={`/matches/${m.id}#report`}>Report score</a>
+              </div>
+            </article>)}
+          </section>;
+        })}
+      </section>
+    </details>)}
+  </>;
+};
+
+const PlayChoices: FC<{ value: string | null | undefined }> = ({ value }) => (
+  <fieldset class="field play-choices">
+    <legend>I want to play</legend>
+    <input type="hidden" name="choices_form" value="yes" />
+    <div class="choices">
+      {PLAY_TYPES.map(([key, label]) => <label><input type="checkbox" name={`play_${key}`} value="yes" checked={playSelections(value).includes(key)} /> {label}</label>)}
+      <label><input type="checkbox" name="play_not_now" value="yes" checked={value === 'not_now'} /> Not now · social member</label>
+    </div>
+  </fieldset>
 );
 
 /**
@@ -996,7 +1003,7 @@ export const Home: FC<{
     {p.toPlay.length > 0 && (
       <section aria-label="Matches to play">
         <h2>To play ({p.toPlay.length})</h2>
-        <p class="hint">Plan who to play next. Mark arranged once you have agreed it.</p>
+        <p class="hint">Drag a match or use its button to mark it arranged.</p>
         <MatchBoard matches={p.toPlay} />
       </section>
     )}
@@ -1032,19 +1039,15 @@ export const Home: FC<{
       <summary>Season details</summary>
       <OpenSeasons placements={p.placementStatus.placements.filter((x) => !x.provisional)} />
     </details>}
-    {/* Folded away all season: the dropdown and the two ways out are for when a player has something to say. */}
+    {/* Preferences and the two ways out stay folded until needed. */}
     {!p.leaving && p.active && (
       <details class="card" open={p.choices.some((x) => x.attention)}>
         <summary>
           <strong>Next season</strong> <span class="muted">· what you want to play, a break, or leaving</span>
         </summary>
-        <form class="inline" method="post" action="/plays">
-          <label for="plays">I want to play</label>{" "}
-          <select id="plays" name="wants_to_play">
-            <option value="" selected={!p.plays}>Not said yet</option>
-            {PLAYS.map(([value, label]) => <option value={value} selected={p.plays === value}>{label}</option>)}
-          </select>{" "}
-          <button class="quiet" type="submit">Save</button>
+        <form method="post" action="/plays">
+          <PlayChoices value={p.plays} />
+          <button class="quiet" type="submit">Save preferences</button>
         </form>
         {p.choices.length > 0 && (
           <>
@@ -1098,6 +1101,7 @@ export const Home: FC<{
         <MatchRows matches={p.played} />
       </details>
     )}
+    <script src="/dashboard.js" defer />
   </Layout>
 );
 
@@ -1725,7 +1729,6 @@ const Contacts: FC<{ contacts: Contact[] }> = ({ contacts }) => (
         </li>
       ))}
     </ul>
-    <p class="muted">Only the players in your matches see these, to arrange them.</p>
   </section>
 );
 

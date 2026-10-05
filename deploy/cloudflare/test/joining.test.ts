@@ -200,7 +200,9 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(page.html, /<select id="gender" name="gender" required="">/); assert.match(page.html, /<select id="age_group" name="age_group">/);
   assert.match(page.html, /<option value="undisclosed"[^>]*>Prefer not to say<\/option>/); assert.match(page.html, /<option value="65_plus"[^>]*>65 or over<\/option>/);
   // No Turnstile set up: no script, and the page's policy allows none.
-  assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
+  assert.match(page.html, /<script src="\/dashboard.js" defer/);
+  assert.match(page.headers.get("content-security-policy")!, /script-src 'self';/);
+  assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src[^;]*unsafe-inline/);
   const privacy = await visitor.get("/privacy");
   assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-05/);
   assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
@@ -353,10 +355,11 @@ test("with Turnstile set up, the form runs its check and the Worker asks Cloudfl
   const html = await page.text();
   assert.match(html, /class="field cf-turnstile" data-sitekey="1x00000000000000000000AA"/);
   assert.match(html, /<script src="https:\/\/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js" async="" defer="">/);
-  assert.match(page.headers.get("content-security-policy")!, /script-src https:\/\/challenges\.cloudflare\.com; frame-src https:\/\/challenges\.cloudflare\.com;/);
+  assert.match(page.headers.get("content-security-policy")!, /script-src 'self' https:\/\/challenges\.cloudflare\.com;/);
+  assert.match(page.headers.get("content-security-policy")!, /frame-src https:\/\/challenges\.cloudflare\.com;/);
   assert.equal(page.headers.get("referrer-policy"), "strict-origin");
   // Every other page keeps its script-free policy.
-  assert.doesNotMatch((await f.request("/")).headers.get("content-security-policy")!, /script-src/);
+  assert.doesNotMatch((await f.request("/")).headers.get("content-security-policy")!, /challenges\.cloudflare\.com/);
 
   assert.equal((await join(f, person(f))).status, 400);
   assert.equal((await join(f, person(f, { "cf-turnstile-response": "fail" }))).status, 400);
@@ -378,7 +381,7 @@ test("a new member plays under their full name, or first name and initial when t
 test("the join form asks what they want to play; the coach and the player can change it, and social members wait for nothing", async (t) => {
   const f = await websiteFixture(t);
   // The form asks, and will not go without an answer.
-  assert.match((await browser(f).get("/join")).html, /name="plays" value="not_now"/);
+  assert.match((await browser(f).get("/join")).html, /name="play_not_now" value="yes"/);
   const missing = await join(f, person(f, { plays: "" }));
   assert.equal(missing.status, 400); assert.match(missing.html, /Choose singles, doubles, mixed doubles, a combination, or not now/);
   assert.equal((await join(f, person(f, { plays: "singles" }))).status, 200);
@@ -402,7 +405,7 @@ test("the join form asks what they want to play; the coach and the player can ch
   assert.equal((await coach.post(`/coach/members/${sol}/plays`, { wants_to_play: "doubles" })).location, `/coach/members/${sol}?saved=1`);
   assert.equal((await f.api(`/v1/members/${sol}`, f.admin)).body.wants_to_play, "doubles");
   const player = await signIn(f, "robin@example.org");
-  assert.match((await player.get("/")).html, /<option value="both" selected="">/);
+  assert.match((await player.get("/")).html, /name="play_singles" value="yes" checked=""/);
   assert.equal((await player.post("/plays", { wants_to_play: "not_now" })).location, "/?done=plays");
   assert.equal((await f.api(`/v1/members/${robin}`, f.admin)).body.wants_to_play, "not_now");
   assert.match((await player.get("/?done=plays")).html, /The coach will see what you want to play/);
