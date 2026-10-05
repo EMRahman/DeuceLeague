@@ -147,6 +147,8 @@ export type Claim = {
   state: "pending" | "confirmed" | "superseded";
   accepts_claim_id: string | null;
   submitted_at: string;
+  /** Where it came from: `web` is the player's own form, which puts their games first. */
+  source?: string;
 };
 
 export type MatchDetail = Match & { claims: Claim[]; waiting_on: Side | null; differences: string[] };

@@ -51,12 +51,18 @@ const Entries: FC<{ match: MatchDetail; timezone: string; deciding?: boolean }> 
         const claim = claims[side];
         return <div><strong>{names[side]}</strong>
           <p>{claim ? describe(claim, 0, names) : "No result entered yet."}</p>
+          {/* On the player's form their own games come first, so side 1's reads the other way round from the line
+              above. Only that form: a score sent through the API is side 0 first already. */}
+          {claim?.score && claim.source === "web" && <p class="muted">As typed on {names[side]}'s form, their games first: {describe(claim, side, names)}</p>}
           {claim && <span class="muted">Entered {at(claim.submitted_at, timezone)}</span>}
           {claim && deciding && <p><a href={`/coach/matches/${match.id}?use=${claim.id}#decide`}>Use {names[side]}'s entry</a></p>}
         </div>;
       })}</div>
     )}
-    <p class="muted">Scores are written with {names[0]}'s games first. Both sides' submissions are visible to the coach.</p>
+    <p class="muted">
+      Scores are written with {names[0]}'s games first. On their own form, every player types their games first, then
+      their opponent's. Both sides' submissions are visible to the coach.
+    </p>
     {!match.result && mirrored(claims[0], claims[1]) && <p>{MIRRORED}</p>}
   </section>;
 };
