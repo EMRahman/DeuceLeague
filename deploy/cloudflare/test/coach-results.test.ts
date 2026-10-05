@@ -272,6 +272,10 @@ test("Results and the match page write every score side-0-first, offer each entr
   assert.match(results, /same score reversed/);
   let page = await coach.get(`/coach/matches/${p.match}`);
   assert.match(text(page.html), /same score reversed/);
+  // Each entry is also shown as its player typed it, their own games first: side 1's reads the other way round.
+  assert.match(text(page.html), new RegExp(`As typed on ${names[1]}'s form, their games first: 6-4, 7-6`));
+  assert.match(text(page.html), new RegExp(`As typed on ${names[0]}'s form, their games first: 6-4, 7-6`));
+  assert.match(text(page.html), /every player types their games first/);
   const use = [...page.html.matchAll(/href="([^"]*\?use=[^"]+)"/g)].map((m) => m[1]!.replace(/&amp;/g, "&"));
   assert.equal(use.length, 2, "each entry can start the decision");
   // Using side 1's entry fills the form with it; saving still needs review, a reason and the version.
