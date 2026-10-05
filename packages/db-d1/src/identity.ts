@@ -13,6 +13,8 @@ export type CredentialRecord = {
   leaving_at?: number | null;
   /** For a player's credential: their member status, `active` unless on a break or left. */
   member_status?: string | null;
+  /** For a player's credential: what they want to play next season, if they have said. */
+  member_plays?: string | null;
   name: string | null; prefix: string | null; last_used_at: number | null;
 };
 export type ClubRecord = { id: string; slug: string; name: string; timezone: string };
@@ -37,10 +39,11 @@ export async function readIdentity(
 ): Promise<IdentitySnapshot> {
   const credential = kind === "api_key"
     ? db.prepare(`SELECT id, club_id, 'api_key' AS kind, scopes, name, prefix, last_used_at,
-        NULL AS member_id, NULL AS display_name, NULL AS leaving_at, NULL AS member_status FROM api_key
+        NULL AS member_id, NULL AS display_name, NULL AS leaving_at, NULL AS member_status, NULL AS member_plays FROM api_key
         WHERE key_hash = ? AND revoked_at IS NULL
           AND (expires_at IS NULL OR expires_at > unixepoch('subsec') * 1000)`).bind(hash)
     : db.prepare(`SELECT a.id, a.club_id, a.kind, a.scopes, a.member_id, m.display_name, m.leaving_at, m.status AS member_status,
+        m.plays AS member_plays,
         NULL AS name, NULL AS prefix, NULL AS last_used_at
         FROM access_grant a JOIN member m ON m.id = a.member_id AND m.club_id = a.club_id
         WHERE a.token_hash = ? AND a.kind = ? AND m.deleted_at IS NULL

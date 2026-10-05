@@ -16,7 +16,7 @@ import {
   type Standings,
 } from "./api.js";
 import { MailDeliveryError, type Mailer } from "./mail.js";
-import { MAX_FILL_MS, MIN_FILL_MS, PRIVACY_NOTICE, readJoinForm, stamp, stampAge } from "./join.js";
+import { MAX_FILL_MS, MIN_FILL_MS, PLAYS, PRIVACY_NOTICE, readJoinForm, stamp, stampAge } from "./join.js";
 import type { Weather } from "./weather.js";
 import { deadlineLine, deadlinePassed, describe, readReportForm, shortDate } from "./score.js";
 import {
@@ -63,7 +63,7 @@ export {
 export { deadlineLine, describe, playedOn, readReportForm, claimToForm, setRows, formatHint, type ReportForm } from "./score.js";
 export { CompetitionTables, Credit, STYLE, WeatherBox, type Breakdown, type SeasonLink, type TablesProps } from "./views.js";
 export type { Mailer } from "./mail.js";
-export { AGE_GROUPS, ageGroupLabel, GENDERS, genderLabel, PRIVACY_NOTICE } from "./join.js";
+export { AGE_GROUPS, ageGroupLabel, GENDERS, genderLabel, PLAYS, playsLabel, PRIVACY_NOTICE } from "./join.js";
 export { openMeteo, parseVenues, type Forecast, type Venue, type VenueForecast, type Weather } from "./weather.js";
 
 export type WebsiteOptions = {
@@ -492,6 +492,7 @@ export function createWebsite(options: WebsiteOptions) {
         phone: values.phone || null,
         gender: values.gender,
         age_group: values.age_group || null,
+        wants_to_play: values.plays,
         privacy_notice: PRIVACY_NOTICE,
       });
       log("join request received");
@@ -677,8 +678,10 @@ export function createWebsite(options: WebsiteOptions) {
         notice={{ leaving: "Done. The coach will see you are not playing next season.",
           staying: "Taken back. You are in the reckoning for next season again.",
           paused: "Done. You are on a break, and the coach will see it.",
-          resumed: "Welcome back. Tell the coach if you want a place in the next season." }[c.req.query("done") ?? ""] ?? null}
+          resumed: "Welcome back. Tell the coach if you want a place in the next season.",
+          plays: "Saved. The coach will see what you want to play." }[c.req.query("done") ?? ""] ?? null}
         leaving={p.me.credential.member.leaving_at ?? null}
+        plays={p.me.credential.member.wants_to_play ?? null}
         onBreak={p.me.credential.member.status === "paused"}
         active={p.me.credential.member.status === "active"}
         entries={registered.filter((r) => r.entry).map((r) => r.competition.name)}
@@ -857,6 +860,16 @@ export function createWebsite(options: WebsiteOptions) {
       return c.redirect(`/?done=${done}`, 303);
     });
   }
+
+  // What they want to play next season: the coach offers them for it in the drafts.
+  app.post("/plays", async (c) => {
+    const p = await player(c);
+    if (!p) return c.redirect("/", 303);
+    const value = String((await c.req.parseBody()).wants_to_play ?? "");
+    await api("PUT", `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/wants-to-play`, p.session,
+      { wants_to_play: PLAYS.some(([v]) => v === value) ? value : null });
+    return c.redirect("/?done=plays", 303);
+  });
 
   // A break from the league, for as long as they like: out of every draft until they say they are back.
   for (const [path, method, done] of [

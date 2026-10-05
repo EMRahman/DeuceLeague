@@ -3,7 +3,7 @@ import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { PlayerPlacements, Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
-import { AGE_GROUPS, GENDERS, PRIVACY_NOTICE, type JoinForm } from "./join.js";
+import { AGE_GROUPS, GENDERS, PLAYS, PRIVACY_NOTICE, type JoinForm } from "./join.js";
 
 /**
  * Every page, as plain server-rendered HTML: no scripts, so it works on any
@@ -380,6 +380,15 @@ export const Join: FC<{
           ))}
         </select>
       </div>
+      <fieldset class="field">
+        <legend>Do you want to play in the league?</legend>
+        <div class="choices">
+          {PLAYS.map(([value, label]) => (
+            <label><input type="radio" name="plays" value={value} required checked={values.plays === value} /> {label}</label>
+          ))}
+        </div>
+        <span class="muted">New players are placed at the start of a season, usually in the bottom division. You can change this later.</span>
+      </fieldset>
       <div class="field choices">
         <label>
           <input type="checkbox" name="privacy" value="yes" required checked={values.privacy} />
@@ -428,8 +437,9 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     </p>
     <h2>What we keep</h2>
     <p>
-      Your name, your email address and telephone number, your gender, your age group if you gave one, the
-      playing level the coach gives you, which competitions you play in, and your results.
+      Your name, your email address and telephone number, your gender, your age group if you gave one, whether you
+      want to play singles, doubles or both, the playing level the coach gives you, which competitions you play in,
+      and your results.
     </p>
     <h2>Why</h2>
     <p>
@@ -747,6 +757,8 @@ export const Home: FC<{
   running?: { resultsClose: string | null } | null;
   /** On a break: out of every draft until they say they are back. */
   onBreak: boolean;
+  /** What they want to play next season, if they have said. */
+  plays?: string | null;
   /** Still in the club and not on a break: only they are offered a break or leaving. */
   active: boolean;
 }> = (p) => (
@@ -907,6 +919,14 @@ export const Home: FC<{
     {!p.leaving && p.active && (
       <section class="card">
         <h2>Next season</h2>
+        <form class="inline" method="post" action="/plays">
+          <label for="plays">I want to play</label>{" "}
+          <select id="plays" name="wants_to_play">
+            <option value="" selected={!p.plays}>Not said yet</option>
+            {PLAYS.map(([value, label]) => <option value={value} selected={p.plays === value}>{label}</option>)}
+          </select>{" "}
+          <button class="quiet" type="submit">Save</button>
+        </form>
         {p.choices.length > 0 && (
           <>
             <p>If you do nothing, you stay in for next season.</p>

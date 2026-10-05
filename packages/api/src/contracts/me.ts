@@ -1,4 +1,4 @@
-import { MemberStatus, Scope } from "@deuceleague/schema";
+import { MemberStatus, Scope, WantsToPlay } from "@deuceleague/schema";
 import { createRoute, z } from "@hono/zod-openapi";
 import { authProblems, requires, Timestamp } from "./shared.js";
 
@@ -24,6 +24,9 @@ const SessionCredential = z.object({
       status: MemberStatus,
       leaving_at: Timestamp.nullable().openapi({
         description: "When they said they are not playing next season at all, if they did. See `POST /v1/members/{id}/leave`.",
+      }),
+      wants_to_play: WantsToPlay.nullable().openapi({
+        description: "What they want to play next season, if they have said. See `PUT /v1/members/{id}/wants-to-play`.",
       }),
     })
     .openapi({ description: "Who is signed in." }),

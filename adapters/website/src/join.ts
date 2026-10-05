@@ -11,7 +11,7 @@
  * GDPR; a club elsewhere, or one that changes the notice's words, gives it a
  * new name here, so each member's record says which one they agreed to.
  */
-export const PRIVACY_NOTICE = "uk-2026-10-04";
+export const PRIVACY_NOTICE = "uk-2026-10-05";
 
 /** Quicker than this, the form was not filled in by a person. */
 export const MIN_FILL_MS = 3_000;
@@ -26,11 +26,17 @@ export const GENDERS = [
 export const AGE_GROUPS = [
   ["under_18", "Under 18"], ["18_34", "18 to 34"], ["35_49", "35 to 49"], ["50_64", "50 to 64"], ["65_plus", "65 or over"],
 ] as const;
+/** What someone wants to play, as the form and the player's home page word it. `not_now` is a social member. */
+export const PLAYS = [
+  ["singles", "Singles"], ["doubles", "Doubles"], ["both", "Singles and doubles"], ["not_now", "Not now: I am a social member"],
+] as const;
+export const playsLabel = (value: string | null | undefined) => PLAYS.find(([v]) => v === value)?.[1] ?? null;
 export const genderLabel = (value: string | null | undefined) => GENDERS.find(([v]) => v === value)?.[1] ?? null;
 export const ageGroupLabel = (value: string | null | undefined) => AGE_GROUPS.find(([v]) => v === value)?.[1] ?? null;
 
 export type JoinForm = {
-  first_name: string; surname: string; email: string; phone: string; gender: string; age_group: string; privacy: boolean;
+  first_name: string; surname: string; email: string; phone: string; gender: string; age_group: string; plays: string;
+  privacy: boolean;
 };
 
 /** Phone punctuation is allowed, but the number must contain 7–15 digits. */
@@ -68,6 +74,7 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
     phone: text("phone"),
     gender: text("gender"),
     age_group: text("age_group"),
+    plays: text("plays"),
     privacy: form.privacy === "yes",
   };
   const problems: string[] = [];
@@ -84,6 +91,7 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
   }
   if (!GENDERS.some(([v]) => v === values.gender)) problems.push("Choose your gender, or say you would rather not.");
   if (values.age_group && !AGE_GROUPS.some(([v]) => v === values.age_group)) problems.push("Choose one of the age groups, or leave it blank.");
+  if (!PLAYS.some(([v]) => v === values.plays)) problems.push("Say whether you want to play singles, doubles, both, or not now.");
   if (!values.privacy) problems.push("Tick the box to say you have read the privacy notice.");
   return { values, problems };
 }

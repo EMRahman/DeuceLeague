@@ -1,5 +1,5 @@
 import type { MemberRecord, MemberChanges } from "@deuceleague/db-d1";
-import type { AgeGroup, Gender, MemberStatus } from "@deuceleague/schema";
+import type { AgeGroup, Gender, MemberStatus, WantsToPlay } from "@deuceleague/schema";
 import type { Auth } from "../context.js";
 import { PERSONAL, type MemberPatch, type Member } from "../contracts/members.js";
 import { problems } from "../problems.js";
@@ -17,6 +17,7 @@ export function toMember(m: MemberRecord, withPii: boolean): z.infer<typeof Memb
     rating_system: m.ratingSystem,
     level: m.level,
     joined_on: m.joinedOn,
+    wants_to_play: m.plays as WantsToPlay | null,
     leaving_at: iso(m.leavingAt),
     deleted_at: iso(m.deletedAt),
     signed_in_at: iso(m.signedInAt),
@@ -57,6 +58,7 @@ export function toChanges(body: z.infer<typeof MemberPatch>): MemberChanges {
     ratingSystem: body.rating_system,
     level: body.level,
     joinedOn: body.joined_on,
+    plays: body.wants_to_play,
     fullName: body.full_name,
     email: body.email,
     phone: body.phone,

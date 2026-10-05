@@ -189,13 +189,28 @@
                         ],
                         "format": "date-time",
                         "description": "When they said they are not playing next season at all, if they did. See `POST /v1/members/{id}/leave`."
+                      },
+                      "wants_to_play": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "enum": [
+                          "singles",
+                          "doubles",
+                          "both",
+                          "not_now",
+                          null
+                        ],
+                        "description": "What they want to play next season, if they have said. See `PUT /v1/members/{id}/wants-to-play`."
                       }
                     },
                     "required": [
                       "id",
                       "display_name",
                       "status",
-                      "leaving_at"
+                      "leaving_at",
+                      "wants_to_play"
                     ],
                     "description": "Who is signed in."
                   }
@@ -1938,6 +1953,20 @@
             ],
             "format": "date"
           },
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
+              null
+            ],
+            "description": "What they want to play next season: `singles`, `doubles`, `both`, or `not_now` for a social member. Null: they have not said. Asked on the join form; the coach or the player can change it."
+          },
           "leaving_at": {
             "type": [
               "string",
@@ -2072,6 +2101,7 @@
           "rating_system",
           "level",
           "joined_on",
+          "wants_to_play",
           "leaving_at",
           "deleted_at",
           "signed_in_at",
@@ -2129,6 +2159,19 @@
               "null"
             ],
             "format": "date"
+          },
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
+              null
+            ]
           },
           "full_name": {
             "type": [
@@ -2257,6 +2300,19 @@
             ],
             "format": "date"
           },
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
+              null
+            ]
+          },
           "full_name": {
             "type": [
               "string",
@@ -2330,6 +2386,27 @@
             "description": "PII. Setting it needs `members:pii`."
           }
         }
+      },
+      "WantsToPlayChoice": {
+        "type": "object",
+        "properties": {
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
+              null
+            ]
+          }
+        },
+        "required": [
+          "wants_to_play"
+        ]
       },
       "JoinRequestPage": {
         "type": "object",
@@ -2412,6 +2489,20 @@
             ],
             "description": "PII. The band they chose on the form, or null if they left it blank. Present only for a credential holding `members:pii`."
           },
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
+              null
+            ],
+            "description": "PII. What they want to play, as they chose it on the form; null if the request did not carry it. Present only for a credential holding `members:pii`."
+          },
           "privacy_notice": {
             "type": "string",
             "example": "uk-2026-09-30",
@@ -2456,6 +2547,7 @@
           "phone",
           "gender",
           "age_group",
+          "wants_to_play",
           "privacy_notice",
           "created_at",
           "expires_at",
@@ -2514,6 +2606,20 @@
               null
             ],
             "description": "Optional. Copied to the member on approval."
+          },
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
+              null
+            ],
+            "description": "Singles, doubles, both, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval."
           },
           "privacy_notice": {
             "type": "string",
@@ -2575,6 +2681,20 @@
               "35_49",
               "50_64",
               "65_plus",
+              null
+            ],
+            "description": "Replaces the one on the request."
+          },
+          "wants_to_play": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "singles",
+              "doubles",
+              "both",
+              "not_now",
               null
             ],
             "description": "Replaces the one on the request."
@@ -8049,6 +8169,110 @@
           },
           "404": {
             "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/members/{id}/wants-to-play": {
+      "put": {
+        "tags": [
+          "Members"
+        ],
+        "summary": "Say what a member wants to play next season",
+        "description": "Singles, doubles, both, or `not_now` for a social member; null clears it. The coach uses it to see who wants a place in next season's draft, and a newcomer who wants to play is listed for one. A player's session may set it for themselves; a key needs `members:write`. Saying the same again does nothing more.",
+        "security": [
+          {
+            "apiKey": [
+              "members:write"
+            ]
+          },
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WantsToPlayChoice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member, as they now stand.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Member"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`member_removed`: a removed member cannot be changed.",
             "content": {
               "application/problem+json": {
                 "schema": {

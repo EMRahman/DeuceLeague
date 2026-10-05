@@ -176,6 +176,17 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "patch", changes: toChanges(body), fields }), holdsPii(auth));
     }), 200);
   });
+  app.openapi(members.wantsToPlay, async (c) => {
+    const { id } = c.req.valid("param"); const { wants_to_play } = c.req.valid("json");
+    return c.json(await run(c, (i) => readMembersAdmin(db, i.hash, i.kind, { id }), async (s, auth) => {
+      if (auth.credential.type === "session" && auth.credential.memberId !== id) throw problems.notYou();
+      const member = s.rows[0]; if (!member) throw problems.notFound("member");
+      if (member.deletedAt) throw problems.conflict("member_removed", "A removed member cannot be changed");
+      if (member.plays === wants_to_play) { await touch(s); return toMember(member, holdsPii(auth)); }
+      return toMember(await mutateMemberAdmin(db, s.identity, id, { type: "patch", changes: { plays: wants_to_play },
+        fields: ["wants_to_play"] }), holdsPii(auth));
+    }), 200);
+  });
   for (const [route, on] of [[members.leave, true], [members.stay, false]] as const) {
     app.openapi(route, async (c) => {
       const { id } = c.req.valid("param");
@@ -246,7 +257,7 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       if (s.rows.length) throw new JoinRequestExistsError();
       return toJoinRequest(await createJoinRequest(db, s.identity, { id: uuidv7(), firstName: body.first_name,
         surname: body.surname, email, phone: body.phone ?? null, privacyNotice: body.privacy_notice,
-        gender: body.gender ?? null, ageGroup: body.age_group ?? null }));
+        gender: body.gender ?? null, ageGroup: body.age_group ?? null, plays: body.wants_to_play ?? null }));
     }), 201);
   });
   app.openapi(joinRequests.approve, async (c) => {
@@ -259,12 +270,14 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
         email: request.email, phone: request.phone, level: body.level ?? null, joinedOn: today(s.identity.club!.timezone),
         gender: body.gender === undefined ? request.gender : body.gender,
         ageGroup: body.age_group === undefined ? request.ageGroup : body.age_group,
+        plays: body.wants_to_play === undefined ? request.plays : body.wants_to_play,
       };
       const record = await mutateMemberAdmin(db, s.identity, uuidv7(), {
         type: "create", changes, joinRequest: { id: request.id, privacyNotice: request.privacyNotice },
         fields: ["display_name", "full_name", "joined_on", ...(request.email ? ["email"] : []),
           ...(request.phone ? ["phone"] : []), ...(changes.level === null ? [] : ["level"]),
-          ...(changes.gender ? ["gender"] : []), ...(changes.ageGroup ? ["age_group"] : [])],
+          ...(changes.gender ? ["gender"] : []), ...(changes.ageGroup ? ["age_group"] : []),
+          ...(changes.plays ? ["wants_to_play"] : [])],
       });
       return toMember(record, holdsPii(auth));
     }), 201);

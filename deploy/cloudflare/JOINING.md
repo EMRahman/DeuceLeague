@@ -6,10 +6,16 @@ however you like: on the club's website, a poster's QR code, or WhatsApp. The
 sign-in page links to it too, as "Ask to join the league".
 
 The form asks for a first name, a surname, both an email address and a telephone number, a gender (female, male, other, or prefer not to say) and, if they wish, an
-age group (under 18, 18 to 34, 35 to 49, 50 to 64, 65 or over). It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
+age group (under 18, 18 to 34, 35 to 49, 50 to 64, 65 or over), and whether they want to play singles, doubles, both,
+or not now as a social member. It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
 and asks the person to tick that they have read it.
 
-Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-04`.
+Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-05`.
+
+What they want to play is copied to the member on approval, and you or the player can change it later: you on the
+member's page, the player in the **Next season** box on their home page. **Waiting to be placed** lists only
+newcomers who want to play or have not said, and each draft offers them only for what they want: a singles draft
+those who want singles or both. Social members are left out of both.
 
 Nobody is a member until you approve them. Until then, they are only a request.
 
