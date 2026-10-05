@@ -399,7 +399,7 @@ test("the join form asks what they want to play; the coach and the player can ch
   // Waiting to be placed lists Robin with what she wants; Sol, a social member, is only counted.
   const members = (await coach.get("/coach/members")).html;
   assert.match(members, new RegExp(`href="/coach/members/${robin}">Robin Hale</a>[\\s\\S]*?Singles and doubles`));
-  assert.doesNotMatch(members.slice(members.indexOf("Waiting to be placed"), members.indexOf("On the club")), /Sol Social/);
+  assert.doesNotMatch(members.slice(members.indexOf("Waiting to be placed"), members.indexOf("Member directory")), /Sol Social/);
   assert.match(members, /1 social member is not waiting for a place/);
   // The coach changes it on the member's page; the player on their home page.
   assert.equal((await coach.post(`/coach/members/${sol}/plays`, { wants_to_play: "doubles" })).location, `/coach/members/${sol}?saved=1`);

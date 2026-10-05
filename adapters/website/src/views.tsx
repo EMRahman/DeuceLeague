@@ -28,68 +28,33 @@ const VENUE_SWITCH = Array.from(
 /** Shared with the coach's site, so both look like one club's. */
 export const STYLE = `
 
-.dashboard-counts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.5rem; margin:1rem 0; }
-.dashboard-counts > div { padding:.8rem .5rem; border:1px solid var(--line); border-radius:12px; background:var(--card); text-align:center; }
-.dashboard-counts strong { display:block; font-size:1.7rem; line-height:1.2; }
-.dashboard-counts span { font-size:.8rem; color:var(--muted); }
-.league-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); gap:.75rem; }
-.league-card { display:flex; flex-direction:column; gap:.25rem; color:inherit; text-decoration:none; margin:0; }
-.league-card strong { color:var(--accent); }
-.league-card .tag { align-self:flex-start; margin:0; }
-.match-board { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; margin-bottom:1.5rem; }
-.board-column { min-width:0; background:var(--past-bg); border-radius:12px; padding:.65rem; }
-.board-column.arranged { background:var(--ok-bg); }
-.board-column h3 { font-size:.95rem; margin:0 0 .65rem; }
-.board-empty { font-size:.85rem; margin:0; }
-.match-card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:.75rem; margin-bottom:.6rem; overflow-wrap:anywhere; }
-.match-card:last-child { margin-bottom:0; }
-.match-card .opponent { font-weight:700; text-decoration:none; }
-.match-meta { font-size:.8rem; margin:.2rem 0 .5rem; }
-.match-chats { display:flex; flex-direction:column; gap:.35rem; font-size:.8rem; margin:.6rem 0; }
-.match-chats a { min-height:32px; display:flex; align-items:center; }
-.match-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; font-size:.8rem; }
-.match-actions form { margin:0; }
-.competition-board { margin-bottom:1rem; border:1px solid var(--line); border-radius:12px; padding:.75rem; background:var(--card); }
-.competition-board > summary { padding:.15rem 0; margin-bottom:.5rem; }
-.competition-board:not([open]) > summary { margin-bottom:0; }
-.competition-board .match-board { margin-bottom:0; }
-.match-card-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:.25rem; }
-.drag-handle { background:transparent; color:var(--muted); cursor:grab; padding:0 .3rem; min-height:32px; font-size:1.3rem; flex-shrink:0; touch-action:none; }
-.match-card.dragging { opacity:.45; }
-.board-column.drop-target { outline:2px dashed var(--accent); outline-offset:-3px; }
-.match-card.saving { opacity:.6; pointer-events:none; }
-.drag-ghost { position:fixed; z-index:10; pointer-events:none; margin:0; opacity:.85; transform:rotate(2deg); box-shadow:0 8px 24px #0004; }
-.play-choices { border:0; padding:0; margin-top:1rem; }
-[hidden] { display:none !important; }
-@media(min-width:760px) { main:has(.match-board), header:has(+main .match-board), body:has(.match-board) footer { max-width:64rem; } }
-@media(max-width:599px) { .dashboard-counts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-
-:root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
+:root { --bg: #f4f6f4; --fg: #182d26; --muted: #63736b; --line: #dce4df; --accent: #17664c; --accent-fg: #fff;
   --warn: #8a4b08; --warn-bg: #fdf1e2; --ok: #1f5b2c; --ok-bg: #e6f3e8; --card: #fff;
   --up: #2f6b3a; --up-bg: #e9f4ea; --down: #a3341f; --down-bg: #fbece8; --past: #555c66; --past-bg: #eceef1;
   color-scheme: light dark; }
-@media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe7; --muted: #a09e98; --line: #33322f;
-  --accent: #6fbf7c; --accent-fg: #0f1a11; --warn: #f0b36a; --warn-bg: #2d2214; --ok: #9fdcaa; --ok-bg: #1c2b1e;
-  --card: #1f1f1d; --up: #7fcf8b; --up-bg: #1c2b1e; --down: #f0907c; --down-bg: #33201b; --past: #b3b8c0;
-  --past-bg: #262829; } }
+@media (prefers-color-scheme: dark) { :root { --bg: #101b17; --fg: #e9f1ec; --muted: #a1b2a8; --line: #304139;
+  --accent: #9cddb7; --accent-fg: #10271b; --warn: #f0b36a; --warn-bg: #2d2214; --ok: #9fdcaa; --ok-bg: #1c2b1e;
+  --card: #192820; --up: #7fcf8b; --up-bg: #1c2b1e; --down: #f0907c; --down-bg: #33201b; --past: #b3b8c0;
+  --past-bg: #202f28; } }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
-header, main, footer { max-width: 44rem; margin: 0 auto; padding: 0 16px; }
-header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-top: .75rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); }
-header .club { color: inherit; text-decoration: none; font-weight: 700; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.55 system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; }
+header, main, footer { max-width: 48rem; margin: 0 auto; padding: 0 24px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 80px; padding-top: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+header .club { display: flex; align-items: center; gap: .65rem; color: inherit; text-decoration: none; font-weight: 750; letter-spacing: -.02em; }
+header .club img { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; }
 header nav { display: flex; gap: .25rem; }
 header nav a { color: var(--fg); text-decoration: none; padding: .45rem .7rem; border-radius: 8px; }
 header nav a[aria-current] { background: var(--card); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
-main { padding-top: 1.25rem; padding-bottom: 3rem; }
+main { padding-top: 2rem; padding-bottom: 3rem; min-width: 0; }
 footer { color: var(--muted); font-size: .85rem; padding-bottom: 2rem; display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center; }
 footer form { margin: 0; }
-h1 { font-size: 1.5rem; line-height: 1.25; margin: 0 0 .75rem; }
-h2 { font-size: 1.1rem; margin: 1.75rem 0 .6rem; }
+h1 { font-size: clamp(1.6rem, 3vw, 2.15rem); font-weight: 700; letter-spacing: -.045em; line-height: 1.2; margin: 0 0 1rem; }
+h2 { font-size: 1.1rem; letter-spacing: -.02em; margin: 1.75rem 0 .8rem; }
 .card h2:first-child { margin-top: 0; }
 a { color: var(--accent); }
 p { margin: 0 0 1rem; }
 .muted { color: var(--muted); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin-bottom: .75rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 2px 4px rgb(14 39 27 / .02); }
 .notice { background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: .75rem 1rem; margin-bottom: 1rem; }
 .notice.ok { background: var(--ok-bg); color: var(--ok); }
 .notice ul { margin: .25rem 0 0; padding-left: 1.25rem; }
@@ -108,7 +73,7 @@ a.rowlink .chev { color: var(--muted); }
 /* A link that does what a button does: opens the score form. */
 a.button { display: inline-flex; align-items: center; font-weight: 600; border-radius: 10px; padding: .7rem 1.1rem; min-height: 44px; background: var(--accent); color: var(--accent-fg); text-decoration: none; }
 a.button.quiet { background: transparent; color: var(--accent); border: 1px solid var(--line); font-weight: 500; }
-button.small, a.button.small { padding: .4rem .8rem; min-height: 38px; font-size: .9rem; }
+button.small, a.button.small { padding: .4rem .8rem; min-height: 44px; font-size: .9rem; }
 .standing .where { color: var(--muted); font-size: .9rem; }
 .pills { display: flex; gap: .4rem; overflow-x: auto; margin: 0 0 .6rem; scrollbar-width: none; }
 .pills label { position: relative; white-space: nowrap; margin: 0; font-weight: 500; font-size: .85rem; padding: .35rem .8rem; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
@@ -122,15 +87,14 @@ button.small, a.button.small { padding: .4rem .8rem; min-height: 38px; font-size
 ${VENUE_SWITCH}
 @supports not selector(:has(*)) { .weather .forecast, .weather .venue-name { display: block; } }
 .weather .scroll { overflow-x: auto; margin: 0 -1rem; padding: 0 1rem; }
-table.outlook { width: auto; font-size: .8rem; }
-table.outlook th, table.outlook td { width: auto; text-align: center; padding: .25rem .3rem; border-bottom: 0; min-width: 2rem; }
-table.outlook thead th { color: var(--fg); font-weight: 600; line-height: 1.2; }
-table.outlook th[scope=row] { position: sticky; left: 0; z-index: 1; background: var(--card); text-align: left; white-space: nowrap; color: var(--muted); font-weight: 500; padding-right: .5rem; }
-table.outlook td span[role=img] { font-size: 1.05rem; }
-table.outlook .good { background: var(--up-bg); color: var(--up); font-weight: 600; }
-table.outlook thead .good { box-shadow: inset 0 2px var(--up); }
-table.outlook .last { border-right: 2px dashed var(--down); }
-table.outlook thead .last { color: var(--down); }
+.forecast-days { display: flex; gap: .4rem; list-style: none; padding: 0 0 .35rem; margin: 0; }
+.forecast-days li { display: flex; flex: 1 0 72px; flex-direction: column; align-items: center; padding: .5rem .4rem; border-radius: 10px; background: var(--bg); font-size: .75rem; gap: .1rem; }
+.forecast-days .good { background: var(--up-bg); }
+.forecast-days .last { outline: 1px dashed var(--down); outline-offset: -1px; }
+.forecast-days .forecast-date { color: var(--muted); white-space: nowrap; }
+.forecast-days [role=img] { font-size: 1.35rem; line-height: 1.5; }
+.forecast-days strong { font-size: .95rem; }
+.forecast-days small { color: var(--muted); font-size: .7rem; white-space: nowrap; }
 .weather .legend { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; margin: .75rem 0 0; font-size: .78rem; color: var(--muted); }
 .weather .lastday { color: var(--down); }
 .weather .lastday::before { content: ""; display: inline-block; height: .9rem; margin-right: .4rem; vertical-align: -2px; border-left: 2px dashed var(--down); }
@@ -165,7 +129,7 @@ table.outlook thead .last { color: var(--down); }
 .jump { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .9rem; margin-bottom: .75rem; }
 .jump .mine { font-weight: 700; }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-th, td { text-align: right; padding: .45rem .3rem; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+th, td { text-align: right; padding: .7rem .4rem; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
 th:nth-child(2), td:nth-child(2) { text-align: left; width: 100%; white-space: normal; }
 th { font-size: .8rem; color: var(--muted); font-weight: 500; }
 td.pts, th.pts { font-weight: 700; }
@@ -203,7 +167,7 @@ details.rules { margin: 1.5rem 0; }
 details.rules ul { padding-left: 1.2rem; margin: .5rem 0 0; }
 summary { cursor: pointer; color: var(--accent); }
 label { display: block; font-weight: 500; margin-bottom: .25rem; }
-input, select { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .6rem; width: 100%; }
+input, select { font: inherit; font-size: 1rem; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .55rem .6rem; width: 100%; }
 input[type=number], .sets select { width: 4.5rem; text-align: center; }
 fieldset { border: 0; padding: 0; margin: 0 0 1rem; }
 legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
@@ -240,6 +204,143 @@ button.link { background: none; border: 0; padding: 0; min-height: 0; color: var
 details { margin-top: .75rem; }
 details.card > summary { cursor: pointer; }
 details.card[open] > summary { margin-bottom: .75rem; }
+/* Shared rhythm and visible keyboard navigation. */
+[hidden] { display: none !important; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+a { text-underline-offset: 3px; }
+button, a.button, a.rowlink, .league-card { transition: background .15s ease, border-color .15s ease, box-shadow .15s ease; }
+button:hover, a.button:hover { filter: brightness(.94); }
+a.rowlink:hover { background: var(--bg); }
+input:focus, select:focus { border-color: var(--accent); }
+input[type=checkbox], input[type=radio] { accent-color: var(--accent); }
+.skip-link { position: fixed; top: -5rem; left: 1rem; z-index: 20; background: var(--card); padding: .75rem 1rem; border-radius: 8px; }
+.skip-link:focus { top: .5rem; }
+.eyebrow { margin: 0 0 .4rem; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.page-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+.page-heading h1 { margin: 0; }
+.page-heading > a { font-size: .85rem; white-space: nowrap; }
+.role-label { font-size: .7rem; font-weight: 650; letter-spacing: .04em; color: var(--accent); background: var(--up-bg); border-radius: 6px; padding: .3rem .55rem; }
+.card > :last-child { margin-bottom: 0; }
+details.card > summary, .competition-board > summary { list-style: none; display: flex; align-items: center; gap: .6rem; min-height: 36px; color: var(--fg); }
+details.card > summary::-webkit-details-marker, .competition-board > summary::-webkit-details-marker { display: none; }
+details.card > summary::after, .competition-board > summary::after { content: "⌄"; color: var(--muted); margin-left: auto; font-size: 1.2rem; }
+details.card[open] > summary::after, .competition-board[open] > summary::after { transform: rotate(180deg); }
+.player-app:has(.dashboard-top) > header, .player-app:has(.dashboard-top) > main, .player-app:has(.dashboard-top) > footer { max-width: 72rem; }
+.dashboard-top { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(260px, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+.dashboard-top:empty { display: none; }
+.dashboard-top > :only-child { grid-column: 1 / -1; }
+.dashboard-top:not(:has(.weather)) .dashboard-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dashboard-top .weather { min-width: 0; margin: 0; padding: 1rem; }
+.weather h2 { font-size: .9rem; margin-bottom: .6rem; }
+.weather .legend { margin-top: .4rem; font-size: .68rem; }
+.dashboard-counts { display: grid; height: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.dashboard-counts > div { display: flex; flex-direction: column; justify-content: center; border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.2rem; background: var(--card); }
+.dashboard-counts strong { font-size: 2rem; line-height: 1.2; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.dashboard-counts span { font-size: .8rem; color: var(--muted); margin-top: .2rem; }
+.dashboard-counts > .stat-focus { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.dashboard-counts > .stat-focus span { color: inherit; }
+.league-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: .75rem; margin-bottom: 1.75rem; }
+.league-card { display: flex; gap: 1rem; align-items: center; color: inherit; text-decoration: none; margin: 0; }
+.league-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgb(14 39 27 / .06); }
+.league-place { min-width: 3.2rem; font-size: 2rem; font-weight: 650; line-height: 1.1; letter-spacing: -.06em; color: var(--accent); }
+.league-place small { display: block; font-size: .65rem; letter-spacing: 0; color: var(--muted); font-weight: 500; margin-top: .3rem; }
+.league-info { display: flex; flex: 1; flex-direction: column; min-width: 0; gap: .15rem; }
+.league-info > .muted { font-size: .8rem; }
+.league-info .tag { align-self: flex-start; margin: .25rem 0 0; }
+.league-card .chev { color: var(--muted); }
+.section-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .25rem 1rem; margin: 1.5rem 0 .8rem; }
+.section-heading h2 { margin: 0; }
+.section-heading .hint { margin: 0; font-size: .75rem; }
+.season-deadline { font-size: .8rem; color: var(--muted); }
+.competition-board { margin: 0 0 1rem; border: 1px solid var(--line); border-radius: 16px; background: var(--card); padding: 1rem; }
+.competition-board > summary { margin-bottom: .8rem; font-size: .9rem; }
+.competition-board:not([open]) > summary { margin-bottom: 0; }
+.competition-board > summary .muted { font-size: .75rem; }
+.match-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+.board-column { min-width: 0; background: var(--bg); border-radius: 12px; padding: .75rem; min-height: 150px; }
+.board-column h3 { display: flex; align-items: center; gap: .4rem; font-size: .8rem; margin: 0 0 .75rem; font-weight: 650; }
+.board-column h3::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.board-column.arranged h3::before { background: var(--accent); }
+.lane-count { margin-left: auto; font-weight: 500; }
+.board-empty { font-size: .78rem; margin: 1rem 0; text-align: center; }
+.match-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .9rem; margin-bottom: .6rem; box-shadow: 0 2px 4px rgb(14 39 27 / .03); overflow-wrap: anywhere; }
+.match-card:last-child { margin-bottom: 0; }
+.match-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .25rem; }
+.match-card .opponent { font-weight: 650; line-height: 1.4; text-decoration: none; color: var(--fg); padding-top: .25rem; }
+.match-card .opponent:hover { text-decoration: underline; }
+.drag-handle { background: transparent; color: var(--muted); cursor: grab; padding: 0; width: 32px; min-height: 36px; font-size: 1.3rem; flex-shrink: 0; touch-action: none; }
+.match-chats { display: flex; flex-wrap: wrap; gap: .25rem .75rem; font-size: .8rem; margin: .4rem 0; }
+.match-chats a { display: inline-flex; align-items: center; min-height: 40px; text-decoration: none; font-weight: 600; }
+.match-contacts { margin: .4rem 0; font-size: .8rem; }
+.match-contacts > summary { min-height: 40px; padding-top: .6rem; font-weight: 600; }
+.match-contacts .match-chats { flex-direction: column; }
+.match-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem .75rem; border-top: 1px solid var(--line); padding-top: .5rem; margin-top: .4rem; font-size: .78rem; }
+.match-actions form { margin: 0; }
+.match-actions button { background: var(--up-bg); color: var(--accent); padding: .35rem .6rem; font-size: .78rem; min-height: 40px; }
+.match-actions a { min-height: 40px; display: inline-flex; align-items: center; }
+.arranged .match-actions button { background: transparent; color: var(--muted); padding-left: 0; }
+.arranged .match-actions a { font-weight: 650; }
+.match-meta { font-size: .75rem; margin: .4rem 0; }
+.match-card.dragging { opacity: .4; }
+.board-column.drop-target { outline: 2px dashed var(--accent); outline-offset: -3px; background: var(--up-bg); }
+.match-card.saving { opacity: .6; pointer-events: none; }
+.drag-ghost { position: fixed; z-index: 10; pointer-events: none; margin: 0; opacity: .9; transform: rotate(2deg); box-shadow: 0 8px 24px #0004; }
+#board-status:empty { margin: 0; }
+#board-status:not(:empty) { padding: .6rem .8rem; background: var(--up-bg); border-radius: 8px; }
+.play-choices { border: 0; padding: 0; margin-top: 1rem; }
+.play-choices .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.choices label:has(input:checked) { background: var(--up-bg); border-color: var(--accent); box-shadow: none; }
+.player-options { margin-top: 1.5rem; }
+form.report .sets { max-width: 26rem; }
+@media (min-width: 600px) { form.report .choices { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 699px) {
+  header, main, footer { padding-left: 16px; padding-right: 16px; }
+  header { min-height: 72px; gap: .5rem; }
+  header .club { font-size: .9rem; gap: .45rem; }
+  header .club img { width: 28px; height: 28px; }
+  header nav a { padding: .6rem .5rem; font-size: .8rem; }
+  main { padding-top: 1.5rem; }
+  .page-heading { gap: .6rem; align-items: flex-end; }
+  .page-heading > a { font-size: .75rem; }
+  .dashboard-top { grid-template-columns: minmax(0, 1fr); gap: .65rem; margin-bottom: 1rem; }
+  .dashboard-counts { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; }
+  .dashboard-counts > div { padding: .85rem .25rem; text-align: center; border-radius: 10px; }
+  .dashboard-counts strong { font-size: 1.65rem; }
+  .dashboard-counts span { font-size: .68rem; }
+  .league-card { padding: 1rem; }
+  .league-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin-bottom: 1.5rem; }
+  .league-card { position: relative; flex-direction: column; align-items: flex-start; gap: .65rem; padding: .85rem; }
+  .league-place { display: flex; align-items: baseline; gap: .4rem; font-size: 1.65rem; }
+  .league-season { display: none; }
+  .league-info strong { font-size: .85rem; }
+  .league-info > .muted { font-size: .7rem; }
+  .league-card .chev { position: absolute; right: .85rem; top: 1rem; }
+  .competition-board { padding: .65rem; }
+  .match-board { gap: .4rem; }
+  .board-column { padding: .4rem; }
+  .board-column h3 { font-size: .72rem; gap: .25rem; margin: .25rem 0 .6rem; }
+  .match-card { padding: .6rem; }
+  .match-card .opponent { font-size: .82rem; }
+  .drag-handle { width: 24px; }
+  .match-actions { gap: 0; }
+  .match-actions button { font-size: .7rem; padding: .3rem .45rem; }
+  .match-actions a, .match-chats, .match-contacts { font-size: .72rem; }
+  .section-heading .hint { font-size: .7rem; }
+  .card { padding: 1rem; }
+}
+@media (max-width: 359px) {
+  header { flex-wrap: wrap; }
+  .page-heading { align-items: flex-start; flex-direction: column; }
+  .competition-board { padding: .4rem; }
+  .board-column { padding: .3rem; }
+  .match-card { padding: .4rem; }
+  .board-column h3::before { display: none; }
+  .league-cards { grid-template-columns: minmax(0, 1fr); }
+  .league-card { flex-direction: row; align-items: center; }
+  .league-card .chev { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }
+
 `;
 
 const ICON_COLOUR = "#2f6b3a";
@@ -272,13 +373,15 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
           entities the browser cannot read. STYLE is a constant in this file, never input. */}
       <style>{raw(STYLE)}</style>
     </head>
-    <body>
+    <body class="player-app">
+      <a class="skip-link" href="#main">Skip to content</a>
       <header>
         <a class="club" href="/">
+          <img src="/icon.svg" alt="" width="34" height="34" />
           {frame.club ?? "DeuceLeague"}
         </a>
         {frame.player && (
-          <nav>
+          <nav aria-label="Player">
             <a href="/" aria-current={frame.section === "matches" ? "page" : undefined}>
               Dashboard
             </a>
@@ -288,7 +391,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
           </nav>
         )}
       </header>
-      <main>{children}</main>
+      <main id="main">{children}</main>
       <footer>
         {frame.player && <span>Signed in as {frame.player}</span>}
         {/* Out of the way: signing back in takes an email, so a stray tap here is costly. */}
@@ -620,6 +723,15 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
  * What is left to play, a row each: who, in what, how to reach them (the people in the match, when they have a
  * number) and the button that reports it. Arranging the match comes first, so that is what the row offers.
  */
+const MatchChats: FC<{ people: NonNullable<MyMatch["people"]>; single?: boolean }> = ({ people, single }) => (
+  <div class="match-chats">
+    {people.map(c => c.phone && whatsapp(c.phone)
+      ? <a draggable="false" href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`}>{single ? "WhatsApp ↗" : `WhatsApp · ${c.display_name}`}</a>
+      : c.phone ? <a draggable="false" href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`} aria-label={`Call ${c.display_name}`}>{single ? "Call player" : `Call · ${c.display_name}`}</a>
+      : c.email ? <a draggable="false" href={`mailto:${c.email}`} aria-label={`Email ${c.display_name}`}>{single ? "Email player" : `Email · ${c.display_name}`}</a> : null)}
+  </div>
+);
+
 const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => {
   const competitions = new Map<string, MyMatch[]>();
   for (const match of matches) competitions.set(match.competitionId, [...(competitions.get(match.competitionId) ?? []), match]);
@@ -638,12 +750,11 @@ const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => {
                 <a class="opponent" draggable="false" href={`/matches/${m.id}`}>{m.opponent}</a>
                 <button type="button" class="drag-handle" aria-label={`Drag match against ${m.opponent}`} title="Drag to the other lane">⠿</button>
               </div>
-              {(m.people ?? []).some(c => c.phone || c.email) && <div class="match-chats">
-                {(m.people ?? []).map(c => c.phone && whatsapp(c.phone)
-                  ? <a draggable="false" href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`}>WhatsApp · {c.display_name}</a>
-                  : c.phone ? <a draggable="false" href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`}>Call · {c.display_name}</a>
-                  : c.email ? <a draggable="false" href={`mailto:${c.email}`}>Email · {c.display_name}</a> : null)}
-              </div>}
+              {(m.people ?? []).some(c => c.phone || c.email) && (
+                (m.people ?? []).filter(c => c.phone || c.email).length > 1
+                  ? <details class="match-contacts"><summary>Message players</summary><MatchChats people={m.people ?? []} /></details>
+                  : <MatchChats people={m.people ?? []} single />
+              )}
               {!(m.people ?? []).some(c => c.phone || c.email) && <p class="muted match-meta">Ask the coach for contact details.</p>}
               <div class="match-actions">
                 <form class="move-match" method="post" action={`/matches/${m.id}/plan`}>
@@ -772,61 +883,20 @@ const ForecastTable: FC<{ forecast: Forecast; lastDay: string | null }> = ({ for
     };
   });
   return (
-    <div class="scroll">
-      <table class="outlook">
-        <thead>
-          <tr>
-            <th scope="row" />
-            {days.map((d) => (
-              <th
-                scope="col"
-                class={d.class}
-                title={[d.class?.includes("good") ? "Good for tennis" : "", d.date === lastDay ? "Last day of season" : ""]
-                  .filter(Boolean)
-                  .join(" · ") || undefined}
-              >
-                {d.weekday}
-                <br />
-                {d.day}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row" />
-            {days.map((d) => (
-              <td class={d.class}>
-                <span role="img" aria-label={d.words} title={d.words}>
-                  {d.icon}
-                </span>
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <th scope="row">{forecast.temperature}</th>
-            {days.map((d) => (
-              <td class={d.class} title={`Low ${d.low}${forecast.temperature}`}>
-                {d.high}
-              </td>
-            ))}
-          </tr>
-          <tr>
-            <th scope="row">Rain %</th>
-            {days.map((d) => (
-              <td class={d.class}>{d.rain ?? "–"}</td>
-            ))}
-          </tr>
-          <tr>
-            <th scope="row">Wind {forecast.wind}</th>
-            {days.map((d) => (
-              <td class={d.class} title={`Gusting ${d.gusts} ${forecast.wind}`}>
-                {d.wind}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
+    <div class="scroll" tabindex={0} role="region" aria-label="14-day forecast, scroll for more days">
+      <ul class="forecast-days">
+        {days.map((d) => <li class={d.class} title={[
+          d.class?.includes("good") ? "Good for tennis" : "",
+          d.date === lastDay ? "Last day of season" : "",
+          `Low ${d.low}${forecast.temperature} · Gusts ${d.gusts} ${forecast.wind}`,
+        ].filter(Boolean).join(" · ")}>
+          <span class="forecast-date">{d.weekday} {d.day}</span>
+          <span role="img" aria-label={d.words}>{d.icon}</span>
+          <strong>{d.high}{forecast.temperature}</strong>
+          <small>{d.rain ?? "–"}% rain</small>
+          <small>{d.wind} {forecast.wind}</small>
+        </li>)}
+      </ul>
     </div>
   );
 };
@@ -884,17 +954,22 @@ export const Home: FC<{
   active: boolean;
 }> = (p) => (
   <Layout title="Your dashboard" frame={p.frame}>
-    <h1>Hello, {p.name}</h1>
+    <div class="page-heading">
+      <div><p class="eyebrow">Your dashboard</p><h1>Hello, {p.name}</h1></div>
+      {!p.leaving && p.active && <a href="#preferences">Preferences</a>}
+    </div>
     {p.notice && <Notice ok messages={[p.notice]} />}
+    <div class="dashboard-top">
     {p.weather && <WeatherBox {...p.weather} />}
     {p.standings.length > 0 && <section aria-label="Your dashboard">
       <div class="dashboard-counts">
         <div><strong>{p.toPlay.length}</strong><span>To play</span></div>
-        <div><strong>{p.toPlay.filter(m => m.plan !== 'arranged').length}</strong><span>To arrange</span></div>
+        <div class="stat-focus"><strong>{p.toPlay.filter(m => m.plan !== 'arranged').length}</strong><span>To arrange</span></div>
         <div><strong>{p.toPlay.filter(m => m.plan === 'arranged').length}</strong><span>Arranged</span></div>
         <div><strong>{p.standings.length}</strong><span>Leagues</span></div>
       </div>
     </section>}
+    </div>
 
     {p.active && !p.leaving && !p.placementStatus.has_entries && p.placementStatus.placements.length === 0 && p.entries.length === 0 && (
       <section class="card">
@@ -957,7 +1032,7 @@ export const Home: FC<{
       </section>
     )}
     {p.deadlines.map((deadline) => (
-      <p class="deadline">{deadline}</p>
+      <p class="deadline season-deadline">{deadline}</p>
     ))}
 
     {p.answer.length > 0 && (
@@ -990,20 +1065,25 @@ export const Home: FC<{
       <section aria-label="Your leagues and places">
         <h2>Your leagues</h2>
         <div class="league-cards">
-          {p.standings.map(s => <a class="card league-card" href={`/competitions/${s.competitionId}#mine`}>
-            <span class="muted">{s.season}</span>
-            <strong>{s.competition}</strong>
-            <span>{s.division} · {s.position ? ordinal(s.position) : 'Unplaced'} · {s.points} pts</span>
-            <span class="muted">{s.played ?? 0} played · {s.remaining ?? 0} to play</span>
-            <Movement movement={s.movement} />
+          {p.standings.map(s => <a class="card league-card" href={`/competitions/${s.competitionId}#mine`} aria-label={`${s.competition}, ${s.season}, ${s.division}, ${s.position ? ordinal(s.position) : "unplaced"}, ${s.points} points`}>
+            <span class="league-place">{s.position ? ordinal(s.position) : '–'}<small>place</small></span>
+            <span class="league-info">
+              <strong>{s.competition}</strong>
+              <span class="muted">{s.division}<span class="league-season"> · {s.season}</span></span>
+              <span class="muted">{s.points} pts · {s.played ?? 0} played · {s.remaining ?? 0} to play</span>
+              <Movement movement={s.movement} />
+            </span>
+            <span class="chev" aria-hidden="true">→</span>
           </a>)}
         </div>
       </section>
     )}
     {p.toPlay.length > 0 && (
       <section aria-label="Matches to play">
-        <h2>To play ({p.toPlay.length})</h2>
-        <p class="hint">Drag a match or use its button to mark it arranged.</p>
+        <div class="section-heading">
+          <h2>To play ({p.toPlay.length})</h2>
+          <p class="hint">Drag between lanes, or tap Mark arranged.</p>
+        </div>
         <MatchBoard matches={p.toPlay} />
       </section>
     )}
@@ -1041,9 +1121,9 @@ export const Home: FC<{
     </details>}
     {/* Preferences and the two ways out stay folded until needed. */}
     {!p.leaving && p.active && (
-      <details class="card" open={p.choices.some((x) => x.attention)}>
+      <details class="card player-options" id="preferences" open={p.choices.some((x) => x.attention)}>
         <summary>
-          <strong>Next season</strong> <span class="muted">· what you want to play, a break, or leaving</span>
+          <strong>Next season</strong> <span class="muted">Playing preferences</span>
         </summary>
         <form method="post" action="/plays">
           <PlayChoices value={p.plays} />
@@ -1096,7 +1176,7 @@ export const Home: FC<{
       <p class="muted">You have no matches outstanding.</p>
     )}
     {p.played.length > 0 && (
-      <details>
+      <details class="card">
         <summary>Played ({p.played.length})</summary>
         <MatchRows matches={p.played} />
       </details>

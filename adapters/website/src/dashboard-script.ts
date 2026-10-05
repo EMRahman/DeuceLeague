@@ -11,6 +11,11 @@ export const DASHBOARD_SCRIPT = String.raw`
       });
     });
   });
+  const preferences = document.querySelector('#preferences');
+  const revealPreferences = () => { if (preferences && location.hash === '#preferences') preferences.open = true; };
+  revealPreferences();
+  window.addEventListener('hashchange', revealPreferences);
+  document.querySelector('a[href="#preferences"]')?.addEventListener('click', () => { preferences.open = true; });
   const boards = [...document.querySelectorAll('.competition-board')];
   if (!boards.length) return;
   const status = document.querySelector('#board-status');

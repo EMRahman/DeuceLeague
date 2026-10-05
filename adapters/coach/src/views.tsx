@@ -237,7 +237,7 @@ export type ChaseRow = {
 /** What the coach's pages add to the players' style. */
 const COACH_STYLE = `
 /* Wider than the players' column, which suits a phone: the coach's tables and lists have room on a desktop. */
-header, main, footer { max-width: 56rem; }
+header, main, footer { max-width: 76rem; }
 /* Every tab stays in view: a row that scrolls sideways hides its scrollbar, and the last tabs were never found. */
 .tabs { flex-wrap: wrap; overflow-x: visible; margin: 0 0 1rem; padding: 0; }
 @media (max-width: 559px) { .tabs a { padding: .3rem .65rem; font-size: .85rem; } }
@@ -299,15 +299,98 @@ form.court { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 .75re
 form.court .field { flex: 1 1 12rem; margin-bottom: .5rem; }
 form.court button { margin-bottom: .5rem; }
 .court-foot { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.coach-shell { max-width: 76rem; margin: 0 auto; }
+.coach-shell.has-nav { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 2rem; padding: 2rem 24px 0; }
+.coach-shell.has-nav > main { width: 100%; padding: 0 0 3rem; }
+.coach-shell > .coach-nav { align-self: start; position: sticky; top: 1.5rem; }
+.coach-nav .eyebrow { margin: .5rem .8rem 1rem; }
+.coach-nav .tabs { display: flex; flex-direction: column; gap: .3rem; }
+.coach-nav .tabs a { min-height: 44px; display: flex; align-items: center; border: 0; border-radius: 10px; padding: .7rem .85rem; font-size: .85rem; color: var(--muted); }
+.coach-nav .tabs a[aria-current] { background: var(--accent); color: var(--accent-fg); font-weight: 650; }
+.coach-nav .tabs a:not([aria-current]):hover { background: var(--card); color: var(--fg); }
+.coach-nav .tabs a:nth-child(4) { margin-bottom: 1rem; }
+.coach-app > header .role-label { margin-left: auto; }
+.coach-app > footer { padding-top: 1.5rem; border-top: 1px solid var(--line); }
+.coach-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .8rem; margin-bottom: 1.25rem; }
+.coach-metrics a { color: inherit; text-decoration: none; margin: 0; padding: 1.2rem; }
+.coach-metrics a:hover { border-color: var(--accent); }
+.coach-metrics strong { display: block; font-size: 2rem; line-height: 1.2; letter-spacing: -.04em; }
+.coach-metrics span { font-size: .8rem; color: var(--muted); }
+.coach-metrics .highlight { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.coach-metrics .highlight span { color: inherit; }
+.needs { border-left: 3px solid var(--accent); }
+.needs h2 { font-size: .85rem; }
+.needs a.rowlink { font-size: .9rem; }
+.competition-progress { margin-top: 1rem; }
+.competition-progress > .titleline { justify-content: space-between; }
+.competition-progress .completion { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin: .8rem 0 .5rem; font-size: .85rem; color: var(--muted); }
+.completion strong { font-size: 1.4rem; color: var(--fg); font-weight: 650; letter-spacing: -.04em; }
+progress { display: block; border: 0; border-radius: 99px; overflow: hidden; background: var(--bg); height: 6px; }
+progress::-webkit-progress-bar { background: var(--bg); border-radius: 99px; }
+progress::-webkit-progress-value { background: var(--accent); border-radius: 99px; }
+progress::-moz-progress-bar { background: var(--accent); border-radius: 99px; }
+.competition-links { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1rem; }
+.competition-links a { font-size: .8rem; min-height: 36px; display: inline-flex; align-items: center; }
+.competition-detail { border-top: 1px solid var(--line); margin-top: .75rem; padding-top: .7rem; }
+.competition-detail > summary { padding: .25rem 0; min-height: 36px; color: var(--muted); font-size: .8rem; }
+.competition-detail .scroll-x { overflow-x: auto; }
+.competition-detail p { font-size: .8rem; }
+.online { margin-top: 1.5rem; }
+.online > summary { flex-wrap: wrap; }
+details.online > summary h2 { font-size: .85rem; }
+.online > summary .muted { font-size: .8rem; }
+.online p, .online blockquote { font-size: .85rem; }
+.helper { font-size: .85rem; color: var(--muted); max-width: 44rem; }
+.helper > summary { color: var(--muted); padding: .5rem 0; }
+.page-tools { display: flex; gap: .6rem; flex-wrap: wrap; margin: 1rem 0; }
+.member-access .actions form { margin: 0; }
+.member-details form.level { flex-wrap: wrap; gap: .5rem; margin: .8rem 0; }
+.member-details form.level > label { flex: 0 0 10rem; }
+.member-details form.level > input { flex: 1 1 12rem; width: auto; }
+.member-details form.level select { min-height: 44px; font-size: 1rem; }
+.member-details > p { font-size: .8rem; }
+.membership-options form { margin-bottom: 1rem; }
+.membership-options .muted { font-size: .85rem; }
+.member-directory { padding: .25rem 1.25rem; }
+.member-directory .answer { padding: .8rem 0; }
+.member-directory .answer-row { gap: .75rem; }
+.member-directory .member-name { text-decoration: none; color: var(--fg); font-weight: 650; }
+.member-directory .member-name:hover { color: var(--accent); text-decoration: underline; }
+.member-directory .muted, .member-directory .deadline { font-size: .75rem; }
+.member-directory label { display: flex; align-items: center; gap: .5rem; min-height: 44px; }
+.member-directory input[type=checkbox] { width: 18px; height: 18px; }
+.member-filter { display: flex; gap: .5rem 1rem; flex-wrap: wrap; align-items: center; font-size: .8rem; }
+form.search { margin: 1rem 0 .75rem; }
+form.search input { min-height: 46px; background: var(--card); }
+form.search label { font-size: .85rem; }
+@media (max-width: 859px) {
+  .coach-shell.has-nav { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; padding: 1rem 16px 0; }
+  .coach-shell > .coach-nav { position: static; }
+  .coach-nav .eyebrow { display: none; }
+  .coach-nav .tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .25rem; margin: 0; }
+  .coach-nav .tabs a { justify-content: center; padding: .55rem .25rem; font-size: .76rem; }
+  .coach-nav .tabs a:nth-child(4) { margin: 0; }
+}
+@media (max-width: 499px) {
+  .coach-metrics { gap: .4rem; }
+  .coach-metrics a { padding: .8rem .6rem; }
+  .coach-metrics strong { font-size: 1.65rem; }
+  .coach-metrics span { font-size: .7rem; }
+  .competition-progress .titleline { gap: .5rem; }
+  .competition-progress .tag.minimum { font-size: .7rem; }
+  .online > summary { gap: .2rem .5rem; }
+  .member-directory { padding: .2rem 1rem; }
+}
+
 `;
 
 const TABS: { tab: Tab; href: string; label: string }[] = [
   { tab: "dashboard", href: "/coach", label: "Dashboard" },
   { tab: "results", href: "/coach/results", label: "Results" },
+  { tab: "members", href: "/coach/members", label: "Members" },
+  { tab: "chase", href: "/coach/chase", label: "Chase list" },
   { tab: "tables", href: "/coach/tables", label: "Tables" },
   { tab: "activity", href: "/coach/activity", label: "Activity" },
-  { tab: "chase", href: "/coach/chase", label: "Chase list" },
-  { tab: "members", href: "/coach/members", label: "Members" },
   { tab: "season", href: "/coach/season", label: "Season" },
   { tab: "weather", href: "/coach/weather", label: "Weather" },
 ];
@@ -343,14 +426,19 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
       {/* Raw, not escaped: both are constants in the code, never input. */}
       <style>{raw(STYLE + COACH_STYLE)}</style>
     </head>
-    <body>
+    <body class="coach-app">
+      <a class="skip-link" href="#main">Skip to content</a>
       <header>
         <a class="club" href="/coach">
-          {frame.club ? `${frame.club} · Coach` : "DeuceLeague · Coach"}
+          <img src="/icon.svg" alt="" width="34" height="34" />
+          {frame.club ?? "DeuceLeague"}
         </a>
+        <span class="role-label">Coach</span>
       </header>
-      <main>
+      <div class={`coach-shell${frame.signedIn ? " has-nav" : ""}`}>
         {frame.signedIn && (
+          <aside class="coach-nav">
+          <p class="eyebrow">Club management</p>
           <nav class="tabs" aria-label="Coach">
             {TABS.map((t) => (
               <a href={t.href} aria-current={frame.tab === t.tab ? "page" : undefined}>
@@ -358,9 +446,10 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
               </a>
             ))}
           </nav>
+          </aside>
         )}
-        {children}
-      </main>
+        <main id="main">{children}</main>
+      </div>
       <footer>
         {frame.signedIn && (
           <form method="post" action="/coach/sign-out">
@@ -387,8 +476,7 @@ export const SignIn: FC<{ frame: Frame; message?: string }> = ({ frame, message 
     <h1>Coach sign-in</h1>
     <Notice message={message} />
     <p>
-      Paste the administrator key the installer showed you. This browser gets its own key, which lasts 90 days; the
-      administrator key itself is not kept.
+      Use your administrator key to manage the club.
     </p>
     <form method="post" action="/coach/sign-in" class="readable">
       <div class="field">
@@ -416,9 +504,9 @@ export type Online = {
 /** A season being prepared, and how many competitions it has drafted. */
 export type Preparing = { name: string; drafts: number };
 
-/** Open while fewer than half have signed in; after that a line, so the work that is waiting comes first. */
-const OnlinePanel: FC<{ online: Online }> = ({ online }) => (
-  <details class="card online" open={online.signedIn * 2 < online.members}>
+/** Expand onboarding for a new club; keep it folded once a season is running. */
+const OnlinePanel: FC<{ online: Online; initiallyOpen?: boolean }> = ({ online, initiallyOpen = true }) => (
+  <details class="card online" open={initiallyOpen && online.signedIn * 2 < online.members}>
     <summary>
       <h2 id="online">Getting your club online</h2>
       <span class="muted"> · {online.signedIn} of {online.members} signed in</span>
@@ -492,8 +580,26 @@ export const Dashboard: FC<{
         : `${p.name} is being prepared, with no competitions yet. Carry on with it on the Season tab.`,
     });
   }
+  const totals = seasons.flatMap(s => s.competitions).reduce((n, { progress }) => ({
+    played: n.played + progress.played,
+    matches: n.matches + progress.matches,
+    review: n.review + progress.reported + progress.disputed,
+  }), { played: 0, matches: 0, review: 0 });
   return (
   <Layout title="Dashboard" frame={frame}>
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Coach overview</p>
+        <h1>{seasons.length === 1 ? seasons[0]!.season.name : "Your club"}</h1>
+      </div>
+      <a href="/coach/season">Manage season →</a>
+    </div>
+    {seasons.length === 1 && <p class="season-deadline">{deadlineLine(seasons[0]!.season.results_deadline_at, timezone)}</p>}
+    {seasons.length > 0 && <section class="coach-metrics" aria-label="Club overview">
+      <a class="card" href="/coach/activity"><strong>{totals.played}<span> / {totals.matches}</span></strong><span>Matches played</span></a>
+      <a class={`card${totals.review > 0 ? " highlight" : ""}`} href="/coach/results"><strong>{totals.review}</strong><span>Results to review</span></a>
+      <a class="card" href="/coach/members"><strong>{asking}{askingMore ? "+" : ""}</strong><span>Join requests</span></a>
+    </section>}
     {needs.length > 0 && (
       <section class="card needs" aria-labelledby="needs-you">
         <h2 id="needs-you">Needs you</h2>
@@ -511,7 +617,7 @@ export const Dashboard: FC<{
     )}
     {seasons.length === 0 && (
       <>
-        <h1>No season is running</h1>
+        <h2>No season is running</h2>
         {preparing.length === 0 && (
           <p>
             Once a season and its competitions are active, this page shows how far through they are. Prepare the next
@@ -520,30 +626,36 @@ export const Dashboard: FC<{
         )}
       </>
     )}
-    {online && <OnlinePanel online={online} />}
+    {seasons.length > 0 && <h2>Competitions</h2>}
     {seasons.map(({ season, competitions }) => {
       const deadline = deadlineLine(season.results_deadline_at, timezone);
       return (
         <>
-          <div class="titleline">
-            <h1>{season.name}</h1>
+          {seasons.length > 1 && <div class="titleline">
+            <h2>{season.name}</h2>
             {deadline && <span class="deadline">{deadline}</span>}
-          </div>
+          </div>}
           {competitions.length === 0 && <p class="muted">No competition in this season is active yet.</p>}
           {competitions.map(({ progress, optedOut, next }) => {
             const entries = progress.discipline === "doubles" ? "Pairs" : "Players";
             const columns = columnsOf(progress, entries);
             return (
-              <div class="card" id={`competition-${progress.competition_id}`}>
+              <div class="card competition-progress" id={`competition-${progress.competition_id}`}>
                 <div class="titleline">
                   <h2>{progress.name}</h2>
                   <Minimum progress={progress} />
                 </div>
-                <progress value={progress.played} max={Math.max(progress.matches, 1)} />
-                <p>
-                  {progress.played} of {plural(progress.matches, "match", "matches")} played
-                  {progress.percent_played !== null && ` (${Math.round(progress.percent_played)}%)`}
-                </p>
+                <div class="completion">
+                  <span>{progress.played} of {plural(progress.matches, "match", "matches")} played</span>
+                  <strong>{Math.round(progress.percent_played ?? 0)}%</strong>
+                </div>
+                <progress aria-label={`${progress.name} matches played`} value={progress.played} max={Math.max(progress.matches, 1)} />
+                <div class="competition-links">
+                  <a href={`/coach/tables/${progress.competition_id}`}>View standings →</a>
+                  <a href="/coach/chase">Follow up with players →</a>
+                </div>
+                <details class="competition-detail">
+                <summary>Division breakdown &amp; next season</summary>
                 <div class="scroll-x">
                   <table class="progress">
                     <thead>
@@ -611,12 +723,14 @@ export const Dashboard: FC<{
                     </>
                   )}
                 </p>
+                </details>
               </div>
             );
           })}
         </>
       );
     })}
+    {online && <OnlinePanel online={online} initiallyOpen={seasons.length === 0} />}
   </Layout>
   );
 };
@@ -708,14 +822,18 @@ export const Results: FC<{
   timezone: string;
 }> = ({ frame, disputed, reported, counts, more, late, history, timezone }) => (
   <Layout title="Results" frame={frame}>
-    <h1>Results to sort out</h1>
-    <p class="muted">
-      Results still waiting for matching entries, in the season under way. Each side enters independently on the
-      match page. If entries differ, ask the players to speak outside the app and enter the agreed result.
-      Open a match to inspect its history and make a coach decision if it stays unresolved.
-      Correcting a confirmed result asks for an explicit override.
-    </p>
-    <p><a href="/coach/matches">Find a match or correct a confirmed result</a> · <a href="/coach/matches?status=open">Matches with no entries yet</a></p>
+    <p class="eyebrow">Match management</p>
+    <h1>Results to review</h1>
+    <p class="muted">{counts.disputed + counts.reported === 0 ? "No disputed or pending results." : "Check disputed scores and follow up on missing entries."}</p>
+    <div class="page-tools">
+      <a class="button small" href="/coach/matches">Find a match</a>
+      <a class="button quiet small" href="/coach/matches?status=open">Unreported matches</a>
+    </div>
+    <details class="helper">
+      <summary>How result reviews work</summary>
+      <p>Each side enters independently. If entries differ, ask the players to agree a result and enter it again.
+        Open the match to see its history or make a coach decision. Correcting a confirmed result requires an explicit override.</p>
+    </details>
 
     <h2>Disputed ({counts.disputed})</h2>
     {counts.disputed === 0 && <p class="muted">No disputes.</p>}
@@ -833,6 +951,8 @@ export const Results: FC<{
       </>
     )}
 
+    <details class="card">
+    <summary>Dispute history</summary>
     <h2>Players in repeated disputes</h2>
     {history.filter((r) => r.this_season.disputes + r.earlier.disputes >= REPEAT).length === 0 ? (
       <p class="muted">
@@ -878,6 +998,7 @@ export const Results: FC<{
         </div>
       </>
     )}
+    </details>
   </Layout>
 );
 
@@ -1292,7 +1413,8 @@ export const Members: FC<{
 }> = ({ frame, members, left, waiting, requests, moreRequests, done, addedId, timezone, emailConfigured, unsigned = false,
   query = "", total, signedIn }) => (
   <Layout title="Members" frame={frame}>
-    <h1>Members</h1>
+    <p class="eyebrow">Your club</p>
+    <h1>Members <span class="muted">({total})</span></h1>
     {left.length > 0 && (
       <p class="jump">
         <a href="#former">Former members ({left.length})</a>
@@ -1381,9 +1503,7 @@ export const Members: FC<{
       <>
         <h2>Waiting to be placed</h2>
         <p class="muted">
-          New club members with no league entry yet who want to play, or have not said. Members taking a break,
-          leaving, previously entered or social are not listed. Consider these members in the draft for next season,
-          on the <a href="/coach/season">Season</a> tab; each draft offers them only for what they want to play.
+          Add these players to the next <a href="/coach/season">season draft</a>, based on what they want to play.
         </p>
         <div class="card">
           <ul class="list">
@@ -1404,7 +1524,7 @@ export const Members: FC<{
         not waiting for a place. Open one to change that if they ask to play.
       </p>
     )}
-    <h2>On the club's list</h2>
+    <h2>Member directory</h2>
     <form class="search" method="get" action="/coach/members">
       {unsigned && <input type="hidden" name="show" value="unsigned" />}
       <label for="q">Find a member</label>
@@ -1412,11 +1532,7 @@ export const Members: FC<{
       <button class="small" type="submit">Find</button>
       {query && <a href={unsigned ? "/coach/members?show=unsigned" : "/coach/members"}>Clear</a>}
     </form>
-    <p class="muted">
-      Open a member to make them a sign-in link, change their details, or record a break or that they have left.
-      {emailConfigured ? " To email invitations to several at once, select up to five below. Emailed links work once, for seven days; provider acceptance does not confirm inbox delivery."
-        : " Email is not configured, so invitations cannot be emailed; you can still hand over sign-in links."}
-    </p>
+    {emailConfigured && <p class="helper">Select up to five members to email a sign-in link.</p>}
     {emailConfigured && <form id="invitations" method="post" action="/coach/members/invite">
       <button type="submit">Email selected members (up to 5)</button>
     </form>}
@@ -1427,10 +1543,9 @@ export const Members: FC<{
       </p>
     ) : (
       total > 0 && (
-        <p class="muted">
-          {signedIn} of {total} signed in. Those not signed in yet are listed first. Levels run from 10, a beginner,
-          to 1, a national player.{" "}
-          <a href="/coach/members?show=unsigned">Show only those placed but never signed in</a>
+        <p class="member-filter muted">
+          <span>{signedIn} of {total} signed in</span>
+          <a href="/coach/members?show=unsigned">Placed players yet to sign in →</a>
         </p>
       )
     )}
@@ -1438,13 +1553,13 @@ export const Members: FC<{
     {members.length === 0 ? (
       <p class="muted">{query ? "Nobody matches. Check the spelling, or search by email or telephone." : unsigned ? "Everyone placed has signed in." : "The club has no members yet."}</p>
     ) : (
-      <div class="card">
+      <div class="card member-directory">
         <ul class="list">
           {members.map((m) => (
             <li class="answer" id={`member-${m.id}`}>
               <div class="answer-row">
                 <span>
-                  <a href={`/coach/members/${m.id}`}>{m.display_name}</a>
+                  <a class="member-name" href={`/coach/members/${m.id}`}>{m.display_name}</a>
                   {m.level !== null && <span class="tag level">Level {m.level}</span>}
                   {m.status === "paused" && <span class="tag">On a break</span>}
                   {m.leaving_at && <span class="tag">Not playing next season</span>}
@@ -1540,6 +1655,7 @@ export const MemberPage: FC<{
       </>
     ) : (
       <>
+        <section class="card member-access">
         <h2>Signing in</h2>
         <p class="muted">A link works once, within seven days. Once signed in, a player stays signed in on that phone.</p>
         {m.invitation_state && <p class={m.invitation_state === "failed" ? "deadline" : "muted"}>
@@ -1550,12 +1666,17 @@ export const MemberPage: FC<{
           Link sent, not used: it ran out seven days after sending. Email another, or make a sign-in
           link to send another way.
         </p>}
+        <div class="actions">
+        {m.phone && whatsapp(m.phone) && <a class="button quiet small" href={whatsapp(m.phone)!} aria-label={`WhatsApp ${m.display_name}`}>WhatsApp ↗</a>}
         <form method="post" action={`/coach/members/${m.id}/sign-in-link`}>
           <button class="quiet small" type="submit">Sign-in link</button>
         </form>
         {emailConfigured && m.email && <form method="post" action={`/coach/members/${m.id}/invite`}>
           <button class="small" type="submit">Email sign-in link</button>
         </form>}
+        </div>
+        </section>
+        <section class="card member-details">
         <h2>Details</h2>
         {m.email !== undefined && <form class="approve" method="post" action={`/coach/members/${m.id}/contacts`}>
           <div class="field"><label for={`email-${m.id}`}>Email for sign-in links</label>
@@ -1585,7 +1706,9 @@ export const MemberPage: FC<{
             <button class="quiet small" type="submit">Save</button>
           </form>
         )}
-        <h2>Playing</h2>
+        </section>
+        <details class="card membership-options" open={m.status === "paused" || !!m.leaving_at}>
+        <summary>Breaks &amp; membership</summary>
         {m.status === "paused" ? (
           <form method="post" action={`/coach/members/${m.id}/resume`}>
             <span class="deadline">On a break</span>
@@ -1618,6 +1741,7 @@ export const MemberPage: FC<{
           <a class="button small quiet" href={`/coach/members/${m.id}/left`}>Left the club…</a>
           <span class="muted"> Asks first. Their results stay; they are not placed again, nor sent new sign-in links.</span>
         </p>
+        </details>
       </>
     )}
   </Layout>
