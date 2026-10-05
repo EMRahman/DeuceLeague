@@ -35,7 +35,7 @@ export const Gender = z.enum(["female", "male", "other", "undisclosed"]);
 /** Bands a club reads at a glance, so a join form never asks for a birth date. Used to plan draws, never enforced. */
 export const AgeGroup = z.enum(["under_18", "18_34", "35_49", "50_64", "65_plus"]);
 /** What a member wants to play next: `not_now` is a social member. */
-export const WantsToPlay = z.enum(["singles", "doubles", "both", "not_now"]);
+export const WantsToPlay = z.enum(["singles", "doubles", "mixed_doubles", "both", "singles_mixed", "doubles_mixed", "all", "not_now"]);
 
 export const EntryState = z.enum(["active", "withdrawn"]);
 

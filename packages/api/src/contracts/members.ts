@@ -29,7 +29,7 @@ export const Member = z
     joined_on: z.iso.date().nullable(),
     wants_to_play: WantsToPlay.nullable().openapi({
       description:
-        "What they want to play next season: `singles`, `doubles`, `both`, or `not_now` for a social member. " +
+        "What they want to play next season: singles, doubles, mixed doubles, any combination, or `not_now` for a social member. " +
         "Null: they have not said. Asked on the join form; the coach or the player can change it.",
     }),
     leaving_at: Timestamp.nullable().openapi({
@@ -215,7 +215,7 @@ export const wantsToPlay = createRoute({
   tags: ["Members"],
   summary: "Say what a member wants to play next season",
   description:
-    "Singles, doubles, both, or `not_now` for a social member; null clears it. The coach uses it to see who " +
+    "Singles, doubles, mixed doubles, any combination, or `not_now` for a social member; null clears it. The coach uses it to see who " +
     "wants a place in next season's draft, and a newcomer who wants to play is listed for one. A player's session " +
     "may set it for themselves; a key needs `members:write`. Saying the same again does nothing more.",
   ...requires.orPlayerOwn("members:write"),

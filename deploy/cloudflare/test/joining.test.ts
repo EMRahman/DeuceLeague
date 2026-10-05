@@ -380,7 +380,7 @@ test("the join form asks what they want to play; the coach and the player can ch
   // The form asks, and will not go without an answer.
   assert.match((await browser(f).get("/join")).html, /name="plays" value="not_now"/);
   const missing = await join(f, person(f, { plays: "" }));
-  assert.equal(missing.status, 400); assert.match(missing.html, /Say whether you want to play singles, doubles, both, or not now/);
+  assert.equal(missing.status, 400); assert.match(missing.html, /Choose singles, doubles, mixed doubles, a combination, or not now/);
   assert.equal((await join(f, person(f, { plays: "singles" }))).status, 200);
   assert.equal((await join(f, person(f, { first_name: "Sol", surname: "Social", email: "sol@example.org", phone: "07700 900777", plays: "not_now" }))).status, 200);
   const requests = (await f.api("/v1/join-requests", f.admin)).body.data as { id: string; first_name: string; wants_to_play: string }[];

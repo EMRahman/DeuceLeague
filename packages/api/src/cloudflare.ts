@@ -9,6 +9,7 @@ import { registerCloudflareViews } from "./cloudflare-views.js";
 import { registerCloudflareLeague } from "./cloudflare-league.js";
 import { authFor, type CloudflareEnv } from "./cloudflare-auth.js";
 import { registerCloudflareMatches } from "./cloudflare-matches.js";
+import { registerCloudflareMatchPlans } from "./cloudflare-match-plans.js";
 import { registerCloudflareAdministration } from "./cloudflare-administration.js";
 import type { D1Database } from "@cloudflare/workers-types";
 import { randomUUID, timingSafeEqual } from "node:crypto";
@@ -16,7 +17,7 @@ import {
   checkHealth, commitIdentity, CredentialExpiredError, initializeClub, readIdentity, readInstallation,
   retryMutation, sampleStatements, StaleSnapshotError, uuidv7, type CredentialKind, type IdentityChange, type IdentitySnapshot,
 } from "@deuceleague/db-d1";
-import { PLAYER_SCOPES, Scope } from "@deuceleague/schema";
+import { PLAYER_SCOPES, Scope, type WantsToPlay } from "@deuceleague/schema";
 import { OpenAPIHono, z } from "@hono/zod-openapi";
 import type { Context } from "hono";
 import { bodyLimit } from "hono/body-limit";
@@ -173,7 +174,7 @@ export function createCloudflareApp(options: Options) {
         member: { id: state.credential!.member_id!, display_name: state.credential!.display_name!,
           status: (state.credential!.member_status ?? "active") as "active" | "paused" | "left",
           leaving_at: iso(state.credential!.leaving_at == null ? null : new Date(state.credential!.leaving_at)),
-          wants_to_play: (state.credential!.member_plays ?? null) as "singles" | "doubles" | "both" | "not_now" | null },
+          wants_to_play: (state.credential!.member_plays ?? null) as WantsToPlay | null },
       },
     },
   })), 200));
@@ -248,6 +249,7 @@ export function createCloudflareApp(options: Options) {
   });
 
   registerCloudflareMatches(app, db);
+  registerCloudflareMatchPlans(app, db);
   registerCloudflareAdministration(app, db);
   registerCloudflareLeague(app, db);
   registerCloudflareViews(app, db);

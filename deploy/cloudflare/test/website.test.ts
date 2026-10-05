@@ -81,7 +81,7 @@ test("Home asks nobody to play a withdrawn opponent, and does not call a no-show
   assert.match((await sam.get("/")).html, /To play \(1\)/);
   // Alex withdraws: the match is credited to Sam by the rules, so Sam is not asked to play or report it.
   assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
-  assert.doesNotMatch((await sam.get("/")).html, /To play/);
+  assert.doesNotMatch((await sam.get("/")).html, /<h2>To play/);
   assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "active" })).status, 200);
   assert.match((await sam.get("/")).html, /To play \(1\)/);
 
@@ -399,7 +399,7 @@ test("home puts what to do first: a row each to play with a way to reach them, a
   const sam = await signIn(f, "sam@example.org");
   const home = (await sam.get("/")).html;
   assert.match(home, /To play \(1\)/);
-  assert.match(home, /WhatsApp:\s*<a href="https:\/\/wa\.me\/447700900123">Alex<\/a>/);
+  assert.match(home, /href="https:\/\/wa\.me\/447700900123"[^>]*>WhatsApp · Alex<\/a>/);
   assert.match(home, new RegExp(`href="/matches/${p.match}#report"[^>]*>\\s*Report score`));
   assert.doesNotMatch(home, /example\.org|Private Alex/, "the row shows a name and a number, nothing else");
   // The season is a card of rows, one for each competition, and says once that fixtures are ready.

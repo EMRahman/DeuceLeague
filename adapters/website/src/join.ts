@@ -28,7 +28,10 @@ export const AGE_GROUPS = [
 ] as const;
 /** What someone wants to play, as the form and the player's home page word it. `not_now` is a social member. */
 export const PLAYS = [
-  ["singles", "Singles"], ["doubles", "Doubles"], ["both", "Singles and doubles"], ["not_now", "Not now: I am a social member"],
+  ["singles", "Singles"], ["doubles", "Doubles"], ["mixed_doubles", "Mixed doubles"],
+  ["both", "Singles and doubles"], ["singles_mixed", "Singles and mixed doubles"],
+  ["doubles_mixed", "Doubles and mixed doubles"], ["all", "Singles, doubles and mixed doubles"],
+  ["not_now", "Not now: I am a social member"],
 ] as const;
 export const playsLabel = (value: string | null | undefined) => PLAYS.find(([v]) => v === value)?.[1] ?? null;
 export const genderLabel = (value: string | null | undefined) => GENDERS.find(([v]) => v === value)?.[1] ?? null;
@@ -91,7 +94,7 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
   }
   if (!GENDERS.some(([v]) => v === values.gender)) problems.push("Choose your gender, or say you would rather not.");
   if (values.age_group && !AGE_GROUPS.some(([v]) => v === values.age_group)) problems.push("Choose one of the age groups, or leave it blank.");
-  if (!PLAYS.some(([v]) => v === values.plays)) problems.push("Say whether you want to play singles, doubles, both, or not now.");
+  if (!PLAYS.some(([v]) => v === values.plays)) problems.push("Choose singles, doubles, mixed doubles, a combination, or not now.");
   if (!values.privacy) problems.push("Tick the box to say you have read the privacy notice.");
   return { values, problems };
 }

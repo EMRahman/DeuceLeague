@@ -13,6 +13,15 @@ who is left to play before the deadline. The home page puts what waits on the
 player first: scores to answer, then each match left to play with a button to
 report it and a WhatsApp or call link for the people in it, where they have a
 number (`GET /v1/me/contacts`, one read, only when something is left to play).
+The player dashboard puts court weather at the top, then counts of matches left,
+matches to arrange, arranged matches and leagues. Each league card shows the
+player's division, place, points and matches played and left to play.
+The compact match board has **To arrange**, **Planned** (who to arrange next)
+and **Arranged** columns, with an optional agreed date. Markers are private to
+each player and persist through the API; they do not notify opponents or change
+results. WhatsApp links accept international numbers and UK mobile numbers in
+local form. Playing preferences include singles, doubles, mixed doubles and
+every combination, on the join form and under next season's choices.
 The season they are in is a line a competition below that, and next season's
 choices are folded away until the player opens them, or until one needs an
 answer. Scores are typed on a number pad, not picked from lists; once a score is

@@ -799,10 +799,9 @@ test("the sign-in link page hands over a message to paste, and a WhatsApp chat t
   assert.ok(!made.includes("?text="), "no message in the chat address");
   assert.match(made, /<input id="link" class="copy" type="text" value="https:\/\/league\.test\/login\?token=/);
 
-  // A number without its country code cannot open a chat: the page says why and where to fix it.
+  // UK mobile numbers work in local form too.
   const local = (await coach.post(`/coach/members/${kit.id}/sign-in-link`)).html;
-  assert.doesNotMatch(local, /wa\.me/); assert.match(local, /country code/);
-  assert.match(local, new RegExp(`href="/coach/members/${kit.id}">their page</a>`));
+  assert.match(local, /href="https:\/\/wa\.me\/447700900321"/);
   // And with no number there is just the message.
   const none = (await coach.post(`/coach/members/${sam.id}/sign-in-link`)).html;
   assert.doesNotMatch(none, /wa\.me|country code/); assert.match(none, /Hi Sam, here is your sign-in link/);

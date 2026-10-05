@@ -27,6 +27,36 @@ const VENUE_SWITCH = Array.from(
 
 /** Shared with the coach's site, so both look like one club's. */
 export const STYLE = `
+
+.dashboard-counts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.5rem; margin:1rem 0; }
+.dashboard-counts > div { padding:.8rem .5rem; border:1px solid var(--line); border-radius:12px; background:var(--card); text-align:center; }
+.dashboard-counts strong { display:block; font-size:1.7rem; line-height:1.2; }
+.dashboard-counts span { font-size:.8rem; color:var(--muted); }
+.league-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(15rem,1fr)); gap:.75rem; }
+.league-card { display:flex; flex-direction:column; gap:.25rem; color:inherit; text-decoration:none; margin:0; }
+.league-card strong { color:var(--accent); }
+.league-card .tag { align-self:flex-start; margin:0; }
+.match-board { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.65rem; margin-bottom:1.5rem; }
+.board-column { min-width:0; background:var(--past-bg); border-radius:12px; padding:.65rem; }
+.board-column.planned { background:var(--warn-bg); }
+.board-column.arranged { background:var(--ok-bg); }
+.board-column h3 { font-size:.95rem; margin:0 0 .65rem; }
+.board-empty { font-size:.85rem; margin:0; }
+.match-card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:.75rem; margin-bottom:.6rem; overflow-wrap:anywhere; }
+.match-card:last-child { margin-bottom:0; }
+.match-card .opponent { font-weight:700; text-decoration:none; }
+.match-meta, .match-date { font-size:.8rem; margin:.2rem 0 .5rem; }
+.match-chats { display:flex; flex-direction:column; gap:.35rem; font-size:.8rem; margin:.6rem 0; }
+.match-chats a { min-height:32px; display:flex; align-items:center; }
+.match-actions { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center; font-size:.8rem; }
+.match-actions form { margin:0; }
+.plan-edit { font-size:.8rem; margin-top:.65rem; }
+.plan-edit form { margin-top:.65rem; }
+.plan-edit label { margin-top:.5rem; }
+.plan-edit .hint { margin:.35rem 0; font-size:.75rem; }
+@media(min-width:760px) { main:has(.match-board), header:has(+main .match-board), body:has(.match-board) footer { max-width:64rem; } }
+@media(max-width:599px) { .match-board { grid-template-columns:1fr; } .dashboard-counts { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+
 :root { --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --accent: #2f6b3a; --accent-fg: #fff;
   --warn: #8a4b08; --warn-bg: #fdf1e2; --ok: #1f5b2c; --ok-bg: #e6f3e8; --card: #fff;
   --up: #2f6b3a; --up-bg: #e9f4ea; --down: #a3341f; --down-bg: #fbece8; --past: #555c66; --past-bg: #eceef1;
@@ -243,7 +273,7 @@ export const Layout: FC<PropsWithChildren<{ title: string; frame: Frame }>> = ({
         {frame.player && (
           <nav>
             <a href="/" aria-current={frame.section === "matches" ? "page" : undefined}>
-              Matches
+              Dashboard
             </a>
             <a href="/tables" aria-current={frame.section === "tables" ? "page" : undefined}>
               Tables
@@ -539,6 +569,8 @@ export type MyMatch = {
   note: string;
   /** For a match still to play: the partner and opponents, and their numbers, to arrange it. */
   people?: Contact[];
+  plan?: "to_arrange" | "planned" | "arranged";
+  arrangedOn?: string | null;
 };
 
 /** A match needing this side's independent result or a correction. */
@@ -552,6 +584,9 @@ export type Waiting = MyMatch & { mine: string | null };
 
 /** Where the player stands in one competition. */
 export type MyStanding = {
+  season?: string;
+  played?: number;
+  remaining?: number;
   competitionId: string;
   competition: string;
   division: string;
@@ -583,47 +618,50 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
  * What is left to play, a row each: who, in what, how to reach them (the people in the match, when they have a
  * number) and the button that reports it. Arranging the match comes first, so that is what the row offers.
  */
-const ToPlay: FC<{ matches: MyMatch[] }> = ({ matches }) => (
-  <ul class="list">
-    {matches.map((m) => {
-      // "WhatsApp: Sam · Alex", then "Call: …" for numbers a chat cannot be opened to: the way is said once, not per name.
-      const ways = new Map<string, { name: string; href: string }[]>();
-      for (const c of m.people ?? []) {
-        if (!c.phone) continue;
-        const chat = whatsapp(c.phone);
-        const way = chat ? "WhatsApp" : "Call";
-        ways.set(way, [...(ways.get(way) ?? []), { name: c.display_name, href: chat ?? `tel:${c.phone.replace(/[^0-9+]/g, "")}` }]);
-      }
-      return (
-        <li class="answer">
-          <div>
-            <a href={`/matches/${m.id}`}><strong>{m.opponent}</strong></a> <span class="muted">· {m.competition}</span>
+const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => (
+  <section class="match-board" aria-label="Match planning board">
+    {([['to_arrange', 'To arrange'], ['planned', 'Planned'], ['arranged', 'Arranged']] as const).map(([state, title]) => {
+      const matchesHere = matches.filter(m => (m.plan ?? 'to_arrange') === state);
+      return <section class={`board-column ${state}`}>
+        <h3>{title} <span class="muted">({matchesHere.length})</span></h3>
+        {matchesHere.length === 0 && <p class="muted board-empty">{state === 'to_arrange' ? 'All caught up.' : state === 'planned' ? 'Choose who to play next.' : 'No matches arranged yet.'}</p>}
+        {matchesHere.map(m => <article class="match-card">
+          <a class="opponent" href={`/matches/${m.id}`}>{m.opponent}</a>
+          <p class="muted match-meta">{m.competition}</p>
+          {state === 'arranged' && <p class="match-date">{m.arrangedOn ? playedOn(m.arrangedOn) : 'Date agreed outside the app'}</p>}
+          {(m.people ?? []).some(c => c.phone || c.email) && <div class="match-chats">
+            {(m.people ?? []).map(c => c.phone && whatsapp(c.phone)
+              ? <a href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`}>WhatsApp · {c.display_name}</a>
+              : c.phone ? <a href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`}>Call · {c.display_name}</a>
+              : c.email ? <a href={`mailto:${c.email}`}>Email · {c.display_name}</a> : null)}
+          </div>}
+          {!(m.people ?? []).some(c => c.phone || c.email) && <p class="muted match-meta">Ask the coach for contact details.</p>}
+          <div class="match-actions">
+            {state !== 'arranged' && <form method="post" action={`/matches/${m.id}/plan`}>
+              <input type="hidden" name="state" value={state === 'to_arrange' ? 'planned' : 'arranged'} />
+              <button class="small" type="submit">{state === 'to_arrange' ? 'Plan next' : 'Mark arranged'}</button>
+            </form>}
+            <a href={`/matches/${m.id}#report`}>Report score</a>
           </div>
-          <div class="answer-row">
-            <span class="muted">
-              {[...ways].map(([way, people], i) => (
-                <>
-                  {i > 0 && " · "}
-                  {way}:{" "}
-                  {people.map((r, j) => (
-                    <>
-                      {j > 0 && " · "}
-                      <a href={r.href}>{r.name}</a>
-                    </>
-                  ))}
-                </>
-              ))}
-            </span>
-            <span class="actions">
-              <a class="button small quiet" href={`/matches/${m.id}#report`}>
-                Report score
-              </a>
-            </span>
-          </div>
-        </li>
-      );
+          <details class="plan-edit">
+            <summary>{state === 'arranged' ? 'Change plan / set date' : 'Set date / change plan'}</summary>
+            <form method="post" action={`/matches/${m.id}/plan`}>
+              <label for={`state-${m.id}`}>Match plan</label>
+              <select id={`state-${m.id}`} name="state">
+                <option value="to_arrange" selected={state === 'to_arrange'}>To arrange</option>
+                <option value="planned" selected={state === 'planned'}>Planned · arrange next</option>
+                <option value="arranged" selected={state === 'arranged'}>Arranged · agreed with players</option>
+              </select>
+              <label for={`date-${m.id}`}>Agreed date (optional)</label>
+              <input id={`date-${m.id}`} type="date" name="arranged_on" value={m.arrangedOn ?? ''} />
+              <p class="hint">Adding a date marks it arranged.</p>
+              <button class="small quiet" type="submit">Save plan</button>
+            </form>
+          </details>
+        </article>)}
+      </section>;
     })}
-  </ul>
+  </section>
 );
 
 /**
@@ -838,9 +876,19 @@ export const Home: FC<{
   /** Still in the club and not on a break: only they are offered a break or leaving. */
   active: boolean;
 }> = (p) => (
-  <Layout title="Your matches" frame={p.frame}>
+  <Layout title="Your dashboard" frame={p.frame}>
     <h1>Hello, {p.name}</h1>
     {p.notice && <Notice ok messages={[p.notice]} />}
+    {p.weather && <WeatherBox {...p.weather} />}
+    {p.standings.length > 0 && <section aria-label="Your dashboard">
+      <div class="dashboard-counts">
+        <div><strong>{p.toPlay.length}</strong><span>To play</span></div>
+        <div><strong>{p.toPlay.filter(m => m.plan !== 'arranged').length}</strong><span>To arrange</span></div>
+        <div><strong>{p.toPlay.filter(m => m.plan === 'arranged').length}</strong><span>Arranged</span></div>
+        <div><strong>{p.standings.length}</strong><span>Leagues</span></div>
+      </div>
+    </section>}
+
     {p.active && !p.leaving && !p.placementStatus.has_entries && p.placementStatus.placements.length === 0 && p.entries.length === 0 && (
       <section class="card">
         <h2>You are a club member</h2>
@@ -931,33 +979,25 @@ export const Home: FC<{
       </section>
     )}
 
-    {p.toPlay.length > 0 && (
-      <section class="card">
-        <h2>To play ({p.toPlay.length})</h2>
-        <ToPlay matches={p.toPlay} />
+    {p.standings.length > 0 && (
+      <section aria-label="Your leagues and places">
+        <h2>Your leagues</h2>
+        <div class="league-cards">
+          {p.standings.map(s => <a class="card league-card" href={`/competitions/${s.competitionId}#mine`}>
+            <span class="muted">{s.season}</span>
+            <strong>{s.competition}</strong>
+            <span>{s.division} · {s.position ? ordinal(s.position) : 'Unplaced'} · {s.points} pts</span>
+            <span class="muted">{s.played ?? 0} played · {s.remaining ?? 0} to play</span>
+            <Movement movement={s.movement} />
+          </a>)}
+        </div>
       </section>
     )}
-    {p.standings.length > 0 && (
-      <section class="card">
-        <h2>Where you stand</h2>
-        <ul class="list">
-          {p.standings.map((s) => (
-            <li class="standing">
-              <a class="rowlink" href={`/competitions/${s.competitionId}#mine`}>
-                <span>
-                  <span class="title">{s.competition}</span>
-                  <Movement movement={s.movement} />
-                  <br />
-                  <span class="where">
-                    {s.division}
-                    {s.position ? ` · ${ordinal(s.position)}` : ""} · {s.points} pts
-                  </span>
-                </span>
-                <span class="chev">›</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+    {p.toPlay.length > 0 && (
+      <section aria-label="Matches to play">
+        <h2>To play ({p.toPlay.length})</h2>
+        <p class="hint">Plan who to play next. Mark arranged once you have agreed it.</p>
+        <MatchBoard matches={p.toPlay} />
       </section>
     )}
     {p.waiting.length > 0 && (
@@ -988,7 +1028,10 @@ export const Home: FC<{
         <MatchRows matches={p.closed} />
       </section>
     )}
-    <OpenSeasons placements={p.placementStatus.placements.filter((x) => !x.provisional)} />
+    {p.placementStatus.placements.some(x => !x.provisional) && <details class="card">
+      <summary>Season details</summary>
+      <OpenSeasons placements={p.placementStatus.placements.filter((x) => !x.provisional)} />
+    </details>}
     {/* Folded away all season: the dropdown and the two ways out are for when a player has something to say. */}
     {!p.leaving && p.active && (
       <details class="card" open={p.choices.some((x) => x.attention)}>
@@ -1044,7 +1087,6 @@ export const Home: FC<{
         </form>
       </details>
     )}
-    {p.weather && <WeatherBox {...p.weather} />}
     {p.answer.length + p.toPlay.length + p.waiting.length + p.closed.length === 0 &&
       (p.entries.length > 0 || !p.active || !!p.leaving ||
         (p.placementStatus.has_entries && p.placementStatus.placements.length === 0)) && (
@@ -1648,8 +1690,14 @@ export type Contact = {
   partner?: boolean;
 };
 
-/** A WhatsApp chat link, for a number written in international form; others are shown to dial. */
-export const whatsapp = (phone: string) => (phone.trim().startsWith("+") ? `https://wa.me/${phone.replace(/\D/g, "")}` : null);
+/** International numbers, plus UK mobile numbers written with their local leading zero. */
+export const whatsapp = (phone: string) => {
+  const cleaned = phone.trim().replace(/[\s().-]/g, "");
+  const international = /^\+[1-9]\d{6,14}$/.test(cleaned) ? cleaned.slice(1)
+    : /^00[1-9]\d{6,14}$/.test(cleaned) ? cleaned.slice(2)
+    : /^07\d{9}$/.test(cleaned) ? `44${cleaned.slice(1)}` : null;
+  return international ? `https://wa.me/${international}` : null;
+};
 
 /** The partner and opponents of a match, with their names and contacts, for arranging it outside the app. */
 const Contacts: FC<{ contacts: Contact[] }> = ({ contacts }) => (
