@@ -38,6 +38,7 @@ import {
   type MyStanding,
   type Contact,
   nextChoiceLine,
+  partnerRequests,
   type NextChoice,
   type NextSeason,
   type PartnerChoice,
@@ -638,7 +639,7 @@ export function createWebsite(options: WebsiteOptions) {
           `/v1/competitions/${competition.id}/partner-choices`, p.session)).data : null;
         const together = doubles && await pairedBefore(p, competition, entry);
         return { competitionId: competition.id, competition: competition.name,
-          line: nextChoiceLine(entry, memberId, said, together) };
+          ...nextChoiceLine(entry, memberId, said, together) };
       }));
 
     // Where the player stands in each competition they are in.
@@ -812,7 +813,7 @@ export function createWebsite(options: WebsiteOptions) {
       together,
       mine: choices.find((x) => x.member_id === me) ?? null,
       partners: choices.find((x) => x.member_id === partner?.id) ?? null,
-      asking: choices.filter((x) => x.partner_id === me && !x.agreed),
+      asking: partnerRequests(choices, me),
       players: [...new Map(entries.flatMap((e) => e.members).filter((m) => m.id !== me && m.id !== partner?.id)
         .map((m) => [m.id, { id: m.id, name: m.display_name }])).values()].sort((a, b) => a.name.localeCompare(b.name)),
     };

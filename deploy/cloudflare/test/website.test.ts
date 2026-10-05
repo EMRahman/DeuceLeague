@@ -240,8 +240,14 @@ test("a doubles player answers a request to partner them next season, and sees w
   assert.match(asked, /Sample Indy has asked you to be their partner next season\. Agreeing ends your pair with Sample Quinn\./);
   // The sample's doubles follows on from nothing, so the pair has not played together before: no "again".
   assert.match(asked, /You are down to play with Sample Quinn next season\./);
+  // The home page folds next season away, so it opens it, and says so, while someone is waiting for an answer.
+  const waiting = (await bailey.get("/")).html;
+  assert.match(text(waiting), /Sample doubles\s*: playing with Sample Quinn\. Sample Indy has asked you to be their partner next season\./);
+  assert.match(waiting, /<details class="card" open(="")?>/); assert.match(waiting, /#next-season">answer<\/a>/);
   const agreed = await bailey.post(`${page}/partner`, { choice: "new_partner", partner_id: id("Indy") });
   assert.equal(agreed.status, 303); assert.equal(agreed.location, `${page}?saved=1#next-season`);
+  const answered = (await bailey.get("/")).html;
+  assert.doesNotMatch(text(answered), /has asked you/); assert.match(answered, /<details class="card">\s*<summary>\s*<strong>Next season/);
   const now = text((await bailey.get(page)).html);
   assert.match(now, /Sample Indy has agreed: you will be a pair next season, once the coach places you\./);
   assert.doesNotMatch(now, /has asked you/);

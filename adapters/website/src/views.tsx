@@ -991,7 +991,7 @@ export const Home: FC<{
     <OpenSeasons placements={p.placementStatus.placements.filter((x) => !x.provisional)} />
     {/* Folded away all season: the dropdown and the two ways out are for when a player has something to say. */}
     {!p.leaving && p.active && (
-      <details class="card" open={p.choices.some((x) => needsChoice(x.line))}>
+      <details class="card" open={p.choices.some((x) => x.attention)}>
         <summary>
           <strong>Next season</strong> <span class="muted">· what you want to play, a break, or leaving</span>
         </summary>
@@ -1013,7 +1013,7 @@ export const Home: FC<{
                     <span>
                       <strong>{x.competition}</strong>: {x.line}
                     </span>
-                    <a href={`/competitions/${x.competitionId}#next-season`}>{needsChoice(x.line) ? "choose" : "change"}</a>
+                    <a href={`/competitions/${x.competitionId}#next-season`}>{x.attention ?? "change"}</a>
                   </div>
                 </li>
               ))}
@@ -1384,31 +1384,47 @@ export const CompetitionPage: FC<{ frame: Frame; next?: NextSeason | null; saved
   );
 };
 
-/** What a doubles player is asked to do when their partner is not staying: the one next-season line that needs an answer. */
-const CHOOSE = "Choose what you want";
-const needsChoice = (line: string) => line.endsWith(CHOOSE);
-
 /** A competition the player is in now, and what they have said about playing it next season. */
-export type NextChoice = { competitionId: string; competition: string; line: string };
+export type NextChoice = {
+  competitionId: string;
+  competition: string;
+  line: string;
+  /** Set when something here waits on the player, and what the link to answer it says: "choose" or "answer". */
+  attention?: "choose" | "answer";
+};
+
+/** Those who have asked this player to be their partner next season and are waiting to hear. */
+export function partnerRequests(choices: PartnerChoice[] | null, me: string): PartnerChoice[] {
+  return (choices ?? []).filter((x) => x.partner_id === me && !x.agreed);
+}
 
 /**
  * What a player has said about next season in one competition, in a few words for their home page: whether
- * they are playing, and in doubles with whom. Saying nothing keeps them in, with the same partner.
+ * they are playing, and in doubles with whom. Saying nothing keeps them in, with the same partner. It also says
+ * when something waits on them, a partner who is not staying or someone asking them to partner, since the home
+ * page folds next season away and an answer nobody sees is no answer.
  */
 export function nextChoiceLine(entry: { opted_out_at: string | null; members: { id: string; display_name: string }[] },
-  me: string, choices: PartnerChoice[] | null, together: boolean): string {
-  if (entry.opted_out_at) return "not playing (you opted out)";
-  if (!choices) return "playing";
+  me: string, choices: PartnerChoice[] | null, together: boolean): Pick<NextChoice, "line" | "attention"> {
+  if (entry.opted_out_at) return { line: "not playing (you opted out)" };
+  if (!choices) return { line: "playing" };
   const partner = entry.members.find((m) => m.id !== me);
   const mine = choices.find((c) => c.member_id === me);
   const theirs = choices.find((c) => c.member_id === partner?.id);
-  if (mine?.choice === "leaving") return "not playing";
+  if (mine?.choice === "leaving") return { line: "not playing" };
+  // Someone asking the player is not the player's own say, but it is the one thing here that needs an answer.
+  const asking = partnerRequests(choices, me);
+  const asked = asking.length === 0 ? ""
+    : ` ${asking.map((x) => x.member_name ?? "Someone").join(" and ")} ${asking.length === 1 ? "has" : "have"} asked you to be their partner next season.`;
+  const attention = asking.length > 0 ? ({ attention: "answer" } as const) : {};
   if (mine?.choice === "new_partner") {
-    return !mine.partner_id ? "playing with a new partner the coach finds"
+    const said = !mine.partner_id ? "playing with a new partner the coach finds"
       : mine.agreed ? `playing with ${mine.partner_name}` : `asked ${mine.partner_name}, waiting for them to agree`;
+    return { line: said + (asked ? "." + asked : ""), ...attention };
   }
-  if (partner && theirs) return `${partner.display_name} is not staying as your partner. ${CHOOSE}`;
-  return partner ? `playing with ${partner.display_name}${together ? " again" : ""}` : "playing";
+  if (partner && theirs) return { line: `${partner.display_name} is not staying as your partner. Choose what you want`, attention: "choose" };
+  const playing = partner ? `playing with ${partner.display_name}${together ? " again" : ""}` : "playing";
+  return { line: playing + (asked ? "." + asked : ""), ...attention };
 }
 
 /** Where a doubles player stands for next season, in a sentence. */
