@@ -261,8 +261,9 @@ test("Results and the match page write every score side-0-first, offer each entr
   const names = (await f.api(`/v1/matches/${p.match}`, f.admin)).body.sides.map((s: any) => s.label) as [string, string];
   const claim = (side: 0 | 1, sets: [number, number][], extra: object = {}) => f.api(`/v1/matches/${p.match}/claims`, f.admin, "POST",
     { side, outcome: "completed", score: score(...sets), played_on: "2026-06-01", ...extra });
-  // Side 1 enters a win, 4-6 6-7 for side 0: the waiting list writes it from side 0, not from the reporter.
-  assert.equal((await claim(1, [[4, 6], [6, 7]])).status, 201);
+  // Side 1 enters a win, 4-6 6-7 for side 0, on the player's form: the waiting list writes it from side 0, not
+  // from the reporter.
+  assert.equal((await claim(1, [[4, 6], [6, 7]], { source: "web" })).status, 201);
   let results = text((await coach.get("/coach/results")).html)
   assert.match(results, new RegExp(`${names[1]} entered: 4-6, 6-7\\. ${names[0]} has not answered`));
   assert.match(results, new RegExp(`Written with ${names[0]}'s games first`));
@@ -274,7 +275,8 @@ test("Results and the match page write every score side-0-first, offer each entr
   assert.match(text(page.html), /same score reversed/);
   // Each entry is also shown as its player typed it, their own games first: side 1's reads the other way round.
   assert.match(text(page.html), new RegExp(`As typed on ${names[1]}'s form, their games first: 6-4, 7-6`));
-  assert.match(text(page.html), new RegExp(`As typed on ${names[0]}'s form, their games first: 6-4, 7-6`));
+  // Side 0's came through the API, side 0 first already: there is no form to show it as.
+  assert.doesNotMatch(text(page.html), new RegExp(`As typed on ${names[0]}'s form`));
   assert.match(text(page.html), /every player types their games first/);
   const use = [...page.html.matchAll(/href="([^"]*\?use=[^"]+)"/g)].map((m) => m[1]!.replace(/&amp;/g, "&"));
   assert.equal(use.length, 2, "each entry can start the decision");
