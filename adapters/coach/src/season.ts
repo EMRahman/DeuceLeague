@@ -400,14 +400,14 @@ export function pairsView(entries: Entry[], choices: PartnerChoice[],
   };
   const named = new Set<string>();
   for (const entry of [...entries].sort((a, b) => a.label.localeCompare(b.label))) {
-    if (entry.state === "withdrawn") {
-      view.out.push({ name: entry.label, why: "withdrew this season" });
-      continue;
-    }
+    // A withdrawn pair is not carried over, but each player in it may still play next season: one who has said
+    // nothing is looking for a partner, as the coach would otherwise forget them.
+    const withdrawn = entry.state === "withdrawn";
+    if (withdrawn) view.out.push({ name: entry.label, why: "withdrew this season" });
     // An opted-out pair is not playing together, though either player may have found someone new.
-    if (entry.opted_out_at) view.out.push({ name: entry.label, why: "opted out of next season" });
+    else if (entry.opted_out_at) view.out.push({ name: entry.label, why: "opted out of next season" });
     const changes = (id: string) => gone(id) !== null || said.get(id)?.choice === "new_partner";
-    if (!entry.opted_out_at && entry.members.every((m) => !changes(m.id))) {
+    if (!withdrawn && !entry.opted_out_at && entry.members.every((m) => !changes(m.id))) {
       view.keeping.push(entry.label);
       continue;
     }
@@ -416,8 +416,8 @@ export function pairsView(entries: Entry[], choices: PartnerChoice[],
       const why = gone(m.id);
       const partner = entry.members.find((p) => p.id !== m.id);
       if (why) {
-        if (!entry.opted_out_at) view.out.push({ name: m.display_name, why });
-      } else if (entry.opted_out_at && c?.choice !== "new_partner") continue;
+        if (!entry.opted_out_at && !withdrawn) view.out.push({ name: m.display_name, why });
+      } else if (entry.opted_out_at && !withdrawn && c?.choice !== "new_partner") continue;
       // An agreed pair holds only while the partner can still play; else this player needs someone new.
       else if (c?.choice === "new_partner" && c.agreed && c.partner_id && gone(c.partner_id) === null) {
         if (!named.has(m.id)) view.agreed.push([m.display_name, c.partner_name ?? "someone"]);
@@ -428,8 +428,8 @@ export function pairsView(entries: Entry[], choices: PartnerChoice[],
       else if (partner) {
         const theirs = gone(partner.id);
         const pc = said.get(partner.id);
-        view.partnerless.push({ name: m.display_name, partner: partner.display_name, why: theirs
-          ?? (pc?.agreed ? `agreed to play with ${pc.partner_name ?? "someone else"}` : "wants a new partner") });
+        view.partnerless.push({ name: m.display_name, partner: partner.display_name, why: withdrawn ? "withdrew with them this season"
+          : theirs ?? (pc?.agreed ? `agreed to play with ${pc.partner_name ?? "someone else"}` : "wants a new partner") });
       }
     }
   }

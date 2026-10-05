@@ -95,14 +95,16 @@ export function planPlacements(
     const here = nearest(division.ordinal);
     const up = ordinals.filter((n) => n < division.ordinal).at(-1) ?? here;
     const down = ordinals.find((n) => n > division.ordinal) ?? here;
-    // Movement is by table position. A withdrawn entry has no final position, so it holds no place.
+    // Movement is by table position. A withdrawn entry has no final position: it can never go up, but it sits
+    // at the foot of the table and takes a relegation place, so the entry above it stays up.
     const inTable = division.standings.filter((r) => r.standing !== "withdrawn");
     const promotionPlaces = up < here ? inTable.filter((r) => r.standing === "ranked").slice(0, movement.promote) : [];
     const inPromotion = new Set(promotionPlaces.map((r) => r.entryId));
     // Never the same entry as a promotion place, in a division too small for both. An unranked entry can go
     // down but never up.
     const relegationPlaces = down > here && movement.relegate > 0
-      ? inTable.filter((r) => !inPromotion.has(r.entryId)).slice(-movement.relegate) : [];
+      ? division.standings.filter((r) => !inPromotion.has(r.entryId)).slice(-movement.relegate) : [];
+    const withdrawnDown = new Set(relegationPlaces.filter((r) => r.standing === "withdrawn").map((r) => r.entryId));
 
     const promoted = new Set<string>();
     const relegated = new Set<string>();
@@ -117,6 +119,8 @@ export function planPlacements(
       } else promoted.add(row.entryId);
     }
     for (const row of relegationPlaces) {
+      // A withdrawn entry's place is taken: it goes nowhere, and nobody is sent down in its stead.
+      if (withdrawnDown.has(row.entryId)) continue;
       if (notCarried(row.entryId)) open.push({ kind: "relegation", row, because: notCarriedBecause(row.entryId), held: false });
       else relegated.add(row.entryId);
     }
@@ -154,7 +158,17 @@ export function planPlacements(
     for (const row of division.standings) {
       const place = describePlace(row, division.name);
       const base = { entryId: row.entryId, label: row.label, from: { division: division.ordinal, position: row.position } };
-      if (optedOut.has(row.entryId)) {
+      // Withdrawing says the most: it is why the entry is not carried over, and it may have taken a relegation place.
+      if (row.standing === "withdrawn") {
+        suggestions.push({
+          ...base,
+          to: null,
+          reason: null,
+          explanation: `Withdrew from ${division.name}, so not carried over` +
+            `${withdrawnDown.has(row.entryId) ? `; it takes one of the relegation places to ${nameOf(down)}` : ""}. ` +
+            "Add them back if they are returning.",
+        });
+      } else if (optedOut.has(row.entryId)) {
         suggestions.push({
           ...base,
           to: null,
@@ -172,7 +186,7 @@ export function planPlacements(
             `${place}, but ${breakingUp.get(row.entryId)}, so the pair is not carried over. ` +
             "Add them back if they stay together.",
         });
-      } else if (tooFewToStay.has(row.entryId) && row.standing !== "withdrawn") {
+      } else if (tooFewToStay.has(row.entryId)) {
         const { played, target } = tooFewToStay.get(row.entryId)!;
         suggestions.push({
           ...base,
@@ -181,13 +195,6 @@ export function planPlacements(
           explanation:
             `${place}, but played ${played} of the ${target} ${target === 1 ? "match" : "matches"} needed to keep ` +
             "a place, so not carried over. Add them back if they are staying.",
-        });
-      } else if (row.standing === "withdrawn") {
-        suggestions.push({
-          ...base,
-          to: null,
-          reason: null,
-          explanation: `Withdrew from ${division.name}, so not carried over. Add them back if they are returning.`,
         });
       } else if (departed.has(row.entryId)) {
         suggestions.push({

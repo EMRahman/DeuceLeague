@@ -147,3 +147,35 @@ test("next season's pairs count leaving only for entries it covers, and an agree
   assert.deepEqual(view.seeking, [{ name: "A", asked: null }]);
   assert.ok(view.out.some((o) => o.name === "C"));
 });
+
+test("a pair that withdrew can still choose partners for next season, and the coach sees who is looking", async (t) => {
+  const { f, comp, players, say } = await doubles(t);
+  const kimLee = (await f.api(`/v1/competitions/${comp.id}/entries`, f.admin)).body.data
+    .find((e: { label: string }) => e.label === "Kim / Lee") as { id: string };
+  assert.equal((await f.api(`/v1/entries/${kimLee.id}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
+  // Lee, whose pair withdrew, can still ask for a partner, and can be asked.
+  assert.equal((await say("lee", { choice: "new_partner" })).status, 200);
+  const asked = await say("sam", { choice: "new_partner", partner_id: players.lee!.id });
+  assert.equal(asked.status, 200, JSON.stringify(asked.body));
+  // Kim and Lee may pair up again: asking each other is a new pair, not keeping one that is not carried over.
+  let again = await say("kim", { choice: "new_partner", partner_id: players.lee!.id });
+  assert.deepEqual(lines(again.body.data), [["Kim", "new_partner", "Lee", false]]);
+  again = await say("lee", { choice: "new_partner", partner_id: players.kim!.id });
+  assert.deepEqual(lines(again.body.data).filter(([name]) => name !== "Sam"), [["Lee", "new_partner", "Kim", true], ["Kim", "new_partner", "Lee", true]]);
+  // A player whose pair is still playing sees the withdrawn players among those they could ask.
+  const sam = await (await import("./website-helpers.ts")).signIn(f, "sam@example.org");
+  const home = (await sam.get(`/competitions/${comp.id}`)).html;
+  assert.match(home, new RegExp(`<option value="${players.kim!.id}"`));
+  // The coach's pairs page lists the pair as withdrawn, and Kim, who said nothing, as without a partner.
+  const { pairsView } = await import("../../../adapters/coach/dist/season.js");
+  const member = (id: string) => ({ id, display_name: id });
+  const entry = (state: string) => ({ id: "e", competition_id: "c", division_id: "d", label: "Kim / Lee", members: [member("Kim"), member("Lee")],
+    state, opted_out_at: null, created_at: "2026-09-01T00:00:00Z" }) as any;
+  const club = ["Kim", "Lee"].map((id) => ({ id, display_name: id, level: null, leaving_at: null }));
+  const view = pairsView([entry("withdrawn")], [{ member_id: "Lee", choice: "new_partner", partner_id: null, partner_name: null, agreed: false }] as any,
+    club, new Set(), "Mixed");
+  assert.deepEqual(view.out, [{ name: "Kim / Lee", why: "withdrew this season" }]);
+  assert.deepEqual(view.seeking, [{ name: "Lee", asked: null }]);
+  assert.deepEqual(view.partnerless, [{ name: "Kim", partner: "Lee", why: "withdrew with them this season" }]);
+  assert.deepEqual(view.keeping, []);
+});

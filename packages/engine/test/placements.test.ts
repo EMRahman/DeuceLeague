@@ -250,15 +250,24 @@ test("no entry is promoted from outside the top places or relegated from outside
   }
 });
 
-test("a relegation place left empty suggests the worst carried entry, and a withdrawn entry holds no place", () => {
+test("a withdrawn entry takes a relegation place, so the entry above it stays up", () => {
   const d1: DivisionStandings = { ordinal: 1, name: "Division 1", standings: [row("a1", 1), row("a2", 2), row("a3", 3), row("a4", 4),
     row("a5", null, 3, "unranked"), row("a6", null, 4, "withdrawn")] };
   const plan = planPlacements([d1, division(2, ["b1", "b2"])], { promote: 1, relegate: 2, minMatchesForPromotion: 0 }, divisions(2),
     new Set(["a5"]));
   const s = byId(plan.suggestions);
-  // The bottom two with a table position are a4 and a5; a6, who withdrew, holds none.
-  assert.deepEqual(["a3", "a4", "a5", "a6"].map((id) => [s[id]?.to, s[id]?.reason]), [[1, "held"], [2, "relegated"], [null, null], [null, null]]);
-  assert.deepEqual(plan.vacancies.map((v) => [v.kind, v.from, v.to, v.entryId, v.fill?.entryId]), [["relegation", 1, 2, "a5", "a3"]]);
+  // The bottom two places are a5's and a6's. a6 withdrew, so its place is taken; a5 opted out, so its place is
+  // empty, and a4, the worst carried entry, is only suggested to fill it.
+  assert.deepEqual(["a3", "a4", "a5", "a6"].map((id) => [s[id]?.to, s[id]?.reason]), [[1, "held"], [1, "held"], [null, null], [null, null]]);
+  assert.match(s.a6?.explanation ?? "", /takes one of the relegation places to Division 2/);
+  assert.deepEqual(plan.vacancies.map((v) => [v.kind, v.from, v.to, v.entryId, v.fill?.entryId]), [["relegation", 1, 2, "a5", "a4"]]);
+});
+
+test("under one down, a withdrawn pair is the one relegation: 5th of 6 stays up", () => {
+  const d1: DivisionStandings = { ordinal: 1, name: "Division 1", standings: [row("a1", 1), row("a2", 2), row("a3", 3), row("a4", 4),
+    row("a5", 5), row("a6", null, 2, "withdrawn")] };
+  const s = byId(suggestPlacements([d1, division(2, ["b1", "b2", "b3"])], { promote: 1, relegate: 1, minMatchesForPromotion: 0 }, divisions(2)));
+  assert.deepEqual([s.a5?.reason, s.a6?.to, s.b1?.reason], ["held", null, "promoted"]);
 });
 
 test("someone who has left the club or been removed leaves their place empty, and says so", () => {
@@ -270,4 +279,12 @@ test("someone who has left the club or been removed leaves their place empty, an
   // b2 goes up and b3, in the last-but-one place, goes down: neither moves into b1's or b4's empty place.
   assert.deepEqual(["b2", "b3"].map((id) => s[id]?.reason), ["promoted", "relegated"]);
   assert.deepEqual(plan.vacancies.map((v) => [v.kind, v.entryId]), [["promotion", "b1"], ["relegation", "b4"]]);
+});
+
+test("a withdrawn pair breaking up still says it took the relegation place", () => {
+  const d1: DivisionStandings = { ordinal: 1, name: "Division 1", standings: [row("a1", 1), row("a2", 2), row("a3", null, 2, "withdrawn")] };
+  const s = byId(suggestPlacements([d1, division(2, ["b1", "b2"])], { promote: 1, relegate: 1, minMatchesForPromotion: 0 }, divisions(2),
+    new Set(), new Map(), new Map([["a3", "Kim asked for a new partner"]])));
+  assert.match(s.a3?.explanation ?? "", /^Withdrew from Division 1, so not carried over; it takes one of the relegation places to Division 2\./);
+  assert.equal(s.a2?.reason, "held");
 });
