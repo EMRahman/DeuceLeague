@@ -28,9 +28,9 @@ MIT-licensed.
   cookie sent only to `/coach`. A key the API no longer accepts, because it
   expired or was revoked, is forgotten, and the coach signs in again.
 - **Sign-in links.** "Sign-in link" on a member calls
-  `POST /v1/members/{id}/login-link` with `expires_in_minutes` set to 72
-  hours, since a chat message is often read hours later, and shows the link
-  once. It works once.
+  `POST /v1/members/{id}/login-link` with `expires_in_minutes` set to seven
+  days, since a message is often read days later, and shows the link once. It
+  works once.
 - **Dashboard** (`/coach`). For each active season, the time left to report
   results, and for each active competition its minimum number of matches,
   highlighted beside its name, and a table by division, with a total. The

@@ -63,7 +63,7 @@ test("login exchange stores hashes, returns no PII, and retains the existing tok
   const grant = await f.db.prepare("SELECT * FROM access_grant").first();
   assert.equal(grant!.token_hash, hash(link));
   const expires = Number(grant!.expires_at);
-  assert.ok(expires > Date.now() + 14 * 60_000 && expires <= Date.now() + 15 * 60_000);
+  assert.ok(expires > Date.now() + 167.9 * 3_600_000 && expires <= Date.now() + 168 * 3_600_000, "a link lasts seven days");
   await code(await f.call("/v1/me", link), 403, "credential_not_accepted");
   const exchange = await f.call("/v1/session", link, "POST");
   assert.equal(exchange.status, 201);
@@ -148,7 +148,7 @@ test("credential kind is checked before input validation; missing members do not
   await code(await f.call("/v1/not-implemented"), 401, "missing_credential");
 });
 
-test("a caller may ask a login link to last up to 7 days, and no longer", async (t) => {
+test("a login link lasts 7 days, or less if the caller asks, and no longer", async (t) => {
   const f = await fixture(t);
   const member = await f.member();
   const long = await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes: 7 * 24 * 60 });
@@ -159,18 +159,21 @@ test("a caller may ask a login link to last up to 7 days, and no longer", async 
   assert.ok(expires > Date.now() + 167.9 * 3_600_000 && expires <= Date.now() + 168 * 3_600_000);
   const event = await f.db.prepare("SELECT payload FROM event WHERE type = 'member.login_link.created'").first<string>("payload");
   assert.equal(JSON.parse(event!).expires_at, expires_at);
-  // An empty body, with or without a JSON content type, asks for the default fifteen minutes.
+  // An empty body, with or without a JSON content type, asks for the default seven days.
   const path = `/v1/members/${member}/login-link`;
   for (const response of [await f.call(path, f.admin, "POST"),
     await f.app.request(path, { method: "POST", headers: { Authorization: `Bearer ${f.admin}`, "Content-Type": "application/json" } })]) {
     assert.equal(response.status, 201);
     const minutes = (Date.parse((await response.json() as { expires_at: string }).expires_at) - Date.now()) / 60_000;
-    assert.ok(minutes > 14 && minutes <= 15);
+    assert.ok(minutes > 7 * 24 * 60 - 1 && minutes <= 7 * 24 * 60);
   }
+  const short = await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes: 60 });
+  const shortMinutes = (Date.parse((await short.json() as { expires_at: string }).expires_at) - Date.now()) / 60_000;
+  assert.ok(shortMinutes > 59 && shortMinutes <= 60, "a caller may ask for a shorter link");
   for (const expires_in_minutes of [7 * 24 * 60 + 1, 0, 1.5]) {
     await code(await f.call(`/v1/members/${member}/login-link`, f.admin, "POST", { expires_in_minutes }), 400, "validation_failed");
   }
-  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM access_grant").first("n"), 3, "refused requests make no link");
+  assert.equal(await f.db.prepare("SELECT count(*) AS n FROM access_grant").first("n"), 4, "refused requests make no link");
   assert.equal((await f.call("/v1/session", token, "POST")).status, 201, "a long link still works once");
   await code(await f.call("/v1/session", token, "POST"), 401, "invalid_credential");
 });

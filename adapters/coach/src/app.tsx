@@ -34,7 +34,7 @@ import {
   ConfirmClearContacts,
   ConfirmErase,
   ConfirmLeft,
-  EMAILED_MINUTES,
+  LINK_MINUTES,
   notPlaying,
   signedInSince,
   Problem,
@@ -82,12 +82,6 @@ const KEY_DAYS = 90;
  */
 const BROWSER_SCOPES = ["league:read", "league:write", "members:read", "members:write", "members:pii"];
 
-/**
- * How long a link the coach hands over lasts. A chat message is often read
- * hours later, so a link lasts 72 hours rather than the fifteen minutes of one
- * a player asks for. It still works once.
- */
-const LINK_HOURS = 72;
 
 /**
  * What these pages need now: reading the league, the member list, and making sign-in links, and
@@ -1002,7 +996,7 @@ export function createCoachSite(options: CoachOptions) {
     if (!member.email || member.status === "left") return { name: member.display_name, message: "No email sent. Complete the member's contact details on Members before inviting them." };
     let state: "accepted" | "failed" = "failed";
     try {
-      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: EMAILED_MINUTES, expected_email: member.email });
+      const link = await api<{ token: string }>("POST", `/v1/members/${encodeURIComponent(id)}/login-link`, who.key, { expires_in_minutes: LINK_MINUTES, expected_email: member.email });
       const url = new URL("/login", publicUrl); url.searchParams.set("token", link.token);
       await options.mail({ to: member.email, subject: `${who.club.name}: your sign-in link`,
         text: `Your coach invites you to ${who.club.name}.\n\nSign in: ${url.href}\n\nThis link works once, for seven days. If it expires, request a new link on the league website.\n` });
@@ -1066,13 +1060,13 @@ export function createCoachSite(options: CoachOptions) {
         "POST",
         `/v1/members/${encodeURIComponent(id)}/login-link`,
         who.key,
-        { expires_in_minutes: LINK_HOURS * 60 },
+        { expires_in_minutes: LINK_MINUTES },
       );
       const url = new URL("/login", publicUrl);
       url.searchParams.set("token", link.token);
-      const hours = Math.round((Date.parse(link.expires_at) - Date.now()) / 3_600_000);
+      const days = Math.round((Date.parse(link.expires_at) - Date.now()) / 86_400_000);
       return c.html(
-        <SignInLink frame={frameOf(who, "members")} member={member.display_name} url={url.href} hours={hours} />,
+        <SignInLink frame={frameOf(who, "members")} member={member.display_name} url={url.href} days={days} />,
       );
     } catch (error) {
       if (!(error instanceof ApiProblem) || ![404, 409].includes(error.problem.status)) throw error;

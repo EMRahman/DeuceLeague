@@ -1135,12 +1135,12 @@ export const Chase: FC<{
   );
 };
 
-/** How long an emailed invitation works: a member may not open it for days. */
-export const EMAILED_MINUTES = 7 * 24 * 60;
+/** How long every sign-in link works, emailed or handed over: a member may not open it for days. */
+export const LINK_MINUTES = 7 * 24 * 60;
 
 /** An emailed sign-in link that ran out before the member signed in with it. */
 const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === "accepted" && !!m.invitation_at
-  && Date.parse(m.invitation_at) + EMAILED_MINUTES * 60_000 < now
+  && Date.parse(m.invitation_at) + LINK_MINUTES * 60_000 < now
   && !signedInSince(m, m.invitation_at);
 
 /** Whether they have signed in at all, or since a moment: signing out since does not undo it. */
@@ -1282,7 +1282,7 @@ export const Members: FC<{
 
     <p>
       Make a sign-in link for a player and send it to them however you talk, for example on WhatsApp. A link works
-      once, within 72 hours. Once signed in, a player stays signed in on that phone.
+      once, within seven days. Once signed in, a player stays signed in on that phone.
     </p>
     {unsigned ? (
       <p>
@@ -1451,16 +1451,16 @@ export const Members: FC<{
   </Layout>
 );
 
-export const SignInLink: FC<{ frame: Frame; member: string; url: string; hours: number }> = ({
+export const SignInLink: FC<{ frame: Frame; member: string; url: string; days: number }> = ({
   frame,
   member,
   url,
-  hours,
+  days,
 }) => (
   <Layout title="Sign-in link" frame={frame}>
     <h1>Sign-in link for {member}</h1>
     <p>
-      Send this to {member}. It works once, within {hours} hours, and is not shown again: make a new one if it runs
+      Send this to {member}. It works once, within {days} days, and is not shown again: make a new one if it runs
       out.
     </p>
     <div class="field">

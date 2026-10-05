@@ -2,17 +2,13 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { authProblems, conflictProblem, IdParam, notFoundProblem, requires, Timestamp, validationProblem } from "./shared.js";
 
 /**
- * How long a login link works. Long enough to open an email and tap it, short
- * enough that one lying in an inbox is of no use to anyone who finds it later.
+ * How long a login link works: seven days, however it reaches the player. An
+ * email or a WhatsApp message is often read days later. It still works once.
  */
-export const LOGIN_LINK_MINUTES = 15;
+export const LOGIN_LINK_MINUTES = 7 * 24 * 60;
 
-/**
- * The longest a caller may ask a link to work: a coach's invitation can sit in
- * an inbox for days before a member opens it, but a link should not stay usable
- * for long.
- */
-export const MAX_LOGIN_LINK_MINUTES = 7 * 24 * 60;
+/** The longest a caller may ask a link to work: the default. A caller may ask for less. */
+export const MAX_LOGIN_LINK_MINUTES = LOGIN_LINK_MINUTES;
 
 const LoginLinkOptions = z
   .object({
@@ -26,9 +22,8 @@ const LoginLinkOptions = z
       .openapi({
         example: MAX_LOGIN_LINK_MINUTES,
         description:
-          `How long the link works, up to ${MAX_LOGIN_LINK_MINUTES} minutes (7 days). Defaults to ` +
-          `${LOGIN_LINK_MINUTES}, enough to open an email the player just asked for. A link the coach hands ` +
-          "over in a chat, or emails as an invitation, may be read hours or days later, so ask for longer there.",
+          `How long the link works, up to and by default ${MAX_LOGIN_LINK_MINUTES} minutes (7 days). Ask for ` +
+          "less only if the link must expire sooner.",
       }),
   })
   .openapi("LoginLinkOptions");
@@ -74,7 +69,7 @@ export const mint = createRoute({
   tags: ["Player logins"],
   summary: "Make a login link for a member",
   description:
-    `A one-time token for a login link, which works for ${LOGIN_LINK_MINUTES} minutes, or up to 7 days ` +
+    `A one-time token for a login link, which works for ${LOGIN_LINK_MINUTES} minutes (7 days), or less ` +
     "if you ask. It is returned to " +
     "you, and your own tooling delivers it — the core sends nothing. The player's website exchanges it for " +
     "a session with `POST /v1/session`: do that from a page the player submits, not on opening the link, " +

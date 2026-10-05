@@ -44,7 +44,7 @@ at `/coach/weather`; see [court forecasts](WEATHER.md).
 
 Sign in at `/coach` with the administrator key. On **Members**, press
 **Sign-in link** for each player and send it to them, for example on WhatsApp.
-A link works once, within 72 hours; once signed in, a player stays signed in on
+A link works once, within seven days; once signed in, a player stays signed in on
 that phone.
 
 The list shows when each player signed in, with those who haven't at the top,

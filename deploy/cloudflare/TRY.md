@@ -90,7 +90,7 @@ the exact address, and commit. Wait for the build to finish again.
 4. Back on `/coach/members`, make a link for **Sample Bailey** and open it in a
    **private window**, since a browser holds one player's sign-in.
 
-A link works once, within 72 hours.
+A link works once, within seven days.
 
 ## 5. Be the players
 
