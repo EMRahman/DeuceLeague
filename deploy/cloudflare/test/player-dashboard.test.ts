@@ -65,6 +65,25 @@ test("mixed doubles choices persist for members and join requests and select the
   [[true,false,false],[false,true,false],[false,false,true],[true,true,false],[true,false,true],[false,true,true],[true,true,true],[false,false,false],[true,true,true]]);
 });
 
+test("fixture deletion seeks match plans by match ID and removes every participant's marker", async t => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, 'sam@example.org'), alex = await signIn(f, 'alex@example.org');
+  for (const player of [sam, alex]) {
+    assert.equal((await f.api(`/v1/matches/${p.match}/plan`, player.session(), 'PUT', { state: 'arranged' })).status, 200);
+  }
+  assert.equal(await f.db.prepare('SELECT count(*) AS n FROM match_plan WHERE match_id = ?').bind(p.match).first('n'), 2);
+  // Inspect the actual DELETE plan, including SQLite's foreign-key cascade lookup.
+  const plan = (await f.db.prepare('EXPLAIN QUERY PLAN DELETE FROM match WHERE id = ?')
+    .bind(p.match).all<{ detail: string }>()).results.map(row => row.detail).join('\n');
+  assert.match(plan, /SEARCH match_plan USING (?:COVERING )?INDEX [^\n]+\(match_id=\?\)/);
+  assert.doesNotMatch(plan, /SCAN match_plan/);
+  assert.equal((await f.api(`/v1/entries/${p.entries[0].id}`, f.admin, 'DELETE')).status, 204);
+  assert.equal(await f.db.prepare('SELECT count(*) AS n FROM match_plan WHERE match_id = ?').bind(p.match).first('n'), 0);
+  for (const player of [sam, alex]) {
+    assert.deepEqual((await f.api('/v1/me/match-plans', player.session())).body.data, []);
+  }
+});
+
 test("WhatsApp numbers support UK mobile and international formats and reject ambiguous input", () => {
   for (const number of ['07700 900123', '+44 7700 900123', '0044 7700 900123']) assert.equal(whatsapp(number), 'https://wa.me/447700900123');
   assert.equal(whatsapp('+1 (202) 555-0123'), 'https://wa.me/12025550123');
