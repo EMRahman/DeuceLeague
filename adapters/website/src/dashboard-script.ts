@@ -62,7 +62,9 @@ export const DASHBOARD_SCRIPT = String.raw`
       if (result.state !== state) throw new Error('Save failed');
       target.append(card);
       form.querySelector('[name=state]').value = state === 'arranged' ? 'to_arrange' : 'arranged';
-      form.querySelector('button').textContent = state === 'arranged' ? 'To arrange' : 'Mark arranged';
+      const toggle = form.querySelector('button');
+      toggle.textContent = state === 'arranged' ? '↩️' : '✅';
+      toggle.title = toggle.ariaLabel = state === 'arranged' ? 'Move back to To arrange' : 'Mark arranged';
       counts();
       status.textContent = 'Match moved to ' + label(state) + '.';
     } catch {

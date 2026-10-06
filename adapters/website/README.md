@@ -11,14 +11,15 @@ the home page: agree a score (straight from the home page), report one, see
 where they stand (position, and whether they are going up or down), and see
 who is left to play before the deadline. The home page puts what waits on the
 player first: scores to answer, then each match left to play with a button to
-report it and a WhatsApp or call link for the people in it, where they have a
+report it (a pencil icon) and a WhatsApp or call link for the people in it, where they have a
 number (`GET /v1/me/contacts`, one read, only when something is left to play).
 The player dashboard puts court weather at the top, then counts of matches left,
 matches to arrange, arranged matches and leagues. Each league card shows the
 player's division, place, points and matches played and left to play.
 Each competition has an expandable board with **To Arrange** and **Arranged** lanes.
 Drag a card between lanes (including by its handle on touch screens), or use its
-move button. Collapsed boards stay collapsed on refresh within the browser tab.
+its ✅ button (↩️ moves it back). Contact and score entry are icons: the WhatsApp logo
+(📞 or ✉️ when there is no WhatsApp number) and a pencil. Collapsed boards stay collapsed on refresh within the browser tab.
 No date is requested or displayed. Markers are private to
 each player and persist through the API; they do not notify opponents or change
 results. WhatsApp links accept international numbers and UK mobile numbers in
