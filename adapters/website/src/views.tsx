@@ -276,7 +276,8 @@ details.card[open] > summary::after, .competition-board[open] > summary::after {
 .match-chats, .match-tools { display: flex; align-items: center; gap: .1rem .4rem; }
 .match-chats { flex-wrap: wrap; font-size: .75rem; }
 .match-chats a { display: inline-flex; align-items: center; gap: .3rem; min-height: 40px; min-width: 40px; justify-content: center; text-decoration: none; font-weight: 600; font-size: .75rem; }
-.match-chats a.wa { color: #1fa855; }
+.match-chats a.wa { color: var(--fg); }
+.match-chats a.wa svg { color: #1fa855; }
 .match-chats svg, .match-tools svg { width: 22px; height: 22px; flex-shrink: 0; }
 .match-tools { margin-left: auto; }
 .match-tools a, .match-tools button { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; padding: 0; background: transparent; color: var(--accent); font-size: 1.15rem; line-height: 1; border-radius: 10px; text-decoration: none; }
