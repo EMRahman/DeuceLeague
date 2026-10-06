@@ -185,10 +185,12 @@ legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 .sets .note { display: block; font-size: .75rem; font-weight: 400; color: var(--muted); }
 /* A match not played out is one checkbox away, on the same page: the ordinary form is only the score. The ticked
    box stays in view, so what is asked is always what will be sent. A retirement keeps its score; a walkover and an
-   injury have none. */
-form.report .problem-only { display: none; }
-form.report:has(#problem:checked) .problem-only { display: block; }
-form.report:has(#problem:checked):not(:has(input[name=outcome][value=retired]:checked)) .scoring { display: none; }
+   injury have none. Hidden only where :has() can reveal them again: elsewhere they are all shown, and the box decides. */
+@supports selector(:has(*)) {
+  form.report .problem-only { display: none; }
+  form.report:has(#problem:checked) .problem-only { display: block; }
+  form.report:has(#problem:checked):not(:has(input[name=outcome][value=retired]:checked)) .scoring { display: none; }
+}
 .problem-only .ask-retired, .problem-only .ask-conceded, .problem-only .ask-walkover { display: none; }
 form.report:has(input[name=outcome]:checked) .problem-only .ask-any { display: none; }
 form.report:has(input[name=outcome][value=retired]:checked) .problem-only .ask-retired,
@@ -1690,7 +1692,8 @@ const ScoreForm: FC<{
   open: boolean;
 }> = ({ matchId, format, opponent, today, again, pair, values, filledFrom, open }) => {
   const folded = again && !open;
-  const notPlayedOut = (values.outcome ?? "completed") !== "completed" || values.problem === "1";
+  // The box as it was sent, or as a saved claim sets it (claimToForm): not inferred from a choice left behind unticked.
+  const notPlayedOut = values.problem === "1";
   const form = (
     <form method="post" action={`/matches/${matchId}/report`} class={folded ? "report" : "card report"} id={folded ? undefined : "report"}>
       {!folded && <h2>{again ? "Change the score" : "Report the score"}</h2>}

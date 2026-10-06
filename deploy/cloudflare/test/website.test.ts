@@ -426,6 +426,7 @@ test("a match not played out is reported on the same form, and the box decides w
   // Unticked, an outcome left chosen behind it is ignored: the score was played out.
   const unticked = await sam.post(`/matches/${p.match}/report`, { outcome: "walkover", stopped: "them", mine_1: "6", theirs_1: "6" });
   assert.equal(unticked.status, 400); assert.doesNotMatch(unticked.html, /Say who/);
+  assert.doesNotMatch(unticked.html, /id="problem" name="problem" value="1" checked/, "an unticked box stays unticked when the score is refused");
   const sent = await sam.post(`/matches/${p.match}/report`, { problem: "1", outcome: "walkover", stopped: "them" });
   assert.equal(sent.status, 303);
   const after = (await sam.get(`/matches/${p.match}?done=sent`)).html;

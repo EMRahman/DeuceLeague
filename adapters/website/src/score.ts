@@ -97,6 +97,7 @@ export function claimToForm(
   const values: Record<string, string> = {
     outcome: OUTCOMES.some((o) => o.value === claim.outcome) ? claim.outcome : "completed",
   };
+  if (values.outcome !== "completed") values.problem = "1";
   if (claim.retired_side !== null) values.stopped = claim.retired_side === mine ? "me" : "them";
   claim.score?.sets.forEach(({ games }, i) => {
     values[`mine_${i + 1}`] = String(games[mine]);
