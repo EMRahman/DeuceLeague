@@ -204,9 +204,10 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(page.headers.get("content-security-policy")!, /script-src 'self';/);
   assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src[^;]*unsafe-inline/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-05/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-06/);
   assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
+  assert.match(privacy.html, /singles, doubles, mixed doubles, any combination of these, or remain a social member/);
 
   // A program is thanked, and nothing is kept: a filled-in hidden field, a made-up time, or a form sent too fast.
   for (const form of [person(f, { website: "https://spam.example" }), person(f, { started: "1700000000000.abc" }),
@@ -239,7 +240,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-05", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-06", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);

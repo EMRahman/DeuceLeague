@@ -571,8 +571,8 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     <h2>What we keep</h2>
     <p>
       Your name, your email address and telephone number, your gender, your age group if you gave one, whether you
-      want to play singles, doubles or both, the playing level the coach gives you, which competitions you play in,
-      and your results.
+      want to play singles, doubles, mixed doubles, any combination of these, or remain a social member,
+      the playing level the coach gives you, which competitions you play in, and your results.
     </p>
     <h2>Why</h2>
     <p>
