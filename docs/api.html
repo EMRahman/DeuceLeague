@@ -40,17 +40,17 @@
   </header>
   <main>
     <div class="summary" aria-label="API summary">
-      <div class="stat"><strong>74</strong>operations</div>
-      <div class="stat"><strong>49</strong>paths</div>
+      <div class="stat"><strong>76</strong>operations</div>
+      <div class="stat"><strong>51</strong>paths</div>
       <div class="stat"><strong>15</strong>feature areas</div>
     </div>
     <p class="note">All <code>/v1</code> operations require a bearer credential. <code>/healthz</code> and <code>/openapi.json</code> are public.</p>
     <h2>Feature areas</h2>
     <div class="areas">
       <a href="#meta">Meta (1)</a>
-      <a href="#me">Me (3)</a>
+      <a href="#me">Me (4)</a>
       <a href="#player-logins">Player logins (4)</a>
-      <a href="#matches">Matches (6)</a>
+      <a href="#matches">Matches (7)</a>
       <a href="#club">Club (2)</a>
       <a href="#weather">Weather (6)</a>
       <a href="#api-keys">API keys (3)</a>
@@ -72,6 +72,7 @@
       <div class="operation"><span class="method">GET</span><code>/v1/me</code><span>Who am I?</span></div>
       <div class="operation"><span class="method">GET</span><code>/v1/me/placements</code><span>Your placements in started competitions</span></div>
       <div class="operation"><span class="method">GET</span><code>/v1/me/contacts</code><span>Who you play with and against, and how to reach them</span></div>
+      <div class="operation"><span class="method">GET</span><code>/v1/me/match-plans</code><span>Your private match planning board</span></div>
     </section>
     <section id="player-logins">
       <h2>Player logins</h2>
@@ -87,6 +88,7 @@
       <div class="operation"><span class="method">POST</span><code>/v1/matches/{id}/claims</code><span>Report a result for one side, or correct that side&#39;s report</span></div>
       <div class="operation"><span class="method">POST</span><code>/v1/matches/{id}/settlement-preview</code><span>Review a coach decision before saving it</span></div>
       <div class="operation"><span class="method">POST</span><code>/v1/matches/{id}/settle</code><span>Settle a match as the coach</span></div>
+      <div class="operation"><span class="method">PUT</span><code>/v1/matches/{id}/plan</code><span>Plan one of your matches</span></div>
       <div class="operation"><span class="method">GET</span><code>/v1/dispute-history</code><span>Who has been in disputes, and how each ended</span></div>
     </section>
     <section id="club">

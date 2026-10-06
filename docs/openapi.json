@@ -198,7 +198,11 @@
                         "enum": [
                           "singles",
                           "doubles",
+                          "mixed_doubles",
                           "both",
+                          "singles_mixed",
+                          "doubles_mixed",
+                          "all",
                           "not_now",
                           null
                         ],
@@ -1524,6 +1528,35 @@
           }
         ]
       },
+      "MatchPlan": {
+        "type": "object",
+        "properties": {
+          "match_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "to_arrange",
+              "planned",
+              "arranged"
+            ]
+          },
+          "arranged_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          }
+        },
+        "required": [
+          "match_id",
+          "state",
+          "arranged_on"
+        ]
+      },
       "Club": {
         "type": "object",
         "properties": {
@@ -1961,11 +1994,15 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ],
-            "description": "What they want to play next season: `singles`, `doubles`, `both`, or `not_now` for a social member. Null: they have not said. Asked on the join form; the coach or the player can change it."
+            "description": "What they want to play next season: singles, doubles, mixed doubles, any combination, or `not_now` for a social member. Null: they have not said. Asked on the join form; the coach or the player can change it."
           },
           "leaving_at": {
             "type": [
@@ -2168,7 +2205,11 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ]
@@ -2308,7 +2349,11 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ]
@@ -2398,7 +2443,11 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ]
@@ -2497,7 +2546,11 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ],
@@ -2615,11 +2668,15 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ],
-            "description": "Singles, doubles, both, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval."
+            "description": "Singles, doubles, mixed doubles, any combination, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval."
           },
           "privacy_notice": {
             "type": "string",
@@ -2693,7 +2750,11 @@
             "enum": [
               "singles",
               "doubles",
+              "mixed_doubles",
               "both",
+              "singles_mixed",
+              "doubles_mixed",
+              "all",
               "not_now",
               null
             ],
@@ -6861,6 +6922,183 @@
         }
       }
     },
+    "/v1/me/match-plans": {
+      "get": {
+        "tags": [
+          "Me"
+        ],
+        "summary": "Your private match planning board",
+        "description": "Saved markers for your open matches in active competitions. A match without a marker is to arrange. Other players have their own boards.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Your saved match plans.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MatchPlan"
+                      }
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/matches/{id}/plan": {
+      "put": {
+        "tags": [
+          "Matches"
+        ],
+        "summary": "Plan one of your matches",
+        "description": "Only a participant's session can save its own marker. Planned means a priority to arrange; arranged means you have agreed it outside the app, with an optional date. Does not notify anyone or change results.",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "The record's id."
+            },
+            "required": true,
+            "description": "The record's id.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "to_arrange",
+                      "planned",
+                      "arranged"
+                    ]
+                  },
+                  "arranged_on": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date",
+                    "default": null
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Your saved marker.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request is not valid; `errors` says where.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credential, or one that is unknown, revoked or expired.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The credential lacks a scope this needs, or is of a kind this does not take.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Nothing with that id in this club.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`match_closed`: only open fixtures in active competitions before the results deadline can be planned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/club": {
       "get": {
         "tags": [
@@ -8186,7 +8424,7 @@
           "Members"
         ],
         "summary": "Say what a member wants to play next season",
-        "description": "Singles, doubles, both, or `not_now` for a social member; null clears it. The coach uses it to see who wants a place in next season's draft, and a newcomer who wants to play is listed for one. A player's session may set it for themselves; a key needs `members:write`. Saying the same again does nothing more.",
+        "description": "Singles, doubles, mixed doubles, any combination, or `not_now` for a social member; null clears it. The coach uses it to see who wants a place in next season's draft, and a newcomer who wants to play is listed for one. A player's session may set it for themselves; a key needs `members:write`. Saying the same again does nothing more.",
         "security": [
           {
             "apiKey": [

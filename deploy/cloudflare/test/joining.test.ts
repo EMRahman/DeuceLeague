@@ -200,11 +200,14 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(page.html, /<select id="gender" name="gender" required="">/); assert.match(page.html, /<select id="age_group" name="age_group">/);
   assert.match(page.html, /<option value="undisclosed"[^>]*>Prefer not to say<\/option>/); assert.match(page.html, /<option value="65_plus"[^>]*>65 or over<\/option>/);
   // No Turnstile set up: no script, and the page's policy allows none.
-  assert.doesNotMatch(page.html, /<script/); assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src/);
+  assert.match(page.html, /<script src="\/dashboard.js" defer/);
+  assert.match(page.headers.get("content-security-policy")!, /script-src 'self';/);
+  assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src[^;]*unsafe-inline/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-05/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-06/);
   assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
+  assert.match(privacy.html, /singles, doubles, mixed doubles, any combination of these, or remain a social member/);
 
   // A program is thanked, and nothing is kept: a filled-in hidden field, a made-up time, or a form sent too fast.
   for (const form of [person(f, { website: "https://spam.example" }), person(f, { started: "1700000000000.abc" }),
@@ -237,7 +240,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-05", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-06", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -353,10 +356,11 @@ test("with Turnstile set up, the form runs its check and the Worker asks Cloudfl
   const html = await page.text();
   assert.match(html, /class="field cf-turnstile" data-sitekey="1x00000000000000000000AA"/);
   assert.match(html, /<script src="https:\/\/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js" async="" defer="">/);
-  assert.match(page.headers.get("content-security-policy")!, /script-src https:\/\/challenges\.cloudflare\.com; frame-src https:\/\/challenges\.cloudflare\.com;/);
+  assert.match(page.headers.get("content-security-policy")!, /script-src 'self' https:\/\/challenges\.cloudflare\.com;/);
+  assert.match(page.headers.get("content-security-policy")!, /frame-src https:\/\/challenges\.cloudflare\.com;/);
   assert.equal(page.headers.get("referrer-policy"), "strict-origin");
   // Every other page keeps its script-free policy.
-  assert.doesNotMatch((await f.request("/")).headers.get("content-security-policy")!, /script-src/);
+  assert.doesNotMatch((await f.request("/")).headers.get("content-security-policy")!, /challenges\.cloudflare\.com/);
 
   assert.equal((await join(f, person(f))).status, 400);
   assert.equal((await join(f, person(f, { "cf-turnstile-response": "fail" }))).status, 400);
@@ -378,9 +382,9 @@ test("a new member plays under their full name, or first name and initial when t
 test("the join form asks what they want to play; the coach and the player can change it, and social members wait for nothing", async (t) => {
   const f = await websiteFixture(t);
   // The form asks, and will not go without an answer.
-  assert.match((await browser(f).get("/join")).html, /name="plays" value="not_now"/);
+  assert.match((await browser(f).get("/join")).html, /name="play_not_now" value="yes"/);
   const missing = await join(f, person(f, { plays: "" }));
-  assert.equal(missing.status, 400); assert.match(missing.html, /Say whether you want to play singles, doubles, both, or not now/);
+  assert.equal(missing.status, 400); assert.match(missing.html, /Choose singles, doubles, mixed doubles, a combination, or not now/);
   assert.equal((await join(f, person(f, { plays: "singles" }))).status, 200);
   assert.equal((await join(f, person(f, { first_name: "Sol", surname: "Social", email: "sol@example.org", phone: "07700 900777", plays: "not_now" }))).status, 200);
   const requests = (await f.api("/v1/join-requests", f.admin)).body.data as { id: string; first_name: string; wants_to_play: string }[];
@@ -396,13 +400,13 @@ test("the join form asks what they want to play; the coach and the player can ch
   // Waiting to be placed lists Robin with what she wants; Sol, a social member, is only counted.
   const members = (await coach.get("/coach/members")).html;
   assert.match(members, new RegExp(`href="/coach/members/${robin}">Robin Hale</a>[\\s\\S]*?Singles and doubles`));
-  assert.doesNotMatch(members.slice(members.indexOf("Waiting to be placed"), members.indexOf("On the club")), /Sol Social/);
+  assert.doesNotMatch(members.slice(members.indexOf("Waiting to be placed"), members.indexOf("Member directory")), /Sol Social/);
   assert.match(members, /1 social member is not waiting for a place/);
   // The coach changes it on the member's page; the player on their home page.
   assert.equal((await coach.post(`/coach/members/${sol}/plays`, { wants_to_play: "doubles" })).location, `/coach/members/${sol}?saved=1`);
   assert.equal((await f.api(`/v1/members/${sol}`, f.admin)).body.wants_to_play, "doubles");
   const player = await signIn(f, "robin@example.org");
-  assert.match((await player.get("/")).html, /<option value="both" selected="">/);
+  assert.match((await player.get("/")).html, /name="play_singles" value="yes" checked=""/);
   assert.equal((await player.post("/plays", { wants_to_play: "not_now" })).location, "/?done=plays");
   assert.equal((await f.api(`/v1/members/${robin}`, f.admin)).body.wants_to_play, "not_now");
   assert.match((await player.get("/?done=plays")).html, /The coach will see what you want to play/);

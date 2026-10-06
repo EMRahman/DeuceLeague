@@ -16,7 +16,8 @@ import {
   type Standings,
 } from "./api.js";
 import { MailDeliveryError, type Mailer } from "./mail.js";
-import { MAX_FILL_MS, MIN_FILL_MS, PLAYS, PRIVACY_NOTICE, readJoinForm, stamp, stampAge } from "./join.js";
+import { MAX_FILL_MS, MIN_FILL_MS, PLAYS, PRIVACY_NOTICE, readPlayChoices, readJoinForm, stamp, stampAge } from "./join.js";
+import { DASHBOARD_SCRIPT } from "./dashboard-script.js";
 import type { Weather } from "./weather.js";
 import { deadlineLine, deadlinePassed, describe, readReportForm, shortDate } from "./score.js";
 import {
@@ -223,19 +224,23 @@ export function createWebsite(options: WebsiteOptions) {
     // in the address bar is never sent on to another site as a Referer. Not
     // no-referrer: under that, browsers post the site's own forms with
     // `Origin: null`, which the check below must refuse.
-    // The join form is the one page that may run a script: Turnstile's, when the club uses it.
+    // Only the dashboard and join form use the same-origin enhancement script.
     // Turnstile checks the page's origin, so that page names it to Cloudflare; its address holds no secret.
     const turnstile = options.join?.turnstile && c.req.path === "/join";
     c.header("Cache-Control", "no-store");
     c.header("Referrer-Policy", turnstile ? "strict-origin" : "same-origin");
     c.header("X-Content-Type-Options", "nosniff");
+    const enhanced = c.req.path === "/" || c.req.path === "/join";
     c.header(
       "Content-Security-Policy",
       "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; " +
-        (turnstile ? `script-src ${TURNSTILE}; frame-src ${TURNSTILE}; ` : "") +
+        (enhanced ? `script-src 'self'${turnstile ? ` ${TURNSTILE}` : ""}; connect-src 'self'; ` : "") +
+        (turnstile ? `frame-src ${TURNSTILE}; ` : "") +
         "form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
     );
   });
+
+  app.get("/dashboard.js", (c) => c.body(DASHBOARD_SCRIPT, 200, { "Content-Type": "text/javascript; charset=utf-8" }));
 
   app.get("/healthz", (c) => c.text("ok"));
 
@@ -526,10 +531,11 @@ export function createWebsite(options: WebsiteOptions) {
         })
       : Promise.resolve(null);
 
-    const [matches, seasons, placementStatus] = await Promise.all([
+    const [matches, seasons, placementStatus, plans] = await Promise.all([
       all<Match>(api, `/v1/matches?member_id=${memberId}`, p.session),
       seasonsOf(p),
       api<PlayerPlacements>("GET", "/v1/me/placements", p.session),
+      api<{ data: { match_id: string; state: "planned" | "arranged"; arranged_on: string | null }[] }>("GET", "/v1/me/match-plans", p.session),
     ]);
     // The seasons under way. Finished ones are in the tables' season row, so their
     // matches and tables do not crowd out what needs doing now.
@@ -586,7 +592,7 @@ export function createWebsite(options: WebsiteOptions) {
       if (!competition || mine === null) continue;
       const names = namesOf(m);
       const opponent = names[mine === 0 ? 1 : 0];
-      const item = (note: string): MyMatch => ({ id: m.id, competition: competition.name, opponent, note });
+      const item = (note: string): MyMatch => ({ id: m.id, competitionId: competition.id, competition: competition.name, opponent, note });
       if (m.status === "played" && m.result) {
         // Not turning up to a walkover is a match not played, not one lost: the table counts it that way.
         const absent = m.result.outcome === "walkover" && m.result.retired_side === mine;
@@ -600,7 +606,8 @@ export function createWebsite(options: WebsiteOptions) {
         const note = m.status === "open" ? "not reported" : m.status === "disputed" ? "scores differ" : "not agreed";
         closed.push(item(note));
       } else if (m.status === "open") {
-        toPlay.push(item("report score"));
+        const plan = plans.data.find(p => p.match_id === m.id);
+        toPlay.push({ ...item("report score"), plan: plan?.state ?? "to_arrange", arrangedOn: plan?.arranged_on ?? null });
       } else {
         // Reported or disputed: the claims, and whose answer is awaited, are in the match's own detail.
         const detail = detailOf.get(m.id)!;
@@ -608,7 +615,7 @@ export function createWebsite(options: WebsiteOptions) {
         const own = live(mine);
         if (m.status === "disputed" || detail.waiting_on === mine) {
           answer.push({
-            ...item(m.status === "disputed" ? "entries do not match — speak outside the app and enter the agreed result" : "their score is in: enter yours, and it counts when the two match"),
+            ...item(m.status === "disputed" ? "Scores differ · speak outside the app, then correct yours" : "Enter your result"),
             mine: m.status === "disputed" && own ? describe(own, mine, names) : null,
           });
         } else {
@@ -651,6 +658,9 @@ export function createWebsite(options: WebsiteOptions) {
         standings.push({
           competitionId: competition.id,
           competition: competition.name,
+          season: seasonOf.get(competition.id)?.name ?? "",
+          played: row.played,
+          remaining: toPlay.filter(m => m.competitionId === competition.id).length,
           division: d.name,
           position: row.position,
           points: row.points,
@@ -693,6 +703,7 @@ export function createWebsite(options: WebsiteOptions) {
           staying: "Taken back. You are in the reckoning for next season again.",
           paused: "Done. You are on a break, and the coach will see it.",
           resumed: "Welcome back. Tell the coach if you want a place in the next season.",
+          plan: "Match plan saved.",
           plays: "Saved. The coach will see what you want to play." }[c.req.query("done") ?? ""] ?? null}
         leaving={p.me.credential.member.leaving_at ?? null}
         plays={p.me.credential.member.wants_to_play ?? null}
@@ -875,11 +886,24 @@ export function createWebsite(options: WebsiteOptions) {
     });
   }
 
+  app.post("/matches/:id/plan", async (c) => {
+    const p = await player(c);
+    if (!p) return c.req.header("accept") === "application/json" ? c.json({ error: "Sign in again to save this match." }, 401) : c.redirect("/", 303);
+    const form = await c.req.parseBody();
+    const state = String(form.state ?? "");
+    if (!["to_arrange", "arranged"].includes(state)) return c.json({ error: "Choose To Arrange or Arranged." }, 400);
+    await api("PUT", `/v1/matches/${encodeURIComponent(c.req.param("id"))}/plan`, p.session,
+      { state, arranged_on: null });
+    if (c.req.header("accept") === "application/json") return c.json({ state });
+    return c.redirect("/?done=plan", 303);
+  });
+
   // What they want to play next season: the coach offers them for it in the drafts.
   app.post("/plays", async (c) => {
     const p = await player(c);
     if (!p) return c.redirect("/", 303);
-    const value = String((await c.req.parseBody()).wants_to_play ?? "");
+    const value = readPlayChoices(await c.req.parseBody(), "wants_to_play");
+    if (value === "invalid") return c.html(<Problem frame={frameOf(p, "matches")} title="Choose your playing preferences" detail="Choose competitions, or select social membership on its own." />, 400);
     await api("PUT", `/v1/members/${encodeURIComponent(p.me.credential.member.id)}/wants-to-play`, p.session,
       { wants_to_play: PLAYS.some(([v]) => v === value) ? value : null });
     return c.redirect("/?done=plays", 303);

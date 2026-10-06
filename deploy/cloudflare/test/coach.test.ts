@@ -4,7 +4,7 @@ import { browser, playingWebsite, websiteFixture, type WebsiteFixture } from "./
 
 /** Each competition's table on the dashboard, by its heading, as text: [name, players, played, waiting, disputed, short, %]. */
 function dashboardTables(html: string): Record<string, string[][]> {
-  return Object.fromEntries([...html.matchAll(/<h2>([^<]+)<\/h2>[\s\S]*?<table class="progress">([\s\S]*?)<\/table>/g)].map(([, name, table]) =>
+  return Object.fromEntries([...html.matchAll(/<div class="card competition-progress"[^>]*>[\s\S]*?<h2>([^<]+)<\/h2>[\s\S]*?<table class="progress">([\s\S]*?)<\/table>/g)].map(([, name, table]) =>
     [name!, [...table!.matchAll(/<tr>([\s\S]*?)<\/tr>/g)].map(([, row]) =>
       [...row!.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)].map(([, cell]) => cell!.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim()))]));
 }
@@ -143,7 +143,7 @@ test("the coach's pages show the sample league: progress, disputes, waiting resu
   assert.ok(home.html.indexOf('id="needs-you"') < home.html.indexOf('class="progress"'), "what waits on the coach comes before the tables");
   assert.match(home.html, /\.tabs \{ flex-wrap: wrap/, "every tab stays in view");
   for (const name of ["Sample singles", "Sample doubles", "Division 1", "Division 3"]) assert.match(home.html, new RegExp(name));
-  assert.match(home.html, /played \(\d+%\)/);
+  assert.match(home.html, /class="completion"><span>\d+ of \d+ matches played<\/span><strong>\d+%<\/strong>/);
   // Not playing next season: opted out, or a doubles player who told the coach they are not playing.
   const optedOut = (await f.db.prepare(`SELECT e.competition_id, count(*) AS n FROM entry e WHERE e.opted_out_at IS NOT NULL
     OR EXISTS (SELECT 1 FROM partner_choice pc JOIN entry_member em ON em.member_id = pc.member_id
@@ -399,7 +399,7 @@ test("a draft offers only newcomers who suit its category by recorded gender, an
   await setGender("Umi", "female"); await setGender("Val", "male"); await setGender("Parker", null);
 
   // On the members page the newcomers are waiting to be placed: they are in no running competition.
-  const waiting = (await coach.get("/coach/members")).html.split("Waiting to be placed")[1]!.split("On the club")[0]!;
+  const waiting = (await coach.get("/coach/members")).html.split("Waiting to be placed")[1]!.split("Member directory")[0]!;
   for (const name of ["Umi", "Val"]) assert.match(waiting, new RegExp(`Sample ${name}`));
   assert.doesNotMatch(waiting, /Sample Parker/, "Parker plays doubles");
 
@@ -452,7 +452,7 @@ test("the coach sees this season's disputes with both claims, and who keeps endi
   assert.match(open.html, /Disputed \(2\)/);
   assert.match(text(open.html), /Sam says [^]*? Alex says/, "both claims side by side");
   assert.match(open.html, /<div class="muted">\d{1,2} \w{3}[^<]*\d{2}:\d{2}[^<]*<\/div>/, "and when each was made");
-  assert.match(text(open.html), /Open a match to inspect its history and make a coach decision/);
+  assert.match(text(open.html), /Open the match to see its history or make a coach decision/);
   assert.match(open.html, new RegExp(`href="/coach/matches/${p.match}"`));
   assert.match(text(open.html), /Players in 2 or more disputes/);
   assert.match(text(open.html), /Sam · 2 disputes: 2 this season, 0 earlier/);
@@ -799,10 +799,9 @@ test("the sign-in link page hands over a message to paste, and a WhatsApp chat t
   assert.ok(!made.includes("?text="), "no message in the chat address");
   assert.match(made, /<input id="link" class="copy" type="text" value="https:\/\/league\.test\/login\?token=/);
 
-  // A number without its country code cannot open a chat: the page says why and where to fix it.
+  // UK mobile numbers work in local form too.
   const local = (await coach.post(`/coach/members/${kit.id}/sign-in-link`)).html;
-  assert.doesNotMatch(local, /wa\.me/); assert.match(local, /country code/);
-  assert.match(local, new RegExp(`href="/coach/members/${kit.id}">their page</a>`));
+  assert.match(local, /href="https:\/\/wa\.me\/447700900321"/);
   // And with no number there is just the message.
   const none = (await coach.post(`/coach/members/${sam.id}/sign-in-link`)).html;
   assert.doesNotMatch(none, /wa\.me|country code/); assert.match(none, /Hi Sam, here is your sign-in link/);

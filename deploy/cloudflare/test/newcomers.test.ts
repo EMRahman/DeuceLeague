@@ -85,7 +85,7 @@ test("coach newcomers exclude breaks, leavers and previous participants who opte
   assert.equal((await f.api("/v1/members?never_entered=true", reader.key)).status, 403);
   const coach = browser(f); await coach.post("/coach/sign-in", { key: f.admin });
   const home = (await coach.get("/coach/members")).html;
-  const waiting = home.split("Waiting to be placed")[1]!.split("On the club&#39;s list")[0]!;
+  const waiting = home.split("Waiting to be placed")[1]!.split("Member directory")[0]!;
   assert.match(waiting, /New arrival/); assert.doesNotMatch(waiting, /Opted out|On break|Leaving|Left club|Sam|Alex/);
 });
 

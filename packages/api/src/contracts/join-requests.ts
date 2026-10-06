@@ -40,7 +40,7 @@ export const NewJoinRequest = z
     gender: Gender.nullable().optional().openapi({ description: "The club's own form always sends one. Copied to the member on approval." }),
     age_group: AgeGroup.nullable().optional().openapi({ description: "Optional. Copied to the member on approval." }),
     wants_to_play: WantsToPlay.nullable().optional().openapi({
-      description: "Singles, doubles, both, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval.",
+      description: "Singles, doubles, mixed doubles, any combination, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval.",
     }),
     privacy_notice: z.string().trim().min(1).max(40).openapi({
       example: "uk-2026-09-30",

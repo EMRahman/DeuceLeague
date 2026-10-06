@@ -11,7 +11,7 @@
  * GDPR; a club elsewhere, or one that changes the notice's words, gives it a
  * new name here, so each member's record says which one they agreed to.
  */
-export const PRIVACY_NOTICE = "uk-2026-10-05";
+export const PRIVACY_NOTICE = "uk-2026-10-06";
 
 /** Quicker than this, the form was not filled in by a person. */
 export const MIN_FILL_MS = 3_000;
@@ -28,8 +28,30 @@ export const AGE_GROUPS = [
 ] as const;
 /** What someone wants to play, as the form and the player's home page word it. `not_now` is a social member. */
 export const PLAYS = [
-  ["singles", "Singles"], ["doubles", "Doubles"], ["both", "Singles and doubles"], ["not_now", "Not now: I am a social member"],
+  ["singles", "Singles"], ["doubles", "Doubles"], ["mixed_doubles", "Mixed doubles"],
+  ["both", "Singles and doubles"], ["singles_mixed", "Singles and mixed doubles"],
+  ["doubles_mixed", "Doubles and mixed doubles"], ["all", "Singles, doubles and mixed doubles"],
+  ["not_now", "Not now: I am a social member"],
 ] as const;
+/** Three independent choices; the persisted vocabulary remains compatible with existing records. */
+export const PLAY_TYPES = [["singles", "Singles"], ["doubles", "Doubles"], ["mixed_doubles", "Mixed doubles"]] as const;
+export const playSelections = (value: string | null | undefined): string[] => ({
+  singles: ["singles"], doubles: ["doubles"], mixed_doubles: ["mixed_doubles"],
+  both: ["singles", "doubles"], singles_mixed: ["singles", "mixed_doubles"],
+  doubles_mixed: ["doubles", "mixed_doubles"], all: ["singles", "doubles", "mixed_doubles"],
+  not_now: ["not_now"],
+} as Record<string, string[]>)[value ?? ""] ?? [];
+
+export function readPlayChoices(form: Record<string, unknown>, legacyField: string): string {
+  if (form.choices_form !== "yes") return typeof form[legacyField] === "string" ? form[legacyField] as string : "";
+  const selected = PLAY_TYPES.filter(([value]) => form[`play_${value}`] === "yes").map(([value]) => value);
+  if (form.play_not_now === "yes") return selected.length ? "invalid" : "not_now";
+  if (selected.length === 3) return "all";
+  if (selected.length === 2) return selected.includes("singles")
+    ? selected.includes("doubles") ? "both" : "singles_mixed" : "doubles_mixed";
+  return selected[0] ?? "";
+}
+
 export const playsLabel = (value: string | null | undefined) => PLAYS.find(([v]) => v === value)?.[1] ?? null;
 export const genderLabel = (value: string | null | undefined) => GENDERS.find(([v]) => v === value)?.[1] ?? null;
 export const ageGroupLabel = (value: string | null | undefined) => AGE_GROUPS.find(([v]) => v === value)?.[1] ?? null;
@@ -74,7 +96,7 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
     phone: text("phone"),
     gender: text("gender"),
     age_group: text("age_group"),
-    plays: text("plays"),
+    plays: readPlayChoices(form, "plays"),
     privacy: form.privacy === "yes",
   };
   const problems: string[] = [];
@@ -91,7 +113,7 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
   }
   if (!GENDERS.some(([v]) => v === values.gender)) problems.push("Choose your gender, or say you would rather not.");
   if (values.age_group && !AGE_GROUPS.some(([v]) => v === values.age_group)) problems.push("Choose one of the age groups, or leave it blank.");
-  if (!PLAYS.some(([v]) => v === values.plays)) problems.push("Say whether you want to play singles, doubles, both, or not now.");
+  if (!PLAYS.some(([v]) => v === values.plays)) problems.push("Choose singles, doubles, mixed doubles, a combination, or not now.");
   if (!values.privacy) problems.push("Tick the box to say you have read the privacy notice.");
   return { values, problems };
 }

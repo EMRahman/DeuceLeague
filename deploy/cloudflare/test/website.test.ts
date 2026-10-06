@@ -81,7 +81,7 @@ test("Home asks nobody to play a withdrawn opponent, and does not call a no-show
   assert.match((await sam.get("/")).html, /To play \(1\)/);
   // Alex withdraws: the match is credited to Sam by the rules, so Sam is not asked to play or report it.
   assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "withdrawn" })).status, 200);
-  assert.doesNotMatch((await sam.get("/")).html, /To play/);
+  assert.doesNotMatch((await sam.get("/")).html, /<h2>To play/);
   assert.equal((await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", { state: "active" })).status, 200);
   assert.match((await sam.get("/")).html, /To play \(1\)/);
 
@@ -232,7 +232,7 @@ test("a doubles player answers a request to partner them next season, and sees w
   }
   const doubles = (await f.api("/v1/competitions", f.admin)).body.data.find((c: { name: string }) => c.name === "Sample doubles").id;
   const page = `/competitions/${doubles}`;
-  const text = (html: string) => html.split("<main>")[1]!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const text = (html: string) => html.split(/<main[^>]*>/)[1]!.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
   // Indy has asked Bailey, in the sample. Bailey agrees, which ends their pair with Quinn.
   const bailey = await as("Bailey");
@@ -243,11 +243,11 @@ test("a doubles player answers a request to partner them next season, and sees w
   // The home page folds next season away, so it opens it, and says so, while someone is waiting for an answer.
   const waiting = (await bailey.get("/")).html;
   assert.match(text(waiting), /Sample doubles\s*: playing with Sample Quinn\. Sample Indy has asked you to be their partner next season\./);
-  assert.match(waiting, /<details class="card" open(="")?>/); assert.match(waiting, /#next-season">answer<\/a>/);
+  assert.match(waiting, /<details class="card player-options" id="preferences" open(="")?>/); assert.match(waiting, /#next-season">answer<\/a>/);
   const agreed = await bailey.post(`${page}/partner`, { choice: "new_partner", partner_id: id("Indy") });
   assert.equal(agreed.status, 303); assert.equal(agreed.location, `${page}?saved=1#next-season`);
   const answered = (await bailey.get("/")).html;
-  assert.doesNotMatch(text(answered), /has asked you/); assert.match(answered, /<details class="card">\s*<summary>\s*<strong>Next season/);
+  assert.doesNotMatch(text(answered), /has asked you/); assert.match(answered, /<details class="card player-options" id="preferences">\s*<summary>\s*<strong>Next season/);
   const now = text((await bailey.get(page)).html);
   assert.match(now, /Sample Indy has agreed: you will be a pair next season, once the coach places you\./);
   assert.doesNotMatch(now, /has asked you/);
@@ -352,7 +352,7 @@ test("a player finds next season's choices from home, sees each saved, and \"aga
   const f = await websiteFixture(t);
   const p = await playingWebsite(f, true);
   const sam = await signIn(f, "sam@example.org");
-  const text = (html: string) => html.split("<main>")[1]!.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
+  const text = (html: string) => html.split(/<main[^>]*>/)[1]!.replace(/<[^>]+>/g, " ").replace(/&#39;/g, "'").replace(/\s+/g, " ");
   // Home lists each competition with what they have said, and what doing nothing means.
   const home = text((await sam.get("/")).html);
   assert.match(home, /If you do nothing, you stay in for next season\./);
@@ -399,7 +399,7 @@ test("home puts what to do first: a row each to play with a way to reach them, a
   const sam = await signIn(f, "sam@example.org");
   const home = (await sam.get("/")).html;
   assert.match(home, /To play \(1\)/);
-  assert.match(home, /WhatsApp:\s*<a href="https:\/\/wa\.me\/447700900123">Alex<\/a>/);
+  assert.match(home, /href="https:\/\/wa\.me\/447700900123"[^>]*aria-label="WhatsApp Alex">WhatsApp ↗<\/a>/);
   assert.match(home, new RegExp(`href="/matches/${p.match}#report"[^>]*>\\s*Report score`));
   assert.doesNotMatch(home, /example\.org|Private Alex/, "the row shows a name and a number, nothing else");
   // The season is a card of rows, one for each competition, and says once that fixtures are ready.
@@ -407,7 +407,7 @@ test("home puts what to do first: a row each to play with a way to reach them, a
   assert.match(home, /Your fixtures are ready to play\./);
   assert.ok(home.indexOf("To play (1)") < home.indexOf("Your season is open"), "what is waiting comes before the reminder of the season");
   // Next season is a line until opened, with everything still on the page.
-  assert.match(home, /<details class="card">\s*<summary>\s*<strong>Next season<\/strong>/);
+  assert.match(home, /<details class="card player-options" id="preferences">\s*<summary>\s*<strong>Next season<\/strong>/);
   assert.match(home, /I am taking a break/);
   // Someone who has not got a number gets no contact line.
   const alex = await signIn(f, "alex@example.org");

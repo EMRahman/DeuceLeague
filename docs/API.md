@@ -246,11 +246,21 @@ already filled: the coach adds them from its newcomers. A member who has left th
 club (`status: left`) is not on a break.
 
 What a member wants to play next season is `wants_to_play`: `singles`,
-`doubles`, `both`, or `not_now` for a social member, and null if they have not
+`doubles`, `mixed_doubles`, `both` (singles and doubles), `singles_mixed`,
+`doubles_mixed`, `all`, or `not_now` for a social member, and null if they have not
 said. The join form asks it and approval copies it; `PUT
 /v1/members/{id}/wants-to-play` changes it (a player for themselves, or a key
 with `members:write`), and a player's `/v1/me` shows it. The coach's site offers
-a newcomer in a draft only for what they want to play.
+a newcomer in a draft only for what they want to play. Mixed doubles is a
+competition with discipline `doubles` and category `mixed`.
+
+`GET /v1/me/match-plans` lists a player's private markers for open fixtures in
+active, visible competitions before the results deadline. `PUT
+/v1/matches/{id}/plan` saves `state` (`to_arrange`, `planned`, or `arranged`)
+and optional `arranged_on` (an ISO date, only for an arranged match). Only a
+participant's session can save its own marker. `to_arrange` clears the marker;
+other players keep their own boards. Planning does not change the match ledger,
+notify players, or record a booking.
 
 Placements fill next season's competition from this one's final tables. The
 coach creates the new competition as a draft, naming the previous one, and one
