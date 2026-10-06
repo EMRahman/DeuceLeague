@@ -183,17 +183,19 @@ legend { font-weight: 500; margin-bottom: .35rem; padding: 0; }
 /* A name that is long wraps instead of being cut to "Sample …", which names nobody. */
 .sets .head { font-size: .8rem; line-height: 1.2; color: var(--muted); text-align: center; overflow-wrap: anywhere; align-self: end; }
 .sets .note { display: block; font-size: .75rem; font-weight: 400; color: var(--muted); }
-/* Only what applies: no score for a walkover or concession, no "who stopped" for a match played out. */
-form.report:has(input[name=outcome][value=completed]:checked) .stopped,
-form.report:has(input[name=outcome][value=unplayed]:checked) .stopped { display: none; }
-.stopped .ask-retired, .stopped .ask-conceded, .stopped .ask-walkover { display: none; }
-form.report:has(input[name=outcome]:checked) .stopped .ask-any { display: none; }
-form.report:has(input[name=outcome][value=retired]:checked) .stopped .ask-retired,
-form.report:has(input[name=outcome][value=conceded]:checked) .stopped .ask-conceded,
-form.report:has(input[name=outcome][value=walkover]:checked) .stopped .ask-walkover { display: inline; }
-form.report:has(input[name=outcome][value=walkover]:checked) .scoring,
-form.report:has(input[name=outcome][value=conceded]:checked) .scoring,
-form.report:has(input[name=outcome][value=unplayed]:checked) .scoring { display: none; }
+/* A match not played out is one checkbox away, on the same page: the ordinary form is only the score. The ticked
+   box stays in view, so what is asked is always what will be sent. A retirement keeps its score; a walkover and an
+   injury have none. Hidden only where :has() can reveal them again: elsewhere they are all shown, and the box decides. */
+@supports selector(:has(*)) {
+  form.report .problem-only { display: none; }
+  form.report:has(#problem:checked) .problem-only { display: block; }
+  form.report:has(#problem:checked):not(:has(input[name=outcome][value=retired]:checked)) .scoring { display: none; }
+}
+.problem-only .ask-retired, .problem-only .ask-conceded, .problem-only .ask-walkover { display: none; }
+form.report:has(input[name=outcome]:checked) .problem-only .ask-any { display: none; }
+form.report:has(input[name=outcome][value=retired]:checked) .problem-only .ask-retired,
+form.report:has(input[name=outcome][value=conceded]:checked) .problem-only .ask-conceded,
+form.report:has(input[name=outcome][value=walkover]:checked) .problem-only .ask-walkover { display: inline; }
 .claims { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: 1rem; }
 .claims > div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .75rem; }
 .claims .who { font-size: .8rem; color: var(--muted); }
@@ -1669,8 +1671,10 @@ const ScoreBox: FC<{ name: string; max: number; value: string | undefined; id?: 
 );
 
 /**
- * The score form. Once a player has entered a score it folds away under "Change the score": the page then says what
- * was saved and what it waits for, rather than showing the whole form again beneath it.
+ * The score form. Nearly every match was played out, so the form is the score, the date, send. A match that was not —
+ * an injury, a no-show, a retirement — is a tick box on the same form, which asks what happened in place. Once a
+ * player has entered a score it folds away under "Change the score": the page then says what was saved and what it
+ * waits for, rather than showing the form again.
  */
 const ScoreForm: FC<{
   matchId: string;
@@ -1688,40 +1692,12 @@ const ScoreForm: FC<{
   open: boolean;
 }> = ({ matchId, format, opponent, today, again, pair, values, filledFrom, open }) => {
   const folded = again && !open;
+  // The box as it was sent, or as a saved claim sets it (claimToForm): not inferred from a choice left behind unticked.
+  const notPlayedOut = values.problem === "1";
   const form = (
     <form method="post" action={`/matches/${matchId}/report`} class={folded ? "report" : "card report"} id={folded ? undefined : "report"}>
       {!folded && <h2>{again ? "Change the score" : "Report the score"}</h2>}
       {filledFrom && <p class="hint">Filled in with {filledFrom}: change what is wrong and send it.</p>}
-      <fieldset>
-        <legend>How did it end?</legend>
-        <div class="choices">
-          {OUTCOMES.map((o) => (
-            <label>
-              <input type="radio" name="outcome" value={o.value} checked={(values.outcome ?? OUTCOMES[0]!.value) === o.value} />
-              {o.label}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-      <fieldset class="stopped">
-        {/* Asked in the words of the outcome chosen above; the full question where :has() is not supported. */}
-        <legend>
-          <span class="ask-any">Who retired, was injured or did not turn up?</span>
-          <span class="ask-retired">Who retired?</span>
-          <span class="ask-conceded">Who was injured?</span>
-          <span class="ask-walkover">Who did not turn up?</span>
-        </legend>
-        <div class="choices">
-          <label>
-            <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />
-            {pair ? "Us" : "Me"}
-          </label>
-          <label>
-            <input type="radio" name="stopped" value="them" checked={values.stopped === "them"} />
-            {opponent}
-          </label>
-        </div>
-      </fieldset>
       <div class="scoring">
         <p class="hint">{formatHint(format)}</p>
         {/* "Them", not their name: a long name was cut to "Sample …", and the page's title already has both. */}
@@ -1746,6 +1722,42 @@ const ScoreForm: FC<{
           ))}
         </div>
       </div>
+      <div class="choices field">
+        <label>
+          <input type="checkbox" id="problem" name="problem" value="1" checked={notPlayedOut} />
+          It was not played out: injury, no-show or retirement
+        </label>
+      </div>
+      <fieldset class="problem-only">
+        <legend>What happened?</legend>
+        <div class="choices">
+          {OUTCOMES.filter((o) => o.value !== "completed").map((o) => (
+            <label>
+              <input type="radio" name="outcome" value={o.value} checked={values.outcome === o.value} />
+              {o.label}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset class="problem-only">
+        {/* Asked in the words of the outcome chosen above; the full question where :has() is not supported. */}
+        <legend>
+          <span class="ask-any">Who retired, was injured or did not turn up?</span>
+          <span class="ask-retired">Who retired?</span>
+          <span class="ask-conceded">Who was injured?</span>
+          <span class="ask-walkover">Who did not turn up?</span>
+        </legend>
+        <div class="choices">
+          <label>
+            <input type="radio" name="stopped" value="me" checked={values.stopped === "me"} />
+            {pair ? "Us" : "Me"}
+          </label>
+          <label>
+            <input type="radio" name="stopped" value="them" checked={values.stopped === "them"} />
+            {opponent}
+          </label>
+        </div>
+      </fieldset>
       <div class="field">
         <label for="played_on">Played on</label>
         <input id="played_on" name="played_on" type="date" value={values.played_on || today} max={today} />
