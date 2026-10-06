@@ -414,6 +414,25 @@ test("home puts what to do first: a row each to play with a way to reach them, a
   assert.doesNotMatch((await alex.get("/")).html, /wa\.me|>Call</);
 });
 
+test("a match not played out is reported on the same form, and the box decides what is read", async (t) => {
+  const f = await websiteFixture(t); const p = await playingWebsite(f);
+  const sam = await signIn(f, "sam@example.org");
+  const page = (await sam.get(`/matches/${p.match}`)).html;
+  for (const outcome of ["retired", "walkover", "conceded"]) assert.match(page, new RegExp(`name="outcome" value="${outcome}"`));
+  assert.doesNotMatch(page, /name="outcome" value="completed"/);
+  // Ticked with nothing chosen, it is refused and comes back ticked.
+  const refused = await sam.post(`/matches/${p.match}/report`, { problem: "1" });
+  assert.equal(refused.status, 400); assert.match(refused.html, /id="problem" name="problem" value="1" checked/);
+  // Unticked, an outcome left chosen behind it is ignored: the score was played out.
+  const unticked = await sam.post(`/matches/${p.match}/report`, { outcome: "walkover", stopped: "them", mine_1: "6", theirs_1: "6" });
+  assert.equal(unticked.status, 400); assert.doesNotMatch(unticked.html, /Say who/);
+  const sent = await sam.post(`/matches/${p.match}/report`, { problem: "1", outcome: "walkover", stopped: "them" });
+  assert.equal(sent.status, 303);
+  const after = (await sam.get(`/matches/${p.match}?done=sent`)).html;
+  assert.match(after, /did not turn up/);
+  assert.match(after, /id="problem" name="problem" value="1" checked/, "changing it reopens with the box ticked");
+});
+
 test("the score form takes numbers, names the sides plainly, and folds away once a score is in", async (t) => {
   const f = await websiteFixture(t); const p = await playingWebsite(f);
   const sam = await signIn(f, "sam@example.org");
@@ -423,6 +442,9 @@ test("the score form takes numbers, names the sides plainly, and folds away once
   assert.match(page, /<span class="head">You<\/span><span class="head">Them<\/span>/);
   assert.match(page, /Match tiebreak<span class="note">only if the sets were level<\/span>/);
   assert.match(page, /<h2>Report the score<\/h2>/); assert.doesNotMatch(page, /<details class="card" id="report">/);
+  // The usual report is the score and nothing to choose: the ways a match can fail to be played out are one box on the same page.
+  assert.match(page, /<input type="checkbox" id="problem" name="problem" value="1"\/>/);
+  assert.doesNotMatch(page, /type="hidden" name="outcome"|href="[^"]*problem/);
   // Refused, it comes back open with what was typed.
   const refused = await sam.post(`/matches/${p.match}/report`, { outcome: "completed", mine_1: "6", theirs_1: "6" });
   assert.equal(refused.status, 400); assert.match(refused.html, /name="mine_1"[^>]*value="6"/);

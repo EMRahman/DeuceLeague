@@ -1040,7 +1040,8 @@ export function createWebsite(options: WebsiteOptions) {
     const form = Object.fromEntries(
       Object.entries(await c.req.parseBody()).map(([k, v]) => [k, typeof v === "string" ? v : ""]),
     );
-    const read = readReportForm(form, mine, competition.match_format);
+    // The not-played-out questions count only while their box is ticked: unticked, the match was played out.
+    const read = readReportForm(form.problem === "1" ? form : { ...form, outcome: "completed" }, mine, competition.match_format);
     if (!read.ok) return matchPage(c, p, id, read.errors, 400, form);
     try {
       const after = await api<MatchDetail>("POST", `/v1/matches/${id}/claims`, p.session, { ...read.report, source: "web" });
