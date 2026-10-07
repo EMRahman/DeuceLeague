@@ -399,8 +399,8 @@ test("home puts what to do first: a row each to play with a way to reach them, a
   const sam = await signIn(f, "sam@example.org");
   const home = (await sam.get("/")).html;
   assert.match(home, /To play \(1\)/);
-  assert.match(home, /href="https:\/\/wa\.me\/447700900123"[^>]*aria-label="WhatsApp Alex">WhatsApp ↗<\/a>/);
-  assert.match(home, new RegExp(`href="/matches/${p.match}#report"[^>]*>\\s*Report score`));
+  assert.match(home, /href="https:\/\/wa\.me\/447700900123"[^>]*aria-label="WhatsApp Alex"[^>]*><svg/);
+  assert.match(home, new RegExp(`href="/matches/${p.match}#report"[^>]*aria-label="Report score against`));
   assert.doesNotMatch(home, /example\.org|Private Alex/, "the row shows a name and a number, nothing else");
   // The season is a card of rows, one for each competition, and says once that fixtures are ready.
   assert.equal(home.match(/Your season is open · Summer/g)?.length, 1);

@@ -259,29 +259,29 @@ details.card[open] > summary::after, .competition-board[open] > summary::after {
 .competition-board:not([open]) > summary { margin-bottom: 0; }
 .competition-board > summary .muted { font-size: .75rem; }
 .match-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
-.board-column { min-width: 0; background: var(--bg); border-radius: 12px; padding: .75rem; min-height: 150px; }
-.board-column h3 { display: flex; align-items: center; gap: .4rem; font-size: .8rem; margin: 0 0 .75rem; font-weight: 650; }
+.board-column { min-width: 0; background: var(--bg); border-radius: 12px; padding: .6rem; }
+.board-column h3 { display: flex; align-items: center; gap: .4rem; font-size: .8rem; margin: 0 0 .5rem; font-weight: 650; }
 .board-column h3::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .board-column.arranged h3::before { background: var(--accent); }
 .lane-count { margin-left: auto; font-weight: 500; }
-.board-empty { font-size: .78rem; margin: 1rem 0; text-align: center; }
-.match-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .9rem; margin-bottom: .6rem; box-shadow: 0 2px 4px rgb(14 39 27 / .03); overflow-wrap: anywhere; }
+.board-empty { font-size: .78rem; margin: .5rem 0; text-align: center; }
+.match-card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: .6rem .7rem; margin-bottom: .5rem; box-shadow: 0 2px 4px rgb(14 39 27 / .03); overflow-wrap: anywhere; }
 .match-card:last-child { margin-bottom: 0; }
-.match-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .25rem; }
-.match-card .opponent { font-weight: 650; line-height: 1.4; text-decoration: none; color: var(--fg); padding-top: .25rem; }
+.match-card-heading { display: flex; align-items: center; justify-content: space-between; gap: .25rem; }
+.match-card .opponent { font-weight: 650; line-height: 1.3; text-decoration: none; color: var(--fg); }
 .match-card .opponent:hover { text-decoration: underline; }
-.drag-handle { background: transparent; color: var(--muted); cursor: grab; padding: 0; width: 32px; min-height: 36px; font-size: 1.3rem; flex-shrink: 0; touch-action: none; }
-.match-chats { display: flex; flex-wrap: wrap; gap: .25rem .75rem; font-size: .8rem; margin: .4rem 0; }
-.match-chats a { display: inline-flex; align-items: center; min-height: 40px; text-decoration: none; font-weight: 600; }
-.match-contacts { margin: .4rem 0; font-size: .8rem; }
-.match-contacts > summary { min-height: 40px; padding-top: .6rem; font-weight: 600; }
-.match-contacts .match-chats { flex-direction: column; }
-.match-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .25rem .75rem; border-top: 1px solid var(--line); padding-top: .5rem; margin-top: .4rem; font-size: .78rem; }
+.drag-handle { background: transparent; color: var(--muted); cursor: grab; padding: 0; width: 28px; min-height: 32px; font-size: 1.2rem; flex-shrink: 0; touch-action: none; }
+.match-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .1rem .5rem; margin-top: .2rem; }
 .match-actions form { margin: 0; }
-.match-actions button { background: var(--up-bg); color: var(--accent); padding: .35rem .6rem; font-size: .78rem; min-height: 40px; }
-.match-actions a { min-height: 40px; display: inline-flex; align-items: center; }
-.arranged .match-actions button { background: transparent; color: var(--muted); padding-left: 0; }
-.arranged .match-actions a { font-weight: 650; }
+.match-chats, .match-tools { display: flex; align-items: center; gap: .1rem .4rem; }
+.match-chats { flex-wrap: wrap; font-size: .75rem; }
+.match-chats a { display: inline-flex; align-items: center; gap: .3rem; min-height: 40px; min-width: 40px; justify-content: center; text-decoration: none; font-weight: 600; font-size: .75rem; }
+.match-chats a.wa { color: var(--fg); }
+.match-chats a.wa svg { color: #1fa855; }
+.match-chats svg, .match-tools svg { width: 22px; height: 22px; flex-shrink: 0; }
+.match-tools { margin-left: auto; }
+.match-tools a, .match-tools button { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; min-height: 40px; padding: 0; background: transparent; color: var(--accent); font-size: 1.15rem; line-height: 1; border-radius: 10px; text-decoration: none; }
+.match-tools a:hover, .match-tools button:hover { background: var(--up-bg); filter: none; }
 .match-meta { font-size: .75rem; margin: .4rem 0; }
 .match-card.dragging { opacity: .4; }
 .board-column.drop-target { outline: 2px dashed var(--accent); outline-offset: -3px; background: var(--up-bg); }
@@ -321,13 +321,9 @@ form.report .sets { max-width: 26rem; }
   .match-board { gap: .4rem; }
   .board-column { padding: .4rem; }
   .board-column h3 { font-size: .72rem; gap: .25rem; margin: .25rem 0 .6rem; }
-  .match-card { padding: .6rem; }
+  .match-card { padding: .5rem; }
   .match-card .opponent { font-size: .82rem; }
   .drag-handle { width: 24px; }
-  .match-actions { gap: 0; }
-  .match-actions button { font-size: .7rem; padding: .3rem .45rem; }
-  .match-actions a, .match-chats, .match-contacts { font-size: .72rem; }
-  .section-heading .hint { font-size: .7rem; }
   .card { padding: 1rem; }
 }
 @media (max-width: 359px) {
@@ -725,12 +721,28 @@ const MatchRows: FC<{ matches: MyMatch[] }> = ({ matches }) => (
  * What is left to play, a row each: who, in what, how to reach them (the people in the match, when they have a
  * number) and the button that reports it. Arranging the match comes first, so that is what the row offers.
  */
+const WhatsAppIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" /></svg>
+);
+
+const ScoreIcon: FC = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+);
+
+/**
+ * What is left to play, a card each: who, how to reach them (an icon for each person in the match who has a
+ * number or email), then the icons that mark it arranged and report it. The icons carry their names for screen readers.
+ */
 const MatchChats: FC<{ people: NonNullable<MyMatch["people"]>; single?: boolean }> = ({ people, single }) => (
   <div class="match-chats">
-    {people.map(c => c.phone && whatsapp(c.phone)
-      ? <a draggable="false" href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`}>{single ? "WhatsApp ↗" : `WhatsApp · ${c.display_name}`}</a>
-      : c.phone ? <a draggable="false" href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`} aria-label={`Call ${c.display_name}`}>{single ? "Call player" : `Call · ${c.display_name}`}</a>
-      : c.email ? <a draggable="false" href={`mailto:${c.email}`} aria-label={`Email ${c.display_name}`}>{single ? "Email player" : `Email · ${c.display_name}`}</a> : null)}
+    {people.map(c => {
+      const first = c.display_name.split(" ")[0]!;
+      const name = single ? null : <span>{first}</span>;
+      return c.phone && whatsapp(c.phone)
+        ? <a class="wa" draggable="false" href={whatsapp(c.phone)!} aria-label={`WhatsApp ${c.display_name}`} title={`WhatsApp ${c.display_name}`}><WhatsAppIcon />{name}</a>
+        : c.phone ? <a draggable="false" href={`tel:${c.phone.replace(/[^0-9+]/g, '')}`} aria-label={`Call ${c.display_name}`} title={`Call ${c.display_name}`}>📞{name}</a>
+        : c.email ? <a draggable="false" href={`mailto:${c.email}`} aria-label={`Email ${c.display_name}`} title={`Email ${c.display_name}`}>✉️{name}</a> : null;
+    })}
   </div>
 );
 
@@ -740,32 +752,33 @@ const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => {
   return <>
     <p id="board-status" class="hint" role="status" aria-live="polite"></p>
     {[...competitions].map(([id, matches]) => <details class="competition-board" data-competition={id} open>
-      <summary><strong>{matches[0]!.competition}</strong> <span class="muted">· {matches.length} to play</span></summary>
+      <summary><strong>{matches[0]!.competition}</strong>{competitions.size > 1 && <span class="muted"> · {matches.length} to play</span>}</summary>
       <section class="match-board" aria-label={`${matches[0]!.competition} match board`}>
         {([['to_arrange', 'To Arrange'], ['arranged', 'Arranged']] as const).map(([state, title]) => {
           const matchesHere = matches.filter(m => (m.plan === 'arranged' ? 'arranged' : 'to_arrange') === state);
           return <section class={`board-column ${state}`} data-lane={state}>
             <h3>{title} <span class="muted lane-count">({matchesHere.length})</span></h3>
-            <p class="muted board-empty" hidden={matchesHere.length > 0}>{state === 'to_arrange' ? 'All caught up.' : 'No matches arranged yet.'}</p>
-            {matchesHere.map(m => <article class="match-card" draggable="true" data-match={m.id}>
-              <div class="match-card-heading">
-                <a class="opponent" draggable="false" href={`/matches/${m.id}`}>{m.opponent}</a>
-                <button type="button" class="drag-handle" aria-label={`Drag match against ${m.opponent}`} title="Drag to the other lane">⠿</button>
-              </div>
-              {(m.people ?? []).some(c => c.phone || c.email) && (
-                (m.people ?? []).filter(c => c.phone || c.email).length > 1
-                  ? <details class="match-contacts"><summary>Message players</summary><MatchChats people={m.people ?? []} /></details>
-                  : <MatchChats people={m.people ?? []} single />
-              )}
-              {!(m.people ?? []).some(c => c.phone || c.email) && <p class="muted match-meta">Ask the coach for contact details.</p>}
-              <div class="match-actions">
-                <form class="move-match" method="post" action={`/matches/${m.id}/plan`}>
-                  <input type="hidden" name="state" value={state === 'to_arrange' ? 'arranged' : 'to_arrange'} />
-                  <button class="small" type="submit">{state === 'to_arrange' ? 'Mark arranged' : 'To arrange'}</button>
-                </form>
-                <a draggable="false" href={`/matches/${m.id}#report`}>Report score</a>
-              </div>
-            </article>)}
+            <p class="muted board-empty" hidden={matchesHere.length > 0}>{state === 'to_arrange' ? 'All caught up.' : 'None yet.'}</p>
+            {matchesHere.map(m => {
+              const reachable = (m.people ?? []).filter(c => c.phone || c.email);
+              return <article class="match-card" draggable="true" data-match={m.id}>
+                <div class="match-card-heading">
+                  <a class="opponent" draggable="false" href={`/matches/${m.id}`}>{m.opponent}</a>
+                  <button type="button" class="drag-handle" aria-label={`Drag match against ${m.opponent}`} title="Drag to the other lane">⠿</button>
+                </div>
+                {reachable.length === 0 && <p class="muted match-meta">Ask the coach for contact details.</p>}
+                <div class="match-actions">
+                  {reachable.length > 0 && <MatchChats people={reachable} single={reachable.length === 1} />}
+                  <div class="match-tools">
+                    <form class="move-match" method="post" action={`/matches/${m.id}/plan`}>
+                      <input type="hidden" name="state" value={state === 'to_arrange' ? 'arranged' : 'to_arrange'} />
+                      <button type="submit" aria-label={state === 'to_arrange' ? 'Mark arranged' : 'Move back to To arrange'} title={state === 'to_arrange' ? 'Mark arranged' : 'Move back to To arrange'}>{state === 'to_arrange' ? '✅' : '↩️'}</button>
+                    </form>
+                    <a draggable="false" href={`/matches/${m.id}#report`} aria-label={`Report score against ${m.opponent}`} title="Report score"><ScoreIcon /></a>
+                  </div>
+                </div>
+              </article>;
+            })}
           </section>;
         })}
       </section>
@@ -1084,7 +1097,6 @@ export const Home: FC<{
       <section aria-label="Matches to play">
         <div class="section-heading">
           <h2>To play ({p.toPlay.length})</h2>
-          <p class="hint">Drag between lanes, or tap Mark arranged.</p>
         </div>
         <MatchBoard matches={p.toPlay} />
       </section>

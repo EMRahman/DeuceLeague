@@ -15,7 +15,7 @@ test("planning survives reloads, remains private and refuses outsiders, CSRF and
   const sam = await signIn(f, "sam@example.org"), alex = await signIn(f, "alex@example.org");
   const home = (await sam.get("/")).html;
   assert.match(home, /Your leagues/); assert.match(home, /Summer/); assert.match(home, /0 played · 1 to play/);
-  assert.match(home, /To Arrange <span[^>]*>\(1\)/); assert.match(home, /Mark arranged/);
+  assert.match(home, /To Arrange <span[^>]*>\(1\)/); assert.match(home, /aria-label="Mark arranged"/);
   assert.match(home, /https:\/\/wa.me\/447700900123/);
   assert.ok(home.indexOf('Weather at the courts') < home.indexOf('Your leagues'));
   const url = `/v1/matches/${p.match}/plan`;
