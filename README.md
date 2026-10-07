@@ -6,7 +6,13 @@ confirm the result, while opposing submissions stay private.
 The coach hands out sign-in links and runs the league, with a coding agent for
 the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
 
-![The players' website on a phone: the home page with results to enter, a division table, and independent result entry.](docs/images/product-preview.png)
+**Players**, on their phones: their dashboard, the tables, and entering a result.
+
+![The players' website on an iPhone: the dashboard with weather and leagues, a singles division table with promotion and relegation places and a player's points so far, and independent result entry.](docs/images/product-preview.png)
+
+**The coach**, on theirs: the dashboard, results to review, and a disputed match.
+
+![The coach's website on an iPhone: the dashboard, results to review, and a disputed match with both sides' entries.](docs/images/coach-preview.png)
 
 > **Not simulation-certified yet.** DeuceLeague is still under testing. The
 > automated tests pass, but a club's seasons have edge cases they do not reach,
