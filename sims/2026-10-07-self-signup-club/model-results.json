@@ -1,0 +1,491 @@
+{
+  "seed": 20261007,
+  "signup": {
+    "applications": 150,
+    "members_before_approval": 0,
+    "default_daily_cap": 100,
+    "configured_daily_cap_for_launch": 1000,
+    "required_ip_buckets_at_50_each": 3,
+    "privacy_notice": "uk-2026-10-06",
+    "approved": 150,
+    "social": 62,
+    "interested": 88,
+    "signed_in": 88
+  },
+  "seasons": [
+    {
+      "name": "Spring 2026",
+      "competitions": 5,
+      "divisions": 14,
+      "fixtures": 314,
+      "both_agreed": 239,
+      "disputes": 22,
+      "whatsapp_corrections": 15,
+      "coach_decisions": 19,
+      "one_sided_unresolved": 20,
+      "never_arranged": 21,
+      "played": 273,
+      "standings_rows": 100,
+      "draft": [
+        {
+          "competition": "Men's Singles",
+          "carried": 31,
+          "omitted": 1,
+          "vacancies": 0,
+          "sizes": [
+            7,
+            8,
+            8,
+            8
+          ],
+          "reasons": {
+            "held": 19,
+            "omitted": 1,
+            "relegated": 6,
+            "promoted": 6
+          }
+        },
+        {
+          "competition": "Women's Singles",
+          "carried": 31,
+          "omitted": 1,
+          "vacancies": 1,
+          "sizes": [
+            8,
+            7,
+            8,
+            8
+          ],
+          "reasons": {
+            "held": 20,
+            "relegated": 5,
+            "omitted": 1,
+            "promoted": 6
+          }
+        },
+        {
+          "competition": "Men's Doubles",
+          "carried": 12,
+          "omitted": 0,
+          "vacancies": 0,
+          "sizes": [
+            6,
+            6
+          ],
+          "reasons": {
+            "held": 10,
+            "relegated": 1,
+            "promoted": 1
+          }
+        },
+        {
+          "competition": "Women's Doubles",
+          "carried": 12,
+          "omitted": 0,
+          "vacancies": 0,
+          "sizes": [
+            6,
+            6
+          ],
+          "reasons": {
+            "held": 10,
+            "relegated": 1,
+            "promoted": 1
+          }
+        },
+        {
+          "competition": "Mixed Doubles",
+          "carried": 11,
+          "omitted": 1,
+          "vacancies": 0,
+          "sizes": [
+            6,
+            6
+          ],
+          "reasons": {
+            "held": 9,
+            "relegated": 1,
+            "promoted": 1,
+            "omitted": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "Summer 2026",
+      "competitions": 5,
+      "divisions": 14,
+      "fixtures": 300,
+      "both_agreed": 221,
+      "disputes": 17,
+      "whatsapp_corrections": 14,
+      "coach_decisions": 20,
+      "one_sided_unresolved": 18,
+      "never_arranged": 27,
+      "played": 255,
+      "standings_rows": 98,
+      "draft": null
+    }
+  ],
+  "whatsapp": [
+    {
+      "round": "launch",
+      "sender": "Coach",
+      "recipient": "Club group",
+      "message": "Please apply through the join page and choose what you want to play. I will place you after approval.",
+      "result": "150 applications modeled"
+    },
+    {
+      "round": "launch",
+      "sender": "Coach",
+      "recipient": "League applicants",
+      "message": "Your one-use sign-in link works for seven days. Open it on the phone you will use for league results.",
+      "result": "88 sign-ins modeled"
+    },
+    {
+      "round": "Spring 2026 W1",
+      "sender": "Ava Adams",
+      "recipient": "Ben Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W2",
+      "sender": "Chloe Adams",
+      "recipient": "Ava Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W3",
+      "sender": "Daniel Adams",
+      "recipient": "Ava Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W4",
+      "sender": "Ava Adams",
+      "recipient": "Ella Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W5",
+      "sender": "Ava Adams",
+      "recipient": "Farah Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W6",
+      "sender": "Ava Adams",
+      "recipient": "Grace Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W7",
+      "sender": "Ava Adams",
+      "recipient": "Hannah Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W8",
+      "sender": "Chloe Adams",
+      "recipient": "Ben Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W9",
+      "sender": "Ben Adams",
+      "recipient": "Daniel Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W10",
+      "sender": "Ben Adams",
+      "recipient": "Ella Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W10",
+      "sender": "Ben Adams",
+      "recipient": "Ella Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W1",
+      "sender": "Farah Adams",
+      "recipient": "Ben Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W2",
+      "sender": "Grace Adams",
+      "recipient": "Ben Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W3",
+      "sender": "Ben Adams",
+      "recipient": "Hannah Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W4",
+      "sender": "Chloe Adams",
+      "recipient": "Daniel Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W5",
+      "sender": "Ella Adams",
+      "recipient": "Chloe Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W7",
+      "sender": "Grace Adams",
+      "recipient": "Chloe Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W8",
+      "sender": "Hannah Adams",
+      "recipient": "Chloe Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W9",
+      "sender": "Daniel Adams",
+      "recipient": "Ella Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W10",
+      "sender": "Farah Adams",
+      "recipient": "Daniel Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W1",
+      "sender": "Grace Adams",
+      "recipient": "Daniel Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W2",
+      "sender": "Hannah Adams",
+      "recipient": "Daniel Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W4",
+      "sender": "Grace Adams",
+      "recipient": "Ella Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W6",
+      "sender": "Farah Adams",
+      "recipient": "Grace Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W7",
+      "sender": "Farah Adams",
+      "recipient": "Hannah Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W8",
+      "sender": "Grace Adams",
+      "recipient": "Hannah Adams",
+      "message": "Could we play Saturday morning? I can book a court. Please enter your score after.",
+      "result": "arranged off-platform"
+    },
+    {
+      "round": "Spring 2026 W5",
+      "sender": "Imran Adams",
+      "recipient": "Nadia Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W7",
+      "sender": "Zoe Adams",
+      "recipient": "Ravi Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W10",
+      "sender": "Sara Adams",
+      "recipient": "Vera Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W5",
+      "sender": "Vera Adams",
+      "recipient": "Zoe Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W7",
+      "sender": "Kira Dawson",
+      "recipient": "Daniel Dawson",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W3",
+      "sender": "Kira Dawson",
+      "recipient": "Ella Dawson",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W8",
+      "sender": "Maya Dawson",
+      "recipient": "Nadia Dawson",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W10",
+      "sender": "Vera Dawson",
+      "recipient": "Zoe Dawson",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W4",
+      "sender": "Ben Evans",
+      "recipient": "Zoe Dawson",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W3",
+      "sender": "Imran Evans",
+      "recipient": "Hannah Evans",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W2",
+      "sender": "Maya Adams",
+      "recipient": "Ravi Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W3",
+      "sender": "Vera Adams",
+      "recipient": "Tomasz Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W1",
+      "sender": "Sara Dawson",
+      "recipient": "Priya Dawson",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Spring 2026 W3",
+      "sender": "Leo Barker",
+      "recipient": "Imran Barker",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "turnover",
+      "sender": "Mixed player",
+      "recipient": "Former partner",
+      "message": "I am looking for a different partner next season. Can we tell the coach before the draft?",
+      "result": "pair omitted from automatic carry-over"
+    },
+    {
+      "round": "Summer 2026 W4",
+      "sender": "Leo Adams",
+      "recipient": "Kira Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Summer 2026 W7",
+      "sender": "Kira Adams",
+      "recipient": "Sara Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Summer 2026 W2",
+      "sender": "Imran Adams",
+      "recipient": "Uma Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Summer 2026 W1",
+      "sender": "Zoe Adams",
+      "recipient": "Jack Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Summer 2026 W10",
+      "sender": "Zoe Adams",
+      "recipient": "Will Adams",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Summer 2026 W5",
+      "sender": "Yasmin Adams",
+      "recipient": "Hannah Barker",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    },
+    {
+      "round": "Summer 2026 W5",
+      "sender": "Farah Barker",
+      "recipient": "Chloe Barker",
+      "message": "The site says our scores differ. I have 6-4 6-3. Can you check your second set?",
+      "result": "opponent corrects typo"
+    }
+  ],
+  "checks": {
+    "fixtures_first": 314,
+    "fixtures_second": 300,
+    "all_150_applied_before_approval": true,
+    "tables_from_current_engine": true,
+    "claims_from_current_engine": true,
+    "placements_from_current_engine": true
+  },
+  "method": "in-process model"
+}
