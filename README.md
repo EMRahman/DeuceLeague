@@ -3,46 +3,9 @@
 Open-source tennis league software for a club. Players see their matches and
 tables and enter results independently from their phones. Matching entries
 confirm the result, while opposing submissions stay private.
-The coach hands out sign-in links and runs the league, with a coding agent for
-the bigger jobs. It runs on Cloudflare's free plan, in the club's own account.
-
-**Players**, on their phones: their dashboard, the tables, and entering a result.
-
-![The players' website on an iPhone: the dashboard with weather and leagues, a singles division table with promotion and relegation places and a player's points so far, and independent result entry.](docs/images/product-preview.png)
-
-**The coach**, on theirs: the dashboard, results to review, and a disputed match.
-
-![The coach's website on an iPhone: the dashboard, results to review, and a disputed match with both sides' entries.](docs/images/coach-preview.png)
-
-> **Not simulation-certified yet.** DeuceLeague is still under testing. The
-> automated tests pass, but a club's seasons have edge cases they do not reach,
-> so we run whole-club simulations to find them, and no simulation has passed
-> clean yet. Expect rough edges, and try it with the sample club first.
->
-> **Latest simulation, 1 October 2026:** two seasons, 218 matches. All 113
-> standings rows matched an independent calculation, with no server errors.
-> The earlier fairness fixes held, but routine coach result handling and
-> player clarity still need work. Real-phone and advancing-clock checks
-> remain outstanding in the simulations.
-> [Report](sims/2026-10-01-two-season-gpt/report.md) ·
-> [Comparison](sims/2026-10-01-two-season-gpt/comparison.md) ·
-> [Request log](sims/2026-10-01-two-season-gpt/request-log.jsonl) ·
-> [All simulations](sims/README.md)
-
-## Next work
-
-The [next four work items](sims/2026-10-01-two-season-gpt/issues.md), agreed on
-2 October, have items 1–3 implemented (item 3 has a PR open); item 4 remains planned:
-
-1. Both sides enter results independently, with opposing submissions hidden
-   from players. Matching entries confirm the result; later corrections
-   belong to the coach.
-2. Coach result controls, including overrides for disputed or unanswered injury
-   and no-show reports, a review of points and participation, and recorded
-   reasons for decisions.
-3. Clear approval and placement status for newcomers.
-4. Email sign-in invitations, required email and telephone at sign-up, and
-   50 join submissions per IP per day.
+The coach hands out sign-in links and runs the league, with a coding agent such
+as Claude Code, Codex or Pi Agent for the bigger jobs. It runs on Cloudflare's
+free plan, in the club's own account.
 
 ## Try it
 
@@ -53,6 +16,55 @@ service and no server.
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/EMRahman/DeuceLeague/tree/main)
 
 **[Try DeuceLeague →](deploy/cloudflare/TRY.md)**
+
+## What it looks like
+
+**Players**, on their phones: their dashboard, the tables, and entering a result.
+
+![The players' website on an iPhone: the dashboard with weather and leagues, a singles division table with promotion and relegation places and a player's points so far, and independent result entry.](docs/images/product-preview.png)
+
+**The coach**, on theirs: the dashboard, results to review, and a disputed match.
+
+![The coach's website on an iPhone: the dashboard, results to review, and a disputed match with both sides' entries.](docs/images/coach-preview.png)
+
+> **Open for a club beta, with known limits.** A coach willing to test new
+> software can try the sample club, then pilot it with players while checking
+> results, tables and unresolved matches. Automated tests pass, and a local
+> Worker simulation of a 150-member club completed two seasons with all 191
+> independently checked standings rows matching. Real-club use and deployed
+> Cloudflare limits have not yet been verified.
+>
+> **Latest simulation, 7 October 2026:** a blank-start model processed 150
+> applications and two seasons with 88 league players. It used the current
+> join validator and league engine, but its sign-ins, coach actions and player
+> activity were modeled: the local Worker/browser run was blocked by the test
+> environment. It highlighted the effort of approving a large joining cohort,
+> chasing one-sided results and reviewing vacancies at season turnover. Its
+> match and follow-up rates are assumptions, not observations of real players.
+> [Latest report](sims/2026-10-07-self-signup-club/report.md) ·
+> [Earlier live local Worker run](sims/2026-10-04-150-member-club/report.md) ·
+> [All simulations](sims/README.md)
+
+## Next work
+
+The [7 October work candidates](sims/2026-10-07-self-signup-club/issues.md)
+come from an in-process model, so they need a live browser and D1 check before
+being treated as confirmed problems:
+
+1. Run a blank-start club through the actual join form, coach approvals,
+   separate player browsers and season turnover; verify quotas, persistence
+   and what people see on their phones.
+2. Make a large joining cohort easier to review, including clear launch quota
+   guidance and safe checks before approving several applicants.
+3. Help the coach contact players with one-sided results and review disputes,
+   unarranged matches and division vacancies before closing a season.
+4. Explain that a player's arranged marker is private and does not message the
+   opponent; check whether the wording makes sense to players.
+
+Players interested in a particular area are welcome to [fork the project](https://github.com/EMRahman/DeuceLeague/fork)
+and work on it. The [development guide](DEVELOPING.md) explains how to run the
+checks, and the [simulation issue drafts](sims/2026-10-07-self-signup-club/issues.md)
+offer starting points.
 
 ## Run your club
 

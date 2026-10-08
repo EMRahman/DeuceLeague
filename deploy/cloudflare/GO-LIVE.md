@@ -27,8 +27,8 @@ close the installer. Setup never reopens either way.
 ## 3. Set up the league
 
 The coach's site doesn't add members or seasons yet. A coding agent, such as
-Claude Code, does it through the API, and shows you the changes before making
-them. For example:
+Claude Code, Codex or Pi Agent, does it through the API, and shows you the
+changes before making them. For example:
 
 > Using the DeuceLeague API at https://riverside-league.your-subdomain.workers.dev,
 > add the members in members.csv, then create a summer season with men's and
