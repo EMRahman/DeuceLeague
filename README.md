@@ -13,9 +13,7 @@ Deploy it with a sample club in mid-season, then play it as the coach and as
 two players. It takes about fifteen minutes in your browser, with no email
 service and no server.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/EMRahman/DeuceLeague/tree/main)
-
-**[Try DeuceLeague →](deploy/cloudflare/TRY.md)**
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](deploy/cloudflare/TRY.md)
 
 ## What it looks like
 
