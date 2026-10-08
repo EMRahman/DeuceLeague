@@ -92,7 +92,7 @@ ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 
 ol.steps li strong { display: block; }
 .who { display: inline-block; font-size: .72rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; margin-left: .3rem; vertical-align: 2px; }
 .who.you { background: var(--warn-bg); color: var(--warn); }
-.who.claude { background: var(--accent-bg); color: var(--accent); }
+.who.agent { background: var(--accent-bg); color: var(--accent); }
 
 .costs { display: grid; grid-template-columns: 1fr auto; gap: .4rem 1.5rem; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.2rem; max-width: 34rem; }
 .costs span:nth-child(even) { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
@@ -134,19 +134,19 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
   </div>
   <div class="eyebrow">For coaches</div>
   <h1>A straightforward league for players and coaches.</h1>
-  <p class="lead">A club member built this for our club: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. You run the league with Claude Code and can extend the website to suit your coaching and the club.</p>
+  <p class="lead">A club member built this for our club: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. A coding agent, such as Claude Code, Codex or Pi Agent, can help with the bigger league jobs and extend the website to suit your coaching and the club.</p>
   <div class="ctas">
-    <a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a>
+    <a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Deploy to Cloudflare</a>
     <a class="cta quiet" href="#setting-it-up">How setup works</a>
   </div>
   <div class="callout warn">
-    <p><strong>Not simulation-certified yet.</strong> DeuceLeague is still under testing. We run whole-club simulations to catch the edge cases the automated tests miss, and none has passed clean yet. <a href="#where-it-stands">See where it stands</a>.</p>
+    <p><strong>Open for a club beta, with known limits.</strong> A coach willing to test new software can try the sample club and then pilot it with players, checking results, tables and matches that still need a decision. Whole-club simulations have found useful gaps; real-club use is still unverified. <a href="#where-it-stands">See the findings and next work</a>.</p>
   </div>
 </header>
 
 <h2>Why it exists</h2>
 <p>The app we use now could be simpler and more straightforward for our league. Most visits are for a few everyday tasks: enter a result, correct a pending entry, check the table or see who’s left to play. DeuceLeague puts those tasks within easy reach.</p>
-<p>It works in a browser on a phone, tablet or computer, with no separate app to install or keep updated. The club runs its own copy and keeps its own data. Because the code is open source, a coach can adapt the website with Claude Code — adding coaching information, useful links or a small page for a regular league task.</p>
+<p>It works in a browser on a phone, tablet or computer, with no separate app to install or keep updated. The club runs its own copy and keeps its own data. Because the code is open source, a coach can adapt the website with a coding agent — adding coaching information, useful links or a small page for a regular league task.</p>
 
 <div class="promises">
   <div class="promise"><strong>Straight to the league</strong><span>Scores, tables and matches still to play are easy to find.</span></div>
@@ -212,8 +212,8 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 </div>
 <p class="muted small">Also screenshots of the real pages, with made-up results.</p>
 
-<h2>What you do: ask Claude Code</h2>
-<p>For the first season, you tell Claude Code what you want in plain English. It reads the league’s published instructions for its API, shows you the important names, dates and division changes, and makes the changes. After you have used it for real, we decide whether any repeated job deserves its own small coach screen. A few examples:</p>
+<h2>What you do: ask a coding agent</h2>
+<p>For the first season, you tell your coding agent what you want in plain English. It reads the league’s published instructions for its API, shows you the important names, dates and division changes, and makes the changes. After you have used it for real, we decide whether any repeated job deserves its own small coach screen. A few examples:</p>
 
 <table class="asks">
   <thead><tr><th>You say</th><th>What happens</th></tr></thead>
@@ -232,7 +232,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 </div>
 
 <h2>A website you can extend as a coach</h2>
-<p>The player website is a starting point you can adapt with Claude Code. You could add a page about your coaching, details of group sessions, club news or a link to your existing lesson booking page. You could also build a small coach screen for a task you do often, such as reviewing unresolved scores or preparing next season’s divisions.</p>
+<p>The player website is a starting point you can adapt with a coding agent. You could add a page about your coaching, details of group sessions, club news or a link to your existing lesson booking page. You could also build a small coach screen for a task you do often, such as reviewing unresolved scores or preparing next season’s divisions.</p>
 
 <div class="mock" aria-label="Mock-up">
   <div class="label">Example extension · coaching information on the website</div>
@@ -256,8 +256,8 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 <ol class="steps">
   <li><strong>Create the Cloudflare account <span class="who you">you</span></strong>The club owns the account, Worker and database.</li>
   <li><strong>Deploy the league <span class="who you">you</span></strong>The same Deploy to Cloudflare button as the trial, with a new Worker and a new database.</li>
-  <li><strong>Create the club <span class="who you">you</span></strong>The installer shows the administrator key once. <strong>You keep that key in a password manager.</strong> Claude Code gets separately scoped keys for its jobs.</li>
-  <li><strong>Add members and the first season <span class="who claude">Claude Code</span></strong>Members come from a spreadsheet of names, and divisions from our last tables.</li>
+  <li><strong>Create the club <span class="who you">you</span></strong>The installer shows the administrator key once. <strong>You keep that key in a password manager.</strong> Your coding agent gets separately scoped keys for its jobs.</li>
+  <li><strong>Add members and the first season <span class="who agent">coding agent</span></strong>Members come from a spreadsheet of names, and divisions from our last tables.</li>
   <li><strong>Invite the players <span class="who you">you</span></strong>Sign in to your coach page and send each player their sign-in link, for example on WhatsApp. You can see who has signed in, and nudge those who haven’t.</li>
   <li><strong>Later, if you want <span class="who you">you</span></strong>The club’s own address, such as <code>league.yourclub.org</code>, with one DNS record; and sign-in emails, so players can ask for their own link.</li>
 </ol>
@@ -272,7 +272,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 </div>
 
 <h3>Looking after it</h3>
-<p>Cloudflare runs the Worker and D1 service. Keep the administrator key safe, review the D1 recovery options for the account, and check the deployed website after each update. Claude Code can help with those checks.</p>
+<p>Cloudflare runs the Worker and D1 service. Keep the administrator key safe, review the D1 recovery options for the account, and check the deployed website after each update. Your coding agent can help with those checks.</p>
 
 <h2>How it’s built, and how it can grow</h2>
 <p>There are two layers. A small core holds the league data and rules. Around it sit the pieces players actually use, and those can be changed, replaced or added to without touching the core.</p>
@@ -301,7 +301,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
   </div>
 </div>
 
-<h3>Ideas someone could build with Claude Code</h3>
+<h3>Ideas someone could build with a coding agent</h3>
 <div class="ideas">
   <div class="idea"><strong>Telegram bot</strong><p>Posts each agreed result and weekly table changes to the club group. It could also take scores (“6-3 6-4 v Alex”), once it has checked it’s really the player writing.</p></div>
   <div class="idea"><strong>Nudges before the deadline</strong><p>Drafts a message to everyone with matches outstanding, a month out and again a fortnight out. You approve each one before it goes.</p></div>
@@ -319,12 +319,13 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 
 <h2 id="where-it-stands">Where it stands</h2>
 <div class="callout warn">
-  <p><strong>Not simulation-certified yet; still under testing.</strong> The automated tests pass, but a club’s seasons have edge cases they do not reach. So we play whole seasons of a pretend club with scripted players, player agents and a coach agent, and fix what turns up. Nothing is certified until a simulation runs clean.</p>
-  <p><strong>Latest simulation, 30 September 2026:</strong> two seasons of a 52-member club, 254 matches. Standings matched an independent calculation with no mismatches, and there were no server errors. It also found 4 bugs and 7 high-severity problems for a real club, such as the coach needing a coding agent for weekly jobs like settling a disputed result. They are written up as issue drafts, and the simulation has not been re-run since.</p>
+  <p><strong>Ready for a supervised beta.</strong> Automated tests pass. In a local Worker simulation of a 150-member club over two seasons, all 191 independently checked standings rows matched. A coach can try the sample club and pilot the league with players, while watching unresolved results and checking the tables. Real-club use and deployed Cloudflare limits have not yet been verified.</p>
+  <p><strong>Latest simulation, 7 October 2026:</strong> a blank-start model took 150 applications through the current join validator and modeled two seasons with 88 league players using the current league engine. The Worker and browser could not run in that test environment, so sign-ins, approvals and player actions were modeled rather than observed. It pointed to the work of reviewing a large joining cohort, following up one-sided results and handling vacancies between seasons. Its match and follow-up rates are assumptions, not observed player behaviour.</p>
+  <p><strong>Next work:</strong> check the full join-to-season flow in a live browser and D1 run; improve the coach’s review of applications, result follow-up and season closure; and explain that a player’s arranged marker is private. Players interested in one of these areas are welcome to <a href="https://github.com/EMRahman/DeuceLeague/fork">fork the project</a> and work on it.</p>
   <ul>
-    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/report.md">The report</a>: what happened, problems ranked, bugs with request ids and the limits of the run</li>
-    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/issues.md">Issue drafts and decisions</a></li>
-    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/request-log.jsonl">The request log</a></li>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-07-self-signup-club/report.md">Latest simulation report</a>: findings, verification and limits</li>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-07-self-signup-club/issues.md">Work candidates</a> from the blank-start scenario</li>
+    <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-04-150-member-club/report.md">Earlier live local Worker run</a> at 150-member scale</li>
     <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/README.md">All simulations</a></li>
   </ul>
 </div>
@@ -341,7 +342,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
       <li>A join form for new players, approved by you, with a level for each</li>
       <li>A sample club to try it all in about fifteen minutes</li>
       <li>Guides to trying it, starting a club and recovering access</li>
-      <li>A short guide to everyday coach tasks with Claude Code</li>
+      <li>A short guide to everyday coach tasks with a coding agent</li>
     </ul>
   </div>
   <div>

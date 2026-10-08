@@ -7,8 +7,8 @@ choose what to take, and nothing goes live until you merge.
 
 ## For the coach
 
-Give your coding agent, such as Claude Code, this prompt, with your
-repository's address:
+Give your coding agent, such as Claude Code, Codex or Pi Agent, this prompt,
+with your repository's address:
 
 > Update my DeuceLeague club's repository, https://github.com/YOU/YOUR-REPO,
 > with the latest from DeuceLeague. Follow

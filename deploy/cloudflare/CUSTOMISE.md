@@ -10,8 +10,9 @@ It's also the quickest way to try DeuceLeague: no Cloudflare account needed.
 
 ## For the coach
 
-You need a coding agent, such as Claude Code, and Node.js 22 or later. Give the
-agent this prompt, with your club's repository, or DeuceLeague's to try it out:
+You need a coding agent, such as Claude Code, Codex or Pi Agent, and Node.js 22
+or later. Give the agent this prompt, with your club's repository, or
+DeuceLeague's to try it out:
 
 > Run my club's DeuceLeague site on this computer and help me change how it
 > looks and works. The repository is https://github.com/YOU/YOUR-REPO. Follow
