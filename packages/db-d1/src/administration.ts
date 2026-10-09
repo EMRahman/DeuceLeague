@@ -40,7 +40,8 @@ function keyRecord(r: Row): ApiKeyRecord {
 }
 function memberRecord(r: Row): MemberRecord {
   return { id: String(r.id), displayName: String(r.display_name), status: String(r.status), rating: string(r.rating),
-    ratingSystem: string(r.rating_system), level: r.level === null ? null : Number(r.level), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
+    ratingSystem: string(r.rating_system), level: r.level === null ? null : Number(r.level),
+    selfLevel: r.self_level === null ? null : Number(r.self_level), joinedOn: string(r.joined_on), deletedAt: date(r.deleted_at),
     leavingAt: date(r.leaving_at), plays: string(r.plays),
     signedInAt: date(r.signed_in_at), lastSignedInAt: date(r.last_signed_in_at), createdAt: date(r.created_at)!, updatedAt: date(r.updated_at)!,
     ...(r.personal_json === null ? {} : JSON.parse(String(r.personal_json)) as object) };
@@ -61,7 +62,7 @@ function membersRead(db: D1Database, hash: string, filter: MemberFilter) {
     SELECT EXISTS (SELECT 1 FROM api_key k, json_each(k.scopes) s WHERE k.key_hash = ?
       AND k.revoked_at IS NULL AND (k.expires_at IS NULL OR k.expires_at > unixepoch('subsec') * 1000)
       AND s.value = 'members:pii') AS pii
-    ) SELECT m.id, m.display_name, m.status, m.rating, m.rating_system, m.level, m.joined_on,
+    ) SELECT m.id, m.display_name, m.status, m.rating, m.rating_system, m.level, m.self_level, m.joined_on,
       m.deleted_at, m.leaving_at, m.plays, m.created_at, m.updated_at,
       -- Sessions are deleted when they end, so this is the newest one still signed in.
       (SELECT max(g.created_at) FROM access_grant g WHERE g.member_id = m.id AND g.club_id = m.club_id
@@ -166,7 +167,7 @@ export async function revokeKeyAdmin(db: D1Database, state: IdentitySnapshot, ke
 export type MemberMutation =
   | { type: "create"; changes: MemberChanges & { displayName: string }; fields: string[];
       /** The join request this member came from, deleted as they are added. */
-      joinRequest?: { id: string; privacyNotice: string } }
+      joinRequest?: { id: string; privacyNotice: string; selfLevel: number | null } }
   | { type: "patch"; changes: MemberChanges; fields: string[] }
   | { type: "invitation"; state: "accepted" | "failed" }
   | { type: "remove" }
@@ -190,10 +191,11 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
   const writes: D1PreparedStatement[] = [];
   if (mutation.type === "create") {
     const c = mutation.changes;
-    writes.push(db.prepare(`INSERT INTO member (id, club_id, display_name, status, rating, rating_system, level, joined_on,
+    writes.push(db.prepare(`INSERT INTO member (id, club_id, display_name, status, rating, rating_system, level, self_level, joined_on,
       full_name, email, phone, date_of_birth, gender, age_group, notes, plays)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .bind(id, clubId, c.displayName, c.status ?? "active", rating(c.rating), c.ratingSystem ?? null, c.level ?? null, c.joinedOn ?? null,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, clubId, c.displayName, c.status ?? "active", rating(c.rating), c.ratingSystem ?? null, c.level ?? null,
+        mutation.joinRequest?.selfLevel ?? null, c.joinedOn ?? null,
         c.fullName ?? null, c.email ?? null, c.phone ?? null, c.dateOfBirth ?? null, c.gender ?? null, c.ageGroup ?? null, c.notes ?? null,
         c.plays ?? null),
       audit(db, state, "member.created", "member", id, { fields: mutation.fields,
@@ -255,7 +257,7 @@ export async function mutateMemberAdmin(db: D1Database, state: IdentitySnapshot,
     else writes.push(
       db.prepare(`UPDATE member SET display_name = 'Erased member', full_name = NULL, email = NULL, phone = NULL,
         date_of_birth = NULL, gender = NULL, age_group = NULL, notes = NULL, invitation_state = NULL, invitation_at = NULL, leaving_at = NULL, rating = NULL, rating_system = NULL, level = NULL, joined_on = NULL,
-        status = 'left', deleted_at = coalesce(deleted_at, ?), updated_at = ? WHERE id = ? AND club_id = ?`)
+        self_level = NULL, status = 'left', deleted_at = coalesce(deleted_at, ?), updated_at = ? WHERE id = ? AND club_id = ?`)
         .bind(state.now, state.now, id, clubId),
       db.prepare(`UPDATE entry SET display_name = NULL, updated_at = ? WHERE club_id = ? AND display_name IS NOT NULL
         AND id IN (SELECT entry_id FROM entry_member WHERE member_id = ? AND club_id = ?)`)

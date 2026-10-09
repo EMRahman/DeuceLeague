@@ -254,13 +254,14 @@ with `members:write`), and a player's `/v1/me` shows it. The coach's site offers
 a newcomer in a draft only for what they want to play. Mixed doubles is a
 competition with discipline `doubles` and category `mixed`.
 
-`GET /v1/me/match-plans` lists a player's private markers for open fixtures in
+`GET /v1/me/match-plans` lists a player's markers for open fixtures in
 active, visible competitions before the results deadline. `PUT
 /v1/matches/{id}/plan` saves `state` (`to_arrange`, `planned`, or `arranged`)
 and optional `arranged_on` (an ISO date, only for an arranged match). Only a
-participant's session can save its own marker. `to_arrange` clears the marker;
-other players keep their own boards. Planning does not change the match ledger,
-notify players, or record a booking.
+participant's session can change a marker. `planned` is private. `arranged`
+updates every participant's board, including doubles partners; any participant
+can move it back to `to_arrange`. Planning does not change the match ledger,
+send a message, or record a booking.
 
 Placements fill next season's competition from this one's final tables. The
 coach creates the new competition as a draft, naming the previous one, and one

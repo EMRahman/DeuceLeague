@@ -28,6 +28,8 @@ export async function readMatchPlanTarget(db: D1Database, hash: string, matchId:
   const identity = await readIdentity(db, hash, "session", null, [
     db.prepare(`SELECT m.status, c.state, c.visibility, se.state AS season_state, se.results_deadline_at,
         e.state AS entry_state,
+        EXISTS (SELECT 1 FROM match_plan p WHERE p.club_id = m.club_id AND p.match_id = m.id
+          AND p.state = 'arranged') AS arranged,
         EXISTS (SELECT 1 FROM match_side other JOIN entry oe ON oe.id = other.entry_id
           WHERE other.match_id = m.id AND oe.state = 'withdrawn') AS withdrawn
       FROM match m JOIN competition c ON c.id = m.competition_id AND c.club_id = m.club_id
@@ -41,7 +43,7 @@ export async function readMatchPlanTarget(db: D1Database, hash: string, matchId:
   ]);
   const target = identity.extraResults[0]!.results[0] as {
     status: string; state: string; visibility: string; season_state: string; entry_state: string;
-    results_deadline_at: number | null; withdrawn: number;
+    results_deadline_at: number | null; withdrawn: number; arranged: number;
   } | undefined;
   return { identity, target };
 }
@@ -49,8 +51,16 @@ export async function readMatchPlanTarget(db: D1Database, hash: string, matchId:
 export async function saveMatchPlan(db: D1Database, identity: IdentitySnapshot, plan: MatchPlan) {
   const credential = identity.credential!;
   const writes = plan.state === "to_arrange"
-    ? [db.prepare("DELETE FROM match_plan WHERE club_id = ? AND member_id = ? AND match_id = ?")
-      .bind(credential.club_id, credential.member_id, plan.match_id)]
+    ? [db.prepare("DELETE FROM match_plan WHERE club_id = ? AND match_id = ?")
+      .bind(credential.club_id, plan.match_id)]
+    : plan.state === "arranged"
+    ? [db.prepare(`INSERT INTO match_plan (club_id, member_id, match_id, state, arranged_on, updated_at)
+        SELECT ?, em.member_id, ?, 'arranged', ?, ? FROM match_side s
+        JOIN entry_member em ON em.entry_id = s.entry_id AND em.club_id = s.club_id
+        WHERE s.match_id = ? AND s.club_id = ?
+        ON CONFLICT(club_id, member_id, match_id)
+        DO UPDATE SET state = excluded.state, arranged_on = excluded.arranged_on, updated_at = excluded.updated_at`)
+      .bind(credential.club_id, plan.match_id, plan.arranged_on, identity.now, plan.match_id, credential.club_id)]
     : [db.prepare(`INSERT INTO match_plan (club_id, member_id, match_id, state, arranged_on, updated_at)
         VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(club_id, member_id, match_id)
         DO UPDATE SET state = excluded.state, arranged_on = excluded.arranged_on, updated_at = excluded.updated_at`)

@@ -499,6 +499,7 @@ export function createWebsite(options: WebsiteOptions) {
         gender: values.gender,
         age_group: values.age_group || null,
         wants_to_play: values.plays,
+        self_level: values.self_level ? Number(values.self_level) : null,
         privacy_notice: PRIVACY_NOTICE,
       });
       log("join request received");

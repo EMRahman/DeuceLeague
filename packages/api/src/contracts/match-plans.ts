@@ -10,8 +10,8 @@ const PlanChoice = z.object({
 const Plan = z.object({ match_id: z.uuid(), state: z.enum(["to_arrange", "planned", "arranged"]), arranged_on: z.iso.date().nullable() }).openapi("MatchPlan");
 
 export const listPlans = createRoute({
-  method: "get", path: "/v1/me/match-plans", tags: ["Me"], summary: "Your private match planning board",
-  description: "Saved markers for your open matches in active competitions. A match without a marker is to arrange. Other players have their own boards.",
+  method: "get", path: "/v1/me/match-plans", tags: ["Me"], summary: "Your match planning board",
+  description: "Saved markers for your open matches in active competitions. A match without a marker is to arrange. Planned is private; arranged is shared by every participant in that fixture.",
   ...requires.player(), responses: {
     200: { description: "Your saved match plans.", content: { "application/json": { schema: z.object({ data: z.array(Plan) }) } } },
     ...authProblems,
@@ -19,11 +19,11 @@ export const listPlans = createRoute({
 });
 export const putPlan = createRoute({
   method: "put", path: "/v1/matches/{id}/plan", tags: ["Matches"], summary: "Plan one of your matches",
-  description: "Only a participant's session can save its own marker. Planned means a priority to arrange; arranged means you have agreed it outside the app, with an optional date. Does not notify anyone or change results.",
+  description: "Only a participant's session can change a marker. Planned is a private priority. Arranged means the fixture was agreed outside the app and updates every participant's board; any participant can move it back to To Arrange. It does not send a message or change results.",
   ...requires.player(), request: { params: IdParam, body: { required: true, content: { "application/json": { schema: PlanChoice } } } },
   responses: {
     200: { description: "Your saved marker.", content: { "application/json": { schema: Plan } } },
     ...validationProblem, ...authProblems, ...notFoundProblem,
-    ...conflictProblem("`match_closed`: only open fixtures in active competitions before the results deadline can be planned."),
+    ...conflictProblem("`match_closed`: only open fixtures in active competitions before the results deadline can be planned. `match_arranged`: move the shared arranged marker back before setting a private plan."),
   },
 });

@@ -19,7 +19,7 @@ export type PersonalFields = {
 };
 export type MemberRecord = {
   id: string; displayName: string; status: string; rating: string | null;
-  ratingSystem: string | null; level: number | null; joinedOn: string | null; deletedAt: Date | null;
+  ratingSystem: string | null; level: number | null; selfLevel: number | null; joinedOn: string | null; deletedAt: Date | null;
   /** When they said they are not playing next season at all, if they did. */
   leavingAt: Date | null;
   /** What they want to play: singles, doubles, both or not now (social). Null: not said. */

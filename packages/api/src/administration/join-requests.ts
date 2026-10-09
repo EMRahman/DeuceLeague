@@ -14,6 +14,7 @@ export function toJoinRequest(r: JoinRequestRecord): z.infer<typeof JoinRequest>
     gender: r.gender as Gender | null,
     age_group: r.ageGroup as AgeGroup | null,
     wants_to_play: r.plays as WantsToPlay | null,
+    self_level: r.selfLevel,
     privacy_notice: r.privacyNotice,
     created_at: iso(r.createdAt),
     expires_at: iso(new Date(r.createdAt.getTime() + JOIN_REQUEST_DAYS * 86_400_000)),

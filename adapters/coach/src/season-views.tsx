@@ -1,4 +1,5 @@
 import type { FC } from "hono/jsx";
+import { suggestedPairs } from "./first-season.js";
 import { deadlineLine, type Match, type Season } from "@deuceleague/website";
 import { fits, genderUnclear, type DraftView, type Division, type LeftOut, type PairsView, type PlacedEntry, type Turnover,
   type Unplaced } from "./season.js";
@@ -69,10 +70,10 @@ export const SeasonPage: FC<{
       <h1>Season</h1>
       <Notice message={message} />
       {running.length === 0 && !ended && preparing.length === 0 && (
-        <p>
-          No season is running. The first season is set up through the API, usually by your coding agent; after that,
-          each season is started here from the one before.
-        </p>
+        <div class="card">
+          <p>No season is running. Prepare the first one from approved members, then review every division and pair before starting it.</p>
+          <a class="button" href="/coach/season/first">Prepare first season</a>
+        </div>
       )}
 
       {running.map(({ season, drafts }) => {
@@ -173,6 +174,7 @@ export const SeasonPage: FC<{
             <span class="tag past">Being prepared</span>
           </div>
           {dates(season) && <p>{dates(season)}</p>}
+          {!ended && running.length === 0 && <p><a href="/coach/season/first">Continue first-season setup or add competitions</a></p>}
           {drafts.length === 0 ? (
             <p class="muted">It has no competitions yet.</p>
           ) : (
@@ -550,6 +552,7 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
 }) => {
   const paired = new Set(view.pairs.flat().map((u) => u.id));
   const free = view.unplaced.filter((u) => !u.out && !paired.has(u.id));
+  const suggestions = suggestedPairs(free.filter((u) => !u.said?.startsWith("Asked ")), category);
   const out = view.unplaced.filter((u) => u.out);
   const choosable = view.unplaced.filter((u) => !u.out);
   return (
@@ -581,6 +584,18 @@ const Pairing: FC<{ draft: string; view: DraftView; divisions: Division[]; botto
         </>
       )}
       <h2>Players without a pair</h2>
+      {suggestions.length > 0 && <div class="card">
+        <h3>Possible pairs by level</h3>
+        <p class="muted">Suggestions for players without an agreed partner. Ask them first, then add the pair and choose its division.</p>
+        <ul class="list">{suggestions.map(([a, b]) => <li class="answer">
+          <strong>{a.display_name} / {b.display_name}</strong> · levels {a.level ?? "?"} / {b.level ?? "?"}
+          <form class="level" method="post" action={`/coach/season/drafts/${draft}/entries`}>
+            <input type="hidden" name="member" value={a.id} /><input type="hidden" name="partner" value={b.id} />
+            <DivisionSelect id={`suggest-${a.id}`} divisions={divisions} selected={bottom} />
+            <button class="quiet small" type="submit">Add pair</button>
+          </form>
+        </li>)}</ul>
+      </div>}
       {free.length === 0 ? (
         <p class="muted">Nobody is waiting for a partner.</p>
       ) : (

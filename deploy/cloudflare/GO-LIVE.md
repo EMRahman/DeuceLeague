@@ -26,9 +26,10 @@ close the installer. Setup never reopens either way.
 
 ## 3. Set up the league
 
-The coach's site doesn't add members or seasons yet. A coding agent, such as
-Claude Code, Codex or Pi Agent, does it through the API, and shows you the
-changes before making them. For example:
+Share `/join` with players after configuring Turnstile; the coach can approve
+requests on **Members**. For an existing membership list, a coding agent such
+as Claude Code, Codex or Pi Agent can import members through the API. For
+example:
 
 > Using the DeuceLeague API at https://riverside-league.your-subdomain.workers.dev,
 > add the members in members.csv, then create a summer season with men's and
@@ -36,6 +37,14 @@ changes before making them. For example:
 
 [Running the league day to day](../../docs/COACH-WORKFLOW.md) explains how to
 give the agent its own key and what it can do.
+
+Once applications are approved, open **Season → Prepare first season**. Choose
+the competitions and dates. It sorts singles players into divisions using the
+coach-reviewed levels, aiming for eight players per division, and creates
+doubles drafts aiming for six pairs per division. Review and move singles
+players, discuss suggested doubles pairs with them and add the pairs, then
+start the season. Approved players can be drafted before they sign in. For a
+custom league structure, a coding agent can still use the API.
 
 Add your courts for the forecast on the **Weather** tab of the coach's site,
 at `/coach/weather`; see [court forecasts](WEATHER.md).
@@ -65,6 +74,9 @@ which is written for the UK: see [new players joining](JOINING.md). Once the sea
   [sign-in emails](EMAIL.md).
 - **Fewer join requests a day**, or none: set `SIGNUPS_PER_DAY`; see
   [new players joining](JOINING.md#settings).
+- **A week of joining at a higher limit**: set `SIGNUPS_LAUNCH_PER_DAY` to
+  `"200"` and `SIGNUPS_LAUNCH_UNTIL` to the last UTC date of the week. The
+  limit automatically returns to `SIGNUPS_PER_DAY` afterwards.
 
 ## 6. Delete the trial
 

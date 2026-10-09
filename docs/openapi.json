@@ -1977,7 +1977,17 @@
             "minimum": 1,
             "maximum": 10,
             "example": 5,
-            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. A joining player selects an initial self-rating; the coach can adjust this separate level. The first-season setup uses this level to suggest divisions, while the core computes no rating from it."
+          },
+          "self_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "The level this member selected when applying, if any. Kept separately from the coach's editable level."
           },
           "joined_on": {
             "type": [
@@ -2137,6 +2147,7 @@
           "rating",
           "rating_system",
           "level",
+          "self_level",
           "joined_on",
           "wants_to_play",
           "leaving_at",
@@ -2188,7 +2199,7 @@
             "minimum": 1,
             "maximum": 10,
             "example": 5,
-            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. A joining player selects an initial self-rating; the coach can adjust this separate level. The first-season setup uses this level to suggest divisions, while the core computes no rating from it."
           },
           "joined_on": {
             "type": [
@@ -2332,7 +2343,7 @@
             "minimum": 1,
             "maximum": 10,
             "example": 5,
-            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. A joining player selects an initial self-rating; the coach can adjust this separate level. The first-season setup uses this level to suggest divisions, while the core computes no rating from it."
           },
           "joined_on": {
             "type": [
@@ -2556,6 +2567,16 @@
             ],
             "description": "PII. What they want to play, as they chose it on the form; null if the request did not carry it. Present only for a credential holding `members:pii`."
           },
+          "self_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "PII. Their own estimate: 10 is an absolute beginner and 1 is a national competitor. Null for social or older requests. Present only for a credential holding `members:pii`."
+          },
           "privacy_notice": {
             "type": "string",
             "example": "uk-2026-09-30",
@@ -2601,6 +2622,7 @@
           "gender",
           "age_group",
           "wants_to_play",
+          "self_level",
           "privacy_notice",
           "created_at",
           "expires_at",
@@ -2678,6 +2700,16 @@
             ],
             "description": "Singles, doubles, mixed doubles, any combination, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval."
           },
+          "self_level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10,
+            "example": 5,
+            "description": "The applicant's own estimate, separate from the coach's editable level."
+          },
           "privacy_notice": {
             "type": "string",
             "minLength": 1,
@@ -2711,7 +2743,7 @@
             "minimum": 1,
             "maximum": 10,
             "example": 5,
-            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. Set by the coach; the core computes nothing from it."
+            "description": "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, 1 a national player. A joining player selects an initial self-rating; the coach can adjust this separate level. The first-season setup uses this level to suggest divisions, while the core computes no rating from it."
           },
           "gender": {
             "type": [
@@ -6927,8 +6959,8 @@
         "tags": [
           "Me"
         ],
-        "summary": "Your private match planning board",
-        "description": "Saved markers for your open matches in active competitions. A match without a marker is to arrange. Other players have their own boards.",
+        "summary": "Your match planning board",
+        "description": "Saved markers for your open matches in active competitions. A match without a marker is to arrange. Planned is private; arranged is shared by every participant in that fixture.",
         "security": [
           {
             "session": []
@@ -6985,7 +7017,7 @@
           "Matches"
         ],
         "summary": "Plan one of your matches",
-        "description": "Only a participant's session can save its own marker. Planned means a priority to arrange; arranged means you have agreed it outside the app, with an optional date. Does not notify anyone or change results.",
+        "description": "Only a participant's session can change a marker. Planned is a private priority. Arranged means the fixture was agreed outside the app and updates every participant's board; any participant can move it back to To Arrange. It does not send a message or change results.",
         "security": [
           {
             "session": []
@@ -7087,7 +7119,7 @@
             }
           },
           "409": {
-            "description": "`match_closed`: only open fixtures in active competitions before the results deadline can be planned.",
+            "description": "`match_closed`: only open fixtures in active competitions before the results deadline can be planned. `match_arranged`: move the shared arranged marker back before setting a private plan.",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -9226,7 +9258,7 @@
           "Join requests"
         ],
         "summary": "Approve a join request",
-        "description": "Adds them to the club's list as an active member, with their full name, contact details, gender and age group, and the level given, and deletes the request. They are not placed in a running season: the coach places them in the draft for the next one. The member's `member.created` event records the request and the privacy notice they agreed to.",
+        "description": "Adds them to the club's list as an active member, with their full name, contact details, gender and age group, and the coach's level (defaulting to the applicant's self-rating), and deletes the request. They are not placed in a running season: the coach places them in the draft for the next one. The member's `member.created` event records the request and the privacy notice they agreed to.",
         "security": [
           {
             "apiKey": [

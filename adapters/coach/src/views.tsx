@@ -42,6 +42,7 @@ export type CoachMember = {
   invitation_state?: "accepted" | "failed" | null;
   invitation_at?: string | null;
   level: number | null;
+  self_level: number | null;
   signed_in_at: string | null;
   /** When they last signed in anywhere, signed out since or not. */
   last_signed_in_at?: string | null;
@@ -66,6 +67,7 @@ export type JoinRequest = {
   age_group: string | null;
   /** What they want to play, as they chose it on the form. */
   wants_to_play?: string | null;
+  self_level: number | null;
   created_at: string;
   expires_at: string;
   /** A member already on the list with the same email address. */
@@ -1455,6 +1457,7 @@ export const Members: FC<{
                   {[genderLabel(r.gender), ageGroupLabel(r.age_group)].filter(Boolean).join(" · ") ||
                     "No gender or age group given"}
                 </span>
+                <br /><span class="muted">Self-rated level: {r.self_level ?? "not given"}</span>
                 <br />
                 <span class="muted">
                   Asked {at(r.created_at, timezone)} · deleted {at(r.expires_at, timezone)} if not decided
@@ -1469,7 +1472,7 @@ export const Members: FC<{
                   </div>
                   <div class="field">
                     <label for={`level-${r.id}`}>Level</label>
-                    <LevelSelect id={`level-${r.id}`} value={null} />
+                  <LevelSelect id={`level-${r.id}`} value={r.self_level} />
                   </div>
                   <PersonSelects id={r.id} gender={r.gender} ageGroup={r.age_group} />
                   <PlaysSelect id={`plays-${r.id}`} value={r.wants_to_play ?? null} />
@@ -1695,7 +1698,7 @@ export const MemberPage: FC<{
           <LevelSelect id={`level-${m.id}`} value={m.level} />
           <button class="quiet small" type="submit">Save</button>
         </form>
-        <p class="muted">Levels run from 10, a beginner, to 1, a national player.</p>
+        <p class="muted">Applicant's self-rating: {m.self_level ?? "not given"}. Your level controls draft suggestions; 10 is an absolute beginner and 1 a national competitor.</p>
         <form class="level" method="post" action={`/coach/members/${m.id}/plays`}>
           <PlaysSelect id={`plays-${m.id}`} value={m.wants_to_play ?? null} />
           <button class="quiet small" type="submit">Save</button>

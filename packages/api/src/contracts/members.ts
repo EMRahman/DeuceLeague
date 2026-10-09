@@ -2,12 +2,13 @@ import { createRoute, z } from "@hono/zod-openapi";
 import { AgeGroup, Gender, MemberStatus, WantsToPlay } from "@deuceleague/schema";
 import { authProblems, conflictProblem, Flag, IdParam, notFoundProblem, PageQuery, pageOf, requires, Timestamp, validationProblem } from "./shared.js";
 
-/** The coach's playing level, on the scale British clubs know from the LTA's ratings. */
+/** The club's 10-to-1 playing level, reviewed by the coach. */
 export const Level = z.number().int().min(1).max(10).openapi({
   example: 5,
   description:
     "How well they play, as the coach judges it: 10 a beginner, 5 intermediate, 4 a strong club player, " +
-    "1 a national player. Set by the coach; the core computes nothing from it.",
+    "1 a national player. A joining player selects an initial self-rating; the coach can adjust this separate level. " +
+    "The first-season setup uses this level to suggest divisions, while the core computes no rating from it.",
 });
 
 /** Marks a field as personal data in the spec, as docs/SCHEMA.md marks its column. */
@@ -26,6 +27,7 @@ export const Member = z
     rating: z.number().nullable().openapi({ description: "Stored as given; the core computes no ratings." }),
     rating_system: z.string().nullable().openapi({ example: "UTR" }),
     level: Level.nullable(),
+    self_level: Level.nullable().openapi({ description: "The level this member selected when applying, if any. Kept separately from the coach's editable level." }),
     joined_on: z.iso.date().nullable(),
     wants_to_play: WantsToPlay.nullable().openapi({
       description:

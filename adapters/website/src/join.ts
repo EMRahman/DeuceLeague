@@ -11,7 +11,21 @@
  * GDPR; a club elsewhere, or one that changes the notice's words, gives it a
  * new name here, so each member's record says which one they agreed to.
  */
-export const PRIVACY_NOTICE = "uk-2026-10-06";
+export const PRIVACY_NOTICE = "uk-2026-10-08";
+
+/** Club guidance for a starting estimate; the coach may adjust it before drafting. */
+export const SELF_LEVELS = [
+  [10, "Absolute beginner", "New to tennis; learning the rules, scoring, grips and how to serve. Cannot yet sustain a rally."],
+  [9, "Beginner", "Can hit some serves and return gentle balls, but rallies usually end within two or three shots."],
+  [8, "Developing beginner", "Can play a casual match and sustain a short rally at an easy pace. Serve and direction are inconsistent."],
+  [7, "Improving recreational", "Can sustain several shots, usually start points with a serve, and understand basic court positioning."],
+  [6, "Lower intermediate", "Can rally at moderate pace, aim shots, use a dependable second serve, and play basic volleys."],
+  [5, "Intermediate", "Can deliberately apply topspin or slice, vary direction, and use simple tactics. Typically fewer than five double faults in a two-set match."],
+  [4, "Strong club player", "Can control depth and spin under pressure, place serves, attack short balls, and compete well in a strong club division."],
+  [3, "Advanced club player", "Has reliable attacking and defensive patterns, adapts tactics, and regularly competes near the top of club leagues."],
+  [2, "Regional competitor", "Regularly competes successfully beyond club level, with dependable serves, returns and patterns against advanced opponents."],
+  [1, "National competitor", "Competes at national level and sustains that standard in tournament matches."],
+] as const;
 
 /** Quicker than this, the form was not filled in by a person. */
 export const MIN_FILL_MS = 3_000;
@@ -58,6 +72,7 @@ export const ageGroupLabel = (value: string | null | undefined) => AGE_GROUPS.fi
 
 export type JoinForm = {
   first_name: string; surname: string; email: string; phone: string; gender: string; age_group: string; plays: string;
+  self_level: string;
   privacy: boolean;
 };
 
@@ -97,6 +112,7 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
     gender: text("gender"),
     age_group: text("age_group"),
     plays: readPlayChoices(form, "plays"),
+    self_level: text("self_level"),
     privacy: form.privacy === "yes",
   };
   const problems: string[] = [];
@@ -114,6 +130,10 @@ export function readJoinForm(form: Record<string, unknown>): { values: JoinForm;
   if (!GENDERS.some(([v]) => v === values.gender)) problems.push("Choose your gender, or say you would rather not.");
   if (values.age_group && !AGE_GROUPS.some(([v]) => v === values.age_group)) problems.push("Choose one of the age groups, or leave it blank.");
   if (!PLAYS.some(([v]) => v === values.plays)) problems.push("Choose singles, doubles, mixed doubles, a combination, or not now.");
+  if (values.plays !== "not_now" && !SELF_LEVELS.some(([level]) => String(level) === values.self_level))
+    problems.push("Choose the level that best describes your usual match play.");
+  if (values.plays === "not_now" && values.self_level && !SELF_LEVELS.some(([level]) => String(level) === values.self_level))
+    problems.push("Choose a level from 1 to 10, or leave it blank.");
   if (!values.privacy) problems.push("Tick the box to say you have read the privacy notice.");
   return { values, problems };
 }

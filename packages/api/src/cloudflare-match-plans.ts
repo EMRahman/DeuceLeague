@@ -26,6 +26,9 @@ export function registerCloudflareMatchPlans(app: OpenAPIHono<CloudflareEnv>, db
       || (target.results_deadline_at !== null && target.results_deadline_at <= state.identity.now)) {
       throw problems.conflict("match_closed", "This match is no longer open to arrange");
     }
+    if (choice.state === "planned" && target.arranged) {
+      throw problems.conflict("match_arranged", "Move this match back to To Arrange before marking a private plan");
+    }
     return saveMatchPlan(db, state.identity, { match_id: id, ...choice });
   }), 200));
 }

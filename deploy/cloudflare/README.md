@@ -133,7 +133,7 @@ another origin.
 to `POST /v1/join-requests` with the website's key. Before that, the Worker
 ignores a form with its hidden field filled in, or sent within three seconds of
 its signed time. It then checks Turnstile, if set up, and reserves one of the
-day's requests in D1: 3 per connection, counted against an HMAC of the address
+day's requests in D1: 50 per connection, counted against an HMAC of the address
 and the UTC day, and `SIGNUPS_PER_DAY` for the club. The table holds no address.
 Requests wait in their own table, apart from members, until the coach decides
 them. The Worker's hourly cron trigger (`triggers` in `wrangler.jsonc`) deletes

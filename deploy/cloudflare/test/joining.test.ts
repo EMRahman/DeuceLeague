@@ -3,6 +3,7 @@ import test from "node:test";
 import { createHmac } from "node:crypto";
 import { purgeExpired } from "@deuceleague/db-d1";
 import { displayNameOf } from "../../../packages/api/dist/administration/join-requests.js";
+import { joinConfig } from "../../../deploy/cloudflare/dist/website-config.js";
 import { fixture } from "./helpers.ts";
 import { browser, signIn, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
 
@@ -89,6 +90,32 @@ test("a join request waits apart from members until the coach approves it, as a 
   const member = await response.json() as { display_name: string; level: number | null; email: string | null };
   assert.equal(member.display_name, "Sam Kerr"); assert.equal(member.level, null); assert.equal(member.email, listed[1].email);
   assert.equal((await send(f, `/v1/join-requests/${listed[2].id}/approve`, "POST", { display_name: "Sammy" })).body.display_name, "Sammy");
+});
+
+test("a self-rating is preserved when the coach changes the level", async t => {
+  const f = await fixture(t);
+  const request = await send(f, "/v1/join-requests", "POST", { ...sam, self_level: 5, wants_to_play: "singles" });
+  assert.equal(request.status, 201);
+  assert.equal(request.body.self_level, 5);
+  assert.equal((await send(f, "/v1/join-requests", "POST", { ...sam, email: "bad@example.org", self_level: 11 })).status, 400);
+  const member = await send(f, `/v1/join-requests/${request.body.id}/approve`, "POST", {});
+  assert.equal(member.body.level, 5); assert.equal(member.body.self_level, 5);
+  const edited = await send(f, `/v1/members/${member.body.id}`, "PATCH", { level: 4 });
+  assert.equal(edited.body.level, 4); assert.equal(edited.body.self_level, 5);
+  const erased = await send(f, `/v1/members/${member.body.id}/erase`, "POST");
+  assert.equal(erased.body.self_level, null);
+});
+
+test("a launch quota returns to the ordinary daily limit after its UTC end date", () => {
+  const settings = { SIGNUPS_LAUNCH_PER_DAY: "200", SIGNUPS_LAUNCH_UNTIL: "2026-10-15" };
+  assert.equal(joinConfig(settings, new Date("2026-10-15T23:59:59Z"))!.perDay, 200);
+  assert.equal(joinConfig(settings, new Date("2026-10-16T00:00:00Z"))!.perDay, 100);
+  assert.equal(joinConfig({ ...settings, SIGNUPS_PER_DAY: "40" }, new Date("2026-10-16T00:00:00Z"))!.perDay, 40);
+  for (const broken of [
+    { SIGNUPS_LAUNCH_UNTIL: "2026-10-15" },
+    { SIGNUPS_LAUNCH_PER_DAY: "200" },
+    { SIGNUPS_LAUNCH_PER_DAY: "200", SIGNUPS_LAUNCH_UNTIL: "2026-02-30" },
+  ]) assert.throws(() => joinConfig(broken));
 });
 
 test("a join request carries gender and age group to the member; the log records that they were given, never what they were", async (t) => {
@@ -180,7 +207,7 @@ function started(f: WebsiteFixture, ago = 5_000) {
 }
 const person = (f: WebsiteFixture, fields: Record<string, string> = {}) => ({
   started: started(f), website: "", first_name: "Robin", surname: "Hale", email: "robin@example.org", phone: "07700 900123", gender: "female",
-  age_group: "35_49", plays: "both", privacy: "yes", ...fields,
+  age_group: "35_49", plays: "both", self_level: "5", privacy: "yes", ...fields,
 });
 const waiting = (f: WebsiteFixture) => f.db.prepare("SELECT count(*) AS n FROM join_request").first<number>("n");
 async function join(f: WebsiteFixture, form: Record<string, string>, address?: string) {
@@ -204,7 +231,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(page.headers.get("content-security-policy")!, /script-src 'self';/);
   assert.doesNotMatch(page.headers.get("content-security-policy")!, /script-src[^;]*unsafe-inline/);
   const privacy = await visitor.get("/privacy");
-  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-06/);
+  assert.equal(privacy.status, 200); assert.match(privacy.html, /ico\.org\.uk/); assert.match(privacy.html, /uk-2026-10-08/);
   assert.match(privacy.html, /partner and your opponents[^<]*full name, email address and telephone number/);
   assert.match(privacy.html, /your gender, your age group if you gave one/);
   assert.match(privacy.html, /singles, doubles, mixed doubles, any combination of these, or remain a social member/);
@@ -225,6 +252,8 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal(noGender.status, 400); assert.match(noGender.html, /Choose your gender/);
   const oddAge = await join(f, person(f, { age_group: "ancient" }));
   assert.equal(oddAge.status, 400); assert.match(oddAge.html, /Choose one of the age groups/);
+  const noLevel = await join(f, person(f, { self_level: "" }));
+  assert.equal(noLevel.status, 400); assert.match(noLevel.html, /Choose the level that best describes/);
   assert.match(oddAge.html, /<option value="female" selected="">/);
   const stale = await join(f, person(f, { started: started(f, 2 * 86_400_000) }));
   assert.equal(stale.status, 400); assert.match(stale.html, /open a long time/);
@@ -240,7 +269,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.match(confirmation.html, /does not add you to the running season or guarantee a division place/);
   assert.equal(await waiting(f), 2);
   const request = await f.db.prepare("SELECT privacy_notice, email, gender, age_group FROM join_request WHERE first_name = 'Robin'").first();
-  assert.deepEqual(request, { privacy_notice: "uk-2026-10-06", email: "robin@example.org", gender: "female", age_group: "35_49" });
+  assert.deepEqual(request, { privacy_notice: "uk-2026-10-08", email: "robin@example.org", gender: "female", age_group: "35_49" });
   assert.deepEqual(await f.db.prepare("SELECT gender, age_group FROM join_request WHERE first_name = 'Alex'").first(), { gender: "male", age_group: null });
 
   const coach = browser(f); assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
@@ -261,6 +290,7 @@ test("the join form turns away programs and mistakes, and the coach approves the
   const memberId = added.location!.split("=")[1]!;
   const approved = (await f.api(`/v1/members/${memberId}`, f.admin)).body;
   assert.equal(approved.gender, "female"); assert.equal(approved.age_group, "35_49");
+  assert.equal(approved.self_level, 5); assert.equal(approved.level, 4);
   // The coach renames them from the members page, and every page that names them follows.
   assert.equal((await coach.post(`/coach/members/${memberId}/name`, { display_name: "  Robin Hale " })).status, 303);
   assert.equal((await f.api(`/v1/members/${memberId}`, f.admin)).body.display_name, "Robin Hale");

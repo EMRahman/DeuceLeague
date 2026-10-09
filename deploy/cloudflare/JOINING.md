@@ -10,12 +10,18 @@ age group (under 18, 18 to 34, 35 to 49, 50 to 64, 65 or over), and whether they
 or not now as a social member. It shows the club's [privacy notice](#the-privacy-notice-is-written-for-the-uk)
 and asks the person to tick that they have read it.
 
-Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-05`.
+Email is required for sign-in links and telephone for WhatsApp league communications. Both are validated and retained on approval. The privacy notice version is `uk-2026-10-08`.
 
 What they want to play is copied to the member on approval, and you or the player can change it later: you on the
 member's page, the player in the **Next season** box on their home page. **Waiting to be placed** lists only
 newcomers who want to play or have not said, and each draft offers them only for what they want: a singles draft
 those who want singles or both. Social members are left out of both.
+
+League applicants also pick a playing level from 10 (absolute beginner) to 1
+(national competitor), using the descriptions on the form. The request keeps
+their self-rating. Approval defaults the coach's level to it; you can correct
+that level before approving or later on their member page. Their original
+self-rating stays visible to you separately. Social applicants may leave it blank.
 
 Nobody is a member until you approve them. Until then, they are only a request.
 
@@ -27,7 +33,7 @@ they gave. It also warns you if a member already has the same email address.
 
 - **Approve** adds them to the club's list, under the name they play under
   (their full name, such as "Robin Hale", unless you change it) and
-  the level you choose, with the gender and age group they gave, which you can
+  the level you choose (pre-filled from their self-rating), with the gender and age group they gave, which you can
   change before approving or later on the Members page. With [sign-in emails](EMAIL.md) configured, choose **Approve and email sign-in link**, or email the invitation from their member record afterwards. Approval succeeds even if sending fails. You can also make a **Sign-in link** to hand over.
 - **Decline** deletes the request and everything they sent. They are not told.
 
@@ -50,20 +56,12 @@ With email configured, use **Email sign-in link**, or select one to five members
 
 ## Levels
 
-Each member can have a level from 10 to 1, as British clubs know it from the
-LTA's ratings:
-
-| Level | Roughly |
-| --- | --- |
-| 10 | Beginner |
-| 5 | Intermediate |
-| 4 | Strong club player |
-| 1 | National player |
-
-Set it when you approve someone, and change it later on **Members**. Your
-coding agent can read and set it through the API (`level` on a member) when it
-places players in divisions. Nothing in DeuceLeague computes it or uses it on
-its own.
+Each member can have a coach-reviewed level from 10 to 1. The join form's
+ten-level guide gives concrete examples; it is a starting estimate, not a
+qualification test. Change the level on **Members** when you know better. The
+first-season preparation screen sorts approved singles players by this level,
+then you review and move entries in each draft. The member's original
+`self_level` stays separate from the editable `level`.
 
 ## Keeping spam out
 
@@ -86,6 +84,12 @@ before it reaches you:
 Submissions that pass validation and abuse checks count, including repeat requests and API failures after reservation. Network connections are not counted. Each IP has its own allowance; the club-wide quota still applies.
 
 These need no set-up. For a live club, also turn on Turnstile.
+
+For a launch week, set `SIGNUPS_LAUNCH_PER_DAY` to `"200"` and
+`SIGNUPS_LAUNCH_UNTIL` to the last UTC date of that week, for example
+`"2026-10-15"`. The Worker uses 200 requests each UTC day through that date,
+then automatically returns to `SIGNUPS_PER_DAY` (100 by default). The
+50-per-source-IP limit still applies each day.
 
 ### Turnstile
 
@@ -120,6 +124,8 @@ than run the form half-guarded.
 | Name | Where | What it does |
 | --- | --- | --- |
 | `SIGNUPS_PER_DAY` | `vars` | Requests the club takes a day, from 1 to 1000. Default 100. `"0"` turns the form off and removes its link. |
+| `SIGNUPS_LAUNCH_PER_DAY` | `vars` | Temporary daily club limit, from 1 to 1000; use `"200"` for a launch week. Set together with `SIGNUPS_LAUNCH_UNTIL`. |
+| `SIGNUPS_LAUNCH_UNTIL` | `vars` | Last UTC date using the temporary limit, `YYYY-MM-DD`. Afterwards the normal daily limit applies automatically. |
 | `TURNSTILE_SITE_KEY` | `vars` | The Turnstile widget's site key. |
 | `TURNSTILE_SECRET_KEY` | secret | The Turnstile widget's secret key. |
 
