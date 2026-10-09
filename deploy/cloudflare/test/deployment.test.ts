@@ -98,6 +98,6 @@ test("Wrangler migrations support renamed fresh installs, preserve initialized d
   proxy = await open();
   try {
     assert.equal(await proxy.env.DB.prepare("SELECT name FROM club").first("name"), "Renamed club");
-    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 21);
+    assert.equal(await proxy.env.DB.prepare("SELECT count(*) AS n FROM d1_migrations").first("n"), 22);
   } finally { await proxy.dispose(); }
 });
