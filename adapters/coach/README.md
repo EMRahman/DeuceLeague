@@ -175,5 +175,7 @@ choose competitions and dates. Approved members can be sorted into singles
 divisions before they sign in. The initial targets are eight singles players or
 six doubles pairs per division. The drafts stay editable: review levels, move
 players between divisions, and add doubles pairs from the suggestions or make
-different pairs. A partial setup can be resumed from the Season page. Starting
+different pairs. A partial setup can be resumed from the Season page; select
+the option to finish sorting existing drafts only if the initial setup was
+interrupted, since it can restore a player you deliberately removed. Starting
 the season is a separate confirmed action that creates fixtures.

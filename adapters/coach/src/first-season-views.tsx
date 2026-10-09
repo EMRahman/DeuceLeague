@@ -6,7 +6,7 @@ import { Layout, type CoachCompetition, type Frame } from "./views.js";
 
 export type FirstForm = { name: string; starts_on: string; ends_on: string; selected: string[] };
 
-export const FirstSeasonSetup: FC<{ frame: Frame; form: FirstForm; members: RatedMember[]; message?: string }> = ({ frame, form, members, message }) => (
+export const FirstSeasonSetup: FC<{ frame: Frame; form: FirstForm; members: RatedMember[]; existingDrafts: boolean; message?: string }> = ({ frame, form, members, existingDrafts, message }) => (
   <Layout title="Prepare first season" frame={frame}>
     <p class="jump"><a href="/coach/season">← Season</a></p>
     <h1>Prepare your first season</h1>
@@ -28,6 +28,8 @@ export const FirstSeasonSetup: FC<{ frame: Frame; form: FirstForm; members: Rate
         })}
       </fieldset>
       <p class="muted">Singles players with no level or an unconfirmed gender stay for manual review. Doubles players wait for pair selection.</p>
+      {existingDrafts && <label class="choice"><input type="checkbox" name="resume_existing" value="yes" />
+        Finish automatic sorting in existing drafts if the first setup was interrupted. This can restore players you manually removed.</label>}
       <button type="submit">Create drafts and sort singles</button>
     </form>
   </Layout>

@@ -1287,7 +1287,7 @@ export function createCoachSite(options: CoachOptions) {
       starts_on: existing?.starts_on ?? today(who.club.timezone),
       ends_on: existing?.ends_on ?? new Intl.DateTimeFormat("en-CA", { timeZone: who.club.timezone }).format(future),
       selected };
-    return c.html(<FirstSeasonSetup frame={seasonFrame(who)} form={form} members={members}
+    return c.html(<FirstSeasonSetup frame={seasonFrame(who)} form={form} members={members} existingDrafts={competitions.length > 0}
       {...(message ? { message } : {})} />,
       message ? 400 : 200);
   }
@@ -1328,10 +1328,19 @@ export function createCoachSite(options: CoachOptions) {
     }
     const members = await all<ActiveMember>("/v1/members?status=active", who.key);
     const competitions = await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}`, who.key);
+    const skipExisting = new Set(c.req.query("continue") === "yes"
+      ? (c.req.query("skip") ?? "").split(",").filter(Boolean)
+      : body.resume_existing === "yes" ? [] : competitions.map((item) => item.id));
+    const continueSetup = () => {
+      const query = new URLSearchParams({ continue: "yes" });
+      if (skipExisting.size) query.set("skip", [...skipExisting].join(","));
+      return c.redirect(`${new URL(c.req.url).pathname}?${query}`, 307);
+    };
     for (const spec of FIRST_COMPETITIONS.filter((x) => sent.selected.includes(x.key))) {
       let competition = competitions.find((x) => x.name === spec.name);
+      if (competition && skipExisting.has(competition.id)) continue;
       if (!competition) {
-        if (!take()) return again(c);
+        if (!take()) return continueSetup();
         competition = await api<CoachCompetition>("POST", "/v1/competitions", who.key, {
           season_id: season.id, name: spec.name, discipline: spec.discipline, category: spec.category,
           match_format: "best_of_3_champions_tiebreak",
@@ -1342,7 +1351,7 @@ export function createCoachSite(options: CoachOptions) {
       const needed = Math.max(1, Math.ceil(expected / spec.target));
       const { data: currentDivisions } = await api<{ data: Division[] }>("GET", `/v1/competitions/${competition.id}/divisions`, who.key);
       for (let ordinal = currentDivisions.length + 1; ordinal <= needed; ordinal++) {
-        if (!take()) return again(c);
+        if (!take()) return continueSetup();
         const division = await api<Division>("POST", `/v1/competitions/${competition.id}/divisions`, who.key,
           { ordinal, name: `Division ${ordinal}`, target_size: spec.target });
         currentDivisions.push(division);
@@ -1352,7 +1361,7 @@ export function createCoachSite(options: CoachOptions) {
       const already = new Set(currentEntries.flatMap((entry) => entry.members.map((m) => m.id)));
       for (const [index, member] of singles.entries()) {
         if (already.has(member.id)) continue;
-        if (!take()) return again(c);
+        if (!take()) return continueSetup();
         const division = currentDivisions.find((d) => d.ordinal === divisionFor(index, singles.length, spec.target))!;
         await api("POST", `/v1/competitions/${competition.id}/entries`, who.key,
           { division_id: division.id, member_ids: [member.id], placement_reason: "new" });

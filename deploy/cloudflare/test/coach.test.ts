@@ -28,10 +28,12 @@ async function shownOn(coach: ReturnType<typeof browser>, path: string) {
 }
 
 async function send(coach: ReturnType<typeof browser>, path: string, form: Record<string, string> = {}) {
+  let current = path;
   for (let hop = 0; hop < 20; hop++) {
-    const r = await coach.post(path, form);
+    const r = await coach.post(current, form);
     if (r.status !== 307) return r;
-    assert.equal(r.location, path);
+    assert.ok(r.location?.startsWith(path));
+    current = r.location;
   }
   throw new Error(`${path} kept asking to be sent again`);
 }
@@ -74,6 +76,11 @@ test("first season drafts approved but unsigned players by reviewed level and ke
   assert.equal((await f.api(`/v1/matches?season_id=${season.id}`, f.admin)).body.data.length, 0);
   assert.equal((await send(coach, "/coach/season/first", form)).location, "/coach/season");
   assert.equal((await f.api(`/v1/competitions/${competition.id}/entries`, f.admin)).body.data.length, 10);
+  assert.equal((await coach.post(`/coach/season/entries/${move.id}/remove`, { draft: competition.id })).status, 303);
+  assert.equal((await send(coach, "/coach/season/first", { ...form, womens_doubles: "yes" })).status, 303);
+  assert.equal((await f.api(`/v1/competitions/${competition.id}/entries`, f.admin)).body.data.length, 9,
+    "adding a competition must keep a coach's manual removal");
+  assert.equal((await f.api(`/v1/competitions?season_id=${season.id}`, f.admin)).body.data.length, 2);
 });
 
 test("unpaired doubles suggestions use similar levels and keep the coach's choice", () => {
