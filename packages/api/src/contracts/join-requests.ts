@@ -13,6 +13,7 @@ export const JoinRequest = z
     gender: Gender.nullable().openapi({ description: pii("As they chose it on the form; null if the request did not carry one.") }),
     age_group: AgeGroup.nullable().openapi({ description: pii("The band they chose on the form, or null if they left it blank.") }),
     wants_to_play: WantsToPlay.nullable().openapi({ description: pii("What they want to play, as they chose it on the form; null if the request did not carry it.") }),
+    self_level: Level.nullable().openapi({ description: pii("Their own estimate: 10 is an absolute beginner and 1 is a national competitor. Null for social or older requests.") }),
     privacy_notice: z.string().openapi({
       example: "uk-2026-09-30",
       description: "Which privacy notice they read and agreed to, when they asked.",
@@ -42,6 +43,7 @@ export const NewJoinRequest = z
     wants_to_play: WantsToPlay.nullable().optional().openapi({
       description: "Singles, doubles, mixed doubles, any combination, or `not_now` for a social member. The club's own form always asks. Copied to the member on approval.",
     }),
+    self_level: Level.nullable().optional().openapi({ description: "The applicant's own estimate, separate from the coach's editable level." }),
     privacy_notice: z.string().trim().min(1).max(40).openapi({
       example: "uk-2026-09-30",
       description: "Which privacy notice the person read and agreed to. The form that showed it names it.",
@@ -118,7 +120,7 @@ export const approve = createRoute({
   summary: "Approve a join request",
   description:
     "Adds them to the club's list as an active member, with their full name, contact details, gender and age " +
-    "group, and the level given, and deletes the request. They are not placed in a running season: the " +
+    "group, and the coach's level (defaulting to the applicant's self-rating), and deletes the request. They are not placed in a running season: the " +
     "coach places them in the draft for the next one. The member's `member.created` event records the request and the privacy " +
     "notice they agreed to.",
   ...requires("members:write", "members:pii"),

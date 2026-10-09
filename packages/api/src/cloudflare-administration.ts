@@ -257,7 +257,8 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       if (s.rows.length) throw new JoinRequestExistsError();
       return toJoinRequest(await createJoinRequest(db, s.identity, { id: uuidv7(), firstName: body.first_name,
         surname: body.surname, email, phone: body.phone ?? null, privacyNotice: body.privacy_notice,
-        gender: body.gender ?? null, ageGroup: body.age_group ?? null, plays: body.wants_to_play ?? null }));
+        gender: body.gender ?? null, ageGroup: body.age_group ?? null, plays: body.wants_to_play ?? null,
+        selfLevel: body.self_level ?? null }));
     }), 201);
   });
   app.openapi(joinRequests.approve, async (c) => {
@@ -267,13 +268,14 @@ export function registerCloudflareAdministration(app: OpenAPIHono<CloudflareEnv>
       if (!request) throw problems.notFound("join request");
       const changes = {
         displayName: body.display_name ?? displayNameOf(request), fullName: `${request.firstName} ${request.surname}`,
-        email: request.email, phone: request.phone, level: body.level ?? null, joinedOn: today(s.identity.club!.timezone),
+        email: request.email, phone: request.phone,
+        level: body.level === undefined ? request.selfLevel : body.level, joinedOn: today(s.identity.club!.timezone),
         gender: body.gender === undefined ? request.gender : body.gender,
         ageGroup: body.age_group === undefined ? request.ageGroup : body.age_group,
         plays: body.wants_to_play === undefined ? request.plays : body.wants_to_play,
       };
       const record = await mutateMemberAdmin(db, s.identity, uuidv7(), {
-        type: "create", changes, joinRequest: { id: request.id, privacyNotice: request.privacyNotice },
+        type: "create", changes, joinRequest: { id: request.id, privacyNotice: request.privacyNotice, selfLevel: request.selfLevel },
         fields: ["display_name", "full_name", "joined_on", ...(request.email ? ["email"] : []),
           ...(request.phone ? ["phone"] : []), ...(changes.level === null ? [] : ["level"]),
           ...(changes.gender ? ["gender"] : []), ...(changes.ageGroup ? ["age_group"] : []),

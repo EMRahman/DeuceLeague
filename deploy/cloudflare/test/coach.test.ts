@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { browser, playingWebsite, websiteFixture, type WebsiteFixture } from "./website-helpers.ts";
+import { divisionFor, suggestedPairs } from "../../../adapters/coach/dist/first-season.js";
 
 /** Each competition's table on the dashboard, by its heading, as text: [name, players, played, waiting, disputed, short, %]. */
 function dashboardTables(html: string): Record<string, string[][]> {
@@ -27,13 +28,86 @@ async function shownOn(coach: ReturnType<typeof browser>, path: string) {
 }
 
 async function send(coach: ReturnType<typeof browser>, path: string, form: Record<string, string> = {}) {
+  let current = path;
   for (let hop = 0; hop < 20; hop++) {
-    const r = await coach.post(path, form);
+    const r = await coach.post(current, form);
     if (r.status !== 307) return r;
-    assert.equal(r.location, path);
+    assert.ok(r.location?.startsWith(path));
+    current = r.location;
   }
   throw new Error(`${path} kept asking to be sent again`);
 }
+
+test("first season drafts approved but unsigned players by reviewed level and keeps divisions editable", async t => {
+  const f = await websiteFixture(t);
+  const coach = browser(f);
+  assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  assert.match((await coach.get("/coach/season")).html, /Prepare first season/);
+  const members: { id: string; level: number }[] = [];
+  for (let level = 10; level >= 1; level--) {
+    const request = await f.create("/v1/join-requests", { first_name: `Player${level}`, surname: "Test",
+      email: `player${level}@example.org`, phone: "07700 900123", privacy_notice: "uk-2026-10-08",
+      gender: "male", wants_to_play: "singles", self_level: level });
+    const approved = await f.api(`/v1/join-requests/${request.id}/approve`, f.admin, "POST", {});
+    assert.equal(approved.status, 201);
+    assert.equal(approved.body.level, level);
+    assert.equal(approved.body.self_level, level);
+    assert.equal(approved.body.signed_in_at, null);
+    members.push({ id: approved.body.id, level });
+  }
+  const form = { name: "First season", starts_on: "2026-11-01", ends_on: "2027-01-31", mens_singles: "yes" };
+  const prepared = await send(coach, "/coach/season/first", form);
+  assert.equal(prepared.status, 303); assert.equal(prepared.location, "/coach/season");
+  const season = (await f.api("/v1/seasons", f.admin)).body.data[0];
+  assert.equal(season.state, "planning");
+  const competition = (await f.api(`/v1/competitions?season_id=${season.id}`, f.admin)).body.data[0];
+  assert.equal(competition.name, "Men's Singles");
+  const divisions = (await f.api(`/v1/competitions/${competition.id}/divisions`, f.admin)).body.data;
+  assert.deepEqual(divisions.map((d: { target_size: number }) => d.target_size), [8, 8]);
+  const entries = (await f.api(`/v1/competitions/${competition.id}/entries`, f.admin)).body.data;
+  assert.equal(entries.length, 10);
+  const levelOf = new Map(members.map((m) => [m.id, m.level]));
+  assert.deepEqual(divisions.map((d: { id: string }) => entries.filter((e: any) => e.division_id === d.id)
+    .map((e: any) => levelOf.get(e.members[0].id)).sort((a: number, b: number) => a - b)), [[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]]);
+  assert.match((await coach.get(`/coach/season/drafts/${competition.id}`)).html, /Player1 Test/);
+  const move = entries.find((e: any) => e.members[0].id === members.find((m) => m.level === 5)!.id);
+  assert.equal((await coach.post(`/coach/season/entries/${move.id}/move`, { draft: competition.id, division_id: divisions[1].id })).status, 303);
+  assert.equal((await f.api(`/v1/entries/${move.id}`, f.admin)).body.division_id, divisions[1].id);
+  assert.equal((await f.api(`/v1/matches?season_id=${season.id}`, f.admin)).body.data.length, 0);
+  assert.equal((await send(coach, "/coach/season/first", form)).location, "/coach/season");
+  assert.equal((await f.api(`/v1/competitions/${competition.id}/entries`, f.admin)).body.data.length, 10);
+  assert.equal((await coach.post(`/coach/season/entries/${move.id}/remove`, { draft: competition.id })).status, 303);
+  assert.equal((await send(coach, "/coach/season/first", { ...form, womens_doubles: "yes" })).status, 303);
+  assert.equal((await f.api(`/v1/competitions/${competition.id}/entries`, f.admin)).body.data.length, 9,
+    "adding a competition must keep a coach's manual removal");
+  assert.equal((await f.api(`/v1/competitions?season_id=${season.id}`, f.admin)).body.data.length, 2);
+});
+
+test("unpaired doubles suggestions use similar levels and keep the coach's choice", () => {
+  const players = [2, 7, 3, 8].map((level) => ({ id: String(level), display_name: `Player ${level}`,
+    level, gender: "male", wants_to_play: "doubles", leaving_at: null }));
+  assert.deepEqual(suggestedPairs(players, "mens").map(([a, b]) => [a.level, b.level]), [[2, 3], [7, 8]]);
+  assert.deepEqual(Array.from({ length: 17 }, (_, i) => divisionFor(i, 17, 8)).reduce((out: number[], n) =>
+    (out[n - 1] = (out[n - 1] ?? 0) + 1, out), []), [6, 6, 5]);
+});
+
+test("an interrupted first-season setup resumes from its existing planning season", async t => {
+  const f = await websiteFixture(t);
+  const coach = browser(f);
+  assert.equal((await coach.post("/coach/sign-in", { key: f.admin })).status, 303);
+  const season = await f.create("/v1/seasons", { name: "Autumn club season", starts_on: "2026-11-01",
+    ends_on: "2027-01-31", results_deadline_at: "2027-01-31T23:59:59.000Z" });
+  assert.match((await coach.get("/coach/season")).html, /Continue first-season setup or add competitions/);
+  const setup = await coach.get("/coach/season/first");
+  assert.equal(setup.status, 200);
+  assert.match(setup.html, /value="Autumn club season"/);
+  assert.match(setup.html, /value="2026-11-01"/);
+  const prepared = await send(coach, "/coach/season/first", { name: season.name,
+    starts_on: "2026-11-01", ends_on: "2027-01-31", mens_singles: "yes" });
+  assert.equal(prepared.status, 303);
+  assert.equal((await f.api("/v1/seasons", f.admin)).body.data.length, 1);
+  assert.equal((await f.api(`/v1/competitions?season_id=${season.id}`, f.admin)).body.data.length, 1);
+});
 
 test("an administrator key signs the coach in with a scoped 90-day key for this browser, never stored itself", async (t) => {
   const f = await websiteFixture(t); const coach = browser(f);

@@ -8,6 +8,8 @@ export type WebsiteBindings = {
   EMAIL?: EmailBinding;
   RESEND_API_KEY?: string;
   SIGNUPS_PER_DAY?: string;
+  SIGNUPS_LAUNCH_PER_DAY?: string;
+  SIGNUPS_LAUNCH_UNTIL?: string;
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
 };
@@ -20,10 +22,21 @@ export const SIGNUPS_PER_DAY = 100;
  * off). Turnstile is optional, but a key without its partner is a mistake, so
  * it stops the site rather than leaving the form unguarded.
  */
-export function joinConfig(env: WebsiteBindings) {
+export function joinConfig(env: WebsiteBindings, now = new Date()) {
   const raw = env.SIGNUPS_PER_DAY?.trim() ?? "";
-  const perDay = raw === "" ? SIGNUPS_PER_DAY : /^\d{1,4}$/.test(raw) ? Number(raw) : NaN;
-  if (!Number.isInteger(perDay) || perDay > 1000) throw new Error("SIGNUPS_PER_DAY must be a whole number from 0 to 1000");
+  const base = raw === "" ? SIGNUPS_PER_DAY : /^\d{1,4}$/.test(raw) ? Number(raw) : NaN;
+  if (!Number.isInteger(base) || base > 1000) throw new Error("SIGNUPS_PER_DAY must be a whole number from 0 to 1000");
+  const launchUntil = env.SIGNUPS_LAUNCH_UNTIL?.trim();
+  const launchRaw = env.SIGNUPS_LAUNCH_PER_DAY?.trim();
+  if (Boolean(launchUntil) !== Boolean(launchRaw)) throw new Error("Set both launch signup settings, or neither");
+  if (launchUntil && (!/^\d{4}-\d{2}-\d{2}$/.test(launchUntil)
+    || Number.isNaN(Date.parse(`${launchUntil}T00:00:00Z`))
+    || new Date(`${launchUntil}T00:00:00Z`).toISOString().slice(0, 10) !== launchUntil))
+    throw new Error("SIGNUPS_LAUNCH_UNTIL must be a real UTC date in YYYY-MM-DD form");
+  const launchPerDay = launchRaw && /^\d{1,4}$/.test(launchRaw) ? Number(launchRaw) : NaN;
+  if (launchUntil && (!Number.isInteger(launchPerDay) || launchPerDay < 1 || launchPerDay > 1000))
+    throw new Error("SIGNUPS_LAUNCH_PER_DAY must be a whole number from 1 to 1000");
+  const perDay = launchUntil && now.toISOString().slice(0, 10) <= launchUntil ? launchPerDay : base;
   if (!env.TURNSTILE_SITE_KEY !== !env.TURNSTILE_SECRET_KEY) throw new Error("Set both Turnstile keys, or neither");
   if (perDay === 0) return null;
   return { perDay, turnstile: env.TURNSTILE_SITE_KEY

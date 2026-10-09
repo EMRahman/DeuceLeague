@@ -8,7 +8,7 @@ import { wantsThis } from "../../../adapters/coach/dist/season.js";
 import { change, fixture } from "./helpers.ts";
 import { browser, playingWebsite, signIn, websiteFixture } from "./website-helpers.ts";
 
-test("planning survives reloads, remains private and refuses outsiders, CSRF and closed fixtures", async t => {
+test("private plans and shared arrangements survive reloads and refuse outsiders, CSRF and closed fixtures", async t => {
   const f = await websiteFixture(t); const p = await playingWebsite(f);
   await f.api(`/v1/members/${p.members[1].id}`, f.admin, "PATCH", { phone: "07700 900123" });
   await f.create("/v1/court-locations", { name: "Club courts", latitude: 51, longitude: 0 });
@@ -35,9 +35,15 @@ test("planning survives reloads, remains private and refuses outsiders, CSRF and
   assert.deepEqual((await f.api('/v1/me/match-plans', sam.session())).body.data, [{match_id:p.match, state:'planned', arranged_on:null}]);
   assert.equal((await sam.post(`/matches/${p.match}/plan`, {state:"arranged", arranged_on:"2026-10-15"})).status, 303);
   assert.match((await sam.get("/")).html, /Arranged <span[^>]*>\(1\)/);
+  assert.match((await alex.get("/")).html, /Arranged <span[^>]*>\(1\)/);
+  assert.deepEqual((await f.api('/v1/me/match-plans', alex.session())).body.data,
+    [{match_id:p.match, state:'arranged', arranged_on:null}]);
+  assert.deepEqual((await f.api('/v1/me/match-plans', sam.session())).body.data, [{match_id:p.match, state:'arranged', arranged_on:null}]);
+  assert.equal((await save('planned')).status, 409);
   assert.deepEqual((await f.api('/v1/me/match-plans', sam.session())).body.data, [{match_id:p.match, state:'arranged', arranged_on:null}]);
   assert.equal((await save('to_arrange')).status, 200);
   assert.deepEqual((await f.api('/v1/me/match-plans', sam.session())).body.data, []);
+  assert.deepEqual((await f.api('/v1/me/match-plans', alex.session())).body.data, []);
   await save('planned');
   await f.api(`/v1/entries/${p.entries[1].id}`, f.admin, "PATCH", {state:"withdrawn"});
   assert.equal((await save('arranged')).status, 409);
@@ -100,6 +106,10 @@ test("the preference migration preserves existing member and join-request choice
   ]);
   const sql = await readFile(new URL('../../../packages/db-d1/migrations/0019_mixed_doubles_preferences.sql', import.meta.url), 'utf8');
   await f.db.batch(sql.split('--> statement-breakpoint').map(part => f.db.prepare(part)));
+  for (const migration of ['0020_match_plans.sql', '0021_match_plan_match_index.sql', '0022_self_level.sql']) {
+    const next = await readFile(new URL(`../../../packages/db-d1/migrations/${migration}`, import.meta.url), 'utf8');
+    await f.db.batch(next.split('--> statement-breakpoint').map(part => f.db.prepare(part)));
+  }
   assert.equal(await f.db.prepare('SELECT plays FROM member WHERE id = ?').bind(member).first('plays'), 'both');
   assert.equal(await f.db.prepare('SELECT plays FROM join_request WHERE id = ?').bind(request).first('plays'), 'not_now');
   assert.equal((await f.call(`/v1/members/${member}`, f.admin, 'PATCH', {wants_to_play:'all'})).status, 200);

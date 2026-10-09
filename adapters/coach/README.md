@@ -167,3 +167,15 @@ The Cloudflare Worker mounts it at `/coach`, next to the players' website. See
 the [Cloudflare deployment guide](../../deploy/cloudflare/README.md#coachs-site).
 
 With a configured email provider, Members can email sign-in links individually, on approval, or to up to five selected members per request. The latest provider acceptance or failed attempt is shown separately from sign-in status. Acceptance does not confirm inbox delivery. The missing-contact list and Save contacts form let the coach complete legacy records without removing members. New join requests require both email and telephone.
+
+New applicants choose a playing level from 10 (absolute beginner) to 1
+(national competitor). Their own estimate stays visible beside the level you
+can adjust. With no previous season, use **Season → Prepare first season** to
+choose competitions and dates. Approved members can be sorted into singles
+divisions before they sign in. The initial targets are eight singles players or
+six doubles pairs per division. The drafts stay editable: review levels, move
+players between divisions, and add doubles pairs from the suggestions or make
+different pairs. A partial setup can be resumed from the Season page; select
+the option to finish sorting existing drafts only if the initial setup was
+interrupted, since it can restore a player you deliberately removed. Starting
+the season is a separate confirmed action that creates fixtures.

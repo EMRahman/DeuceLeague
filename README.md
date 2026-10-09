@@ -52,12 +52,13 @@ being treated as confirmed problems:
 1. Run a blank-start club through the actual join form, coach approvals,
    separate player browsers and season turnover; verify quotas, persistence
    and what people see on their phones.
-2. Make a large joining cohort easier to review, including clear launch quota
-   guidance and safe checks before approving several applicants.
+2. Check the new self-rating and coach review flow with real applicants. The
+   timed launch quota can take 200 requests per day for a week, then return to
+   the normal 100; approvals are still one applicant at a time.
 3. Help the coach contact players with one-sided results and review disputes,
    unarranged matches and division vacancies before closing a season.
-4. Explain that a player's arranged marker is private and does not message the
-   opponent; check whether the wording makes sense to players.
+4. Check whether players understand that an arranged marker now updates every
+   participant's board but does not send a message or book a court.
 
 Players interested in a particular area are welcome to [fork the project](https://github.com/EMRahman/DeuceLeague/fork)
 and work on it. The [development guide](DEVELOPING.md) explains how to run the

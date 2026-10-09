@@ -3,7 +3,7 @@ import type { Child, FC, PropsWithChildren } from "hono/jsx";
 import type { PlayerPlacements, Claim, Competition, MatchDetail, MatchLine, Rules, Side, Standings, StandingsRow } from "./api.js";
 import { claimToForm, describe, formatHint, OUTCOMES, playedOn, setRows } from "./score.js";
 import { conditions, goodForTennis, type Forecast, type VenueForecast } from "./weather.js";
-import { AGE_GROUPS, GENDERS, PLAY_TYPES, playSelections, PRIVACY_NOTICE, type JoinForm } from "./join.js";
+import { AGE_GROUPS, GENDERS, PLAY_TYPES, playSelections, PRIVACY_NOTICE, SELF_LEVELS, type JoinForm } from "./join.js";
 
 /**
  * Server-rendered HTML and forms work without JavaScript. A small same-origin
@@ -518,7 +518,21 @@ export const Join: FC<{
         </select>
       </div>
       <PlayChoices value={values.plays} />
-      <p class="hint">Choose any combination. New players usually start in the bottom division at the start of a season.</p>
+      <p class="hint">Choose any combination. The coach reviews your level and division before the season starts.</p>
+      <div class="field">
+        <label for="self_level">How well do you play? {values.plays === "not_now" ? "(optional for social members)" : ""}</label>
+        <select id="self_level" name="self_level">
+          <option value="" selected={!values.self_level}>Choose your level</option>
+          {SELF_LEVELS.map(([level, label]) => <option value={String(level)} selected={values.self_level === String(level)}>{level} · {label}</option>)}
+        </select>
+        <p class="muted">Choose what matches your usual play, not your best day. The coach can adjust this before placing you.</p>
+        <details>
+          <summary>How to choose a level</summary>
+          <table><thead><tr><th>Level</th><th>Typical match play</th></tr></thead><tbody>
+            {SELF_LEVELS.map(([level, label, description]) => <tr><th scope="row">{level} · {label}</th><td>{description}</td></tr>)}
+          </tbody></table>
+        </details>
+      </div>
       <div class="field choices">
         <label>
           <input type="checkbox" name="privacy" value="yes" required checked={values.privacy} />
@@ -570,13 +584,13 @@ export const Privacy: FC<{ frame: Frame }> = ({ frame }) => (
     <p>
       Your name, your email address and telephone number, your gender, your age group if you gave one, whether you
       want to play singles, doubles, mixed doubles, any combination of these, or remain a social member,
-      the playing level the coach gives you, which competitions you play in, and your results.
+      your self-rated playing level, the level the coach gives you, which competitions you play in, and your results.
     </p>
     <h2>Why</h2>
     <p>
       To run the league you asked to join: to place you in a division, arrange your matches, let your partner and
       opponents reach you about them, let you sign in and
-      report scores, and contact you about the league. We use email for sign-in links and telephone for WhatsApp league communications. Your gender decides which men's, women's or mixed
+      report scores, and contact you about the league. We use email for sign-in links and telephone for WhatsApp league communications. Your self-rated playing level helps the coach place you; the coach may adjust it. Your gender decides which men's, women's or mixed
       competitions you can join, and your age group helps the coach plan fair draws. We send no marketing, and never sell or share your details
       for anyone else's use.
     </p>
@@ -758,6 +772,7 @@ const MatchBoard: FC<{ matches: MyMatch[] }> = ({ matches }) => {
           const matchesHere = matches.filter(m => (m.plan === 'arranged' ? 'arranged' : 'to_arrange') === state);
           return <section class={`board-column ${state}`} data-lane={state}>
             <h3>{title} <span class="muted lane-count">({matchesHere.length})</span></h3>
+            {state === "arranged" && <p class="muted">This status is shared with everyone in the match. Arrange the time and court directly with them.</p>}
             <p class="muted board-empty" hidden={matchesHere.length > 0}>{state === 'to_arrange' ? 'All caught up.' : 'None yet.'}</p>
             {matchesHere.map(m => {
               const reachable = (m.people ?? []).filter(c => c.phone || c.email);

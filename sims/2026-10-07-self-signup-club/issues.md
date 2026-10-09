@@ -1,34 +1,41 @@
-# Work candidates from the blank-start scenario
+# Decisions and remaining work from the blank-start scenario
 
-These are design candidates, not new confirmed defects. The model did not run
-the Worker UI, so acceptance needs a real browser and D1 run.
+The simulation is a model, not an observed club. Its suggested changes need
+real player feedback and a browser check before their value is confirmed.
 
 ## 1. Review a large joining cohort
 
-At the default 100 submissions/day, a 150-person same-day club launch cannot
-finish through the public form without a configuration change. Even with the
-cap raised, the coach reviews oldest-first pages of 25 and approves each
-request separately. Offer a coach-facing launch guide that explains the quota
-and a review queue with multi-select approval, duplicate and contact checks,
-and a per-applicant level preview. Never silently approve a duplicate.
+The join form now asks playing applicants to choose a level from 10 (absolute
+beginner) to 1 (national competitor), with descriptions. The coach can review
+and change the level; the original estimate remains visible. The first-season
+screen sorts approved singles members into editable divisions, including
+members who have not signed in. It suggests doubles pairs for the coach to
+confirm. A timed launch setting can take 200 requests per UTC day for a week,
+then return automatically to the normal 100.
+
+The coach still reviews applications one by one on pages of 25. If real use
+shows this is too slow, design multi-select approval with duplicate, contact
+and level checks, while keeping explicit coach decisions for each applicant.
 
 ## 2. Reach players awaiting a result
 
-At season end the model left 20 and 18 one-sided results. The current Results
-page identifies them and the member page can open WhatsApp, but the coach
-must traverse matches and members one by one. Provide a contact-oriented
-queue with the waiting side, match, and a ready-to-copy message. Keep WhatsApp
-external and avoid including the opposing private score.
+Players arrange matches and correct differing scores with each other, using
+their usual communication channel. The coach gets involved only in exceptional
+cases. The existing Results page identifies disputes and one-sided results;
+watch real use before adding a routine coach chase queue. Keep private score
+claims out of any contact message.
 
 ## 3. Review closure across competitions
 
-Before ending a season, show one summary of disputed, one-sided and never
-arranged fixtures, with links to decide or chase each. Show resulting division
-sizes and vacancies for the next draft. Preserve the current explicit end
-confirmation and the rule that unresolved results count as unplayed.
+Before ending a season, a compact review of disputed, one-sided and unarranged
+fixtures could help the coach find the exceptional cases. The next-season
+draft already explains vacancies and carries over agreed pairs. Pair
+suggestions now help the coach place unpaired doubles players manually. Check
+whether the remaining work warrants a single closing summary after real use.
 
-## 4. Explain private arrangement markers
+## 4. Shared arrangement markers
 
-The player can mark a match arranged, but that marker is private and sends no
-message. Put that fact beside the action and the WhatsApp contact link. Check
-with players in a browser study whether they expect the opponent to see it.
+An arranged marker now updates every participant's board, including doubles
+partners. Any participant can move it back to To Arrange. The site explains
+that it does not message anyone or book a court. Check the wording with players
+in a browser study.

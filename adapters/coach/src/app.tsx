@@ -24,6 +24,8 @@ import { draftView, endOfDay, nextDates, nextName, pairsView, turnover, type Act
   type PartnerChoice, type PlacementPlan } from "./season.js";
 import { Draft, EndSeason, justStarted, Pairs, SeasonPage, StartSeason, type LooseEnd, type NextForm } from "./season-views.js";
 import { CoachMatch, CoachMatches, ReviewSettlement } from "./result-views.js";
+import { FIRST_COMPETITIONS, divisionFor, readySingles, suggestedPairs } from "./first-season.js";
+import { FirstDraft, FirstSeasonSetup, type FirstForm } from "./first-season-views.js";
 import { readSettlementForm, type SettlementPreview } from "./results.js";
 import {
   Activity,
@@ -1272,6 +1274,102 @@ export function createCoachSite(options: CoachOptions) {
 
   const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+  async function firstSeasonPage(c: Context, who: Coach, sent?: FirstForm, message?: string, existing?: Season) {
+    if (!who.scopes.includes("members:pii")) return c.html(<Problem frame={seasonFrame(who)}
+      title="Member details needed" detail="This coach key needs members:pii to sort players into gendered competitions."
+      back={backToSeason} />, 403);
+    const members = await all<ActiveMember>("/v1/members?status=active", who.key);
+    const future = new Date(Date.now() + 90 * 86_400_000);
+    const competitions = existing ? await all<CoachCompetition>(`/v1/competitions?season_id=${existing.id}`, who.key) : [];
+    const selected = competitions.length ? FIRST_COMPETITIONS.filter((spec) => competitions.some((item) => item.name === spec.name))
+      .map((spec) => spec.key) : FIRST_COMPETITIONS.map((spec) => spec.key);
+    const form = sent ?? { name: existing?.name ?? `Club season ${today(who.club.timezone).slice(0, 4)}`,
+      starts_on: existing?.starts_on ?? today(who.club.timezone),
+      ends_on: existing?.ends_on ?? new Intl.DateTimeFormat("en-CA", { timeZone: who.club.timezone }).format(future),
+      selected };
+    return c.html(<FirstSeasonSetup frame={seasonFrame(who)} form={form} members={members} existingDrafts={competitions.length > 0}
+      {...(message ? { message } : {})} />,
+      message ? 400 : 200);
+  }
+
+  app.get("/season/first", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    const seasons = await all<Season>("/v1/seasons", who.key);
+    if (seasons.length > 1 || seasons.some((season) => season.state !== "planning")) return c.redirect("/coach/season", 303);
+    return firstSeasonPage(c, who, undefined, undefined, seasons[0]);
+  });
+
+  app.post("/season/first", async (c) => {
+    const who = await coach(c);
+    if (!who) return c.redirect("/coach", 303);
+    if (!who.scopes.includes("members:pii")) return firstSeasonPage(c, who);
+    const body = await c.req.parseBody();
+    const sent: FirstForm = { name: String(body.name ?? "").trim(),
+      starts_on: String(body.starts_on ?? ""), ends_on: String(body.ends_on ?? ""),
+      selected: FIRST_COMPETITIONS.filter((spec) => body[spec.key] === "yes").map((spec) => spec.key) };
+    if (!sent.name || sent.name.length > 100) return firstSeasonPage(c, who, sent, "Give the season a name, up to 100 letters.");
+    const validDate = (value: string) => DATE.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+      && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+    if (!validDate(sent.starts_on) || !validDate(sent.ends_on) || sent.ends_on < sent.starts_on)
+      return firstSeasonPage(c, who, sent, "Give valid first and last days, with the last after the first.");
+    if (!sent.selected.length) return firstSeasonPage(c, who, sent, "Choose at least one competition.");
+    const seasons = await all<Season>("/v1/seasons", who.key);
+    if (seasons.length > 1 || seasons.some((s) => s.state !== "planning" || s.name !== sent.name))
+      return c.redirect("/coach/season", 303);
+    if (seasons[0] && (seasons[0].starts_on !== sent.starts_on || seasons[0].ends_on !== sent.ends_on))
+      return firstSeasonPage(c, who, sent, "The season dates changed since this draft was created. Use its original dates to continue.", seasons[0]);
+    const take = allowance();
+    let season = seasons[0];
+    if (!season) {
+      take();
+      season = await api<Season>("POST", "/v1/seasons", who.key, { name: sent.name, starts_on: sent.starts_on,
+        ends_on: sent.ends_on, results_deadline_at: endOfDay(sent.ends_on, who.club.timezone) });
+    }
+    const members = await all<ActiveMember>("/v1/members?status=active", who.key);
+    const competitions = await all<CoachCompetition>(`/v1/competitions?season_id=${season.id}`, who.key);
+    const skipExisting = new Set(c.req.query("continue") === "yes"
+      ? (c.req.query("skip") ?? "").split(",").filter(Boolean)
+      : body.resume_existing === "yes" ? [] : competitions.map((item) => item.id));
+    const continueSetup = () => {
+      const query = new URLSearchParams({ continue: "yes" });
+      if (skipExisting.size) query.set("skip", [...skipExisting].join(","));
+      return c.redirect(`${new URL(c.req.url).pathname}?${query}`, 307);
+    };
+    for (const spec of FIRST_COMPETITIONS.filter((x) => sent.selected.includes(x.key))) {
+      let competition = competitions.find((x) => x.name === spec.name);
+      if (competition && skipExisting.has(competition.id)) continue;
+      if (!competition) {
+        if (!take()) return continueSetup();
+        competition = await api<CoachCompetition>("POST", "/v1/competitions", who.key, {
+          season_id: season.id, name: spec.name, discipline: spec.discipline, category: spec.category,
+          match_format: "best_of_3_champions_tiebreak",
+        });
+      }
+      const singles = readySingles(members, spec);
+      const expected = spec.discipline === "singles" ? singles.length : suggestedPairs(members, spec.category).length;
+      const needed = Math.max(1, Math.ceil(expected / spec.target));
+      const { data: currentDivisions } = await api<{ data: Division[] }>("GET", `/v1/competitions/${competition.id}/divisions`, who.key);
+      for (let ordinal = currentDivisions.length + 1; ordinal <= needed; ordinal++) {
+        if (!take()) return continueSetup();
+        const division = await api<Division>("POST", `/v1/competitions/${competition.id}/divisions`, who.key,
+          { ordinal, name: `Division ${ordinal}`, target_size: spec.target });
+        currentDivisions.push(division);
+      }
+      if (spec.discipline !== "singles") continue;
+      const { data: currentEntries } = await api<{ data: Entry[] }>("GET", `/v1/competitions/${competition.id}/entries`, who.key);
+      const already = new Set(currentEntries.flatMap((entry) => entry.members.map((m) => m.id)));
+      for (const [index, member] of singles.entries()) {
+        if (already.has(member.id)) continue;
+        if (!take()) return continueSetup();
+        const division = currentDivisions.find((d) => d.ordinal === divisionFor(index, singles.length, spec.target))!;
+        await api("POST", `/v1/competitions/${competition.id}/entries`, who.key,
+          { division_id: division.id, member_ids: [member.id], placement_reason: "new" });
+      }
+    }
+    return c.redirect("/coach/season", 303);
+  });
+
   app.post("/season/next", async (c) => {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
@@ -1317,13 +1415,13 @@ export function createCoachSite(options: CoachOptions) {
     return c.redirect("/coach/season", 303);
   });
 
-  /** A draft of next season's, with the competition it follows; null if it is not a draft any more. */
+  /** A draft competition, first-season or following a previous one. */
   async function draftOf(key: string, id: string) {
     const draft = await api<CoachCompetition>("GET", `/v1/competitions/${encodeURIComponent(id)}`, key).catch((error: unknown) => {
       if (error instanceof ApiProblem && [400, 404].includes(error.problem.status)) return null;
       throw error;
     });
-    return draft?.state === "draft" && draft.previous_competition_id ? draft : null;
+    return draft?.state === "draft" ? draft : null;
   }
 
   const notADraft = (c: Context, who: Coach) => c.html(<Problem frame={seasonFrame(who)} title="Not a draft"
@@ -1360,6 +1458,16 @@ export function createCoachSite(options: CoachOptions) {
     if (!who) return c.redirect("/coach", 303);
     const draft = await draftOf(who.key, c.req.param("id"));
     if (!draft) return notADraft(c, who);
+    if (!draft.previous_competition_id) {
+      const [season, divisions, entries, members] = await Promise.all([
+        api<Season>("GET", `/v1/seasons/${draft.season_id}`, who.key),
+        api<{ data: Division[] }>("GET", `/v1/competitions/${draft.id}/divisions`, who.key),
+        api<{ data: Entry[] }>("GET", `/v1/competitions/${draft.id}/entries`, who.key),
+        all<ActiveMember>("/v1/members?status=active", who.key),
+      ]);
+      return c.html(<FirstDraft frame={seasonFrame(who)} season={season} draft={draft}
+        divisions={divisions.data} entries={entries.data} members={members} />);
+    }
     const previousId = draft.previous_competition_id!;
     const [season, previous, divisions, entries, lastEntries, standings, members, plan, onBreak] = await Promise.all([
       api<Season>("GET", `/v1/seasons/${draft.season_id}`, who.key),
@@ -1392,7 +1500,7 @@ export function createCoachSite(options: CoachOptions) {
     const who = await coach(c);
     if (!who) return c.redirect("/coach", 303);
     const draft = await draftOf(who.key, c.req.param("id"));
-    if (!draft) return notADraft(c, who);
+    if (!draft || !draft.previous_competition_id) return notADraft(c, who);
     await api("POST", `/v1/competitions/${draft.id}/placements`, who.key).catch((error: unknown) => {
       // Filled already, by this form sent twice: what it wanted.
       if (!(error instanceof ApiProblem) || error.problem.code !== "entries_exist") throw error;

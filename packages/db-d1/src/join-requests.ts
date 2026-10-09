@@ -12,12 +12,14 @@ export type JoinRequestRecord = {
   gender: string | null; ageGroup: string | null;
   /** What they want to play: singles, doubles, both or not now. Null on a request made before the form asked. */
   plays: string | null;
+  selfLevel: number | null;
   /** A member already on the club's list with the same email address. */
   member: { id: string; displayName: string } | null;
 };
 export type NewJoinRequest = {
   id: string; firstName: string; surname: string; email: string | null; phone: string | null; privacyNotice: string;
   gender: string | null; ageGroup: string | null; plays: string | null;
+  selfLevel: number | null;
 };
 export class JoinRequestExistsError extends Error {}
 
@@ -28,6 +30,7 @@ function requestRecord(r: Row): JoinRequestRecord {
     privacyNotice: String(r.privacy_notice), createdAt: new Date(Number(r.created_at)),
     gender: r.gender === null ? null : String(r.gender), ageGroup: r.age_group === null ? null : String(r.age_group),
     plays: r.plays === null || r.plays === undefined ? null : String(r.plays),
+    selfLevel: r.self_level === null || r.self_level === undefined ? null : Number(r.self_level),
     member: r.member_json === null ? null : JSON.parse(String(r.member_json)) as JoinRequestRecord["member"] };
 }
 
@@ -35,7 +38,7 @@ export type JoinRequestFilter = { id?: string; email?: string; after?: string | 
 
 /** Waiting requests, oldest first. One that has waited too long is gone, whether or not it is pruned yet. */
 function requestsRead(db: D1Database, q: JoinRequestFilter) {
-  return db.prepare(`SELECT r.id, r.first_name, r.surname, r.email, r.phone, r.privacy_notice, r.created_at, r.gender, r.age_group, r.plays,
+  return db.prepare(`SELECT r.id, r.first_name, r.surname, r.email, r.phone, r.privacy_notice, r.created_at, r.gender, r.age_group, r.plays, r.self_level,
       (SELECT json_object('id', m.id, 'displayName', m.display_name) FROM member m
         WHERE m.club_id = r.club_id AND lower(m.email) = lower(r.email) AND m.email IS NOT NULL
           AND m.deleted_at IS NULL) AS member_json
@@ -73,14 +76,15 @@ export async function createJoinRequest(db: D1Database, state: IdentitySnapshot,
   try {
     const result = await commitAuthorized(db, state, [
       db.prepare("DELETE FROM join_request WHERE created_at <= ?").bind(state.now - WAIT_MS),
-      db.prepare(`INSERT INTO join_request (id, club_id, first_name, surname, email, phone, privacy_notice, gender, age_group, plays, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      db.prepare(`INSERT INTO join_request (id, club_id, first_name, surname, email, phone, privacy_notice, gender, age_group, plays, self_level, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(input.id, clubId, input.firstName, input.surname, input.email, input.phone, input.privacyNotice,
-          input.gender, input.ageGroup, input.plays, state.now),
+          input.gender, input.ageGroup, input.plays, input.selfLevel, state.now),
       // Which fields they gave, never the values: the log cannot be erased.
       eventStatement(db, clubId, "join_request.received", "join_request", input.id, actor(state), {
         fields: ["first_name", "surname", ...(input.email ? ["email"] : []), ...(input.phone ? ["phone"] : []),
-          ...(input.gender ? ["gender"] : []), ...(input.ageGroup ? ["age_group"] : []), ...(input.plays ? ["plays"] : [])],
+          ...(input.gender ? ["gender"] : []), ...(input.ageGroup ? ["age_group"] : []), ...(input.plays ? ["plays"] : []),
+          ...(input.selfLevel ? ["self_level"] : [])],
         privacy_notice: input.privacyNotice,
       }),
       requestsRead(db, { id: input.id }),

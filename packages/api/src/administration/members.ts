@@ -16,6 +16,7 @@ export function toMember(m: MemberRecord, withPii: boolean): z.infer<typeof Memb
     rating: m.rating === null ? null : Number(m.rating),
     rating_system: m.ratingSystem,
     level: m.level,
+    self_level: m.selfLevel,
     joined_on: m.joinedOn,
     wants_to_play: m.plays as WantsToPlay | null,
     leaving_at: iso(m.leavingAt),
