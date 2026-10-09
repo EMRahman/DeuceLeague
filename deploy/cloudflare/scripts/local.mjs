@@ -1,10 +1,10 @@
-// npm run local: the club's whole site on this computer, with the sample league,
-// for trying DeuceLeague and changing its pages. Nothing leaves the machine.
+// npm run local: the club's whole site on this computer, with the sample league
+// by default or an empty club with --blank. Nothing leaves the machine.
 //
 // The first run makes .dev.vars with local secrets, creates the club with the
-// sample, and saves the keys to .wrangler/local-club.txt (both ignored by Git).
+// sample by default, and saves the keys to .wrangler/local-club.txt (both ignored by Git).
 // Every run applies the migrations to the local D1, recompiles on each save,
-// serves the Worker, and makes fresh sign-in links for Sample Alex and Bailey.
+// serves the Worker, and makes fresh sign-in links if sample players are present.
 // Keys are never printed: the administrator key goes to the clipboard.
 
 import { spawn, spawnSync } from "node:child_process";
@@ -26,10 +26,11 @@ const PLAYERS = ["Sample Alex", "Sample Bailey"];
 const { values } = parseArgs({ options: {
   port: { type: "string", default: "8787" },
   name: { type: "string", default: "Local club" },
+  blank: { type: "boolean", default: false },
   help: { type: "boolean" },
 } });
 if (values.help) {
-  console.log("npm run local [-- --port 8787 --name \"Local club\"]: the club's site on this computer, with the sample league.");
+  console.log("npm run local [-- --port 8787 --name \"Local club\" --blank]: the club's site on this computer; --blank starts without sample members.");
   process.exit(0);
 }
 
@@ -128,14 +129,17 @@ try {
   const { initialized } = await api("GET", "/setup/status", token);
   if (!initialized) {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/London";
-    const made = await api("POST", "/setup", token, { slug: "local-club", name: values.name, timezone, sample: true });
+    const made = await api("POST", "/setup", token, { slug: "local-club", name: values.name, timezone, sample: !values.blank });
     // Saved at once: setup never runs again, so this is the only chance to keep it.
     keys.clear();
     keys.set("ADMIN_KEY", made.api_key);
     saveKeys(keys);
-    console.log(`\nMade "${values.name}" with the sample league: 22 players, singles and doubles, 50 matches.`);
+    console.log(values.blank
+      ? `\nMade "${values.name}" with no members or seasons.`
+      : `\nMade "${values.name}" with the sample league: 22 players, singles and doubles, 50 matches.`);
   }
   const admin = keys.get("ADMIN_KEY");
+  const sampleLinkNames = [];
   if (admin) {
     // Links work once, so every run makes fresh ones. The site runs without them.
     try {
@@ -145,6 +149,7 @@ try {
         if (!member) continue;
         const link = await api("POST", `/v1/members/${member.id}/login-link`, admin, { expires_in_minutes: 4320 });
         keys.set(`${name.split(" ")[1].toUpperCase()}_LINK`, `${origin}/login?token=${link.token}`);
+        sampleLinkNames.push(name);
       }
       saveKeys(keys);
     } catch (error) {
@@ -157,7 +162,7 @@ try {
     `DeuceLeague is running at ${origin}`,
     `  Coach:   ${origin}/coach, signing in with the administrator key` +
       (admin ? (copied ? " (copied to your clipboard; also in .wrangler/local-club.txt)" : " in .wrangler/local-club.txt") : " you saved"),
-    ...(admin ? ["  Players: sign-in links for Sample Alex and Sample Bailey are in .wrangler/local-club.txt"] : []),
+    ...(sampleLinkNames.length ? [`  Players: sign-in links for ${sampleLinkNames.join(" and ")} are in .wrangler/local-club.txt`] : []),
     "Edit adapters/website/src or adapters/coach/src, save, and refresh: changes show in a few seconds.",
     "Ctrl+C stops it. The club stays in .wrangler/ for next time; delete that folder to start again.",
     "",

@@ -25,15 +25,20 @@ checks rather than the runtime suites.
 
 ```sh
 npm run local           # http://localhost:8787, with the sample league
+npm run local -- --blank # a new club with no sample members or seasons
 ```
 
 The first run writes `.dev.vars` with local secrets and creates a club with the
-sample, saving its keys to `.wrangler/local-club.txt` and copying the
-administrator key to the clipboard. Every run applies the migrations to the
-local D1, serves the Worker, recompiles on save (the Worker loads the packages'
+sample by default, or an empty club with `--blank`, saving its keys to
+`.wrangler/local-club.txt` and copying the administrator key to the clipboard.
+Every run applies the migrations to the local D1, serves the Worker, and
+recompiles on save (the Worker loads the packages'
 `dist/`, so without this an edit needs a restart), and makes fresh sign-in links
-for Sample Alex and Sample Bailey. Delete `.wrangler/` to start again. Open it
-at `localhost`, not `127.0.0.1`: the Worker answers only on `PUBLIC_URL`.
+for Sample Alex and Sample Bailey when they exist. Delete `.wrangler/` to start
+again. Open it at `localhost`, not `127.0.0.1`: the Worker answers only on
+`PUBLIC_URL`. To use `--blank` with a fresh club, back up or remove the existing
+`.wrangler/state` and `.wrangler/local-club.txt` first; the option does not clear
+an existing club.
 
 By hand, the same is: copy `.dev.vars.example` to `.dev.vars`, fill it in and
 add `PUBLIC_URL=http://localhost:8787`; run `npm run cf:db:migrate`; then
