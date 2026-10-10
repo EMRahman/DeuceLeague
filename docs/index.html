@@ -164,7 +164,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
   </div>
   <div class="eyebrow">For coaches</div>
   <h1>A straightforward league for players and coaches.</h1>
-  <p class="lead">A club member built this for our club: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. A coding agent, such as Claude Code, Codex or Pi Agent, can help with the bigger league jobs and extend the website to suit your coaching and the club.</p>
+  <p class="lead">A club player built this to see what today’s technology could do for a club league: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. A coding agent, such as Claude Code, Codex or Pi Agent, can help with the bigger league jobs and extend the website to suit your coaching and the club.</p>
   <div class="ctas">
     <a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a>
     <a class="cta quiet" href="#run-your-club">Start your club</a>
@@ -184,7 +184,8 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 </nav>
 
 <h2>Why it exists</h2>
-<p>The app we use now could be simpler and more straightforward for our league. Most visits are for a few everyday tasks: enter a result, correct a pending entry, check the table or see who’s left to play. DeuceLeague puts those tasks within easy reach.</p>
+<p>DeuceLeague started with a club player who wanted to see what today’s technology could do for a convenient club league. Most visits are for a few everyday tasks: enter a result, correct a pending entry, check the table or see who’s left to play. DeuceLeague puts those within easy reach.</p>
+<p>Until recently, software like this needed a developer to build and look after it, so it came as a commercial product, paid for with subscriptions, adverts or attention. AI coding agents have cut the cost of building, running, understanding and exploring software. A coach with limited technical skills can now run the league, change the website and ask questions of their own data by describing what they want. So DeuceLeague doesn’t need traffic or adverts to exist. It’s measured by what it does for the club: better tennis, more competitive matches, and more people playing regularly for their health.</p>
 <p>It works in a browser on a phone, tablet or computer, with no separate app to install or keep updated. The club runs its own copy and keeps its own data. Because the code is open source, a coach can adapt the website with a coding agent — adding coaching information, useful links or a small page for a regular league task.</p>
 
 <div class="promises">
@@ -353,7 +354,7 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 </div>
 
 <h2 id="earning">Earning from it, without getting in players’ way</h2>
-<p>DeuceLeague is free, and it stays free for players. A coach who runs the league may still want it to help their coaching. That works best when whatever earns you money also helps the players.</p>
+<p>DeuceLeague is free, and it stays free for players. A coach who runs the league may still want it to help their coaching. Running it, you get to know a whole club of players, and that network is worth something. Use it to offer services that help players, never to sell their attention.</p>
 
 <div class="callout">
   <p><strong>Keep the league pages plain.</strong> Players open the site to do one quick thing: enter a result, check the table or see who’s left to play. Keep those pages free of adverts and clutter. Anything commercial goes in your own space on the home page, or on a page of its own.</p>
@@ -362,7 +363,11 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
 <div class="ideas">
   <div class="idea"><strong>Lessons and clinics</strong><p>A card on the home page with your group sessions, and a link to the booking system you already use.</p></div>
   <div class="idea"><strong>Match reviews with DeuceMate</strong><p>A player scores a league match with <a href="https://emrahman.github.io/DeuceMate/">DeuceMate</a>, a free scoring app for Apple Watch and iPhone with no adverts or tracking. It keeps point-by-point stats and can share the match as a single web page. The player sends it to you and books a session to go through it. They work on their game, and you’re paid for coaching.</p></div>
-  <div class="idea"><strong>A sponsor, if you want one</strong><p>One clearly labelled card that you control, such as a local stringer or the club shop. Keep it away from entering results, and use no advertising network: its scripts would track players and slow the pages down.</p></div>
+  <div class="idea"><strong>Clip reviews</strong><p>Players send short clips of a stroke or a point, and you reply with feedback, for a fee or as part of a lesson.</p></div>
+  <div class="idea"><strong>Restringing</strong><p>A restringing service, ordered from your space on the home page and handed over at the club.</p></div>
+  <div class="idea"><strong>Tennis holidays and trips</strong><p>Club trips, or a holiday partner, offered to players who say they’re interested. A player’s details go to a partner only with that player’s own consent, and the member list is never sold.</p></div>
+  <div class="idea"><strong>Second-hand kit</strong><p>A page of rackets, shoes and bags that members are passing on, with a small commission for you if you want one.</p></div>
+  <div class="idea"><strong>A sponsor, if you want one</strong><p>One clearly labelled card that you control, for a business your players would actually use. Keep it away from entering results, and use no advertising network: its scripts would track players and slow the pages down.</p></div>
 </div>
 
 <div class="mock" aria-label="Mock-up">
@@ -374,6 +379,11 @@ footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25r
   </div>
 </div>
 <p class="muted small">None of these are included. They’re ideas to build with a coding agent, and you choose which suit your club. <a href="https://github.com/EMRahman/DeuceMate">DeuceMate</a> is a separate open-source project.</p>
+
+<h3>Paid for value, not for clicks</h3>
+<p>Much of the web has been paid for with attention: more visits, more adverts. Cloudflare’s chief executive, Matthew Prince, has argued that this model is breaking as AI answers questions without sending visitors, and that creators should be paid for the value of their work instead. He has likened it to how Spotify made paying for music more convenient than piracy. Cloudflare’s <a href="https://blog.cloudflare.com/introducing-pay-per-crawl/">pay per crawl</a> is one early form of this: a site can charge AI crawlers for each page they read.</p>
+<p><strong>What a coach can do with it.</strong> Your coaching knowledge is the content worth paying for: drills, technique notes and match-play advice, written up in your own words. Publish it as public pages on the club’s own domain through Cloudflare, then choose for each AI crawler whether to allow it, charge it or block it. Your players read it free; AI companies pay to learn from it.</p>
+<p><strong>What stays out of it.</strong> The league itself is never for sale. Players’ pages sit behind sign-in and hold personal details, and the core earns nothing from visits. Pay per crawl is still new and its availability is limited, so treat it as a promising extra alongside the services above, not as the plan.</p>
 
 <h2>Built to be trusted</h2>
 <ul class="checks done">

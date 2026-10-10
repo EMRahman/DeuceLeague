@@ -8,6 +8,9 @@ private. The coach runs the league from their phone too, with a coding agent
 such as Claude Code, Codex or Pi Agent for the bigger jobs. It runs on
 Cloudflare's free plan, in the club's own account.
 
+A club player built it to see what AI-era tools could do for a club league. It
+aims at better tennis and more competitive matches, not traffic or adverts.
+
 **[For coaches →](https://emrahman.github.io/DeuceLeague/)** what it does, how to run your club, and how it fits
 together.
 
