@@ -1,11 +1,18 @@
 # DeuceLeague
 
-Open-source tennis league software for a club. Players see their matches and
-tables and enter results independently from their phones. Matching entries
-confirm the result, while opposing submissions stay private.
-The coach hands out sign-in links and runs the league, with a coding agent such
-as Claude Code, Codex or Pi Agent for the bigger jobs. It runs on Cloudflare's
-free plan, in the club's own account.
+Free, open-source tennis league software for a club. Players enter their
+results and check the tables from their phones: a website, so no app to
+install, no passwords and no adverts built in. Both sides enter the score
+independently; matching entries confirm it, and opposing submissions stay
+private. The coach runs the league from their phone too, with a coding agent
+such as Claude Code, Codex or Pi Agent for the bigger jobs. It runs on
+Cloudflare's free plan, in the club's own account.
+
+A club player built it to see what AI-era tools could do for a club league. It
+aims at better tennis and more competitive matches, not traffic or adverts.
+
+**[For coaches →](https://emrahman.github.io/DeuceLeague/)** what it does, how to run your club, and how it fits
+together.
 
 ## Try it
 
@@ -25,84 +32,37 @@ service and no server.
 
 ![The coach's website on an iPhone: the dashboard, results to review, and a disputed match with both sides' entries.](docs/images/coach-preview.png)
 
-> **Open for a club beta, with known limits.** A coach willing to test new
-> software can try the sample club, then pilot it with players while checking
-> results, tables and unresolved matches. Automated tests pass, and a local
-> Worker simulation of a 150-member club completed two seasons with all 191
-> independently checked standings rows matching. Real-club use and deployed
-> Cloudflare limits have not yet been verified.
->
-> **Latest simulation, 7 October 2026:** a blank-start model processed 150
-> applications and two seasons with 88 league players. It used the current
-> join validator and league engine, but its sign-ins, coach actions and player
-> activity were modeled: the local Worker/browser run was blocked by the test
-> environment. It highlighted the effort of approving a large joining cohort,
-> chasing one-sided results and reviewing vacancies at season turnover. Its
-> match and follow-up rates are assumptions, not observations of real players.
-> [Latest report](sims/2026-10-07-self-signup-club/report.md) ·
-> [Earlier live local Worker run](sims/2026-10-04-150-member-club/report.md) ·
-> [All simulations](sims/README.md)
+## In beta
 
-## Next work
+Six simulated clubs have been run through their seasons, between 30 September
+and 7 October 2026. The largest was a 150-member club over two seasons, where
+all 191 independently checked standings rows matched, and each run shaped the
+next round of work. Automated tests pass. It hasn't yet run a season at a real
+club, so it's in beta: we're looking for a coach willing to pilot it with their
+players. [What the simulations found, and next work](https://emrahman.github.io/DeuceLeague/#where-it-stands).
 
-The [7 October work candidates](sims/2026-10-07-self-signup-club/issues.md)
-come from an in-process model, so they need a live browser and D1 check before
-being treated as confirmed problems:
+## For coaches
 
-1. Run a blank-start club through the actual join form, coach approvals,
-   separate player browsers and season turnover; verify quotas, persistence
-   and what people see on their phones.
-2. Check the new self-rating and coach review flow with real applicants. The
-   timed launch quota can take 200 requests per day for a week, then return to
-   the normal 100; approvals are still one applicant at a time.
-3. Help the coach contact players with one-sided results and review disputes,
-   unarranged matches and division vacancies before closing a season.
-4. Check whether players understand that an arranged marker now updates every
-   participant's board but does not send a message or book a court.
+- **Free for your players, and nothing in their way.** Entering a result,
+  the tables and who's left to play are a tap or two from the home page.
+- **The club owns it.** Your own Cloudflare account, your own database, often
+  at no cost.
+- **You stay in charge.** It suggests promotions and relegations but never
+  makes them, and it never messages anyone on its own.
+- **Make it yours.** Add your coaching, lesson bookings or a club bot around
+  the league, without touching its data.
 
-Players interested in a particular area are welcome to [fork the project](https://github.com/EMRahman/DeuceLeague/fork)
-and work on it. The [development guide](DEVELOPING.md) explains how to run the
-checks, and the [simulation issue drafts](sims/2026-10-07-self-signup-club/issues.md)
-offer starting points.
+The [guides to running your club](https://emrahman.github.io/DeuceLeague/#run-your-club) cover starting a club for
+real, running it day to day, making the site your own and taking updates.
 
-## Run your club
+## For players who'd like to help
 
-- [Start your club](deploy/cloudflare/GO-LIVE.md): a fresh deployment for real,
-  your members and courts, and inviting players.
-- [Running the league day to day](docs/COACH-WORKFLOW.md) with a coding agent.
-- [Make the site your own](deploy/cloudflare/CUSTOMISE.md), on your own computer
-  first, with a coding agent.
-- [Update your club](deploy/cloudflare/UPDATING.md) to a new DeuceLeague version.
-- [New players joining](deploy/cloudflare/JOINING.md), [sign-in emails](deploy/cloudflare/EMAIL.md),
-  [court forecasts](deploy/cloudflare/WEATHER.md)
-  and [recovering administrator access](deploy/cloudflare/RECOVERY.md).
-- [For coaches](https://emrahman.github.io/DeuceLeague/for-coaches.html): what
-  it does and why, in more detail.
-
-## Build on it
-
-The league is an API. The players' website and the coach's site are adapters
-on it, like anything a club builds with a coding agent: a bot, an app, a
-report. The contract is published at `/openapi.json` on every deployment, with
-a [readable reference](https://emrahman.github.io/DeuceLeague/api.html).
-
-- [API concepts, permissions and workflows](docs/API.md)
-- [How the deployment works](deploy/cloudflare/README.md)
-- [Developing DeuceLeague](DEVELOPING.md): checks, running it locally, and API
-  changes
-
-### The model
-
-A season contains competitions; each competition has divisions and entries.
-Entries play matches. Standings are computed from confirmed results whenever
-they are read. The coach reviews and applies promotion and relegation
-placements for the next competition.
-
-League rules are data: scoring, tiebreaks, promotion counts, withdrawals, and
-deadlines belong to each competition. The core serves JSON. Websites, apps,
-and tools build on the API.
-
-### What is here
+If you play in a league and have some spare time, there's useful work here.
+[Fork the project](https://github.com/EMRahman/DeuceLeague/fork), pick an item
+from the [next work](https://emrahman.github.io/DeuceLeague/#where-it-stands), and follow the
+[development guide](DEVELOPING.md) to run the checks. The league is an API, so
+a bot, an app or a report can be built on it too: see the
+[API reference](https://emrahman.github.io/DeuceLeague/api.html) and [how it's built](https://emrahman.github.io/DeuceLeague/#build-on-it).
 
 ```
 packages/schema   Shared Zod schemas for scores, formats, and rules       MIT
@@ -114,15 +74,6 @@ adapters/coach    Coach's website: progress, results, chase list, links   MIT
 deploy/cloudflare Worker deployment, installer, and recovery tooling
 docs/API.md       API concepts, permissions, and workflows
 ```
-
-## From VPS to Cloudflare
-
-DeuceLeague began as a Docker and PostgreSQL application on a small VPS, which
-left each club with a server to operate, secure, back up and update. It now
-runs as one Cloudflare Worker and one D1 database per club. The original source
-is preserved in the
-[`vps-baseline-2026-09-28`](https://github.com/EMRahman/DeuceLeague/tree/vps-baseline-2026-09-28)
-tag for reference, recovery, or a separate legacy fork.
 
 ## Licence
 
