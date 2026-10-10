@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeuceLeague</title>
+<meta name="description" content="Free, open-source tennis league software for a club: players enter results from their phones, and the coach runs the league with a coding agent.">
+<style>
+:root {
+  --bg: #fbfaf7; --fg: #1d1d1b; --muted: #6b6a66; --line: #e3e1db; --card: #fff;
+  --accent: #2f6b3a; --accent-fg: #fff; --accent-bg: #e6f3e8; --ball: #d9e84a;
+  --warn: #8a4b08; --warn-bg: #fdf1e2; --code-bg: #f1efe9;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --fg: #ecebe7; --muted: #a09e98; --line: #33322f; --card: #1f1f1d;
+    --accent: #6fbf7c; --accent-fg: #0f1a11; --accent-bg: #1c2b1e; --ball: #c9d84a;
+    --warn: #f0b36a; --warn-bg: #2d2214; --code-bg: #262624;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 52rem; margin: 0 auto; padding: 0 16px 4rem; }
+a { color: var(--accent); }
+h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.1; margin: 0 0 1rem; letter-spacing: -.02em; }
+h2 { font-size: 1.6rem; line-height: 1.2; margin: 3.5rem 0 .75rem; letter-spacing: -.01em; }
+h3 { font-size: 1.1rem; margin: 1.75rem 0 .4rem; }
+p { margin: 0 0 1rem; }
+.lead { font-size: 1.2rem; color: var(--muted); max-width: 40rem; }
+.eyebrow { font-size: .8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: .5rem; }
+.muted { color: var(--muted); }
+.small { font-size: .9rem; }
+
+header.hero { padding: 3.5rem 0 1rem; }
+.logo { display: inline-flex; align-items: center; gap: .6rem; font-weight: 700; margin-bottom: 2rem; }
+.logo svg { width: 36px; height: 36px; }
+
+.promises { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .75rem; margin: 1.5rem 0; }
+.promise { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.1rem; }
+.promise strong { display: block; margin-bottom: .2rem; }
+.promise span { color: var(--muted); font-size: .95rem; }
+
+/* Real pages, as they look on a phone. */
+.phones { display: flex; gap: 1.5rem; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: thin; padding: 1rem 18px 1.5rem; margin: 1.25rem -18px 0; }
+figure.phone { margin: 0; flex: 0 0 auto; width: min(360px, calc(100vw - 30px)); scroll-snap-align: center; }
+.phone .frame { position: relative; border: 9px solid #1d1d1b; border-top-width: 25px; border-bottom-width: 15px; border-radius: 42px; overflow: hidden; background: #fbfaf7; box-shadow: 0 18px 45px rgb(0 0 0 / .18); }
+.phone .frame::before { content: ""; position: absolute; z-index: 1; top: -15px; left: 50%; width: 48px; height: 4px; border-radius: 999px; background: #555; transform: translateX(-50%); }
+.phone img { display: block; width: 100%; height: auto; background: #fbfaf7; }
+.phone figcaption { font-size: .95rem; line-height: 1.5; color: var(--muted); margin: .9rem .35rem 0; }
+.phone figcaption strong { color: var(--fg); display: block; margin-bottom: .15rem; font-size: 1rem; }
+.preview-pagination { display: none; }
+@media (max-width: 699px) {
+  .phones { scrollbar-width: none; padding-bottom: .75rem; }
+  .phones::-webkit-scrollbar { display: none; }
+  .preview-pagination { display: flex; flex-direction: column; align-items: center; gap: .15rem; margin: .15rem 0 .9rem; color: var(--muted); font-size: .8rem; }
+  .preview-dots { display: flex; justify-content: center; gap: .15rem; }
+  .preview-dot { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; background: transparent; cursor: pointer; }
+  .preview-dot::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: var(--line); transition: width .2s ease, background-color .2s ease; }
+  .preview-dot[aria-current="true"]::before { width: 18px; background: var(--accent); }
+  .preview-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; border-radius: 999px; }
+}
+
+table.asks { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+table.asks th { text-align: left; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; padding: .5rem .75rem .5rem 0; border-bottom: 2px solid var(--line); }
+table.asks td { vertical-align: top; padding: .8rem .75rem .8rem 0; border-bottom: 1px solid var(--line); }
+table.asks td:first-child { width: 48%; }
+.say { font-style: italic; }
+.say::before { content: "“"; } .say::after { content: "”"; }
+@media (max-width: 600px) {
+  table.asks thead { display: none; }
+  table.asks td { display: block; width: auto !important; padding: .2rem 0; border: 0; }
+  table.asks tr { display: block; padding: .7rem 0; border-bottom: 1px solid var(--line); }
+}
+
+.callout { background: var(--accent-bg); border-radius: 14px; padding: 1rem 1.2rem; margin: 1.25rem 0; }
+.callout.warn { background: var(--warn-bg); color: var(--warn); }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+
+/* Mock-up of the coach's own space on the players' home page. */
+.mock { border: 2px dashed var(--line); border-radius: 16px; padding: 1rem; margin: 1.25rem 0; }
+.mock .label { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .6rem; }
+.mock .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin-bottom: .75rem; }
+.mock .card h4 { margin: 0 0 .25rem; font-size: 1.05rem; }
+.mock .btn { display: inline-block; margin-top: .6rem; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: .45rem .9rem; font-weight: 600; font-size: .9rem; text-decoration: none; }
+
+.ctas { display: flex; flex-wrap: wrap; gap: .6rem; margin: 1.25rem 0 0; }
+a.cta { display: inline-block; background: var(--accent); color: var(--accent-fg); border-radius: 10px; padding: .7rem 1.2rem; font-weight: 700; text-decoration: none; }
+a.cta.quiet { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); font-weight: 600; }
+ol.steps { counter-reset: step; list-style: none; padding: 0; margin: 1rem 0; }
+ol.steps li { counter-increment: step; position: relative; padding: 0 0 1.1rem 2.75rem; }
+ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 2rem; height: 2rem; border-radius: 50%; background: var(--accent); color: var(--accent-fg); font-weight: 700; display: grid; place-items: center; font-size: .95rem; }
+ol.steps li strong { display: block; }
+.who { display: inline-block; font-size: .72rem; font-weight: 700; padding: .05rem .45rem; border-radius: 999px; margin-left: .3rem; vertical-align: 2px; }
+.who.you { background: var(--warn-bg); color: var(--warn); }
+.who.agent { background: var(--accent-bg); color: var(--accent); }
+
+.costs { display: grid; grid-template-columns: 1fr auto; gap: .4rem 1.5rem; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.2rem; max-width: 34rem; }
+.costs span:nth-child(even) { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.costs .total { border-top: 1px solid var(--line); padding-top: .4rem; }
+
+/* How it fits together. */
+.arch { display: grid; grid-template-columns: 1fr; gap: .75rem; margin: 1.25rem 0; }
+@media (min-width: 700px) { .arch { grid-template-columns: 1.1fr .9fr; } }
+.box { border-radius: 14px; padding: 1rem 1.2rem; }
+.box.core { background: var(--card); border: 2px solid var(--accent); }
+.box.edge { background: var(--card); border: 2px dashed var(--line); }
+.box h3 { margin-top: 0; display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; }
+.lic { font-size: .72rem; font-weight: 700; padding: .1rem .5rem; border-radius: 999px; background: var(--code-bg); color: var(--muted); white-space: nowrap; }
+.box ul { margin: .25rem 0 0; padding-left: 1.1rem; }
+.box li { margin-bottom: .25rem; }
+
+.ideas { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .75rem; margin: 1rem 0; }
+.idea { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 1rem 1.1rem; }
+.idea strong { display: block; margin-bottom: .25rem; }
+.idea p { margin: 0; color: var(--muted); font-size: .95rem; }
+
+ul.checks { list-style: none; padding: 0; margin: .5rem 0 1rem; }
+ul.checks li { padding-left: 1.75rem; position: relative; margin-bottom: .45rem; }
+ul.checks li::before { position: absolute; left: 0; font-weight: 700; }
+ul.checks.done li::before { content: "✓"; color: var(--accent); }
+ul.checks.todo li::before { content: "○"; color: var(--warn); }
+
+/* On this page. */
+nav.toc { display: flex; flex-wrap: wrap; gap: .4rem; margin: 2rem 0 0; }
+nav.toc a { font-size: .9rem; font-weight: 600; text-decoration: none; padding: .3rem .75rem; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--line); }
+nav.toc a:hover { background: var(--accent-bg); }
+
+/* Guides: the whole card is the link. */
+.guides a.idea { color: inherit; text-decoration: none; }
+.guides a.idea strong { color: var(--accent); }
+.guides a.idea:hover { border-color: var(--accent); }
+
+/* How it fits together: the core inside the pieces built on it. */
+.rings { margin: 1.5rem 0; }
+.ring { border-radius: 18px; padding: 1rem; }
+.ring.outer { border: 2px dashed var(--line); }
+.ring.middle { background: var(--card); border: 1px solid var(--line); margin-top: 1rem; }
+.ring.core { background: var(--accent-bg); border: 2px solid var(--accent); }
+.ring-label { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: .5rem; font-weight: 700; margin-bottom: .6rem; }
+ul.chips { list-style: none; display: flex; flex-wrap: wrap; gap: .4rem; padding: 0; margin: 0; }
+ul.chips li { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: .25rem .75rem; font-size: .9rem; }
+.ring.middle ul.chips li { background: var(--bg); }
+.via { color: var(--muted); font-size: .85rem; text-align: center; margin: .9rem 0 .6rem; }
+.core-parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: .6rem; }
+.core-parts div { background: var(--card); border-radius: 12px; padding: .7rem .85rem; }
+.core-parts strong { display: block; }
+.core-parts span { color: var(--muted); font-size: .9rem; }
+.rings figcaption { color: var(--muted); font-size: .95rem; margin: .9rem .25rem 0; }
+@media (max-width: 480px) { .ring { padding: .75rem; } }
+ul.sims li { margin-bottom: .5rem; }
+
+code { font: .88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--code-bg); padding: .1rem .35rem; border-radius: 5px; }
+footer { border-top: 1px solid var(--line); margin-top: 4rem; padding-top: 1.25rem; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<header class="hero">
+  <div class="logo">
+    <svg viewBox="0 0 96 96" aria-hidden="true"><rect width="96" height="96" rx="20" fill="#2f6b3a"/><circle cx="48" cy="48" r="28" fill="#d9e84a"/><path d="M24 36c10 4 14 12 14 12s-4 8-14 12M72 36c-10 4-14 12-14 12s4 8 14 12" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"/></svg>
+    DeuceLeague
+  </div>
+  <div class="eyebrow">For coaches</div>
+  <h1>A straightforward league for players and coaches.</h1>
+  <p class="lead">A club member built this for our club: a simpler way to report scores, check the tables and run the league. Players open a website on their phones, so there’s one less app to worry about. A coding agent, such as Claude Code, Codex or Pi Agent, can help with the bigger league jobs and extend the website to suit your coaching and the club.</p>
+  <div class="ctas">
+    <a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a>
+    <a class="cta quiet" href="#run-your-club">Start your club</a>
+  </div>
+  <div class="callout warn">
+    <p><strong>Open for a club beta, with known limits.</strong> A coach willing to test new software can try the sample club and then pilot it with players, checking results, tables and matches that still need a decision. Whole-club simulations have found useful gaps; real-club use is still unverified. <a href="#where-it-stands">See the findings and next work</a>.</p>
+  </div>
+</header>
+
+<nav class="toc" aria-label="On this page">
+  <a href="#players">Players</a>
+  <a href="#coach">Coach</a>
+  <a href="#run-your-club">Run your club</a>
+  <a href="#how-it-fits">How it fits together</a>
+  <a href="#earning">Earning</a>
+  <a href="#where-it-stands">Where it stands</a>
+</nav>
+
+<h2>Why it exists</h2>
+<p>The app we use now could be simpler and more straightforward for our league. Most visits are for a few everyday tasks: enter a result, correct a pending entry, check the table or see who’s left to play. DeuceLeague puts those tasks within easy reach.</p>
+<p>It works in a browser on a phone, tablet or computer, with no separate app to install or keep updated. The club runs its own copy and keeps its own data. Because the code is open source, a coach can adapt the website with a coding agent — adding coaching information, useful links or a small page for a regular league task.</p>
+
+<div class="promises">
+  <div class="promise"><strong>Straight to the league</strong><span>Scores, tables and matches still to play are easy to find.</span></div>
+  <div class="promise"><strong>No passwords</strong><span>Players sign in once from a link you send them and stay signed in on that phone.</span></div>
+  <div class="promise"><strong>One less app</strong><span>Open the website in your browser, or add it to your phone’s home screen.</span></div>
+  <div class="promise"><strong>Adapt it to your club</strong><span>Extend the website with coaching information or tools for the way you run your league.</span></div>
+</div>
+
+<h2 id="players">What players see</h2>
+<p>A player opens the site a few times a month to do one of four things: enter a result, correct a pending entry, see where they stand, or see who they still have to play. Each of these is a tap or two from the home page.</p>
+
+<div class="phones">
+  <figure class="phone">
+    <div class="frame"><img src="images/player-home.png" width="780" height="1688" loading="lazy" alt="The player's dashboard on an iPhone: weather at the courts, matches to play and arrange, and a card for each league."></div>
+    <figcaption><strong>Dashboard</strong>The weather at the courts, what is still to play or arrange, and where they stand in each league.</figcaption>
+  </figure>
+  <figure class="phone">
+    <div class="frame"><img src="images/player-tables.png" width="780" height="1688" loading="lazy" alt="A singles division table on an iPhone: two places marked for promotion, two for relegation, and the player’s own row opened to show the points from each match."></div>
+    <figcaption><strong>Tables</strong>Singles Division 2: promotion and relegation places marked, and a player’s own points so far, match by match. Tap any row for the same.</figcaption>
+  </figure>
+  <figure class="phone">
+    <div class="frame"><img src="images/player-score.png" width="780" height="1688" loading="lazy" alt="The score form on an iPhone, with a box for each side's games in each set."></div>
+    <figcaption><strong>Enter a result</strong>Each side enters the score independently. Matching entries confirm the result; opposing submissions stay private.</figcaption>
+  </figure>
+</div>
+<div class="preview-pagination" aria-label="Screenshot navigation">
+  <div class="preview-dots">
+    <button class="preview-dot" type="button" aria-label="Show the dashboard" aria-current="true"></button>
+    <button class="preview-dot" type="button" aria-label="Show the league table"></button>
+    <button class="preview-dot" type="button" aria-label="Show result entry"></button>
+  </div>
+  <span>Swipe for more</span>
+</div>
+<p class="muted small">These are screenshots of the real pages on an iPhone, filled with made-up results.</p>
+
+<h3>A result counts when both sides enter matching results</h3>
+<p>Both sides enter the full result independently. Matching entries confirm it; pending entries contribute no points. Players see their own entry and whether the entries match, while opposing submissions stay private. If entries differ, players speak outside the app and correct their own pending entry. If they need help, open the match on the coach’s Results page to decide it. Review the named sides, points, played credit and minimum-match consequences before saving. Corrections to confirmed results require an explicit override; earlier submissions, your reason and your coach identity stay in the history.</p>
+
+<h2 id="coach">What you see as the coach</h2>
+<p>You run the league from your phone at <code>/coach</code>, signed in with your administrator key. It shows what needs you first: results to decide, join requests to approve, players to chase. Tables, members, the season and court forecasts are a tap away.</p>
+
+<div class="phones">
+  <figure class="phone">
+    <div class="frame"><img src="images/coach-dashboard.png" width="780" height="1688" loading="lazy" alt="The coach dashboard on an iPhone: matches played, results to review, join requests and progress in each competition."></div>
+    <figcaption><strong>Dashboard</strong>How the season is going, what needs you, and how far each competition has got.</figcaption>
+  </figure>
+  <figure class="phone">
+    <div class="frame"><img src="images/coach-results.png" width="780" height="1688" loading="lazy" alt="The coach’s results page on an iPhone, listing disputed matches with each side’s score."></div>
+    <figcaption><strong>Results to review</strong>Disputed scores and missing entries to sort out, with both sides’ entries side by side.</figcaption>
+  </figure>
+  <figure class="phone">
+    <div class="frame"><img src="images/coach-match.png" width="780" height="1688" loading="lazy" alt="A disputed match on the coach’s page on an iPhone, with both sides’ entries and a link to use either."></div>
+    <figcaption><strong>A disputed match</strong>Both entries as the players typed them, and your decision on which one stands.</figcaption>
+  </figure>
+</div>
+<div class="preview-pagination" aria-label="Screenshot navigation">
+  <div class="preview-dots">
+    <button class="preview-dot" type="button" aria-label="Show the dashboard" aria-current="true"></button>
+    <button class="preview-dot" type="button" aria-label="Show results to review"></button>
+    <button class="preview-dot" type="button" aria-label="Show a disputed match"></button>
+  </div>
+  <span>Swipe for more</span>
+</div>
+<p class="muted small">Also screenshots of the real pages, with made-up results.</p>
+
+<h2>What you do: ask a coding agent</h2>
+<p>For the first season, you tell your coding agent what you want in plain English. It reads the league’s published instructions for its API, shows you the important names, dates and division changes, and makes the changes. After you have used it for real, we decide whether any repeated job deserves its own small coach screen. A few examples:</p>
+
+<table class="asks">
+  <thead><tr><th>You say</th><th>What happens</th></tr></thead>
+  <tbody>
+    <tr><td class="say">Set up the Autumn season from the Summer tables. Top three up, bottom three down, and put Priya in Division 3.</td><td>The Autumn competitions are drafted with every player placed, each with a reason why. You check them over, and nothing takes effect until you switch them on.</td></tr>
+    <tr><td class="say">Who still has matches to play with two weeks left? Draft them a friendly nudge.</td><td>You get a list of players with matches outstanding and how many each. You decide what gets sent and to whom. The league never messages anyone on its own.</td></tr>
+    <tr><td class="say">Sam and Alex can’t agree. It was 6-4 3-6 10-7 to Sam.</td><td>You settle it. Both players’ versions stay on record, and the tables update at once.</td></tr>
+    <tr><td class="say">Add the new members from this spreadsheet.</td><td>The members are created. You then send each one a sign-in link from your coach page.</td></tr>
+    <tr><td class="say">Give an extra point for winning by seven games or more.</td><td>The scoring rules are settings, so no programmer is needed. The tables recalculate straight away.</td></tr>
+    <tr><td class="say">Sam’s lost his phone.</td><td>Sam is signed out on every device.</td></tr>
+  </tbody>
+</table>
+
+<div class="callout">
+  <p><strong>You stay in charge.</strong> The software suggests promotions and relegations, but it never makes them. It closes reporting at the season’s deadline, but it never decides a score. You know things the data doesn’t, such as who was injured, who’s moving away, or who ought to be in a higher division.</p>
+</div>
+
+<h2 id="setting-it-up">Try it, then set it up</h2>
+<p>See it working first. Deploy a sample club in mid-season to a free Cloudflare account, then play it as the coach and as two players: enter matching results independently and watch the table change. It takes about fifteen minutes in a browser, with no email service and nothing to install.</p>
+<p><a class="cta" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/TRY.md">Try it with a sample club</a></p>
+
+<p>When you’re happy, the real club is a fresh deployment without the sample. The accounts are yours, and <strong>we’ll do the first setup together.</strong></p>
+
+<ol class="steps">
+  <li><strong>Create the Cloudflare account <span class="who you">you</span></strong>The club owns the account, Worker and database.</li>
+  <li><strong>Deploy the league <span class="who you">you</span></strong>The same Deploy to Cloudflare button as the trial, with a new Worker and a new database.</li>
+  <li><strong>Create the club <span class="who you">you</span></strong>The installer shows the administrator key once. <strong>You keep that key in a password manager.</strong> Your coding agent gets separately scoped keys for its jobs.</li>
+  <li><strong>Add members and the first season <span class="who agent">coding agent</span></strong>Members come from a spreadsheet of names, and divisions from our last tables.</li>
+  <li><strong>Invite the players <span class="who you">you</span></strong>Sign in to your coach page and send each player their sign-in link, for example on WhatsApp. You can see who has signed in, and nudge those who haven’t.</li>
+  <li><strong>Later, if you want <span class="who you">you</span></strong>The club’s own address, such as <code>league.yourclub.org</code>, with one DNS record; and sign-in emails, so players can ask for their own link.</li>
+</ol>
+<p><a href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/GO-LIVE.md">The full guide to starting your club</a></p>
+
+<h3>What it costs</h3>
+<div class="costs">
+  <span>Cloudflare Workers and D1</span><span>often covered by the free tier at club size</span>
+  <span>Web address</span><span>free on <code>workers.dev</code>, or with the club’s domain</span>
+  <span>Sign-in emails</span><span>optional; depends on the provider</span>
+  <span class="total">Total</span><span class="total">often nothing</span>
+</div>
+
+<h3>Looking after it</h3>
+<p>Cloudflare runs the Worker and D1 service. Keep the administrator key safe, review the D1 recovery options for the account, and check the deployed website after each update. Your coding agent can help with those checks.</p>
+
+<h2 id="run-your-club">Run your club</h2>
+<p>Each guide is written for you and your coding agent. Open it with the agent and go through it together; the agent handles the commands and shows you anything that needs your decision.</p>
+<div class="ideas guides">
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/GO-LIVE.md"><strong>Start your club</strong><p>A fresh deployment for real: your members, your courts, and inviting the players.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/docs/COACH-WORKFLOW.md"><strong>Running the league day to day</strong><p>Describe what you want to your coding agent; it shows you the changes and makes them.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/CUSTOMISE.md"><strong>Make the site your own</strong><p>Change how it looks and works on your own computer first, then put it live.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/UPDATING.md"><strong>Update your club</strong><p>Take a new DeuceLeague version. You choose what to take, and nothing goes live until you merge.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/JOINING.md"><strong>New players joining</strong><p>A join form you can share anywhere; you approve each request and give a level.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/EMAIL.md"><strong>Sign-in emails</strong><p>Optional. Without them, you hand out sign-in links yourself, for example on WhatsApp.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/WEATHER.md"><strong>Court forecasts</strong><p>A 14-day outlook for each of the club’s courts on the players’ home page.</p></a>
+  <a class="idea" href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/RECOVERY.md"><strong>Recovering administrator access</strong><p>What to do if the administrator key is lost.</p></a>
+</div>
+
+<h2 id="how-it-fits">How it fits together</h2>
+<p>The league has a small core that holds the club’s data and rules. Everything players and you actually look at sits around it. Those outer pieces can be changed, replaced or added to with a coding agent, without touching the league data.</p>
+
+<figure class="rings" aria-labelledby="rings-caption">
+  <div class="ring outer">
+    <div class="ring-label">What you could add <span class="lic">yours · MIT</span></div>
+    <ul class="chips">
+      <li>WhatsApp nudges you send</li>
+      <li>A Telegram group bot</li>
+      <li>Tables on the club website</li>
+      <li>A lesson booking page</li>
+      <li>DeuceMate match reviews</li>
+    </ul>
+    <div class="ring middle">
+      <div class="ring-label">Built today <span class="lic">MIT</span></div>
+      <ul class="chips">
+        <li>The players’ website</li>
+        <li>Your coach’s site at <code>/coach</code></li>
+      </ul>
+      <div class="via">↓ everything talks to the core the same way, through the API</div>
+      <div class="ring core">
+        <div class="ring-label">The core <span class="lic">open source · AGPL</span></div>
+        <div class="core-parts">
+          <div><strong>League rules</strong><span>Scoring, tiebreaks, promotion places and deadlines, kept as settings</span></div>
+          <div><strong>The club’s database</strong><span>Members, seasons, divisions and every result, in the club’s own Cloudflare account</span></div>
+          <div><strong>The API</strong><span>The one door every website, bot and agent uses, and it checks what each one is allowed to do</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <figcaption id="rings-caption">The core is the same for every club. Tables are worked out from the results each time, never stored, and the core never messages anyone on its own. The rings around it are where a club makes DeuceLeague its own.</figcaption>
+</figure>
+
+<h3>Ideas someone could build with a coding agent</h3>
+<div class="ideas">
+  <div class="idea"><strong>WhatsApp nudges</strong><p>A button on your coach page that opens WhatsApp with a drafted reminder to a player with matches outstanding. You read it and press send. Sending messages automatically would need Meta’s WhatsApp Business service, which isn’t included.</p></div>
+  <div class="idea"><strong>Telegram bot</strong><p>Posts each agreed result and weekly table changes to the club group. It could also take scores (“6-3 6-4 v Alex”), once it has checked it’s really the player writing.</p></div>
+  <div class="idea"><strong>Nudges before the deadline</strong><p>Drafts a message to everyone with matches outstanding, a month out and again a fortnight out. You approve each one before it goes.</p></div>
+  <div class="idea"><strong>Tables on the club site</strong><p>A small box on the club’s existing website showing the current divisions.</p></div>
+  <div class="idea"><strong>Several clubs, one league</strong><p>Each club can have its own Worker and D1 database, so a county association could run leagues for all its clubs with separate data.</p></div>
+</div>
+
+<h2 id="earning">Earning from it, without getting in players’ way</h2>
+<p>DeuceLeague is free, and it stays free for players. A coach who runs the league may still want it to help their coaching. That works best when whatever earns you money also helps the players.</p>
+
+<div class="callout">
+  <p><strong>Keep the league pages plain.</strong> Players open the site to do one quick thing: enter a result, check the table or see who’s left to play. Keep those pages free of adverts and clutter. Anything commercial goes in your own space on the home page, or on a page of its own.</p>
+</div>
+
+<div class="ideas">
+  <div class="idea"><strong>Lessons and clinics</strong><p>A card on the home page with your group sessions, and a link to the booking system you already use.</p></div>
+  <div class="idea"><strong>Match reviews with DeuceMate</strong><p>A player scores a league match with <a href="https://emrahman.github.io/DeuceMate/">DeuceMate</a>, a free scoring app for Apple Watch and iPhone with no adverts or tracking. It keeps point-by-point stats and can share the match as a single web page. The player sends it to you and books a session to go through it. They work on their game, and you’re paid for coaching.</p></div>
+  <div class="idea"><strong>A sponsor, if you want one</strong><p>One clearly labelled card that you control, such as a local stringer or the club shop. Keep it away from entering results, and use no advertising network: its scripts would track players and slow the pages down.</p></div>
+</div>
+
+<div class="mock" aria-label="Mock-up">
+  <div class="label">Example extension · your space on the players’ home page</div>
+  <div class="card">
+    <h4>Coaching with the club pro</h4>
+    <div class="muted small">Group sessions Tuesday and Thursday evenings · one-to-one by arrangement · match reviews from your DeuceMate stats</div>
+    <a class="btn" href="#" onclick="return false">View lesson booking options</a>
+  </div>
+</div>
+<p class="muted small">None of these are included. They’re ideas to build with a coding agent, and you choose which suit your club. <a href="https://github.com/EMRahman/DeuceMate">DeuceMate</a> is a separate open-source project.</p>
+
+<h2>Built to be trusted</h2>
+<ul class="checks done">
+  <li><strong>Players’ personal details are protected.</strong> Players only see each other’s display names. Emails, phone numbers and dates of birth need a special permission that the coach controls.</li>
+  <li><strong>If someone asks to be erased,</strong> their personal details are removed and their results stay, as data protection law (GDPR) requires.</li>
+  <li><strong>Every change is logged,</strong> including who made it and when, and nothing in the log can be quietly edited afterwards.</li>
+  <li><strong>Automated tests</strong> cover the rules above, including D1 and Worker workflows. Maintainers run them on their own computers before merging a change and record the results with it; nothing runs them automatically on GitHub yet.</li>
+</ul>
+
+<h2 id="where-it-stands">Where it stands: beta</h2>
+<div class="callout warn">
+  <p><strong>Open for a club beta, with known limits.</strong> Automated tests pass. In a local Worker simulation of a 150-member club over two seasons, all 191 independently checked standings rows matched. It hasn’t yet run a season at a real club, and deployed Cloudflare limits haven’t been verified. A coach willing to test new software can try the sample club, then pilot it with players while checking results, tables and unresolved matches.</p>
+</div>
+
+<h3>Six simulated clubs</h3>
+<p>Before any real club, we ran whole clubs through their seasons on a computer: scripted matches, with AI agents playing the coach and the players and reporting what got in their way. Each run fed the next round of work.</p>
+<ul class="sims">
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-09-30-two-season-club/README.md">30 September</a>: two seasons of a club, with scripted players, four player agents and a coach agent, to find pain points.</li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-01-two-season-gpt/README.md">1 October</a>: two seasons with GPT agents after the first fixes. It led to four work items: independent score entry, coach result overrides, newcomer status and email invitations.</li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-02-email-joining/README.md">2 October</a>: email invitations and joining, as a scripted run against the compiled Worker and all the real database migrations.</li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-03-two-season-claude/README.md">3 October</a>: two seasons with Claude agents on the real local Worker, testing those four work items.</li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-04-150-member-club/README.md">4 October</a>: the first run at a real club’s size, 150 members over two seasons. All 191 checked standings rows matched. It pointed to scale on the coach’s Members and Results pages, mid-season withdrawal and contact details.</li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-07-self-signup-club/README.md">7 October</a>: a blank-start model took 150 applications through the current join validator and two seasons with 88 league players using the current league engine. The Worker and browser couldn’t run in that test environment, so sign-ins, coach actions and player activity were modeled rather than observed. It highlighted the effort of approving a large joining cohort, chasing one-sided results and reviewing vacancies at season turnover. Its match and follow-up rates are assumptions, not observations of real players.</li>
+</ul>
+
+<h3>Next work</h3>
+<p>The <a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-07-self-signup-club/issues.md">7 October work candidates</a> come from an in-process model, so each needs a live browser and D1 check before it’s treated as a confirmed problem:</p>
+<ol>
+  <li>Run a blank-start club through the actual join form, coach approvals, separate player browsers and season turnover; verify quotas, persistence and what people see on their phones.</li>
+  <li>Check the new self-rating and coach review flow with real applicants. The timed launch quota can take 200 requests per day for a week, then returns to the normal 100; approvals are still one applicant at a time.</li>
+  <li>Help the coach contact players with one-sided results, and review disputes, unarranged matches and division vacancies before closing a season.</li>
+  <li>Check whether players understand that an arranged marker updates every participant’s board but doesn’t send a message or book a court.</li>
+</ol>
+<p>Players interested in one of these are welcome to <a href="https://github.com/EMRahman/DeuceLeague/fork">fork the project</a> and work on it. The <a href="https://github.com/EMRahman/DeuceLeague/blob/main/DEVELOPING.md">development guide</a> explains how to run the checks, and the <a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-07-self-signup-club/issues.md">issue drafts</a> are starting points. <a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/README.md">All simulations</a> · <a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-07-self-signup-club/report.md">latest report</a> · <a href="https://github.com/EMRahman/DeuceLeague/blob/main/sims/2026-10-04-150-member-club/report.md">150-member live local Worker run</a>.</p>
+
+<div class="arch">
+  <div>
+    <h3>Working today</h3>
+    <ul class="checks done">
+      <li>Signing in, entering results and correcting pending entries</li>
+      <li>Tables, progress and past seasons</li>
+      <li>Promotions and relegations into the next season, confirmed by you</li>
+      <li>The list of who still has matches to play</li>
+      <li>Weather at the courts</li>
+      <li>Your coach page: sign-in links for players, and who has signed in</li>
+      <li>A join form for new players, approved by you, with a level for each</li>
+      <li>A sample club to try it all in about fifteen minutes</li>
+      <li>Guides to trying it, starting a club and recovering access</li>
+      <li>A short guide to everyday coach tasks with a coding agent</li>
+      <li>All of the code, open source on GitHub</li>
+    </ul>
+  </div>
+  <div>
+    <h3>Before our first season on it</h3>
+    <ul class="checks todo">
+      <li>Set up the club’s Cloudflare account together</li>
+      <li>Bring in members and our last tables</li>
+      <li>Try the coach workflow and see whether any repeated task needs a small admin screen</li>
+    </ul>
+  </div>
+</div>
+
+<h2 id="build-on-it">Build on it</h2>
+<p>The league is an API. The players’ website and the coach’s site are built on it, like anything a club builds with a coding agent: a bot, an app, a report. Every deployment publishes its contract at <code>/openapi.json</code>, and there’s a <a href="api.html">readable API reference</a>.</p>
+<p>A season contains competitions; each competition has divisions and entries. Entries play matches. Standings are computed from confirmed results whenever they’re read. The coach reviews and applies promotion and relegation placements for the next competition. League rules are data: scoring, tiebreaks, promotion counts, withdrawals and deadlines belong to each competition.</p>
+<ul>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/docs/API.md">API concepts, permissions and workflows</a></li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/deploy/cloudflare/README.md">How the deployment works</a></li>
+  <li><a href="https://github.com/EMRahman/DeuceLeague/blob/main/DEVELOPING.md">Developing DeuceLeague</a>: checks, running it locally, and API changes</li>
+</ul>
+<h3>From VPS to Cloudflare</h3>
+<p>DeuceLeague began as a Docker and PostgreSQL application on a small VPS, which left each club with a server to operate, secure, back up and update. It now runs as one Cloudflare Worker and one D1 database per club. The original source is kept at the <a href="https://github.com/EMRahman/DeuceLeague/tree/vps-baseline-2026-09-28"><code>vps-baseline-2026-09-28</code></a> tag for reference, recovery, or a separate legacy fork.</p>
+
+<footer>
+  DeuceLeague: open-source club tennis league software. The core is under the AGPL licence; the player website, the coach’s site and anything built around them are under the MIT licence. <a href="https://github.com/EMRahman/DeuceLeague">Source on GitHub</a> · <a href="api.html">API reference</a>
+</footer>
+
+</main>
+<script>
+document.querySelectorAll(".phones").forEach((strip) => {
+  const phones = [...strip.querySelectorAll(".phone")];
+  const dots = [...strip.nextElementSibling.querySelectorAll(".preview-dot")];
+  let frame;
+
+  function closestIndex() {
+    const centre = strip.getBoundingClientRect().left + strip.clientWidth / 2;
+    let best = 0;
+    let bestDistance = Infinity;
+    phones.forEach((phone, index) => {
+      const bounds = phone.getBoundingClientRect();
+      const distance = Math.abs(bounds.left + bounds.width / 2 - centre);
+      if (distance < bestDistance) { best = index; bestDistance = distance; }
+    });
+    return best;
+  }
+
+  function update() {
+    const active = closestIndex();
+    dots.forEach((dot, index) => {
+      if (index === active) dot.setAttribute("aria-current", "true");
+      else dot.removeAttribute("aria-current");
+    });
+  }
+
+  function centre(index) {
+    const stripBounds = strip.getBoundingClientRect();
+    const phoneBounds = phones[index].getBoundingClientRect();
+    strip.scrollTo({
+      left: strip.scrollLeft + phoneBounds.left - stripBounds.left - (strip.clientWidth - phoneBounds.width) / 2,
+      behavior: "smooth",
+    });
+  }
+
+  strip.addEventListener("scroll", () => {
+    cancelAnimationFrame(frame);
+    frame = requestAnimationFrame(update);
+  }, { passive: true });
+  dots.forEach((dot, index) => dot.addEventListener("click", () => centre(index)));
+  window.addEventListener("resize", update);
+  update();
+});
+</script>
+</body>
+</html>
