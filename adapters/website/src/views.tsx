@@ -1736,7 +1736,7 @@ const ScoreForm: FC<{
             <>
               <label for={`mine_${row.n}`}>
                 {row.label}
-                {row.tiebreak && <span class="note">only if the sets were level</span>}
+                {row.tiebreak && row.n > 1 && <span class="note">only if the sets were level</span>}
               </label>
               <ScoreBox id={`mine_${row.n}`} name={`mine_${row.n}`} max={row.max} value={values[`mine_${row.n}`]} />
               <ScoreBox

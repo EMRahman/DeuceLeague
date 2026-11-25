@@ -1383,10 +1383,17 @@ const unusedLink = (m: CoachMember, now = Date.now()) => m.invitation_state === 
   && Date.parse(m.invitation_at) + LINK_MINUTES * 60_000 < now
   && !signedInSince(m, m.invitation_at);
 
+const lastSignIn = (m: CoachMember) => m.last_signed_in_at ?? m.signed_in_at;
+
 /** Whether they have signed in at all, or since a moment: signing out since does not undo it. */
 export const signedInSince = (m: CoachMember, since: string | null = null) => {
-  const last = m.last_signed_in_at ?? m.signed_in_at;
+  const last = lastSignIn(m);
   return !!last && (since === null || Date.parse(last) >= Date.parse(since));
+};
+
+const SignInStatus: FC<{ member: CoachMember; timezone: string }> = ({ member, timezone }) => {
+  const last = lastSignIn(member);
+  return last ? <span class="muted">Signed in {at(last, timezone)}</span> : <span class="deadline">Not signed in yet</span>;
 };
 
 export const Members: FC<{
@@ -1568,11 +1575,7 @@ export const Members: FC<{
                   {m.leaving_at && <span class="tag">Not playing next season</span>}
                   {m.wants_to_play === "not_now" && <span class="tag">Social</span>}
                   <br />
-                  {m.signed_in_at ? (
-                    <span class="muted">Signed in {at(m.signed_in_at, timezone)}</span>
-                  ) : (
-                    <span class="deadline">Not signed in yet</span>
-                  )}
+                  <SignInStatus member={m} timezone={timezone} />
                   {unusedLink(m) && <span class="deadline"> · emailed link not used</span>}
                 </span>
                 {emailConfigured && m.email && <label class="muted"><input type="checkbox" name="member" value={m.id} form="invitations" /> Email</label>}
@@ -1638,11 +1641,7 @@ export const MemberPage: FC<{
       {m.email && <span class="muted"> {m.email}</span>}
       {m.phone && <span class="muted"> · {m.phone}</span>}
       <br />
-      {m.signed_in_at ? (
-        <span class="muted">Signed in {at(m.signed_in_at, timezone)}</span>
-      ) : (
-        <span class="deadline">Not signed in yet</span>
-      )}
+      <SignInStatus member={m} timezone={timezone} />
     </p>
     {m.status === "left" ? (
       <>

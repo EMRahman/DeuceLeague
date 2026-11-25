@@ -180,4 +180,14 @@ test("Members says when an emailed link ran out unused, and lists those placed b
   assert.equal((await f.api(`/v1/members/${alex.id}`, f.admin)).body.signed_in_at, null, "signed in nowhere now");
   const after = (await coach.get("/coach/members?show=unsigned")).html;
   assert.doesNotMatch(after, new RegExp(`id="member-${alex.id}"`));
+  const directory = (await coach.get("/coach/members")).html;
+  assert.match(directory, /1 of 3 signed in/);
+  assert.deepEqual([...directory.matchAll(/<li class="answer" id="member-([^"]+)"/g)].map((row) => row[1]),
+    [newcomer.id, sam.id, alex.id], "members who have never signed in come first");
+  const alexList = (await coach.get("/coach/members?q=Alex")).html;
+  const alexPage = (await coach.get(`/coach/members/${alex.id}`)).html;
+  for (const page of [alexList, alexPage]) {
+    assert.match(page, /Signed in \d/);
+    assert.doesNotMatch(page, /Not signed in yet/);
+  }
 });
