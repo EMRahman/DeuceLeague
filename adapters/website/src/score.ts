@@ -7,21 +7,20 @@ import type { MatchFormat, Outcome, Score, Side } from "./api.js";
  * whether a score is legal is the API's to say, against the competition's format.
  */
 
-/** The most a match tiebreak's score box offers. */
-const TIEBREAK_MAX = 30;
+/** The API accepts up to 99 games or tiebreak points for either side of a set. */
+const MAX_SET_SCORE = 99;
 
 /**
- * One row per set that could be played, the last named for what it is, and the
- * most games (or tiebreak points) its score boxes offer: a set runs to one past
- * its tiebreak (7-6), or to 20 for a set played out without one.
+ * One row per possible set. A set with a tiebreak ends at most one game past
+ * its tiebreak threshold. Advantage sets and match tiebreaks can run long.
  */
 export function setRows(format: MatchFormat): { n: number; label: string; max: number; tiebreak: boolean }[] {
   const count = format.setsToWin * 2 - 1;
-  const setMax = format.set.tiebreakAt === null ? 20 : format.set.tiebreakAt + 1;
+  const setMax = format.set.tiebreakAt === null ? MAX_SET_SCORE : format.set.tiebreakAt + 1;
   return Array.from({ length: count }, (_, i) => {
     const n = i + 1;
-    const tiebreak = n === count && count > 1 && format.finalSet.type === "champions_tiebreak";
-    return { n, label: tiebreak ? "Match tiebreak" : `Set ${n}`, max: tiebreak ? TIEBREAK_MAX : setMax, tiebreak };
+    const tiebreak = n === count && format.finalSet.type === "champions_tiebreak";
+    return { n, label: tiebreak ? "Match tiebreak" : `Set ${n}`, max: tiebreak ? MAX_SET_SCORE : setMax, tiebreak };
   });
 }
 
@@ -156,7 +155,11 @@ export function playedOn(date: string | null | undefined): string {
 export function formatHint(format: MatchFormat): string {
   const games = format.set.gamesToWin;
   const tiebreak = format.set.tiebreakAt === null ? "" : `, tiebreak at ${format.set.tiebreakAt}–${format.set.tiebreakAt}`;
-  if (format.setsToWin === 1) return `One set to ${games}${tiebreak}.`;
+  if (format.setsToWin === 1) {
+    return format.finalSet.type === "champions_tiebreak"
+      ? `Match tiebreak to ${format.finalSet.to}.`
+      : `One set to ${games}${tiebreak}.`;
+  }
   const sets = format.setsToWin * 2 - 1;
   const decider =
     format.finalSet.type === "champions_tiebreak"

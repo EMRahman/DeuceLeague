@@ -252,14 +252,22 @@ test("the join form turns away programs and mistakes, and the coach approves the
   assert.equal(noGender.status, 400); assert.match(noGender.html, /Choose your gender/);
   const oddAge = await join(f, person(f, { age_group: "ancient" }));
   assert.equal(oddAge.status, 400); assert.match(oddAge.html, /Choose one of the age groups/);
-  const noLevel = await join(f, person(f, { self_level: "" }));
+  const incomplete = person(f, { self_level: "" });
+  const noLevel = await join(f, incomplete);
   assert.equal(noLevel.status, 400); assert.match(noLevel.html, /Choose the level that best describes/);
   assert.match(oddAge.html, /<option value="female" selected="">/);
-  const stale = await join(f, person(f, { started: started(f, 2 * 86_400_000) }));
+  const expired = started(f, 2 * 86_400_000);
+  const stale = await join(f, person(f, { started: expired }));
   assert.equal(stale.status, 400); assert.match(stale.html, /open a long time/);
+  const refreshed = /name="started" value="([^"]+)"/.exec(stale.html)?.[1];
+  assert.ok(refreshed && refreshed !== expired);
   assert.equal(await waiting(f), 0);
 
-  assert.match((await join(f, person(f))).html, /Thank you, Robin/);
+  // Correct the level using the form returned to the applicant, without waiting again.
+  const retryStamp = /name="started" value="([^"]+)"/.exec(noLevel.html)?.[1];
+  assert.equal(retryStamp, incomplete.started);
+  assert.match((await join(f, { ...incomplete, started: retryStamp, self_level: "5" })).html, /Thank you, Robin/);
+  assert.equal(await waiting(f), 1);
   assert.match((await join(f, person(f, { first_name: "Alex", surname: "Moss", email: "alex@example.org", phone: "+44 7700 900456", gender: "male", age_group: "" }))).html, /Thank you, Alex/);
   // Asking twice is answered the same, so the form tells nobody who has asked.
   const confirmation = await join(f, person(f, { email: "ROBIN@example.org" }));

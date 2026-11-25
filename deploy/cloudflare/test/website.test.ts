@@ -439,6 +439,7 @@ test("the score form takes numbers, names the sides plainly, and folds away once
   const sam = await signIn(f, "sam@example.org");
   const page = (await sam.get(`/matches/${p.match}`)).html;
   assert.match(page, /<input type="number" name="mine_1"[^>]*inputmode="numeric"/);
+  assert.match(page, /name="mine_1"[^>]*max="7"/);
   assert.doesNotMatch(page, /<select name="(mine|theirs)_/);
   assert.match(page, /<span class="head">You<\/span><span class="head">Them<\/span>/);
   assert.match(page, /Match tiebreak<span class="note">only if the sets were level<\/span>/);
@@ -457,4 +458,21 @@ test("the score form takes numbers, names the sides plainly, and folds away once
   assert.match(after, /You entered <strong>6-4, 6-3<\/strong>/);
   assert.match(after, /<details class="card" id="report">\s*<summary>Change the score<\/summary>/);
   assert.match(after, /name="mine_1"[^>]*value="6"/, "the folded form still holds the score to change");
+});
+
+test("the player form accepts an extended advantage set and match tiebreak", async (t) => {
+  const f = await websiteFixture(t);
+  const p = await playingWebsite(f);
+  const format = { ...p.comp.match_format, set: { ...p.comp.match_format.set, tiebreakAt: null, tiebreakTo: null } };
+  assert.equal((await f.api(`/v1/competitions/${p.comp.id}`, f.admin, "PATCH", { match_format: format })).status, 200);
+  const sam = await signIn(f, "sam@example.org");
+  const path = `/matches/${p.match}`;
+  const page = (await sam.get(path)).html;
+  for (const field of ["mine_1", "theirs_1", "mine_3", "theirs_3"]) {
+    assert.match(page, new RegExp(`name="${field}"[^>]*max="99"`));
+  }
+  const sent = await sam.post(`${path}/report`, { mine_1: "22", theirs_1: "20", mine_2: "2", theirs_2: "6",
+    mine_3: "31", theirs_3: "29" });
+  assert.equal(sent.status, 303);
+  assert.match((await sam.get(path)).html, /You entered <strong>22-20, 2-6, 31-29<\/strong>/);
 });

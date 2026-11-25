@@ -338,7 +338,7 @@ export function createCoachSite(options: CoachOptions) {
     // Who still needs a link first, then by name.
     members.sort(
       (a, b) =>
-        Number(!!a.signed_in_at) - Number(!!b.signed_in_at) || a.display_name.localeCompare(b.display_name),
+        Number(signedInSince(a)) - Number(signedInSince(b)) || a.display_name.localeCompare(b.display_name),
     );
     // Ids only in the address: a name there would reach the browser's history.
     const added = club.find((m) => m.id === c.req.query("added"));
@@ -351,7 +351,7 @@ export function createCoachSite(options: CoachOptions) {
         requests={requests?.requests ?? null}
         moreRequests={requests?.more ?? false} done={done} addedId={added?.id ?? null}
         timezone={who.club.timezone} emailConfigured={!!options.mail} unsigned={unsigned} query={query}
-        total={club.length} signedIn={club.filter((m) => m.signed_in_at).length} />,
+        total={club.length} signedIn={club.filter((m) => signedInSince(m)).length} />,
     );
   });
 

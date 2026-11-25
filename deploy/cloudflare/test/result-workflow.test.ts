@@ -6,11 +6,17 @@ import { DEFAULT_RULES, MATCH_FORMATS } from "@deuceleague/schema";
 import { decideResult } from "../../../packages/api/dist/results/decide.js";
 import { matchDetail } from "../../../packages/api/dist/results/model.js";
 import { MatchPage } from "../../../adapters/website/dist/views.js";
-import { readReportForm } from "../../../adapters/website/dist/score.js";
+import { formatHint, readReportForm, setRows } from "../../../adapters/website/dist/score.js";
 
 const format = MATCH_FORMATS.best_of_3_champions_tiebreak;
 const now = new Date("2026-10-02T12:00:00Z");
 const games = { outcome: "completed" as const, score: { sets: [{ games: [6, 4] as [number, number] }, { games: [6, 3] as [number, number] }] } };
+
+test("a match consisting of one tiebreak uses the tiebreak score limit", () => {
+  const tiebreakOnly = { ...format, setsToWin: 1 };
+  assert.deepEqual(setRows(tiebreakOnly), [{ n: 1, label: "Match tiebreak", max: 99, tiebreak: true }]);
+  assert.equal(formatHint(tiebreakOnly), "Match tiebreak to 10.");
+});
 
 function context(): ResultContext {
   return {

@@ -461,20 +461,24 @@ export function createWebsite(options: WebsiteOptions) {
     const frame = await anonymousFrame();
     const connection = c.req.header("cf-connecting-ip") ?? null;
     const { values, problems } = readJoinForm(form);
-    const again = async (messages: string[], status: 400 | 429) =>
-      c.html(
-        <Join frame={frame} stamp={await stamp(key!)} values={values} messages={messages}
-          turnstileSiteKey={join.turnstile?.siteKey} />,
-        status,
-      );
     // A bot is thanked as a person would be, so it learns nothing from trying.
     const thanks = () => c.html(<JoinSent frame={frame} firstName={values.first_name || "you"} />);
-    const age = await stampAge(key!, String(form.started ?? ""));
+    const started = String(form.started ?? "");
+    const age = await stampAge(key!, started);
     if (String(form.website ?? "") !== "" || age === null || age < MIN_FILL_MS) {
       log("join request ignored: sent by a program");
       return thanks();
     }
-    if (age > MAX_FILL_MS) return again(["This page was open a long time. Check your details and send them again."], 400);
+    // A correction is part of the same form visit. Only an expired form starts a new clock.
+    const again = (messages: string[], status: 400 | 429, formStamp = started) =>
+      c.html(
+        <Join frame={frame} stamp={formStamp} values={values} messages={messages}
+          turnstileSiteKey={join.turnstile?.siteKey} />,
+        status,
+      );
+    if (age > MAX_FILL_MS) {
+      return again(["This page was open a long time. Check your details and send them again."], 400, await stamp(key!));
+    }
     if (problems.length) return again(problems, 400);
     if (join.turnstile) {
       const token = String(form["cf-turnstile-response"] ?? "");
